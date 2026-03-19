@@ -1,22 +1,17 @@
-import { test as setup, expect } from '@playwright/test';
-
-const STORAGE_STATE = process.env.STORAGE_STATE_PATH || 'tests/e2e/.auth/user.json';
+import { test as setup } from '@playwright/test';
+import { STORAGE_STATE } from '../../playwright.config';
+import { ConstantHelper, UiHelpers } from '@umbraco/playwright-testhelpers';
 
 setup('authenticate', async ({ page }) => {
-  const email = process.env.UMBRACO_USER || 'admin@test.com';
-  const password = process.env.UMBRACO_PASSWORD || 'Test12345678!';
+  const umbracoUi = new UiHelpers(page);
 
-  await page.goto('/umbraco/login');
-  await page.waitForLoadState('networkidle');
+  await umbracoUi.goToBackOffice();
+  await umbracoUi.login.enterEmail(process.env.UMBRACO_USER_LOGIN || 'admin@test.com');
+  await umbracoUi.login.enterPassword(process.env.UMBRACO_USER_PASSWORD || 'Test12345678!');
+  await umbracoUi.login.clickLoginButton();
 
-  // Fill in login form
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: /login/i }).click();
+  // Wait for backoffice to load by navigating to Settings
+  await umbracoUi.login.goToSection(ConstantHelper.sections.settings);
 
-  // Wait for successful login - backoffice should load
-  await expect(page.locator('umb-backoffice')).toBeVisible({ timeout: 30000 });
-
-  // Save authentication state
   await page.context().storageState({ path: STORAGE_STATE });
 });
