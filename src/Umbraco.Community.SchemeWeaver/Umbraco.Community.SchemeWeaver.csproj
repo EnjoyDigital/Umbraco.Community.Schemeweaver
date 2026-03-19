@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<IsPackable>true</IsPackable>
+		<PackageId>Umbraco.Community.SchemeWeaver</PackageId>
+		<Product>Umbraco.Community.SchemeWeaver</Product>
+		<Title>Schema.org mapping for Umbraco Content Types</Title>
+		<Description>Maps Umbraco Content Types to Schema.org types and generates JSON-LD output. Auto-maps existing properties, supports manual mapping, and can generate Content Types from Schema.org models.</Description>
+		<PackageTags>umbraco plugin package umbraco-marketplace schema.org json-ld structured-data seo schema-mapping</PackageTags>
+		<StaticWebAssetBasePath>App_Plugins/SchemeWeaver</StaticWebAssetBasePath>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<Version>1.0.0-beta</Version>
+		<Authors>Oliver Picton</Authors>
+		<Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
+		<PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</RepositoryUrl>
+		<PackageReleaseNotes></PackageReleaseNotes>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<RootNamespace>Umbraco.Community.SchemeWeaver</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+		<PackageReference Include="Umbraco.Cms" Version="17.1.0" />
+		<PackageReference Include="Schema.NET" Version="13.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<SupportedPlatform Include="browser" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Exclude schema files from publish to avoid conflicts with main project -->
+		<Content Remove="appsettings-schema.json" />
+		<Content Remove="appsettings-schema.Umbraco.Cms.json" />
+		<Content Remove="umbraco-package-schema.json" />
+
+		<None Remove="appsettings-schema.json" />
+		<None Remove="appsettings-schema.Umbraco.Cms.json" />
+		<None Remove="umbraco-package-schema.json" />
+
+	</ItemGroup>
+</Project>

@@ -1,0 +1,44 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.cache
+*.nupkg
+*.snupkg
+project.lock.json
+.vs/
+*.DotSettings.user
+
+## Node
+node_modules/
+dist/
+package-lock.json
+*.map
+
+## Build
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+[Ll]og/
+
+## IDE
+.idea/
+*.swp
+*~
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Test Results
+TestResults/
+coverage/
+
+## Umbraco schema files (auto-generated)
+appsettings-schema.json
+appsettings-schema.Umbraco.Cms.json
+umbraco-package-schema.json

@@ -1,0 +1,12 @@
+{
+  "id": "Umbraco.Community.SchemeWeaver",
+  "name": "Umbraco SchemeWeaver",
+  "version": "1.0.0",
+  "extensions": [
+    {
+      "type": "bundle",
+      "alias": "Umbraco.Community.SchemeWeaver.WebComponents",
+      "js": "/App_Plugins/SchemeWeaver/dist/index.js"
+    }
+  ]
+}

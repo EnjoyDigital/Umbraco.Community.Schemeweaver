@@ -1,0 +1,14 @@
+namespace Umbraco.Community.SchemeWeaver.Models.Api;
+
+/// <summary>
+/// A suggested mapping between a Schema.org property and an Umbraco content type property.
+/// </summary>
+public class PropertyMappingSuggestion
+{
+    public string SchemaPropertyName { get; set; } = string.Empty;
+    public string? SchemaPropertyType { get; set; }
+    public string? SuggestedContentTypePropertyAlias { get; set; }
+    public string SuggestedSourceType { get; set; } = "property";
+    public int Confidence { get; set; }
+    public bool IsAutoMapped { get; set; }
+}
