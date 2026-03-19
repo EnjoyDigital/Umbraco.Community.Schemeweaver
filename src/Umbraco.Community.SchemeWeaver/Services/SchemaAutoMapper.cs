@@ -18,30 +18,30 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     /// </summary>
     private static readonly Dictionary<string, string[]> Synonyms = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["name"] = new[] { "title", "heading", "name", "pageTitle", "blogTitle", "nodeName" },
-        ["headline"] = new[] { "title", "heading", "pageTitle", "blogTitle" },
-        ["description"] = new[] { "description", "metaDescription", "excerpt", "summary", "intro" },
-        ["articleBody"] = new[] { "content", "bodyText", "richText", "mainContent", "body" },
-        ["image"] = new[] { "heroImage", "mainImage", "thumbnail", "featuredImage", "image", "photo" },
-        ["author"] = new[] { "authorName", "writer", "byline", "author" },
-        ["datePublished"] = new[] { "publishDate", "createDate", "articleDate", "datePublished", "publishedDate" },
-        ["dateModified"] = new[] { "updateDate", "modifyDate", "dateModified", "lastModified", "modifiedDate" },
-        ["url"] = new[] { "url", "link", "href", "pageUrl" },
-        ["telephone"] = new[] { "phone", "phoneNumber", "telephone", "tel", "contactNumber" },
-        ["email"] = new[] { "email", "emailAddress", "contactEmail" },
-        ["address"] = new[] { "address", "streetAddress", "location" },
-        ["logo"] = new[] { "logo", "logoImage", "brandLogo", "siteLogo" },
-        ["copyrightYear"] = new[] { "copyrightYear", "year" },
-        ["inLanguage"] = new[] { "language", "culture", "locale" },
-        ["keywords"] = new[] { "tags", "keywords", "categories" },
-        ["aggregateRating"] = new[] { "rating", "averageRating", "stars" },
-        ["priceRange"] = new[] { "priceRange", "price", "cost" },
-        ["openingHours"] = new[] { "openingHours", "hours", "businessHours" },
-        ["streetAddress"] = new[] { "streetAddress", "addressLine1", "street" },
-        ["addressLocality"] = new[] { "city", "town", "locality" },
-        ["addressRegion"] = new[] { "region", "county", "state", "province" },
-        ["postalCode"] = new[] { "postcode", "postalCode", "zipCode", "zip" },
-        ["addressCountry"] = new[] { "country", "countryCode" },
+        ["name"] = ["title", "heading", "name", "pageTitle", "blogTitle", "nodeName"],
+        ["headline"] = ["title", "heading", "pageTitle", "blogTitle"],
+        ["description"] = ["description", "metaDescription", "excerpt", "summary", "intro"],
+        ["articleBody"] = ["content", "bodyText", "richText", "mainContent", "body"],
+        ["image"] = ["heroImage", "mainImage", "thumbnail", "featuredImage", "image", "photo"],
+        ["author"] = ["authorName", "writer", "byline", "author"],
+        ["datePublished"] = ["publishDate", "createDate", "articleDate", "datePublished", "publishedDate"],
+        ["dateModified"] = ["updateDate", "modifyDate", "dateModified", "lastModified", "modifiedDate"],
+        ["url"] = ["url", "link", "href", "pageUrl"],
+        ["telephone"] = ["phone", "phoneNumber", "telephone", "tel", "contactNumber"],
+        ["email"] = ["email", "emailAddress", "contactEmail"],
+        ["address"] = ["address", "streetAddress", "location"],
+        ["logo"] = ["logo", "logoImage", "brandLogo", "siteLogo"],
+        ["copyrightYear"] = ["copyrightYear", "year"],
+        ["inLanguage"] = ["language", "culture", "locale"],
+        ["keywords"] = ["tags", "keywords", "categories"],
+        ["aggregateRating"] = ["rating", "averageRating", "stars"],
+        ["priceRange"] = ["priceRange", "price", "cost"],
+        ["openingHours"] = ["openingHours", "hours", "businessHours"],
+        ["streetAddress"] = ["streetAddress", "addressLine1", "street"],
+        ["addressLocality"] = ["city", "town", "locality"],
+        ["addressRegion"] = ["region", "county", "state", "province"],
+        ["postalCode"] = ["postcode", "postalCode", "zipCode", "zip"],
+        ["addressCountry"] = ["country", "countryCode"],
     };
 
     public SchemaAutoMapper(IContentTypeService contentTypeService, ISchemaTypeRegistry schemaTypeRegistry)
@@ -53,7 +53,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     public IEnumerable<PropertyMappingSuggestion> SuggestMappings(string contentTypeAlias, string schemaTypeName)
     {
         var contentType = _contentTypeService.Get(contentTypeAlias);
-        if (contentType == null) return Enumerable.Empty<PropertyMappingSuggestion>();
+        if (contentType is null)
+            return [];
 
         var schemaProperties = _schemaTypeRegistry.GetProperties(schemaTypeName).ToList();
         var contentProperties = contentType.PropertyTypes.ToList();
@@ -72,7 +73,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             var exactMatch = contentProperties.FirstOrDefault(
                 p => string.Equals(p.Alias, schemaProp.Name, StringComparison.OrdinalIgnoreCase));
 
-            if (exactMatch != null)
+            if (exactMatch is not null)
             {
                 suggestion.SuggestedContentTypePropertyAlias = exactMatch.Alias;
                 suggestion.Confidence = 100;
@@ -87,7 +88,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 var synonymMatch = contentProperties.FirstOrDefault(
                     p => synonyms.Any(s => string.Equals(p.Alias, s, StringComparison.OrdinalIgnoreCase)));
 
-                if (synonymMatch != null)
+                if (synonymMatch is not null)
                 {
                     suggestion.SuggestedContentTypePropertyAlias = synonymMatch.Alias;
                     suggestion.Confidence = 80;
@@ -102,7 +103,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 p => p.Alias.Contains(schemaProp.Name, StringComparison.OrdinalIgnoreCase)
                   || schemaProp.Name.Contains(p.Alias, StringComparison.OrdinalIgnoreCase));
 
-            if (partialMatch != null)
+            if (partialMatch is not null)
             {
                 suggestion.SuggestedContentTypePropertyAlias = partialMatch.Alias;
                 suggestion.Confidence = 50;

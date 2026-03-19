@@ -1,6 +1,5 @@
 import { expect, fixture, html, waitUntil } from '@open-wc/testing';
 import { startMockServiceWorker, stopMockServiceWorker } from '../mocks/setup.js';
-import type { SetupWorker } from 'msw/browser';
 import './schema-picker-modal.element.js';
 
 async function waitForLoad(el: Element): Promise<void> {
@@ -12,10 +11,8 @@ async function waitForLoad(el: Element): Promise<void> {
 }
 
 describe('SchemaPickerModalElement', () => {
-  let worker: SetupWorker;
-
   before(async () => {
-    worker = await startMockServiceWorker();
+    await startMockServiceWorker();
   });
 
   after(() => {

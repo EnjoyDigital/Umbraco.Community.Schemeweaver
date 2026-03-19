@@ -324,5 +324,3 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
     `,
   ];
 }
-
-export default GenerateDoctypeModalElement;

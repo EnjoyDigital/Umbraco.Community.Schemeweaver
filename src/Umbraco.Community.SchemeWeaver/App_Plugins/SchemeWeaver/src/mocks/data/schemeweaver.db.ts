@@ -1,4 +1,4 @@
-import type { SchemaMappingDto, PropertyMappingDto, SchemaTypeInfo, SchemaPropertyInfo, ContentTypeInfo, PropertyMappingSuggestion, JsonLdPreviewResponse } from '../../api/types.js';
+import type { SchemaMappingDto, SchemaTypeInfo, SchemaPropertyInfo, ContentTypeInfo, PropertyMappingSuggestion, JsonLdPreviewResponse } from '../../api/types.js';
 
 class SchemeWeaverMockDb {
   private _mappings: SchemaMappingDto[] = [
@@ -215,7 +215,7 @@ class SchemeWeaverMockDb {
       return { jsonLd: '{}', isValid: false, errors: ['No mapping found'] };
     }
 
-    const result: Record<string, any> = {
+    const result: Record<string, unknown> = {
       '@context': 'https://schema.org',
       '@type': mapping.schemaTypeName,
     };

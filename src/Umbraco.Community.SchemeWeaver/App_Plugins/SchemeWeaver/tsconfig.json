@@ -13,12 +13,12 @@
     "noEmit": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": false,
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "typeRoots": ["./node_modules/@types", "./types"],
-    "noImplicitAny": false
+    "noImplicitAny": true
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "types/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]

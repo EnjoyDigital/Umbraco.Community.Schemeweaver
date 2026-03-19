@@ -34,7 +34,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     public SchemaMappingDto? GetMapping(string contentTypeAlias)
     {
         var mapping = _repository.GetByContentTypeAlias(contentTypeAlias);
-        if (mapping == null) return null;
+        if (mapping is null) return null;
 
         var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
         return ToDto(mapping, propertyMappings);
@@ -86,16 +86,14 @@ public class SchemeWeaverService : ISchemeWeaverService
     public void DeleteMapping(string contentTypeAlias)
     {
         var mapping = _repository.GetByContentTypeAlias(contentTypeAlias);
-        if (mapping != null)
+        if (mapping is not null)
         {
             _repository.Delete(mapping.Id);
         }
     }
 
     public IEnumerable<PropertyMappingSuggestion> AutoMap(string contentTypeAlias, string schemaTypeName)
-    {
-        return _autoMapper.SuggestMappings(contentTypeAlias, schemaTypeName);
-    }
+        => _autoMapper.SuggestMappings(contentTypeAlias, schemaTypeName);
 
     public JsonLdPreviewResponse GeneratePreview(IPublishedContent content)
     {
@@ -104,7 +102,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         try
         {
             var jsonLd = _generator.GenerateJsonLdString(content);
-            if (jsonLd != null)
+            if (jsonLd is not null)
             {
                 response.JsonLd = jsonLd;
                 response.IsValid = true;
@@ -130,8 +128,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     public IEnumerable<SchemaPropertyInfo> GetSchemaProperties(string typeName) => _registry.GetProperties(typeName);
 
     private static SchemaMappingDto ToDto(SchemaMapping mapping, IEnumerable<PropertyMapping> propertyMappings)
-    {
-        return new SchemaMappingDto
+        => new()
         {
             ContentTypeAlias = mapping.ContentTypeAlias,
             ContentTypeKey = mapping.ContentTypeKey,
@@ -149,5 +146,4 @@ public class SchemeWeaverService : ISchemeWeaverService
                 NestedSchemaTypeName = p.NestedSchemaTypeName
             }).ToList()
         };
-    }
 }

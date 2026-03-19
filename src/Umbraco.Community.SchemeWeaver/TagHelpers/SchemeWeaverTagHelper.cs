@@ -28,7 +28,7 @@ public class SchemeWeaverTagHelper : TagHelper
     {
         output.TagName = null;
 
-        if (Content == null)
+        if (Content is null)
         {
             output.SuppressOutput();
             return;

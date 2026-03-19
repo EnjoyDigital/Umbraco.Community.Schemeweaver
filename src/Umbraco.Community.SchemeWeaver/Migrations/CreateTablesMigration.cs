@@ -7,13 +7,13 @@ namespace Umbraco.Community.SchemeWeaver.Migrations;
 /// <summary>
 /// Creates the SchemeWeaver database tables.
 /// </summary>
-public class CreateTablesMigration : MigrationBase
+public class CreateTablesMigration : AsyncMigrationBase
 {
     public CreateTablesMigration(IMigrationContext context) : base(context)
     {
     }
 
-    protected override void Migrate()
+    protected override async Task MigrateAsync()
     {
         Logger.LogInformation("Running SchemeWeaver CreateTablesMigration...");
 
@@ -30,5 +30,7 @@ public class CreateTablesMigration : MigrationBase
         }
 
         Logger.LogInformation("SchemeWeaver CreateTablesMigration completed successfully");
+
+        await Task.CompletedTask.ConfigureAwait(false);
     }
 }

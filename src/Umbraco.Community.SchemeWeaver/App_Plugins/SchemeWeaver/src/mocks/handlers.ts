@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { schemeWeaverDb } from './data/schemeweaver.db.js';
+import type { SchemaMappingDto } from '../api/types.js';
 
 const BASE = '/umbraco/management/api/v1/schemeweaver';
 
@@ -38,7 +39,7 @@ export const handlers = [
   }),
 
   http.post(`${BASE}/mappings`, async ({ request }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as SchemaMappingDto;
     const result = schemeWeaverDb.createMapping(body);
     return HttpResponse.json(result, { status: 201 });
   }),
@@ -66,8 +67,7 @@ export const handlers = [
     return HttpResponse.json(result);
   }),
 
-  http.post(`${BASE}/generate-content-type`, async ({ request }) => {
-    const body = (await request.json()) as any;
+  http.post(`${BASE}/generate-content-type`, async () => {
     return HttpResponse.json({
       key: '00000000-0000-0000-0000-000000000099',
     }, { status: 201 });

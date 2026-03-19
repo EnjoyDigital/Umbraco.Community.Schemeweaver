@@ -90,13 +90,14 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
 
   render() {
     return html`
-      <umb-body-layout headline="Select Schema.org Type">
+      <umb-body-layout headline=${this.localize.term('schemeWeaver_selectSchemaType')}>
         <uui-box>
           <uui-input
-            placeholder="Search schema types..."
+            placeholder=${this.localize.term('schemeWeaver_searchSchemaTypes')}
             @input=${this._handleSearch}
             .value=${this._searchTerm}
             class="search-input"
+            label=${this.localize.term('schemeWeaver_searchSchemaTypes')}
           >
             <uui-icon name="icon-search" slot="prepend"></uui-icon>
           </uui-input>
@@ -105,7 +106,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
             ? html`
                 <div class="loading">
                   <uui-loader-circle></uui-loader-circle>
-                  <p>Loading schema types...</p>
+                  <p>${this.localize.term('schemeWeaver_loadingSchemaTypes')}</p>
                 </div>
               `
             : html`
@@ -127,12 +128,12 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
                               <div class="schema-item-header">
                                 <strong>${type.name}</strong>
                                 ${type.parentTypeName
-                                  ? html`<small class="parent-label">extends ${type.parentTypeName}</small>`
+                                  ? html`<small class="parent-label">${this.localize.term('schemeWeaver_extends')} ${type.parentTypeName}</small>`
                                   : ''}
                               </div>
                               <p class="schema-description">${type.description}</p>
                               ${type.propertyCount > 0
-                                ? html`<small class="property-count">${type.propertyCount} properties</small>`
+                                ? html`<small class="property-count">${type.propertyCount} ${this.localize.term('schemeWeaver_properties')}</small>`
                                 : ''}
                             </div>
                           `
@@ -142,16 +143,18 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
                   )}
 
                   ${this._schemaTypes.length === 0
-                    ? html`<p class="no-results">No schema types found.</p>`
+                    ? html`<p class="no-results">${this.localize.term('schemeWeaver_noSchemaTypes')}</p>`
                     : ''}
                 </div>
               `}
         </uui-box>
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleClose}>Cancel</uui-button>
-          <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedType}>
-            Select
+          <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
+            ${this.localize.term('schemeWeaver_cancel')}
+          </uui-button>
+          <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedType} label=${this.localize.term('general_select')}>
+            ${this.localize.term('general_select')}
           </uui-button>
         </div>
       </umb-body-layout>
@@ -243,5 +246,3 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     `,
   ];
 }
-
-export default SchemaPickerModalElement;

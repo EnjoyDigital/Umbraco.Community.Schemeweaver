@@ -17,8 +17,10 @@ export class JsonLdPreviewElement extends UmbLitElement {
     }
   }
 
-  private _handleCopy() {
-    navigator.clipboard.writeText(this._formattedJson);
+  private _handleCopy(): void {
+    navigator.clipboard.writeText(this._formattedJson).catch(() => {
+      // Clipboard write can fail silently in restricted contexts
+    });
   }
 
   render() {
@@ -116,5 +118,3 @@ export class JsonLdPreviewElement extends UmbLitElement {
     `,
   ];
 }
-
-export default JsonLdPreviewElement;

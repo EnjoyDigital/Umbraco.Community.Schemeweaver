@@ -7,7 +7,7 @@ interface ManifestLocalization {
   meta: {
     culture: string;
   };
-  js: () => Promise<any>;
+  js: () => Promise<unknown>;
 }
 
 export const manifests: ManifestLocalization[] = [

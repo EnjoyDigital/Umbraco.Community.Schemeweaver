@@ -1,15 +1,18 @@
 import { UmbEntityActionBase } from '@umbraco-cms/backoffice/entity-action';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
+import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
+import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
 
 export class MapToSchemaAction extends UmbEntityActionBase<never> {
   async execute() {
     const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
 
     // First open schema picker
     const pickerResult = await modalManager
-      .open(this, 'schemeweaver-schema-picker-modal', {
+      .open(this, SCHEMEWEAVER_SCHEMA_PICKER_MODAL, {
         data: {
-          contentTypeAlias: this.args.unique,
+          contentTypeAlias: this.args.unique ?? '',
         },
       })
       .onSubmit()
@@ -19,9 +22,9 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
 
     // Then open property mapping modal
     await modalManager
-      .open(this, 'schemeweaver-property-mapping-modal', {
+      .open(this, SCHEMEWEAVER_PROPERTY_MAPPING_MODAL, {
         data: {
-          contentTypeAlias: this.args.unique,
+          contentTypeAlias: this.args.unique ?? '',
           schemaType: pickerResult.schemaType,
         },
       })
@@ -31,4 +34,3 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
 }
 
 export { MapToSchemaAction as api };
-export default MapToSchemaAction;

@@ -57,21 +57,21 @@ public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
             yield return new IndexFieldValue
             {
                 FieldName = "schemaOrg",
-                Values = new object[] { jsonLd }
+                Values = [jsonLd]
             };
         }
     }
 
     public IEnumerable<IndexField> GetFields()
     {
-        return new[]
-        {
+        return
+        [
             new IndexField
             {
                 FieldName = "schemaOrg",
                 FieldType = FieldType.StringRaw,
                 VariesByCulture = false
             }
-        };
+        ];
     }
 }

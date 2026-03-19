@@ -35,11 +35,11 @@ public class ContentTypeGeneratorTests
     {
         var dataType = Substitute.For<IDataType>();
         dataType.EditorAlias.Returns(editorAlias);
-        _dataTypeService.GetByEditorAlias(editorAlias).Returns(new[] { dataType });
+        _dataTypeService.GetByEditorAliasAsync(editorAlias).Returns(new[] { dataType });
     }
 
     [Fact]
-    public void GenerateContentType_TextProperty_MapsToTextBox()
+    public async Task GenerateContentTypeAsync_TextProperty_MapsToTextBox()
     {
         SetupSchemaType("Article", ("Headline", "Text"));
         SetupDataType(Umbraco.Cms.Core.Constants.PropertyEditors.Aliases.TextBox);
@@ -50,17 +50,17 @@ public class ContentTypeGeneratorTests
             SchemaTypeName = "Article",
             DocumentTypeName = "Article",
             DocumentTypeAlias = "article",
-            SelectedProperties = new List<string> { "Headline" }
+            SelectedProperties = ["Headline"]
         };
 
-        var result = _sut.GenerateContentType(request);
+        var result = await _sut.GenerateContentTypeAsync(request);
 
         result.Should().NotBeEmpty();
-        _contentTypeService.Received(1).Save(Arg.Any<IContentType>());
+        await _contentTypeService.Received(1).CreateAsync(Arg.Any<IContentType>(), Arg.Any<Guid>());
     }
 
     [Fact]
-    public void GenerateContentType_DateTimeProperty_MapsToDateTime()
+    public async Task GenerateContentTypeAsync_DateTimeProperty_MapsToDateTime()
     {
         SetupSchemaType("Article", ("DatePublished", "DateTime"));
         SetupDataType(Umbraco.Cms.Core.Constants.PropertyEditors.Aliases.DateTime);
@@ -71,17 +71,17 @@ public class ContentTypeGeneratorTests
             SchemaTypeName = "Article",
             DocumentTypeName = "Article",
             DocumentTypeAlias = "article",
-            SelectedProperties = new List<string> { "DatePublished" }
+            SelectedProperties = ["DatePublished"]
         };
 
-        var result = _sut.GenerateContentType(request);
+        var result = await _sut.GenerateContentTypeAsync(request);
 
         result.Should().NotBeEmpty();
-        _contentTypeService.Received(1).Save(Arg.Any<IContentType>());
+        await _contentTypeService.Received(1).CreateAsync(Arg.Any<IContentType>(), Arg.Any<Guid>());
     }
 
     [Fact]
-    public void GenerateContentType_BooleanProperty_MapsToTrueFalse()
+    public async Task GenerateContentTypeAsync_BooleanProperty_MapsToTrueFalse()
     {
         SetupSchemaType("Article", ("IsAccessibleForFree", "Boolean"));
         SetupDataType(Umbraco.Cms.Core.Constants.PropertyEditors.Aliases.Boolean);
@@ -92,16 +92,16 @@ public class ContentTypeGeneratorTests
             SchemaTypeName = "Article",
             DocumentTypeName = "Article",
             DocumentTypeAlias = "article",
-            SelectedProperties = new List<string> { "IsAccessibleForFree" }
+            SelectedProperties = ["IsAccessibleForFree"]
         };
 
-        var result = _sut.GenerateContentType(request);
+        var result = await _sut.GenerateContentTypeAsync(request);
 
         result.Should().NotBeEmpty();
     }
 
     [Fact]
-    public void GenerateContentType_URLProperty_MapsToTextBox()
+    public async Task GenerateContentTypeAsync_URLProperty_MapsToTextBox()
     {
         SetupSchemaType("Article", ("Url", "URL"));
         SetupDataType(Umbraco.Cms.Core.Constants.PropertyEditors.Aliases.TextBox);
@@ -112,16 +112,16 @@ public class ContentTypeGeneratorTests
             SchemaTypeName = "Article",
             DocumentTypeName = "Article",
             DocumentTypeAlias = "article",
-            SelectedProperties = new List<string> { "Url" }
+            SelectedProperties = ["Url"]
         };
 
-        var result = _sut.GenerateContentType(request);
+        var result = await _sut.GenerateContentTypeAsync(request);
 
         result.Should().NotBeEmpty();
     }
 
     [Fact]
-    public void GenerateContentType_SchemaTypeNotFound_ThrowsArgumentException()
+    public async Task GenerateContentTypeAsync_SchemaTypeNotFound_ThrowsArgumentException()
     {
         _registry.GetType("Unknown").Returns((SchemaTypeInfo?)null);
 
@@ -132,13 +132,13 @@ public class ContentTypeGeneratorTests
             DocumentTypeAlias = "unknown"
         };
 
-        var act = () => _sut.GenerateContentType(request);
+        var act = () => _sut.GenerateContentTypeAsync(request);
 
-        act.Should().Throw<ArgumentException>().WithMessage("*not found*");
+        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*not found*");
     }
 
     [Fact]
-    public void GenerateContentType_ExistingContentType_ThrowsInvalidOperationException()
+    public async Task GenerateContentTypeAsync_ExistingContentType_ThrowsInvalidOperationException()
     {
         SetupSchemaType("Article", ("Headline", "Text"));
         var existing = Substitute.For<IContentType>();
@@ -151,8 +151,8 @@ public class ContentTypeGeneratorTests
             DocumentTypeAlias = "article"
         };
 
-        var act = () => _sut.GenerateContentType(request);
+        var act = () => _sut.GenerateContentTypeAsync(request);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*already exists*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*already exists*");
     }
 }

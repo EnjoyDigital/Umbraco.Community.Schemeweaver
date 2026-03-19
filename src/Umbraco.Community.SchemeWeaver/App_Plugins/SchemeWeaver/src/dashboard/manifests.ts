@@ -1,8 +1,6 @@
-import type { ManifestDashboard } from '@umbraco-cms/backoffice/dashboard';
-
-export const manifests: ManifestDashboard[] = [
+export const manifests = [
   {
-    type: 'dashboard',
+    type: 'dashboard' as const,
     alias: 'SchemeWeaver.Dashboard',
     name: 'SchemeWeaver Schema Mappings',
     element: () => import('./schema-mappings-dashboard.element.js'),

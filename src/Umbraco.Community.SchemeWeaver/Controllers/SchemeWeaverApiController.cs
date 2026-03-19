@@ -169,11 +169,11 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpPost("generate-content-type")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GenerateContentType([FromBody] ContentTypeGenerationRequest request)
+    public async Task<IActionResult> GenerateContentType([FromBody] ContentTypeGenerationRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            var key = _contentTypeGenerator.GenerateContentType(request);
+            var key = await _contentTypeGenerator.GenerateContentTypeAsync(request, cancellationToken).ConfigureAwait(false);
             return Ok(new { Key = key });
         }
         catch (NotImplementedException)

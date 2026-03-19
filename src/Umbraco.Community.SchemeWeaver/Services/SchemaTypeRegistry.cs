@@ -18,7 +18,7 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
     {
         public Type ClrType { get; set; } = null!;
         public SchemaTypeInfo Info { get; set; } = null!;
-        public List<SchemaPropertyInfo> Properties { get; set; } = new();
+        public List<SchemaPropertyInfo> Properties { get; set; } = [];
     }
 
     private void EnsureInitialised()
@@ -33,18 +33,17 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
             var assembly = thingType.Assembly;
 
             var schemaTypes = assembly.GetExportedTypes()
-                .Where(t => t.IsClass && !t.IsAbstract && thingType.IsAssignableFrom(t));
+                .Where(t => t is { IsClass: true, IsAbstract: false } && thingType.IsAssignableFrom(t));
 
             foreach (var type in schemaTypes)
             {
                 var properties = GetSchemaProperties(type);
                 var parentType = type.BaseType;
-                string? parentName = null;
-
-                if (parentType != null && parentType != typeof(object) && thingType.IsAssignableFrom(parentType))
-                {
-                    parentName = parentType.Name;
-                }
+                string? parentName = parentType is not null
+                    && parentType != typeof(object)
+                    && thingType.IsAssignableFrom(parentType)
+                        ? parentType.Name
+                        : null;
 
                 var entry = new SchemaTypeEntry
                 {
@@ -83,7 +82,7 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
         EnsureInitialised();
         return _types.TryGetValue(typeName, out var entry)
             ? entry.Properties
-            : Enumerable.Empty<SchemaPropertyInfo>();
+            : [];
     }
 
     public IEnumerable<SchemaTypeInfo> Search(string query)
@@ -110,7 +109,7 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
         var properties = new List<SchemaPropertyInfo>();
 
         var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(p => p.CanRead && p.CanWrite);
+            .Where(p => p is { CanRead: true, CanWrite: true });
 
         foreach (var prop in props)
         {
@@ -131,20 +130,16 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
 
     private static string GetFriendlyTypeName(Type type)
     {
-        if (type.IsGenericType)
+        if (!type.IsGenericType) return type.Name;
+
+        var genericArgs = type.GetGenericArguments();
+        var typeName = type.Name.Split('`')[0];
+
+        return typeName switch
         {
-            var genericArgs = type.GetGenericArguments();
-            var typeName = type.Name.Split('`')[0];
-
-            if (typeName == "Nullable" && genericArgs.Length == 1)
-                return $"{GetFriendlyTypeName(genericArgs[0])}?";
-
-            if (typeName is "OneOrMany" or "Values")
-                return string.Join(" | ", genericArgs.Select(GetFriendlyTypeName));
-
-            return $"{typeName}<{string.Join(", ", genericArgs.Select(GetFriendlyTypeName))}>";
-        }
-
-        return type.Name;
+            "Nullable" when genericArgs.Length == 1 => $"{GetFriendlyTypeName(genericArgs[0])}?",
+            "OneOrMany" or "Values" => string.Join(" | ", genericArgs.Select(GetFriendlyTypeName)),
+            _ => $"{typeName}<{string.Join(", ", genericArgs.Select(GetFriendlyTypeName))}>"
+        };
     }
 }

@@ -42,3 +42,8 @@ coverage/
 appsettings-schema.json
 appsettings-schema.Umbraco.Cms.json
 umbraco-package-schema.json
+
+## TestHost runtime data
+src/SchemeWeaver.TestHost/umbraco/
+src/SchemeWeaver.TestHost/App_Data/
+src/SchemeWeaver.TestHost/App_Plugins/

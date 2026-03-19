@@ -1,14 +1,15 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
 import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
 import '../components/jsonld-preview.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
-import type { SchemaMappingDto, PropertyMappingSuggestion, JsonLdPreviewResponse } from '../api/types.js';
+import type { SchemaMappingDto, PropertyMappingDto, PropertyMappingSuggestion, ContentTypeProperty, JsonLdPreviewResponse } from '../api/types.js';
 
 /** Convert stored PropertyMappingDto to UI row model */
-function dtoToRow(dto: any): PropertyMappingRow {
+function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
   return {
     schemaPropertyName: dto.schemaPropertyName || '',
     schemaPropertyType: '',
@@ -36,6 +37,7 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
   #repository = new SchemeWeaverRepository(this);
+  #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
   private _loading = true;
@@ -56,22 +58,24 @@ export class SchemaMappingViewElement extends UmbLitElement {
   private _saving = false;
 
   @state()
-  private _errorMessage = '';
-
-  @state()
   private _contentTypeAlias = '';
 
-  private _workspaceContext?: any;
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
+  }
 
   async connectedCallback() {
     super.connectedCallback();
 
     try {
-      this._workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT);
-      if (this._workspaceContext) {
+      const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as any;
+      if (workspaceContext?.unique) {
         this.observe(
-          this._workspaceContext.unique,
-          (unique: string) => {
+          workspaceContext.unique,
+          (unique: string | null) => {
             if (unique) {
               this._contentTypeAlias = unique;
               this._fetchMapping();
@@ -80,15 +84,13 @@ export class SchemaMappingViewElement extends UmbLitElement {
           '_observeUnique'
         );
       }
-    } catch (error) {
-      console.error('SchemeWeaver: Error getting workspace context:', error);
+    } catch {
       this._loading = false;
     }
   }
 
   private async _fetchMapping() {
     this._loading = true;
-    this._errorMessage = '';
 
     try {
       const mapping = await this.#repository.requestMapping(this._contentTypeAlias);
@@ -105,11 +107,15 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
       const props = await this.#repository.requestContentTypeProperties(this._contentTypeAlias);
       if (props) {
-        this._availableProperties = props.map((p: any) => typeof p === 'string' ? p : p.alias);
+        this._availableProperties = props.map((p: ContentTypeProperty) => p.alias);
       }
     } catch (error) {
       console.error('SchemeWeaver: Error fetching mapping:', error);
-      this._errorMessage = error instanceof Error ? error.message : 'Failed to load mapping';
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to load mapping',
+        },
+      });
     } finally {
       this._loading = false;
     }
@@ -140,7 +146,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
       }
     } catch (error) {
       console.error('SchemeWeaver: Auto-map error:', error);
-      this._errorMessage = error instanceof Error ? error.message : 'Auto-map failed';
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Auto-map failed',
+        },
+      });
     } finally {
       this._loading = false;
     }
@@ -157,6 +167,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
       }
     } catch (error) {
       console.error('SchemeWeaver: Preview error:', error);
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to generate preview',
+        },
+      });
     }
   }
 
@@ -179,10 +194,17 @@ export class SchemaMappingViewElement extends UmbLitElement {
         })),
       };
       await this.#repository.saveMapping(dto);
+      this.#notificationContext?.peek('positive', {
+        data: { message: this.localize.term('schemeWeaver_mappingSaved') },
+      });
       await this._fetchMapping();
     } catch (error) {
       console.error('SchemeWeaver: Save error:', error);
-      this._errorMessage = error instanceof Error ? error.message : 'Failed to save';
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to save',
+        },
+      });
     } finally {
       this._saving = false;
     }
@@ -195,10 +217,10 @@ export class SchemaMappingViewElement extends UmbLitElement {
   render() {
     if (this._loading) {
       return html`
-        <umb-body-layout headline="Schema.org Mapping">
+        <umb-body-layout headline=${this.localize.term('schemeWeaver_schemaOrgMapping')}>
           <div class="loading">
             <uui-loader-circle></uui-loader-circle>
-            <p>Loading schema mapping...</p>
+            <p>${this.localize.term('schemeWeaver_loadingMappings')}</p>
           </div>
         </umb-body-layout>
       `;
@@ -206,15 +228,15 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
     if (!this._mapping) {
       return html`
-        <umb-body-layout headline="Schema.org Mapping">
+        <umb-body-layout headline=${this.localize.term('schemeWeaver_schemaOrgMapping')}>
           <uui-box>
             <div class="empty-state">
               <uui-icon name="icon-brackets" class="empty-icon"></uui-icon>
-              <h3>No Schema.org Mapping</h3>
-              <p>This content type has not been mapped to a Schema.org type yet.</p>
+              <h3>${this.localize.term('schemeWeaver_noMapping')}</h3>
+              <p>${this.localize.term('schemeWeaver_noMappingDescription')}</p>
               <uui-button look="primary" @click=${this._handleAutoMap}>
                 <uui-icon name="icon-wand"></uui-icon>
-                Auto-map Schema
+                ${this.localize.term('schemeWeaver_autoMapSchema')}
               </uui-button>
             </div>
           </uui-box>
@@ -223,27 +245,23 @@ export class SchemaMappingViewElement extends UmbLitElement {
     }
 
     return html`
-      <umb-body-layout headline="Schema.org Mapping">
-        ${this._errorMessage
-          ? html`<div class="error-banner">${this._errorMessage}</div>`
-          : ''}
-
-        <uui-box headline="Schema Type">
+      <umb-body-layout headline=${this.localize.term('schemeWeaver_schemaOrgMapping')}>
+        <uui-box headline=${this.localize.term('schemeWeaver_schemaType')}>
           <div class="schema-type-info">
             <uui-tag color="primary" look="primary">${this._mapping.schemaTypeName}</uui-tag>
             <span class="content-type-alias">${this._mapping.contentTypeAlias}</span>
           </div>
         </uui-box>
 
-        <uui-box headline="Property Mappings">
+        <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
           <div class="actions-bar" slot="header-actions">
             <uui-button look="outline" compact @click=${this._handleAutoMap}>
               <uui-icon name="icon-wand"></uui-icon>
-              Auto-map
+              ${this.localize.term('schemeWeaver_autoMap')}
             </uui-button>
             <uui-button look="outline" compact @click=${this._handlePreview}>
               <uui-icon name="icon-brackets"></uui-icon>
-              Preview
+              ${this.localize.term('schemeWeaver_preview')}
             </uui-button>
           </div>
 
@@ -256,7 +274,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
         ${this._preview
           ? html`
-              <uui-box headline="JSON-LD Preview">
+              <uui-box headline=${this.localize.term('schemeWeaver_jsonLdPreview')}>
                 <schemeweaver-jsonld-preview .jsonLd=${this._preview}></schemeweaver-jsonld-preview>
               </uui-box>
             `
@@ -268,8 +286,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
             @click=${this._handleSave}
             ?disabled=${this._saving}
             .state=${this._saving ? 'waiting' : undefined}
+            label=${this.localize.term('schemeWeaver_save')}
           >
-            ${this._saving ? 'Saving...' : 'Save Mapping'}
+            ${this._saving ? this.localize.term('schemeWeaver_saving') : this.localize.term('schemeWeaver_save')}
           </uui-button>
         </div>
       </umb-body-layout>
@@ -325,14 +344,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
         gap: var(--uui-size-space-2);
       }
 
-      .error-banner {
-        background-color: var(--uui-color-danger);
-        color: white;
-        padding: var(--uui-size-space-3) var(--uui-size-space-4);
-        border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
-      }
-
       .save-bar {
         display: flex;
         justify-content: flex-end;
@@ -341,5 +352,3 @@ export class SchemaMappingViewElement extends UmbLitElement {
     `,
   ];
 }
-
-export default SchemaMappingViewElement;

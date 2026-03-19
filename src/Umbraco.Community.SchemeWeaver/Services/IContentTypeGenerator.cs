@@ -7,5 +7,5 @@ namespace Umbraco.Community.SchemeWeaver.Services;
 /// </summary>
 public interface IContentTypeGenerator
 {
-    Guid GenerateContentType(ContentTypeGenerationRequest request);
+    Task<Guid> GenerateContentTypeAsync(ContentTypeGenerationRequest request, CancellationToken cancellationToken = default);
 }

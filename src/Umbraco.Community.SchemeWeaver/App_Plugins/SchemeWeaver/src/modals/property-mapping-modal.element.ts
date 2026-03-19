@@ -1,5 +1,6 @@
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
 import '../components/jsonld-preview.element.js';
@@ -24,6 +25,7 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
 @customElement('schemeweaver-property-mapping-modal')
 export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMappingModalData, PropertyMappingModalValue> {
   #repository = new SchemeWeaverRepository(this);
+  #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
   private _loading = true;
@@ -40,8 +42,12 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   @state()
   private _preview: JsonLdPreviewResponse | null = null;
 
-  @state()
-  private _errorMessage = '';
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
+  }
 
   async connectedCallback() {
     super.connectedCallback();
@@ -63,11 +69,15 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
       const props = await this.#repository.requestContentTypeProperties(this.data?.contentTypeAlias || '');
       if (props) {
-        this._availableProperties = props.map((p) => typeof p === 'string' ? p : p.alias);
+        this._availableProperties = props.map((p) => p.alias);
       }
     } catch (error) {
       console.error('SchemeWeaver: Error initialising property mapping:', error);
-      this._errorMessage = error instanceof Error ? error.message : 'Failed to load mapping data';
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to load mapping data',
+        },
+      });
     } finally {
       this._loading = false;
     }
@@ -86,12 +96,16 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       }
     } catch (error) {
       console.error('SchemeWeaver: Preview error:', error);
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to generate preview',
+        },
+      });
     }
   }
 
   private async _handleSave() {
     this._saving = true;
-    this._errorMessage = '';
 
     try {
       await this.#repository.saveMapping({
@@ -115,7 +129,11 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       this.modalContext?.submit();
     } catch (error) {
       console.error('SchemeWeaver: Save error:', error);
-      this._errorMessage = error instanceof Error ? error.message : 'Failed to save';
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to save',
+        },
+      });
     } finally {
       this._saving = false;
     }
@@ -127,24 +145,20 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
   render() {
     return html`
-      <umb-body-layout headline="Map Properties - ${this.data?.schemaType || ''}">
-        ${this._errorMessage
-          ? html`<div class="error-banner">${this._errorMessage}</div>`
-          : ''}
-
+      <umb-body-layout headline="${this.localize.term('schemeWeaver_mapProperties')} - ${this.data?.schemaType || ''}">
         ${this._loading
           ? html`
               <div class="loading">
                 <uui-loader-circle></uui-loader-circle>
-                <p>Loading property mappings...</p>
+                <p>${this.localize.term('schemeWeaver_loadingProperties')}</p>
               </div>
             `
           : html`
               <div class="mapping-layout">
-                <uui-box headline="Property Mappings">
+                <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
                   <div class="mapping-info">
                     <uui-tag color="primary">${this.data?.schemaType}</uui-tag>
-                    <span>mapped to</span>
+                    <span>${this.localize.term('schemeWeaver_mappedTo')}</span>
                     <uui-tag color="default">${this.data?.contentTypeAlias}</uui-tag>
                   </div>
 
@@ -155,15 +169,16 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
                   ></schemeweaver-property-mapping-table>
                 </uui-box>
 
-                <uui-box headline="JSON-LD Preview">
+                <uui-box headline=${this.localize.term('schemeWeaver_jsonLdPreview')}>
                   <uui-button
                     slot="header-actions"
                     look="outline"
                     compact
                     @click=${this._handlePreview}
+                    label=${this.localize.term('schemeWeaver_generatePreview')}
                   >
                     <uui-icon name="icon-refresh"></uui-icon>
-                    Generate Preview
+                    ${this.localize.term('schemeWeaver_generatePreview')}
                   </uui-button>
                   <schemeweaver-jsonld-preview .jsonLd=${this._preview}></schemeweaver-jsonld-preview>
                 </uui-box>
@@ -171,14 +186,17 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
             `}
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleClose}>Cancel</uui-button>
+          <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
+            ${this.localize.term('schemeWeaver_cancel')}
+          </uui-button>
           <uui-button
             look="primary"
             @click=${this._handleSave}
             ?disabled=${this._saving || this._loading}
             .state=${this._saving ? 'waiting' : undefined}
+            label=${this.localize.term('schemeWeaver_save')}
           >
-            ${this._saving ? 'Saving...' : 'Save Mapping'}
+            ${this._saving ? this.localize.term('schemeWeaver_saving') : this.localize.term('schemeWeaver_save')}
           </uui-button>
         </div>
       </umb-body-layout>
@@ -199,14 +217,6 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         padding: var(--uui-size-space-6);
       }
 
-      .error-banner {
-        background-color: var(--uui-color-danger);
-        color: white;
-        padding: var(--uui-size-space-3) var(--uui-size-space-4);
-        border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
-      }
-
       .mapping-layout {
         display: flex;
         flex-direction: column;
@@ -222,5 +232,3 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     `,
   ];
 }
-
-export default PropertyMappingModalElement;

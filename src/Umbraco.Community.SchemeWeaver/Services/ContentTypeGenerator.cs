@@ -68,14 +68,13 @@ public partial class ContentTypeGenerator : IContentTypeGenerator
         _logger = logger;
     }
 
-    public Guid GenerateContentType(ContentTypeGenerationRequest request)
+    public async Task<Guid> GenerateContentTypeAsync(ContentTypeGenerationRequest request, CancellationToken cancellationToken = default)
     {
-        var schemaType = _registry.GetType(request.SchemaTypeName);
-        if (schemaType == null)
-            throw new ArgumentException($"Schema type '{request.SchemaTypeName}' not found.");
+        var schemaType = _registry.GetType(request.SchemaTypeName)
+            ?? throw new ArgumentException($"Schema type '{request.SchemaTypeName}' not found.");
 
         var existing = _contentTypeService.Get(request.DocumentTypeAlias);
-        if (existing != null)
+        if (existing is not null)
             throw new InvalidOperationException($"Content type '{request.DocumentTypeAlias}' already exists.");
 
         var contentType = new ContentType(_shortStringHelper, -1)
@@ -96,8 +95,8 @@ public partial class ContentTypeGenerator : IContentTypeGenerator
         foreach (var schemaProp in selectedProperties)
         {
             var editorAlias = ResolveEditorAlias(schemaProp.PropertyType);
-            var dataType = FindDataType(editorAlias);
-            if (dataType == null)
+            var dataType = await FindDataTypeAsync(editorAlias).ConfigureAwait(false);
+            if (dataType is null)
             {
                 _logger.LogWarning("No data type found for editor {Editor}, skipping property {Property}",
                     editorAlias, schemaProp.Name);
@@ -117,7 +116,7 @@ public partial class ContentTypeGenerator : IContentTypeGenerator
             contentType.AddPropertyType(propertyType, groupName);
         }
 
-        _contentTypeService.Save(contentType);
+        await _contentTypeService.CreateAsync(contentType, Umbraco.Cms.Core.Constants.Security.SuperUserKey).ConfigureAwait(false);
 
         _logger.LogInformation("Generated content type '{Alias}' from Schema.org type '{SchemaType}' with {Count} properties",
             request.DocumentTypeAlias, request.SchemaTypeName, sortOrder);
@@ -125,34 +124,33 @@ public partial class ContentTypeGenerator : IContentTypeGenerator
         return contentType.Key;
     }
 
-    private string ResolveEditorAlias(string schemaPropertyType)
+    private static string ResolveEditorAlias(string schemaPropertyType)
     {
         // Strip nullable marker
         var typeName = schemaPropertyType.TrimEnd('?');
 
-        // Check if it's a known type
-        if (EditorMapping.TryGetValue(typeName, out var editor))
-            return editor;
-
-        // Default to textbox for unknown types
-        return Umbraco.Cms.Core.Constants.PropertyEditors.Aliases.TextBox;
+        // Check if it's a known type, default to textbox for unknown types
+        return EditorMapping.GetValueOrDefault(typeName, Umbraco.Cms.Core.Constants.PropertyEditors.Aliases.TextBox);
     }
 
-    private IDataType? FindDataType(string editorAlias)
+    private async Task<IDataType?> FindDataTypeAsync(string editorAlias)
     {
-        var dataTypes = _dataTypeService.GetByEditorAlias(editorAlias);
+        var dataTypes = await _dataTypeService.GetByEditorAliasAsync(editorAlias).ConfigureAwait(false);
         return dataTypes.FirstOrDefault();
     }
 
     private static string ToCamelCase(string name)
     {
-        if (string.IsNullOrEmpty(name)) return name;
+        if (string.IsNullOrEmpty(name))
+            return name;
+
         return char.ToLowerInvariant(name[0]) + name[1..];
     }
 
     private static string ToFriendlyName(string name)
     {
-        if (string.IsNullOrEmpty(name)) return name;
+        if (string.IsNullOrEmpty(name))
+            return name;
 
         // Insert spaces before capitals: "articleBody" -> "Article Body"
         var result = CamelCaseSplitRegex().Replace(name, " $1");

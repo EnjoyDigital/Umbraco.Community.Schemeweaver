@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
+using Umbraco.Extensions;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
 
@@ -17,34 +19,41 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     private readonly ISchemaMappingRepository _repository;
     private readonly ISchemaTypeRegistry _registry;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IDocumentNavigationQueryService _navigationQueryService;
+    private readonly IPublishedContentStatusFilteringService _publishedStatusFilteringService;
     private readonly ILogger<JsonLdGenerator> _logger;
 
     public JsonLdGenerator(
         ISchemaMappingRepository repository,
         ISchemaTypeRegistry registry,
         IHttpContextAccessor httpContextAccessor,
+        IDocumentNavigationQueryService navigationQueryService,
+        IPublishedContentStatusFilteringService publishedStatusFilteringService,
         ILogger<JsonLdGenerator> logger)
     {
         _repository = repository;
         _registry = registry;
         _httpContextAccessor = httpContextAccessor;
+        _navigationQueryService = navigationQueryService;
+        _publishedStatusFilteringService = publishedStatusFilteringService;
         _logger = logger;
     }
 
     public Thing? GenerateJsonLd(IPublishedContent content)
     {
         var mapping = _repository.GetByContentTypeAlias(content.ContentType.Alias);
-        if (mapping == null || !mapping.IsEnabled) return null;
+        if (mapping is not { IsEnabled: true })
+            return null;
 
         var clrType = _registry.GetClrType(mapping.SchemaTypeName);
-        if (clrType == null)
+        if (clrType is null)
         {
             _logger.LogWarning("Schema type {TypeName} not found in registry", mapping.SchemaTypeName);
             return null;
         }
 
-        var instance = Activator.CreateInstance(clrType) as Thing;
-        if (instance == null) return null;
+        if (Activator.CreateInstance(clrType) is not Thing instance)
+            return null;
 
         var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
 
@@ -53,11 +62,14 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             try
             {
                 var value = ResolveValue(propMapping, content);
-                if (value == null) continue;
+                if (value is null)
+                    continue;
 
                 value = ApplyTransform(value, propMapping.TransformType);
-
-                SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
+                if (value is not null)
+                {
+                    SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
+                }
             }
             catch (Exception ex)
             {
@@ -71,18 +83,19 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
     public string? GenerateJsonLdString(IPublishedContent content)
     {
-        var thing = GenerateJsonLd(content);
-        return thing?.ToString();
+        return GenerateJsonLd(content)?.ToString();
     }
 
     private string? ResolveValue(PropertyMapping propMapping, IPublishedContent content)
     {
+        var parent = content.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
+
         return propMapping.SourceType switch
         {
             "static" => propMapping.StaticValue,
             "property" => GetPropertyValue(content, propMapping.ContentTypePropertyAlias),
-            "parent" => content.Parent != null
-                ? GetPropertyValue(content.Parent, propMapping.ContentTypePropertyAlias)
+            "parent" => parent is not null
+                ? GetPropertyValue(parent, propMapping.ContentTypePropertyAlias)
                 : null,
             "ancestor" => ResolveAncestorValue(content, propMapping),
             "sibling" => ResolveSiblingValue(content, propMapping),
@@ -92,50 +105,62 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
     private string? ResolveAncestorValue(IPublishedContent content, PropertyMapping propMapping)
     {
-        var node = content.Parent;
-        while (node != null)
+        var ancestors = content.Ancestors(_navigationQueryService, _publishedStatusFilteringService);
+
+        foreach (var node in ancestors)
         {
-            if (string.IsNullOrEmpty(propMapping.SourceContentTypeAlias)
-                || string.Equals(node.ContentType.Alias, propMapping.SourceContentTypeAlias, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(propMapping.SourceContentTypeAlias)
+                && !string.Equals(node.ContentType.Alias, propMapping.SourceContentTypeAlias, StringComparison.OrdinalIgnoreCase))
             {
-                var value = GetPropertyValue(node, propMapping.ContentTypePropertyAlias);
-                if (value != null) return value;
+                continue;
             }
-            node = node.Parent;
+
+            var value = GetPropertyValue(node, propMapping.ContentTypePropertyAlias);
+            if (value is not null)
+                return value;
         }
+
         return null;
     }
 
     private string? ResolveSiblingValue(IPublishedContent content, PropertyMapping propMapping)
     {
-        var siblings = content.Parent?.Children;
-        if (siblings == null) return null;
+        var parent = content.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
+        var siblings = parent?.Children(_navigationQueryService, _publishedStatusFilteringService);
+        if (siblings is null)
+            return null;
 
         foreach (var sibling in siblings)
         {
-            if (sibling.Id == content.Id) continue;
+            if (sibling.Id == content.Id)
+                continue;
 
             if (!string.IsNullOrEmpty(propMapping.SourceContentTypeAlias)
                 && !string.Equals(sibling.ContentType.Alias, propMapping.SourceContentTypeAlias, StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
 
             var value = GetPropertyValue(sibling, propMapping.ContentTypePropertyAlias);
-            if (value != null) return value;
+            if (value is not null)
+                return value;
         }
+
         return null;
     }
 
     private static string? GetPropertyValue(IPublishedContent node, string? propertyAlias)
     {
-        if (string.IsNullOrEmpty(propertyAlias)) return null;
+        if (string.IsNullOrEmpty(propertyAlias))
+            return null;
 
-        var property = node.GetProperty(propertyAlias);
-        return property?.GetValue()?.ToString();
+        return node.GetProperty(propertyAlias)?.GetValue()?.ToString();
     }
 
     private string? ApplyTransform(string? value, string? transformType)
     {
-        if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(transformType)) return value;
+        if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(transformType))
+            return value;
 
         return transformType switch
         {
@@ -151,10 +176,11 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// </summary>
     private string ToAbsoluteUrl(string value)
     {
-        if (!value.StartsWith('/')) return value;
+        if (!value.StartsWith('/'))
+            return value;
 
         var request = _httpContextAccessor.HttpContext?.Request;
-        if (request == null)
+        if (request is null)
         {
             _logger.LogWarning("Cannot resolve absolute URL: no HttpContext available");
             return value;
@@ -176,7 +202,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         var property = instance.GetType().GetProperty(propertyName,
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
 
-        if (property == null || !property.CanWrite) return;
+        if (property is not { CanWrite: true })
+            return;
 
         var targetType = property.PropertyType;
 
@@ -184,18 +211,18 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         var converted = TryConvertViaImplicit(targetType, value)
                      ?? TryConvertViaImplicit(targetType, (object)value);
 
-        if (converted != null)
+        if (converted is not null)
         {
             property.SetValue(instance, converted);
             return;
         }
 
         // Handle OneOrMany<T> types from Schema.NET by building from inside out
-        if (targetType.IsGenericType && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany"))
+        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany"))
         {
             var innerType = targetType.GetGenericArguments()[0];
 
-            if (innerType.IsGenericType && innerType.GetGenericTypeDefinition().Name.StartsWith("Values"))
+            if (innerType is { IsGenericType: true } && innerType.GetGenericTypeDefinition().Name.StartsWith("Values"))
             {
                 var valuesArgs = innerType.GetGenericArguments();
 
@@ -205,17 +232,18 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 {
                     valuesInstance = TryConvertViaImplicit(innerType, value);
                 }
-                if (valuesInstance == null && valuesArgs.Any(t => t == typeof(Uri))
+
+                if (valuesInstance is null && valuesArgs.Any(t => t == typeof(Uri))
                     && Uri.TryCreate(value, UriKind.RelativeOrAbsolute, out var uri))
                 {
                     valuesInstance = TryConvertViaImplicit(innerType, uri);
                 }
 
-                if (valuesInstance != null)
+                if (valuesInstance is not null)
                 {
                     // Build OneOrMany<> from Values<>
                     var oneOrMany = TryConvertViaImplicit(targetType, valuesInstance);
-                    if (oneOrMany != null)
+                    if (oneOrMany is not null)
                     {
                         property.SetValue(instance, oneOrMany);
                         return;
@@ -252,16 +280,16 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         foreach (var method in methods)
         {
             var paramType = method.GetParameters()[0].ParameterType;
-            if (paramType.IsAssignableFrom(value.GetType()))
+            if (!paramType.IsAssignableFrom(value.GetType()))
+                continue;
+
+            try
             {
-                try
-                {
-                    return method.Invoke(null, [value]);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Implicit conversion failed on target type {TargetType}", targetType.Name);
-                }
+                return method.Invoke(null, [value]);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Implicit conversion failed on target type {TargetType}", targetType.Name);
             }
         }
 
@@ -272,16 +300,16 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         foreach (var method in sourceMethods)
         {
             var paramType = method.GetParameters()[0].ParameterType;
-            if (paramType.IsAssignableFrom(value.GetType()))
+            if (!paramType.IsAssignableFrom(value.GetType()))
+                continue;
+
+            try
             {
-                try
-                {
-                    return method.Invoke(null, [value]);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Implicit conversion failed on source type {SourceType}", value.GetType().Name);
-                }
+                return method.Invoke(null, [value]);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Implicit conversion failed on source type {SourceType}", value.GetType().Name);
             }
         }
 

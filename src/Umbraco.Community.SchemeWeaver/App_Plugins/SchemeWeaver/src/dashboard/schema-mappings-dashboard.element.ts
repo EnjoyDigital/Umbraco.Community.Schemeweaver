@@ -1,6 +1,7 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
@@ -16,6 +17,7 @@ interface ContentTypeMapping {
 @customElement('schemeweaver-schema-mappings-dashboard')
 export class SchemaMappingsDashboardElement extends UmbLitElement {
   #repository = new SchemeWeaverRepository(this);
+  #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
   private _loading = true;
@@ -26,8 +28,12 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
   @state()
   private _searchTerm = '';
 
-  @state()
-  private _errorMessage = '';
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
+  }
 
   async connectedCallback() {
     super.connectedCallback();
@@ -36,7 +42,6 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
 
   private async _fetchMappings() {
     this._loading = true;
-    this._errorMessage = '';
 
     try {
       const [mappings, contentTypes] = await Promise.all([
@@ -48,8 +53,8 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
         throw new Error('Failed to fetch data from SchemeWeaver API');
       }
 
-      this._mappings = contentTypes.map((ct: any) => {
-        const mapping = mappings.find((m: any) => m.contentTypeAlias === ct.alias);
+      this._mappings = contentTypes.map((ct) => {
+        const mapping = mappings.find((m) => m.contentTypeAlias === ct.alias);
         return {
           contentTypeAlias: ct.alias,
           contentTypeName: ct.name,
@@ -60,7 +65,11 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
       });
     } catch (error) {
       console.error('SchemeWeaver: Error fetching mappings:', error);
-      this._errorMessage = error instanceof Error ? error.message : 'Failed to load mappings';
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to load mappings',
+        },
+      });
     } finally {
       this._loading = false;
     }
@@ -84,15 +93,24 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
   private async _handleDelete(alias: string) {
     try {
       await this.#repository.deleteMapping(alias);
+      this.#notificationContext?.peek('positive', {
+        data: { message: this.localize.term('schemeWeaver_mappingDeleted') },
+      });
       await this._fetchMappings();
     } catch (error) {
       console.error('SchemeWeaver: Error deleting mapping:', error);
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to delete mapping',
+        },
+      });
     }
   }
 
-  /** Opens schema picker → property mapping modal sequence (like entity actions) */
+  /** Opens schema picker -> property mapping modal sequence (like entity actions) */
   private async _handleMap(alias: string) {
     const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
 
     const pickerResult = await modalManager
       .open(this, SCHEMEWEAVER_SCHEMA_PICKER_MODAL, {
@@ -122,6 +140,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
     if (!mapping?.schemaTypeName) return;
 
     const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
 
     await modalManager
       .open(this, SCHEMEWEAVER_PROPERTY_MAPPING_MODAL, {
@@ -153,28 +172,34 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
       );
     } catch (error) {
       console.error('SchemeWeaver: Error generating preview:', error);
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to generate preview',
+        },
+      });
     }
   }
 
   render() {
     return html`
-      <umb-body-layout headline="Schema.org Mappings">
+      <umb-body-layout headline=${this.localize.term('schemeWeaver_dashboardHeadline')}>
         <uui-box>
           <div class="header-actions">
             <uui-input
-              placeholder="Search content types..."
+              placeholder=${this.localize.term('schemeWeaver_searchContentTypes')}
               @input=${this._handleSearch}
               .value=${this._searchTerm}
+              label=${this.localize.term('schemeWeaver_searchContentTypes')}
             >
               <uui-icon name="icon-search" slot="prepend"></uui-icon>
             </uui-input>
             <uui-button
               look="outline"
               @click=${this._fetchMappings}
-              label="Refresh"
+              label=${this.localize.term('schemeWeaver_refresh')}
             >
               <uui-icon name="icon-refresh"></uui-icon>
-              Refresh
+              ${this.localize.term('schemeWeaver_refresh')}
             </uui-button>
           </div>
 
@@ -182,24 +207,17 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
             ? html`
                 <div class="loading">
                   <uui-loader-circle></uui-loader-circle>
-                  <p>Loading schema mappings...</p>
+                  <p>${this.localize.term('schemeWeaver_loadingMappings')}</p>
                 </div>
               `
-            : this._errorMessage
-              ? html`
-                  <div class="error-message">
-                    <p>${this._errorMessage}</p>
-                    <uui-button look="primary" @click=${this._fetchMappings}>Retry</uui-button>
-                  </div>
-                `
-              : html`
+            : html`
                   <uui-table>
                     <uui-table-head>
-                      <uui-table-head-cell>Content Type</uui-table-head-cell>
-                      <uui-table-head-cell>Schema Type</uui-table-head-cell>
-                      <uui-table-head-cell>Status</uui-table-head-cell>
-                      <uui-table-head-cell>Properties</uui-table-head-cell>
-                      <uui-table-head-cell>Actions</uui-table-head-cell>
+                      <uui-table-head-cell>${this.localize.term('schemeWeaver_contentType')}</uui-table-head-cell>
+                      <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaType')}</uui-table-head-cell>
+                      <uui-table-head-cell>${this.localize.term('schemeWeaver_status')}</uui-table-head-cell>
+                      <uui-table-head-cell>${this.localize.term('schemeWeaver_properties')}</uui-table-head-cell>
+                      <uui-table-head-cell>${this.localize.term('schemeWeaver_actions')}</uui-table-head-cell>
                     </uui-table-head>
 
                     ${this._filteredMappings.map(
@@ -213,16 +231,16 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                           <uui-table-cell>
                             ${mapping.schemaTypeName
                               ? html`<uui-tag color="primary" look="primary">${mapping.schemaTypeName}</uui-tag>`
-                              : html`<span class="unmapped-text">Not mapped</span>`}
+                              : html`<span class="unmapped-text">${this.localize.term('schemeWeaver_notMapped')}</span>`}
                           </uui-table-cell>
                           <uui-table-cell>
                             ${mapping.isMapped
-                              ? html`<uui-badge color="positive">Mapped</uui-badge>`
-                              : html`<uui-badge color="default">Unmapped</uui-badge>`}
+                              ? html`<uui-badge color="positive">${this.localize.term('schemeWeaver_mapped')}</uui-badge>`
+                              : html`<uui-badge color="default">${this.localize.term('schemeWeaver_unmapped')}</uui-badge>`}
                           </uui-table-cell>
                           <uui-table-cell>
                             ${mapping.isMapped
-                              ? html`${mapping.propertyMappingCount} properties`
+                              ? html`${mapping.propertyMappingCount} ${this.localize.term('schemeWeaver_properties')}`
                               : html`-`}
                           </uui-table-cell>
                           <uui-table-cell>
@@ -233,7 +251,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                                       look="outline"
                                       compact
                                       @click=${() => this._handleEdit(mapping.contentTypeAlias)}
-                                      label="Edit mapping"
+                                      label=${this.localize.term('schemeWeaver_editMapping')}
                                     >
                                       <uui-icon name="icon-edit"></uui-icon>
                                     </uui-button>
@@ -241,7 +259,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                                       look="outline"
                                       compact
                                       @click=${() => this._handlePreview(mapping.contentTypeAlias)}
-                                      label="Preview JSON-LD"
+                                      label=${this.localize.term('schemeWeaver_previewJsonLd')}
                                     >
                                       <uui-icon name="icon-brackets"></uui-icon>
                                     </uui-button>
@@ -250,7 +268,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                                       color="danger"
                                       compact
                                       @click=${() => this._handleDelete(mapping.contentTypeAlias)}
-                                      label="Delete mapping"
+                                      label=${this.localize.term('schemeWeaver_deleteMapping')}
                                     >
                                       <uui-icon name="icon-trash"></uui-icon>
                                     </uui-button>
@@ -260,10 +278,10 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                                       look="primary"
                                       compact
                                       @click=${() => this._handleMap(mapping.contentTypeAlias)}
-                                      label="Map to Schema.org"
+                                      label=${this.localize.term('schemeWeaver_mapToSchema')}
                                     >
                                       <uui-icon name="icon-brackets"></uui-icon>
-                                      Map
+                                      ${this.localize.term('schemeWeaver_map')}
                                     </uui-button>
                                   `}
                             </div>
@@ -274,7 +292,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                   </uui-table>
 
                   ${this._filteredMappings.length === 0
-                    ? html`<p class="no-results">No content types found matching your search.</p>`
+                    ? html`<p class="no-results">${this.localize.term('schemeWeaver_noResults')}</p>`
                     : ''}
                 `}
         </uui-box>
@@ -308,12 +326,6 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
         padding: var(--uui-size-space-6);
       }
 
-      .error-message {
-        color: var(--uui-color-danger);
-        text-align: center;
-        padding: var(--uui-size-space-6);
-      }
-
       .alias {
         color: var(--uui-color-text-alt);
         font-family: monospace;
@@ -337,5 +349,3 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
     `,
   ];
 }
-
-export default SchemaMappingsDashboardElement;

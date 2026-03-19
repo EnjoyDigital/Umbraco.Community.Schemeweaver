@@ -26,7 +26,7 @@ describe('PropertyMappingTableElement', () => {
   it('shows High confidence badge for >= 80', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    const firstRowBadge = rows[0].querySelector('uui-badge');
+    const firstRowBadge = (rows[0] as unknown as HTMLElement).querySelector('uui-badge');
     expect(firstRowBadge).to.exist;
     expect(firstRowBadge!.textContent!.trim()).to.equal('High');
     expect(firstRowBadge!.getAttribute('color')).to.equal('positive');
@@ -35,7 +35,7 @@ describe('PropertyMappingTableElement', () => {
   it('shows Medium confidence badge for >= 50', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    const badge = rows[1].querySelector('uui-badge');
+    const badge = (rows[1] as unknown as HTMLElement).querySelector('uui-badge');
     expect(badge).to.exist;
     expect(badge!.textContent!.trim()).to.equal('Medium');
     expect(badge!.getAttribute('color')).to.equal('warning');
@@ -44,7 +44,7 @@ describe('PropertyMappingTableElement', () => {
   it('shows Low confidence badge for < 50', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    const badge = rows[2].querySelector('uui-badge');
+    const badge = (rows[2] as unknown as HTMLElement).querySelector('uui-badge');
     expect(badge).to.exist;
     expect(badge!.textContent!.trim()).to.equal('Low');
     expect(badge!.getAttribute('color')).to.equal('danger');
@@ -53,7 +53,7 @@ describe('PropertyMappingTableElement', () => {
   it('shows no badge when confidence is null', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    const badge = rows[3].querySelector('uui-badge');
+    const badge = (rows[3] as unknown as HTMLElement).querySelector('uui-badge');
     expect(badge).to.not.exist;
   });
 

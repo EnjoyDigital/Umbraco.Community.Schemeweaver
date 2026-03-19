@@ -1,5 +1,5 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
-import { css, html, customElement, property, state } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, property } from '@umbraco-cms/backoffice/external/lit';
 
 /**
  * UI row model for the property mapping table.
@@ -112,7 +112,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
                           selected: mapping.sourceType === st.value,
                         }))}
                         @change=${(e: Event) =>
-                          this._handleSourceTypeChange(index, (e.target as any).value)}
+                          this._handleSourceTypeChange(index, (e.target as HTMLSelectElement).value)}
                       ></uui-select>
                     `}
               </uui-table-cell>
@@ -162,7 +162,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
             value: p,
             selected: mapping.contentTypePropertyAlias === p,
           }))}
-          @change=${(e: Event) => this._handlePropertyChange(index, (e.target as any).value)}
+          @change=${(e: Event) => this._handlePropertyChange(index, (e.target as HTMLSelectElement).value)}
         ></uui-select>
       </div>
     `;
@@ -195,5 +195,3 @@ export class PropertyMappingTableElement extends UmbLitElement {
     `,
   ];
 }
-
-export default PropertyMappingTableElement;

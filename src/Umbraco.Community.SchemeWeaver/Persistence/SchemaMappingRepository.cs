@@ -40,7 +40,7 @@ public class SchemaMappingRepository : ISchemaMappingRepository
         var now = DateTime.UtcNow;
         mapping.UpdatedDate = now;
 
-        if (mapping.Id == 0)
+        if (mapping.Id is 0)
         {
             mapping.CreatedDate = now;
             scope.Database.Insert(mapping);

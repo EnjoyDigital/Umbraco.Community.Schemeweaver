@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using NSubstitute;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
@@ -15,12 +16,20 @@ public class JsonLdGeneratorTests
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly ISchemaTypeRegistry _registry = new SchemaTypeRegistry();
     private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+    private readonly IDocumentNavigationQueryService _navigationQueryService = Substitute.For<IDocumentNavigationQueryService>();
+    private readonly IPublishedContentStatusFilteringService _publishedStatusFilteringService = Substitute.For<IPublishedContentStatusFilteringService>();
     private readonly ILogger<JsonLdGenerator> _logger = Substitute.For<ILogger<JsonLdGenerator>>();
     private readonly JsonLdGenerator _sut;
 
     public JsonLdGeneratorTests()
     {
-        _sut = new JsonLdGenerator(_repository, _registry, _httpContextAccessor, _logger);
+        _sut = new JsonLdGenerator(
+            _repository,
+            _registry,
+            _httpContextAccessor,
+            _navigationQueryService,
+            _publishedStatusFilteringService,
+            _logger);
     }
 
     private static IPublishedContent CreateContent(string contentTypeAlias, Dictionary<string, object?>? properties = null)
@@ -30,8 +39,9 @@ public class JsonLdGeneratorTests
         contentType.Alias.Returns(contentTypeAlias);
         content.ContentType.Returns(contentType);
         content.Id.Returns(1);
+        content.Key.Returns(Guid.NewGuid());
 
-        if (properties != null)
+        if (properties is not null)
         {
             foreach (var kvp in properties)
             {
@@ -44,16 +54,14 @@ public class JsonLdGeneratorTests
         return content;
     }
 
-    private SchemaMapping CreateMapping(string contentTypeAlias, string schemaTypeName, bool isEnabled = true)
-    {
-        return new SchemaMapping
+    private static SchemaMapping CreateMapping(string contentTypeAlias, string schemaTypeName, bool isEnabled = true)
+        => new()
         {
             Id = 1,
             ContentTypeAlias = contentTypeAlias,
             SchemaTypeName = schemaTypeName,
             IsEnabled = isEnabled
         };
-    }
 
     [Fact]
     public void GenerateJsonLd_NoMappingExists_ReturnsNull()
@@ -123,7 +131,26 @@ public class JsonLdGeneratorTests
         });
 
         var content = CreateContent("article");
+        var contentKey = content.Key;
+        var parentKey = parentContent.Key;
+
+        // Set up the navigation service to return the parent key
+        _navigationQueryService.TryGetParentKey(contentKey, out Arg.Any<Guid?>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = (Guid?)parentKey;
+                return true;
+            });
+
+        // The extension method uses IPublishedSnapshot internally - for Parent<T>() to work
+        // with mocked navigation, we rely on the deprecated .Parent property fallback
+        // In the test context, Parent<T>() extension method calls navigation service
+        // which we've mocked above. However, the extension method needs IPublishedSnapshot
+        // to resolve the content by key. Since we can't easily mock that chain,
+        // we use the deprecated Parent property for the test mock setup.
+#pragma warning disable CS0618 // Type or member is obsolete - required for test mock setup
         content.Parent.Returns(parentContent);
+#pragma warning restore CS0618
 
         var mapping = CreateMapping("article", "Article");
         _repository.GetByContentTypeAlias("article").Returns(mapping);
