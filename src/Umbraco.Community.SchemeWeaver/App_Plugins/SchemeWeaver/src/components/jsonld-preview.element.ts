@@ -34,8 +34,8 @@ export class JsonLdPreviewElement extends UmbLitElement {
           <strong>${this.localize.term('schemeWeaver_jsonLdPreview')}</strong>
           <div class="preview-actions">
             ${this.jsonLd.isValid
-              ? html`<uui-badge color="positive">Valid</uui-badge>`
-              : html`<uui-badge color="danger">Invalid</uui-badge>`}
+              ? html`<uui-badge color="positive">${this.localize.term('schemeWeaver_valid')}</uui-badge>`
+              : html`<uui-badge color="danger">${this.localize.term('schemeWeaver_invalid')}</uui-badge>`}
             <uui-button
               look="outline"
               compact

@@ -234,7 +234,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
               <uui-icon name="icon-brackets" class="empty-icon"></uui-icon>
               <h3>${this.localize.term('schemeWeaver_noMapping')}</h3>
               <p>${this.localize.term('schemeWeaver_noMappingDescription')}</p>
-              <uui-button look="primary" @click=${this._handleAutoMap}>
+              <uui-button look="primary" @click=${this._handleAutoMap} label=${this.localize.term('schemeWeaver_autoMapSchema')}>
                 <uui-icon name="icon-wand"></uui-icon>
                 ${this.localize.term('schemeWeaver_autoMapSchema')}
               </uui-button>
@@ -255,11 +255,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
         <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
           <div class="actions-bar" slot="header-actions">
-            <uui-button look="outline" compact @click=${this._handleAutoMap}>
+            <uui-button look="outline" compact @click=${this._handleAutoMap} label=${this.localize.term('schemeWeaver_autoMap')}>
               <uui-icon name="icon-wand"></uui-icon>
               ${this.localize.term('schemeWeaver_autoMap')}
             </uui-button>
-            <uui-button look="outline" compact @click=${this._handlePreview}>
+            <uui-button look="outline" compact @click=${this._handlePreview} label=${this.localize.term('schemeWeaver_preview')}>
               <uui-icon name="icon-brackets"></uui-icon>
               ${this.localize.term('schemeWeaver_preview')}
             </uui-button>

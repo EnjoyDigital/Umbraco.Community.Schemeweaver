@@ -8,7 +8,7 @@ export const manifests = [
     api: () => import('./map-to-schema.action.js'),
     meta: {
       icon: 'icon-brackets',
-      label: 'Map to Schema.org',
+      label: '#schemeWeaver_mapToSchema',
     },
     forEntityTypes: ['document-type'],
   },
@@ -21,7 +21,7 @@ export const manifests = [
     api: () => import('./generate-from-schema.action.js'),
     meta: {
       icon: 'icon-wand',
-      label: 'Generate from Schema.org',
+      label: '#schemeWeaver_generateFromSchema',
     },
     forEntityTypes: ['document-type'],
   },

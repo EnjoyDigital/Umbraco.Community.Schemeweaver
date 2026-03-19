@@ -1,6 +1,12 @@
 import { LitElement } from 'lit';
 
 export class UmbModalBaseElement extends LitElement {
+  localize = {
+    term(key) {
+      return key;
+    },
+  };
+
   constructor() {
     super();
     this._data = {};
@@ -10,6 +16,8 @@ export class UmbModalBaseElement extends LitElement {
       reject: () => {},
     };
   }
+
+  consumeContext(token, callback) {}
 
   get data() {
     return this._data;

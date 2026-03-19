@@ -7,7 +7,6 @@ describe('JsonLdPreviewElement', () => {
     const el = await fixture(html`<schemeweaver-jsonld-preview></schemeweaver-jsonld-preview>`);
     const empty = el.shadowRoot!.querySelector('.empty');
     expect(empty).to.exist;
-    expect(empty!.textContent).to.contain('No JSON-LD data to preview');
   });
 
   it('does not render copy button in empty state', async () => {
@@ -49,11 +48,11 @@ describe('JsonLdPreviewElement', () => {
       errors: [],
     };
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const btn = el.shadowRoot!.querySelector('uui-button[label="Copy to clipboard"]');
+    const btn = el.shadowRoot!.querySelector('uui-button');
     expect(btn).to.exist;
   });
 
-  it('shows Valid badge when isValid is true', async () => {
+  it('shows positive badge when isValid is true', async () => {
     const data: JsonLdPreviewResponse = {
       jsonLd: '{"@type":"Article"}',
       isValid: true,
@@ -62,11 +61,10 @@ describe('JsonLdPreviewElement', () => {
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
     const badge = el.shadowRoot!.querySelector('uui-badge');
     expect(badge).to.exist;
-    expect(badge!.textContent!.trim()).to.equal('Valid');
     expect(badge!.getAttribute('color')).to.equal('positive');
   });
 
-  it('shows Invalid badge and errors when isValid is false', async () => {
+  it('shows danger badge and errors when isValid is false', async () => {
     const data: JsonLdPreviewResponse = {
       jsonLd: '{}',
       isValid: false,
@@ -75,7 +73,6 @@ describe('JsonLdPreviewElement', () => {
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
     const badge = el.shadowRoot!.querySelector('uui-badge');
     expect(badge).to.exist;
-    expect(badge!.textContent!.trim()).to.equal('Invalid');
     expect(badge!.getAttribute('color')).to.equal('danger');
 
     const errors = el.shadowRoot!.querySelectorAll('.error-item');

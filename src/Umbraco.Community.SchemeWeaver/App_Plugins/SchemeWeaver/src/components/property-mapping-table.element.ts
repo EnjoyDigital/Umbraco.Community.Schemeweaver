@@ -27,13 +27,15 @@ export class PropertyMappingTableElement extends UmbLitElement {
   readonly = false;
 
   /** Source type values matching C# (lowercase) */
-  private _sourceTypes = [
-    { value: 'property', label: 'Current Node' },
-    { value: 'static', label: 'Static Value' },
-    { value: 'parent', label: 'Parent Node' },
-    { value: 'ancestor', label: 'Ancestor Node' },
-    { value: 'sibling', label: 'Sibling Node' },
-  ];
+  private get _sourceTypes() {
+    return [
+      { value: 'property', label: this.localize.term('schemeWeaver_sourceCurrentNode') },
+      { value: 'static', label: this.localize.term('schemeWeaver_sourceStaticValue') },
+      { value: 'parent', label: this.localize.term('schemeWeaver_sourceParentNode') },
+      { value: 'ancestor', label: this.localize.term('schemeWeaver_sourceAncestorNode') },
+      { value: 'sibling', label: this.localize.term('schemeWeaver_sourceSiblingNode') },
+    ];
+  }
 
   private _dispatchChange() {
     this.dispatchEvent(
@@ -73,23 +75,23 @@ export class PropertyMappingTableElement extends UmbLitElement {
     this._dispatchChange();
   }
 
-  /** Confidence is an integer 0–100 from C# auto-mapper */
+  /** Confidence is an integer 0-100 from C# auto-mapper */
   private _renderConfidenceBadge(confidence: number | null) {
     if (confidence === null) return '';
-    if (confidence >= 80) return html`<uui-badge color="positive">High</uui-badge>`;
-    if (confidence >= 50) return html`<uui-badge color="warning">Medium</uui-badge>`;
-    return html`<uui-badge color="danger">Low</uui-badge>`;
+    if (confidence >= 80) return html`<uui-badge color="positive">${this.localize.term('schemeWeaver_confidenceHigh')}</uui-badge>`;
+    if (confidence >= 50) return html`<uui-badge color="warning">${this.localize.term('schemeWeaver_confidenceMedium')}</uui-badge>`;
+    return html`<uui-badge color="danger">${this.localize.term('schemeWeaver_confidenceLow')}</uui-badge>`;
   }
 
   render() {
     return html`
-      <uui-table>
+      <uui-table aria-label=${this.localize.term('schemeWeaver_propertyMappings')}>
         <uui-table-head>
-          <uui-table-head-cell>Schema Property</uui-table-head-cell>
-          <uui-table-head-cell>Type</uui-table-head-cell>
-          <uui-table-head-cell>Source</uui-table-head-cell>
-          <uui-table-head-cell>Value</uui-table-head-cell>
-          <uui-table-head-cell>Confidence</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_type')}</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_source')}</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_confidence')}</uui-table-head-cell>
         </uui-table-head>
 
         ${this.mappings.map(
@@ -106,6 +108,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
                   ? html`<span>${mapping.sourceType}</span>`
                   : html`
                       <uui-select
+                        label=${this.localize.term('schemeWeaver_source')}
                         .options=${this._sourceTypes.map((st) => ({
                           name: st.label,
                           value: st.value,
@@ -137,7 +140,8 @@ export class PropertyMappingTableElement extends UmbLitElement {
         <uui-input
           .value=${mapping.staticValue}
           @input=${(e: Event) => this._handleStaticValueChange(index, (e.target as HTMLInputElement).value)}
-          placeholder="Enter static value..."
+          placeholder=${this.localize.term('schemeWeaver_enterStaticValue')}
+          label=${this.localize.term('schemeWeaver_staticValueFor') + ' ' + mapping.schemaPropertyName}
         ></uui-input>
       `;
     }
@@ -151,12 +155,14 @@ export class PropertyMappingTableElement extends UmbLitElement {
               <uui-input
                 .value=${mapping.sourceContentTypeAlias}
                 @input=${(e: Event) => this._handleSourceContentTypeAliasChange(index, (e.target as HTMLInputElement).value)}
-                placeholder="Content type alias..."
+                placeholder=${this.localize.term('schemeWeaver_contentTypeAliasPlaceholder')}
+                label=${this.localize.term('schemeWeaver_contentTypeAlias')}
                 class="content-type-input"
               ></uui-input>
             `
           : ''}
         <uui-select
+          label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
           .options=${this.availableProperties.map((p) => ({
             name: p,
             value: p,

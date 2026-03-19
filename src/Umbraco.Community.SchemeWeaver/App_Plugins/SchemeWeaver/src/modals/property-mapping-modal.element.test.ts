@@ -59,10 +59,10 @@ describe('PropertyMappingModalElement', () => {
   it('has Save and Cancel buttons', async () => {
     const el = createElement();
     await waitForLoad(el);
-    const buttons = el.shadowRoot!.querySelectorAll('uui-button');
-    const buttonTexts = Array.from(buttons).map((b: any) => b.textContent!.trim());
-    expect(buttonTexts).to.include('Save Mapping');
-    expect(buttonTexts).to.include('Cancel');
+    const saveBtn = el.shadowRoot!.querySelector('uui-button[look="primary"]');
+    const cancelBtn = el.shadowRoot!.querySelector('uui-button[look="secondary"]');
+    expect(saveBtn).to.exist;
+    expect(cancelBtn).to.exist;
   });
 
   it('shows schema type in headline', async () => {
