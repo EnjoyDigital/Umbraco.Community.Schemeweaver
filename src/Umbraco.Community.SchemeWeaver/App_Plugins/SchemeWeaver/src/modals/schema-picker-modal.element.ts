@@ -246,3 +246,11 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     `,
   ];
 }
+
+export default SchemaPickerModalElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'schemeweaver-schema-picker-modal': SchemaPickerModalElement;
+  }
+}

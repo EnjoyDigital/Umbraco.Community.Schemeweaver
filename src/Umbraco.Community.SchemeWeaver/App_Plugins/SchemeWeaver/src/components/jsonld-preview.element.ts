@@ -118,3 +118,11 @@ export class JsonLdPreviewElement extends UmbLitElement {
     `,
   ];
 }
+
+export default JsonLdPreviewElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'schemeweaver-jsonld-preview': JsonLdPreviewElement;
+  }
+}

@@ -232,3 +232,11 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     `,
   ];
 }
+
+export default PropertyMappingModalElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'schemeweaver-property-mapping-modal': PropertyMappingModalElement;
+  }
+}

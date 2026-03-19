@@ -1,23 +1,21 @@
 import { LitElement } from 'lit';
+import { resolveLocalizationKey } from './lit-element.js';
+
+const localize = {
+  term: (key) => resolveLocalizationKey(key),
+};
 
 export class UmbModalBaseElement extends LitElement {
-  localize = {
-    term(key) {
-      return key;
-    },
-  };
-
   constructor() {
     super();
     this._data = {};
+    this.localize = localize;
     this.modalContext = {
       setValue: () => {},
       submit: () => {},
       reject: () => {},
     };
   }
-
-  consumeContext(token, callback) {}
 
   get data() {
     return this._data;
@@ -26,6 +24,14 @@ export class UmbModalBaseElement extends LitElement {
   set data(v) {
     this._data = v;
   }
+
+  async getContext(token) {
+    return {};
+  }
+
+  consumeContext(token, callback) {}
+
+  provideContext(token, instance) {}
 }
 
 export const UMB_MODAL_MANAGER_CONTEXT = Symbol('UMB_MODAL_MANAGER_CONTEXT');

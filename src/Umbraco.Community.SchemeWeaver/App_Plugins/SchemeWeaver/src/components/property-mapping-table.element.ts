@@ -201,3 +201,11 @@ export class PropertyMappingTableElement extends UmbLitElement {
     `,
   ];
 }
+
+export default PropertyMappingTableElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'schemeweaver-property-mapping-table': PropertyMappingTableElement;
+  }
+}

@@ -349,3 +349,11 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
     `,
   ];
 }
+
+export default SchemaMappingsDashboardElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'schemeweaver-schema-mappings-dashboard': SchemaMappingsDashboardElement;
+  }
+}

@@ -325,3 +325,11 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
     `,
   ];
 }
+
+export default GenerateDoctypeModalElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'schemeweaver-generate-doctype-modal': GenerateDoctypeModalElement;
+  }
+}

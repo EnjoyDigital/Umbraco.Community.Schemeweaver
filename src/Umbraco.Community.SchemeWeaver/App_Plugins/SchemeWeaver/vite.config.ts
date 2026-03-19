@@ -18,6 +18,7 @@ export default defineConfig({
       },
       output: {
         format: 'es',
+        chunkFileNames: '[name]-[hash].js',
       },
     },
     outDir: '../../wwwroot/dist',

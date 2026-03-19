@@ -59,8 +59,8 @@ describe('PropertyMappingModalElement', () => {
   it('has Save and Cancel buttons', async () => {
     const el = createElement();
     await waitForLoad(el);
-    const saveBtn = el.shadowRoot!.querySelector('uui-button[look="primary"]');
-    const cancelBtn = el.shadowRoot!.querySelector('uui-button[look="secondary"]');
+    const saveBtn = el.shadowRoot!.querySelector('uui-button[label="Save Mapping"]');
+    const cancelBtn = el.shadowRoot!.querySelector('uui-button[label="Cancel"]');
     expect(saveBtn).to.exist;
     expect(cancelBtn).to.exist;
   });

@@ -7,7 +7,7 @@ setup('authenticate', async ({ page }) => {
 
   await umbracoUi.goToBackOffice();
   await umbracoUi.login.enterEmail(process.env.UMBRACO_USER_LOGIN || 'admin@test.com');
-  await umbracoUi.login.enterPassword(process.env.UMBRACO_USER_PASSWORD || 'Test12345678!');
+  await umbracoUi.login.enterPassword(process.env.UMBRACO_USER_PASSWORD || 'SecurePass1234');
   await umbracoUi.login.clickLoginButton();
 
   // Wait for backoffice to load by navigating to Settings

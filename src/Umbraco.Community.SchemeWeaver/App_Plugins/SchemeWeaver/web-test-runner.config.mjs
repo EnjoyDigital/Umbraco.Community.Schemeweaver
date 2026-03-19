@@ -17,6 +17,7 @@ export default {
             '@umbraco-cms/backoffice/entity-action': '/src/__mocks__/entity-action.js',
             '@umbraco-cms/backoffice/workspace': '/src/__mocks__/workspace.js',
             '@umbraco-cms/backoffice/notification': '/src/__mocks__/notification.js',
+            '@umbraco-cms/backoffice/style': '/src/__mocks__/style.js',
             '@umbraco-cms/backoffice/controller-api': '/src/__mocks__/controller.js',
             '@umbraco-cms/backoffice/class-api': '/src/__mocks__/class-api.js',
             '@umbraco-cms/backoffice/context-api': '/src/__mocks__/context-api.js',

@@ -1,9 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { join } from 'path';
 
 export const STORAGE_STATE = join(__dirname, 'tests/e2e/.auth/user.json');
 
@@ -20,7 +16,7 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? 'line' : 'html',
   use: {
-    baseURL: process.env.UMBRACO_URL || 'https://localhost:44399',
+    baseURL: process.env.URL || process.env.UMBRACO_URL || 'https://localhost:44308',
     trace: 'retain-on-failure',
     ignoreHTTPSErrors: true,
     // CRITICAL: Umbraco uses 'data-mark' not 'data-testid'

@@ -352,3 +352,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
     `,
   ];
 }
+
+export default SchemaMappingViewElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'schemeweaver-schema-mapping-view': SchemaMappingViewElement;
+  }
+}
