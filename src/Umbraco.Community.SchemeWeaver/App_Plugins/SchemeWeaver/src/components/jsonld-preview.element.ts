@@ -25,13 +25,13 @@ export class JsonLdPreviewElement extends UmbLitElement {
 
   render() {
     if (!this.jsonLd) {
-      return html`<div class="empty">No JSON-LD data to preview</div>`;
+      return html`<div class="empty">${this.localize.term('schemeWeaver_noPreviewData')}</div>`;
     }
 
     return html`
       <div class="preview-container">
         <div class="preview-header">
-          <strong>JSON-LD Preview</strong>
+          <strong>${this.localize.term('schemeWeaver_jsonLdPreview')}</strong>
           <div class="preview-actions">
             ${this.jsonLd.isValid
               ? html`<uui-badge color="positive">Valid</uui-badge>`
@@ -40,10 +40,10 @@ export class JsonLdPreviewElement extends UmbLitElement {
               look="outline"
               compact
               @click=${this._handleCopy}
-              label="Copy to clipboard"
+              label=${this.localize.term('schemeWeaver_copyToClipboard')}
             >
               <uui-icon name="icon-documents"></uui-icon>
-              Copy
+              ${this.localize.term('schemeWeaver_copy')}
             </uui-button>
           </div>
         </div>

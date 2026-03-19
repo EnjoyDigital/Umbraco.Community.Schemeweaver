@@ -1,5 +1,6 @@
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { SchemaTypeInfo, SchemaPropertyInfo } from '../api/types.js';
 import type { GenerateDoctypeModalData, GenerateDoctypeModalValue } from './generate-doctype-modal.token.js';
@@ -7,6 +8,7 @@ import type { GenerateDoctypeModalData, GenerateDoctypeModalValue } from './gene
 @customElement('schemeweaver-generate-doctype-modal')
 export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoctypeModalData, GenerateDoctypeModalValue> {
   #repository = new SchemeWeaverRepository(this);
+  #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
   private _loading = false;
@@ -35,8 +37,12 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
   @state()
   private _documentTypeAlias = '';
 
-  @state()
-  private _errorMessage = '';
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
+  }
 
   async connectedCallback() {
     super.connectedCallback();
@@ -100,7 +106,6 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
     if (!this._selectedSchemaType || !this._documentTypeName || !this._documentTypeAlias) return;
 
     this._generating = true;
-    this._errorMessage = '';
 
     try {
       await this.#repository.generateContentType({
@@ -114,7 +119,11 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
       this.modalContext?.submit();
     } catch (error) {
       console.error('SchemeWeaver: Generate error:', error);
-      this._errorMessage = error instanceof Error ? error.message : 'Failed to generate content type';
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : 'Failed to generate content type',
+        },
+      });
     } finally {
       this._generating = false;
     }
@@ -126,29 +135,28 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
 
   render() {
     return html`
-      <umb-body-layout headline="Generate Content Type from Schema.org">
-        ${this._errorMessage
-          ? html`<div class="error-banner">${this._errorMessage}</div>`
-          : ''}
-
+      <umb-body-layout headline=${this.localize.term('schemeWeaver_generateContentType')}>
         ${!this._selectedSchemaType
           ? this._renderSchemaTypePicker()
           : this._renderPropertySelection()}
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleClose}>Cancel</uui-button>
+          <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
+            ${this.localize.term('schemeWeaver_cancel')}
+          </uui-button>
           ${this._selectedSchemaType
             ? html`
-                <uui-button look="secondary" @click=${() => (this._selectedSchemaType = null)}>
-                  Back
+                <uui-button look="secondary" @click=${() => (this._selectedSchemaType = null)} label=${this.localize.term('schemeWeaver_back')}>
+                  ${this.localize.term('schemeWeaver_back')}
                 </uui-button>
                 <uui-button
                   look="primary"
                   @click=${this._handleGenerate}
                   ?disabled=${this._generating || this._selectedProperties.size === 0}
                   .state=${this._generating ? 'waiting' : undefined}
+                  label=${this.localize.term('schemeWeaver_generate')}
                 >
-                  ${this._generating ? 'Generating...' : 'Generate'}
+                  ${this._generating ? this.localize.term('schemeWeaver_generating') : this.localize.term('schemeWeaver_generate')}
                 </uui-button>
               `
             : ''}
@@ -161,10 +169,11 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
     return html`
       <uui-box>
         <uui-input
-          placeholder="Search schema types..."
+          placeholder=${this.localize.term('schemeWeaver_searchSchemaTypes')}
           @input=${this._handleSearch}
           .value=${this._searchTerm}
           class="search-input"
+          label=${this.localize.term('schemeWeaver_searchSchemaTypes')}
         >
           <uui-icon name="icon-search" slot="prepend"></uui-icon>
         </uui-input>
@@ -193,17 +202,17 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
 
   private _renderPropertySelection() {
     return html`
-      <uui-box headline="Content Type Settings">
+      <uui-box headline=${this.localize.term('schemeWeaver_contentTypeSettings')}>
         <div class="naming-fields">
           <uui-form-layout-item>
-            <uui-label slot="label">Content Type Name</uui-label>
+            <uui-label slot="label">${this.localize.term('schemeWeaver_contentTypeName')}</uui-label>
             <uui-input
               .value=${this._documentTypeName}
               @input=${(e: Event) => (this._documentTypeName = (e.target as HTMLInputElement).value)}
             ></uui-input>
           </uui-form-layout-item>
           <uui-form-layout-item>
-            <uui-label slot="label">Content Type Alias</uui-label>
+            <uui-label slot="label">${this.localize.term('schemeWeaver_contentTypeAlias')}</uui-label>
             <uui-input
               .value=${this._documentTypeAlias}
               @input=${(e: Event) => (this._documentTypeAlias = (e.target as HTMLInputElement).value)}
@@ -212,8 +221,8 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
         </div>
       </uui-box>
 
-      <uui-box headline="Select Properties">
-        <p>Choose which Schema.org properties to include as document type properties:</p>
+      <uui-box headline=${this.localize.term('schemeWeaver_selectProperties')}>
+        <p>${this.localize.term('schemeWeaver_selectPropertiesDescription')}</p>
         <div class="property-list">
           ${this._selectedTypeProperties.map(
             (prop) => html`
@@ -281,14 +290,6 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
         display: flex;
         flex-direction: column;
         gap: var(--uui-size-space-4);
-      }
-
-      .error-banner {
-        background-color: var(--uui-color-danger);
-        color: white;
-        padding: var(--uui-size-space-3) var(--uui-size-space-4);
-        border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
       }
 
       .property-list {
