@@ -61,6 +61,15 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
                 _types.TryAdd(type.Name, entry);
             }
 
+            // Second pass: set IsComplexType now that _types is fully populated
+            foreach (var entry2 in _types.Values)
+            {
+                foreach (var prop in entry2.Properties)
+                {
+                    prop.IsComplexType = prop.AcceptedTypes.Any(t => _types.ContainsKey(t));
+                }
+            }
+
             _initialised = true;
         }
     }
@@ -119,15 +128,63 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
             if (prop.Name is "Context" or "Type" or "Id") continue;
 
             var propertyType = GetFriendlyTypeName(prop.PropertyType);
+            var acceptedTypes = GetAcceptedTypes(prop.PropertyType);
             properties.Add(new SchemaPropertyInfo
             {
                 Name = prop.Name,
                 PropertyType = propertyType,
-                IsRequired = false
+                IsRequired = false,
+                AcceptedTypes = acceptedTypes,
+                // IsComplexType set in second pass
             });
         }
 
         return properties;
+    }
+
+    private static List<string> GetAcceptedTypes(Type type)
+    {
+        var result = new List<string>();
+        CollectLeafTypes(type, result);
+        return result.Distinct().ToList();
+    }
+
+    private static void CollectLeafTypes(Type type, List<string> result)
+    {
+        if (type.IsGenericType)
+        {
+            var genericDef = type.GetGenericTypeDefinition();
+            var name = genericDef.Name.Split('`')[0];
+
+            if (name is "OneOrMany" or "Values" or "Nullable")
+            {
+                foreach (var arg in type.GetGenericArguments())
+                    CollectLeafTypes(arg, result);
+                return;
+            }
+        }
+
+        if (type.IsInterface && typeof(Schema.NET.IThing).IsAssignableFrom(type))
+        {
+            // Strip 'I' prefix: IOrganization → Organization
+            var typeName = type.Name.StartsWith('I') ? type.Name.Substring(1) : type.Name;
+            result.Add(typeName);
+            return;
+        }
+
+        // Simple type
+        result.Add(type.Name switch
+        {
+            "String" => "String",
+            "Uri" => "Uri",
+            "DateTime" => "DateTime",
+            "DateTimeOffset" => "DateTime",
+            "Int32" => "Integer",
+            "Decimal" => "Number",
+            "Double" => "Number",
+            "Boolean" => "Boolean",
+            _ => type.Name
+        });
     }
 
     private static string GetFriendlyTypeName(Type type)

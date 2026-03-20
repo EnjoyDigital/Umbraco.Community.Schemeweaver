@@ -118,4 +118,42 @@ public class SchemaTypeRegistryTests
 
         duplicates.Should().BeEmpty("property names should be unique");
     }
+
+    [Fact]
+    public void GetProperties_UnionType_HasAcceptedTypes()
+    {
+        var properties = _sut.GetProperties("Article").ToList();
+        var authorProp = properties.First(p => p.Name == "Author");
+
+        authorProp.AcceptedTypes.Should().Contain("Organization");
+        authorProp.AcceptedTypes.Should().Contain("Person");
+    }
+
+    [Fact]
+    public void GetProperties_UnionType_IsComplexTrue()
+    {
+        var properties = _sut.GetProperties("Article").ToList();
+        var authorProp = properties.First(p => p.Name == "Author");
+
+        authorProp.IsComplexType.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetProperties_SimpleString_IsComplexFalse()
+    {
+        var properties = _sut.GetProperties("Article").ToList();
+        var headlineProp = properties.First(p => p.Name == "Headline");
+
+        headlineProp.IsComplexType.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetProperties_SimpleString_HasAcceptedTypes()
+    {
+        var properties = _sut.GetProperties("Article").ToList();
+        var headlineProp = properties.First(p => p.Name == "Headline");
+
+        headlineProp.AcceptedTypes.Should().NotBeEmpty();
+        headlineProp.AcceptedTypes.Should().Contain("String");
+    }
 }

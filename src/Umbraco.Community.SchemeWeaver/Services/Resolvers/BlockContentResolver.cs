@@ -273,3 +273,22 @@ public class NestedPropertyMapping
     /// </summary>
     public string? WrapInProperty { get; set; }
 }
+
+/// <summary>
+/// Configuration model for complex type property mappings stored in ResolverConfig JSON.
+/// </summary>
+public class ComplexTypeConfigModel
+{
+    public List<ComplexTypeMappingEntry>? ComplexTypeMappings { get; set; }
+}
+
+/// <summary>
+/// Maps a sub-property of a complex Schema.org type to a content property or static value.
+/// </summary>
+public class ComplexTypeMappingEntry
+{
+    public string SchemaProperty { get; set; } = string.Empty;
+    public string SourceType { get; set; } = "property";   // "property" or "static"
+    public string? ContentTypePropertyAlias { get; set; }
+    public string? StaticValue { get; set; }
+}

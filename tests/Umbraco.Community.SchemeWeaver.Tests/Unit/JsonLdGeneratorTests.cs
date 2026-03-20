@@ -226,4 +226,45 @@ public class JsonLdGeneratorTests
 
         result.Should().BeNull();
     }
+
+    [Fact]
+    public void GenerateJsonLd_ComplexType_CreatesNestedPerson()
+    {
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["authorName"] = "Jane Smith",
+            ["authorEmail"] = "jane@example.com"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+
+        var config = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Name", sourceType = "property", contentTypePropertyAlias = (string?)"authorName", staticValue = (string?)null },
+                new { schemaProperty = "Email", sourceType = "static", contentTypePropertyAlias = (string?)null, staticValue = (string?)"jane@example.com" }
+            }
+        });
+
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig = config
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Article>();
+        // The JSON-LD output should contain the nested Person
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Person");
+        jsonLd.Should().Contain("Jane Smith");
+    }
 }

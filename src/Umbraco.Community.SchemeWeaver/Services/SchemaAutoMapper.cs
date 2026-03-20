@@ -67,7 +67,9 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             {
                 SchemaPropertyName = schemaProp.Name,
                 SchemaPropertyType = schemaProp.PropertyType,
-                SuggestedSourceType = "property"
+                SuggestedSourceType = "property",
+                AcceptedTypes = schemaProp.AcceptedTypes,
+                IsComplexType = schemaProp.IsComplexType,
             };
 
             // Exact match (case-insensitive)

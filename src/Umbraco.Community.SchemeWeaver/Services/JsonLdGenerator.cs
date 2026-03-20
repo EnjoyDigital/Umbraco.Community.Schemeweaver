@@ -102,6 +102,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// </summary>
     private object? ResolveValue(PropertyMapping propMapping, IPublishedContent content)
     {
+        // Complex type creates a nested Thing with sub-property mappings
+        if (propMapping.SourceType == "complexType")
+            return ResolveComplexType(propMapping, content);
+
         // Static values bypass resolver entirely
         if (propMapping.SourceType == "static")
             return propMapping.StaticValue;
@@ -137,6 +141,59 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         };
 
         return resolver.Resolve(context);
+    }
+
+    /// <summary>
+    /// Resolves a complex Schema.org type by creating a nested Thing with sub-property mappings.
+    /// </summary>
+    private object? ResolveComplexType(PropertyMapping propMapping, IPublishedContent content)
+    {
+        var nestedTypeName = propMapping.NestedSchemaTypeName;
+        if (string.IsNullOrEmpty(nestedTypeName))
+            return null;
+
+        var clrType = _registry.GetClrType(nestedTypeName);
+        if (clrType is null || Activator.CreateInstance(clrType) is not Thing nestedInstance)
+            return null;
+
+        var config = ParseComplexTypeConfig(propMapping.ResolverConfig);
+        if (config?.ComplexTypeMappings is null or { Count: 0 })
+            return nestedInstance;
+
+        foreach (var subMapping in config.ComplexTypeMappings)
+        {
+            if (string.IsNullOrEmpty(subMapping.SchemaProperty))
+                continue;
+
+            object? value = subMapping.SourceType switch
+            {
+                "static" => subMapping.StaticValue,
+                "property" when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
+                    content.GetProperty(subMapping.ContentTypePropertyAlias)?.GetValue()?.ToString(),
+                _ => null
+            };
+
+            if (value is not null)
+                SetPropertyValue(nestedInstance, subMapping.SchemaProperty, value);
+        }
+
+        return nestedInstance;
+    }
+
+    private static ComplexTypeConfigModel? ParseComplexTypeConfig(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return null;
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<ComplexTypeConfigModel>(json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>

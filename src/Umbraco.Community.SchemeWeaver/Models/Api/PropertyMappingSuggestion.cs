@@ -12,4 +12,6 @@ public class PropertyMappingSuggestion
     public int Confidence { get; set; }
     public bool IsAutoMapped { get; set; }
     public string? EditorAlias { get; set; }
+    public List<string> AcceptedTypes { get; set; } = [];
+    public bool IsComplexType { get; set; }
 }
