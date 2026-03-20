@@ -1,0 +1,34 @@
+﻿@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+<div class="card">
+    <dl>
+        @if (Model.HasValue("telephone"))
+        {
+            <dt>Telephone</dt>
+            <dd>@Model.Value("telephone")</dd>
+        }
+        @if (Model.HasValue("email"))
+        {
+            <dt>Email</dt>
+            <dd><a href="mailto:@Model.Value("email")">@Model.Value("email")</a></dd>
+        }
+        @if (Model.HasValue("streetAddress"))
+        {
+            <dt>Address</dt>
+            <dd>
+                @Model.Value("streetAddress")<br />
+                @Model.Value("addressLocality") @Model.Value("postalCode")
+            </dd>
+        }
+        @if (Model.HasValue("openingHours"))
+        {
+            <dt>Opening Hours</dt>
+            <dd>@Model.Value("openingHours")</dd>
+        }
+    </dl>
+</div>

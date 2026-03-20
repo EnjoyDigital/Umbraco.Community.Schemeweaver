@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -15,6 +16,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly ISchemaAutoMapper _autoMapper;
     private readonly IJsonLdGenerator _generator;
     private readonly ISchemaMappingRepository _repository;
+    private readonly IContentTypeService _contentTypeService;
     private readonly ILogger<SchemeWeaverService> _logger;
 
     public SchemeWeaverService(
@@ -22,12 +24,14 @@ public class SchemeWeaverService : ISchemeWeaverService
         ISchemaAutoMapper autoMapper,
         IJsonLdGenerator generator,
         ISchemaMappingRepository repository,
+        IContentTypeService contentTypeService,
         ILogger<SchemeWeaverService> logger)
     {
         _registry = registry;
         _autoMapper = autoMapper;
         _generator = generator;
         _repository = repository;
+        _contentTypeService = contentTypeService;
         _logger = logger;
     }
 
@@ -57,6 +61,14 @@ public class SchemeWeaverService : ISchemeWeaverService
         var entity = existing ?? new SchemaMapping();
         entity.ContentTypeAlias = dto.ContentTypeAlias;
         entity.ContentTypeKey = dto.ContentTypeKey;
+
+        if (entity.ContentTypeKey == Guid.Empty && !string.IsNullOrEmpty(dto.ContentTypeAlias))
+        {
+            var contentType = _contentTypeService.Get(dto.ContentTypeAlias);
+            if (contentType != null)
+                entity.ContentTypeKey = contentType.Key;
+        }
+
         entity.SchemaTypeName = dto.SchemaTypeName;
         entity.IsEnabled = dto.IsEnabled;
 
@@ -72,7 +84,8 @@ public class SchemeWeaverService : ISchemeWeaverService
             TransformType = p.TransformType,
             IsAutoMapped = p.IsAutoMapped,
             StaticValue = p.StaticValue,
-            NestedSchemaTypeName = p.NestedSchemaTypeName
+            NestedSchemaTypeName = p.NestedSchemaTypeName,
+            ResolverConfig = p.ResolverConfig
         });
 
         _repository.SavePropertyMappings(saved.Id, propertyEntities);
@@ -143,7 +156,8 @@ public class SchemeWeaverService : ISchemeWeaverService
                 TransformType = p.TransformType,
                 IsAutoMapped = p.IsAutoMapped,
                 StaticValue = p.StaticValue,
-                NestedSchemaTypeName = p.NestedSchemaTypeName
+                NestedSchemaTypeName = p.NestedSchemaTypeName,
+                ResolverConfig = p.ResolverConfig
             }).ToList()
         };
 }

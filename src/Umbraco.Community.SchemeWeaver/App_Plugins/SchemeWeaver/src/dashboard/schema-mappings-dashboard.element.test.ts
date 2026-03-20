@@ -55,14 +55,12 @@ describe('SchemaMappingsDashboardElement', () => {
     expect(unmappedBadge!.getAttribute('color')).to.equal('default');
   });
 
-  it('shows Edit, Preview, Delete buttons for mapped type', async () => {
+  it('shows Edit and Delete buttons for mapped type', async () => {
     const el = await fixture(html`<schemeweaver-schema-mappings-dashboard></schemeweaver-schema-mappings-dashboard>`);
     await waitForLoad(el);
     const editBtn = el.shadowRoot!.querySelector('uui-button[label="Edit mapping"]');
-    const previewBtn = el.shadowRoot!.querySelector('uui-button[label="Preview JSON-LD"]');
     const deleteBtn = el.shadowRoot!.querySelector('uui-button[label="Delete mapping"]');
     expect(editBtn).to.exist;
-    expect(previewBtn).to.exist;
     expect(deleteBtn).to.exist;
   });
 

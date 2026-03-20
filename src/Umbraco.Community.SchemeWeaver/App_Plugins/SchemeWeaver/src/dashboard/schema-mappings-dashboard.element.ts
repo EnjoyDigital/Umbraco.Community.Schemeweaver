@@ -9,6 +9,7 @@ import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-
 interface ContentTypeMapping {
   contentTypeAlias: string;
   contentTypeName: string;
+  contentTypeKey: string;
   schemaTypeName: string | null;
   isMapped: boolean;
   propertyMappingCount: number;
@@ -58,6 +59,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
         return {
           contentTypeAlias: ct.alias,
           contentTypeName: ct.name,
+          contentTypeKey: ct.key,
           schemaTypeName: mapping?.schemaTypeName || null,
           isMapped: !!mapping,
           propertyMappingCount: mapping?.propertyMappings?.length || 0,
@@ -112,6 +114,8 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
     const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
     if (!modalManager) return;
 
+    const mapping = this._mappings.find((m) => m.contentTypeAlias === alias);
+
     const pickerResult = await modalManager
       .open(this, SCHEMEWEAVER_SCHEMA_PICKER_MODAL, {
         data: { contentTypeAlias: alias },
@@ -126,6 +130,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
         data: {
           contentTypeAlias: alias,
           schemaType: pickerResult.schemaType,
+          contentTypeKey: mapping?.contentTypeKey ?? '',
         },
       })
       .onSubmit()
@@ -147,37 +152,13 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
         data: {
           contentTypeAlias: alias,
           schemaType: mapping.schemaTypeName,
+          contentTypeKey: mapping.contentTypeKey ?? '',
         },
       })
       .onSubmit()
       .catch(() => null);
 
     await this._fetchMappings();
-  }
-
-  private async _handlePreview(alias: string) {
-    try {
-      const preview = await this.#repository.requestPreview(alias);
-
-      if (!preview) {
-        throw new Error('Failed to generate preview');
-      }
-
-      this.dispatchEvent(
-        new CustomEvent('schemeweaver-show-preview', {
-          detail: { jsonLd: preview },
-          bubbles: true,
-          composed: true,
-        })
-      );
-    } catch (error) {
-      console.error('SchemeWeaver: Error generating preview:', error);
-      this.#notificationContext?.peek('danger', {
-        data: {
-          message: error instanceof Error ? error.message : 'Failed to generate preview',
-        },
-      });
-    }
   }
 
   render() {
@@ -254,14 +235,6 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                                       label=${this.localize.term('schemeWeaver_editMapping')}
                                     >
                                       <uui-icon name="icon-edit"></uui-icon>
-                                    </uui-button>
-                                    <uui-button
-                                      look="outline"
-                                      compact
-                                      @click=${() => this._handlePreview(mapping.contentTypeAlias)}
-                                      label=${this.localize.term('schemeWeaver_previewJsonLd')}
-                                    >
-                                      <uui-icon name="icon-brackets"></uui-icon>
                                     </uui-button>
                                     <uui-button
                                       look="outline"

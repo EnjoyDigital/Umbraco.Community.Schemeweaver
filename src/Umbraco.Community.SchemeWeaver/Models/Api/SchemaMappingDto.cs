@@ -25,4 +25,5 @@ public class PropertyMappingDto
     public bool IsAutoMapped { get; set; }
     public string? StaticValue { get; set; }
     public string? NestedSchemaTypeName { get; set; }
+    public string? ResolverConfig { get; set; }
 }

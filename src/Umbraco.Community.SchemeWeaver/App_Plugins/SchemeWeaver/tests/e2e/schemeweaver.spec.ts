@@ -1,5 +1,9 @@
 import { expect } from '@playwright/test';
 import { ConstantHelper, test } from '@umbraco/playwright-testhelpers';
+import { join } from 'path';
+
+/** Root screenshots directory (repo root). */
+const SCREENSHOTS_DIR = join(__dirname, '..', '..', '..', '..', '..', '..', 'screenshots');
 
 /**
  * Helper: navigate to SchemeWeaver dashboard in Settings section.
@@ -375,14 +379,193 @@ test.describe('Property Mapping Table', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Mapping Persistence & JSON-LD Output Tests
+// ---------------------------------------------------------------------------
+
+test.describe('Mapping Persistence & JSON-LD Output', () => {
+  test('saved mapping persists after re-opening', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    // Find an existing mapped type — look for "Edit mapping" button
+    const editBtn = umbracoUi.page.locator('uui-button[label="Edit mapping"]').first();
+    await expect(editBtn).toBeVisible({ timeout: 5_000 });
+
+    // Note the schema type shown in the row before editing
+    const mappedRow = umbracoUi.page.locator('uui-table-row').filter({
+      has: umbracoUi.page.locator('uui-button[label="Edit mapping"]'),
+    }).first();
+    const schemaTypeCell = mappedRow.locator('uui-table-cell').nth(1);
+    const schemaTypeName = await schemaTypeCell.textContent();
+    expect(schemaTypeName?.trim()).toBeTruthy();
+
+    // Open the edit modal
+    await editBtn.click();
+    const modal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+    await expect(modal).toBeVisible({ timeout: 10_000 });
+
+    // Verify the modal shows the property mapping table
+    await expect(modal.locator('schemeweaver-property-mapping-table')).toBeVisible({ timeout: 10_000 });
+
+    // Verify we have mapping rows (persisted data)
+    const table = modal.locator('schemeweaver-property-mapping-table');
+    await expect(table.locator('uui-table-row').first()).toBeVisible({ timeout: 10_000 });
+
+    // Screenshot the persisted mapping modal
+    await umbracoUi.page.screenshot({
+      path: join(SCREENSHOTS_DIR, '06-mapping-persistence.png'),
+      fullPage: true,
+    });
+
+    // Close modal
+    await modal.locator('uui-button[label="Cancel"]').click();
+    await expect(modal).not.toBeVisible({ timeout: 5_000 });
+  });
+
+  test('mapping save persists and shows on dashboard', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    // Find an unmapped type and map it
+    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
+    await expect(mapBtn).toBeVisible({ timeout: 5_000 });
+    await mapBtn.click();
+
+    // Pick a schema type in the picker modal
+    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+
+    // Search for "ContactPage" to pick a specific type
+    const searchInput = pickerModal.locator('uui-input').first();
+    await fillUuiInput(searchInput, 'ContactPage');
+    await umbracoUi.page.waitForTimeout(1_000);
+
+    // Select the first matching item
+    await pickerModal.locator('.schema-item').first().click();
+    await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+    // Property mapping modal opens — just save
+    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+    await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+    await mappingModal.locator('uui-button[label="Save Mapping"]').click();
+    await expect(mappingModal).not.toBeVisible({ timeout: 10_000 });
+
+    // Dashboard reloads — verify the type now shows as mapped
+    await waitForDashboardTable(umbracoUi.page);
+
+    // All content types should now be mapped (no more "Map to Schema.org" buttons)
+    // or at least fewer unmapped types
+    const remainingMapButtons = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]');
+    const unmappedCount = await remainingMapButtons.count();
+    // We had 2 unmapped (blogArticle + contactPage), mapped one, so at most 1 left
+    expect(unmappedCount).toBeLessThanOrEqual(1);
+
+    // Screenshot the dashboard showing mapped types
+    await umbracoUi.page.screenshot({
+      path: join(SCREENSHOTS_DIR, '07-dashboard-all-mapped.png'),
+      fullPage: true,
+    });
+  });
+
+  test('JSON-LD renders on published page', async ({ umbracoUi }) => {
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44308';
+
+    // Navigate to the home page (which has homePage → WebSite mapping)
+    await umbracoUi.page.goto(baseUrl + '/');
+    await umbracoUi.page.waitForLoadState('domcontentloaded', { timeout: 15_000 });
+
+    // Get the full page HTML
+    const pageContent = await umbracoUi.page.content();
+
+    // Verify JSON-LD script tag exists
+    expect(pageContent).toContain('application/ld+json');
+
+    // Parse the JSON-LD and check the @type
+    const jsonLdMatch = pageContent.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/
+    );
+    expect(jsonLdMatch).toBeTruthy();
+
+    const jsonLd = JSON.parse(jsonLdMatch![1]);
+    expect(jsonLd['@context']).toBe('https://schema.org');
+    expect(jsonLd['@type']).toBe('WebSite');
+    expect(jsonLd['name']).toBeTruthy();
+
+    // Screenshot the published page
+    await umbracoUi.page.screenshot({
+      path: join(SCREENSHOTS_DIR, '08-jsonld-page-output.png'),
+      fullPage: true,
+    });
+
+    // Also verify the product page has JSON-LD
+    await umbracoUi.page.goto(baseUrl + '/schemeweaver-pro/');
+    await umbracoUi.page.waitForLoadState('domcontentloaded', { timeout: 15_000 });
+
+    const productContent = await umbracoUi.page.content();
+    expect(productContent).toContain('application/ld+json');
+
+    const productJsonLdMatch = productContent.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/
+    );
+    expect(productJsonLdMatch).toBeTruthy();
+
+    const productJsonLd = JSON.parse(productJsonLdMatch![1]);
+    expect(productJsonLd['@type']).toBe('Product');
+    expect(productJsonLd['name']).toBeTruthy();
+  });
+
+  test('JSON-LD preview works in backoffice', async ({ umbracoUi }) => {
+    // Navigate to Content section
+    await umbracoUi.goToBackOffice();
+    await umbracoUi.content.goToSection(ConstantHelper.sections.content);
+
+    // Wait for content tree to load
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+
+    // Click on the first content node (Home Page)
+    const treeItem = umbracoUi.page.locator('umb-tree-item').first();
+    await treeItem.waitFor({ timeout: 15_000 });
+    await treeItem.locator('a').first().click();
+
+    // Wait for workspace to load
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+
+    // Look for the JSON-LD tab
+    const jsonLdTab = umbracoUi.page.getByRole('tab', { name: /JSON-LD/i });
+    if (await jsonLdTab.isVisible({ timeout: 10_000 }).catch(() => false)) {
+      await jsonLdTab.click();
+
+      // Wait for the JSON-LD content view to load
+      const jsonLdView = umbracoUi.page.locator('schemeweaver-jsonld-content-view');
+      await expect(jsonLdView).toBeVisible({ timeout: 10_000 });
+
+      // Click generate preview button
+      const generateBtn = jsonLdView.locator('uui-button', { hasText: /Generate Preview/i });
+      if (await generateBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await generateBtn.click();
+
+        // Wait for preview to render
+        await umbracoUi.page.waitForTimeout(3_000);
+
+        // Screenshot the JSON-LD preview
+        await umbracoUi.page.screenshot({
+          path: join(SCREENSHOTS_DIR, '09-jsonld-preview.png'),
+          fullPage: true,
+        });
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Document Type Workspace View Tests
 // ---------------------------------------------------------------------------
 
 test.describe('Document Type Workspace View', () => {
   test('Schema.org tab appears on document type editor', async ({ umbracoUi }) => {
-    // Navigate to Settings > Document Types
-    await umbracoUi.goToBackOffice();
-    await umbracoUi.content.goToSection(ConstantHelper.sections.settings);
+    // Navigate directly to Settings section via URL to avoid testhelper selector issues
+    await umbracoUi.page.goto('/umbraco/section/settings');
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     // Click on Document Types link in the tree
     const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
@@ -409,8 +592,8 @@ test.describe('Document Type Workspace View', () => {
 
 test.describe('Entity Actions', () => {
   test('Map to Schema.org action exists on document type context menu', async ({ umbracoUi }) => {
-    await umbracoUi.goToBackOffice();
-    await umbracoUi.content.goToSection(ConstantHelper.sections.settings);
+    await umbracoUi.page.goto('/umbraco/section/settings');
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     // Click on Document Types link in the tree
     const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();

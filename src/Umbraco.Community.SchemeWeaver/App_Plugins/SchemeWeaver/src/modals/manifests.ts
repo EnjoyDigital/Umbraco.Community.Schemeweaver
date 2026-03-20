@@ -17,4 +17,10 @@ export const manifests = [
     name: 'Generate Document Type Modal',
     element: () => import('./generate-doctype-modal.element.js'),
   },
+  {
+    type: 'modal',
+    alias: 'schemeweaver-nested-mapping-modal',
+    name: 'Nested Mapping Modal',
+    element: () => import('./nested-mapping-modal.element.js'),
+  },
 ];

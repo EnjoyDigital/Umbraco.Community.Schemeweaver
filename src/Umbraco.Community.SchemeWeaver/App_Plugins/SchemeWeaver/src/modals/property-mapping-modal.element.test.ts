@@ -25,9 +25,9 @@ describe('PropertyMappingModalElement', () => {
     stopMockServiceWorker();
   });
 
-  function createElement(alias = 'blogArticle', schemaType = 'Article'): any {
+  function createElement(alias = 'blogArticle', schemaType = 'Article', contentTypeKey = ''): any {
     const el = document.createElement('schemeweaver-property-mapping-modal') as any;
-    el.data = { contentTypeAlias: alias, schemaType };
+    el.data = { contentTypeAlias: alias, schemaType, contentTypeKey };
     document.body.appendChild(el);
     return el;
   }
@@ -47,13 +47,6 @@ describe('PropertyMappingModalElement', () => {
     await waitForLoad(el);
     const table = el.shadowRoot!.querySelector('schemeweaver-property-mapping-table');
     expect(table).to.exist;
-  });
-
-  it('renders JSON-LD preview component', async () => {
-    const el = createElement();
-    await waitForLoad(el);
-    const preview = el.shadowRoot!.querySelector('schemeweaver-jsonld-preview');
-    expect(preview).to.exist;
   });
 
   it('has Save and Cancel buttons', async () => {

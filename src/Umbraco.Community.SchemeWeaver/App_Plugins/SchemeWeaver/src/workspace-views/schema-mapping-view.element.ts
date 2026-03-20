@@ -1,12 +1,14 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
 import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
+import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
-import '../components/jsonld-preview.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
-import type { SchemaMappingDto, PropertyMappingDto, PropertyMappingSuggestion, ContentTypeProperty, JsonLdPreviewResponse } from '../api/types.js';
+import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
+import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
+import type { SchemaMappingDto, PropertyMappingDto, PropertyMappingSuggestion, ContentTypeProperty } from '../api/types.js';
 
 /** Convert stored PropertyMappingDto to UI row model */
 function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
@@ -18,6 +20,9 @@ function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
     sourceContentTypeAlias: dto.sourceContentTypeAlias || '',
     staticValue: dto.staticValue || '',
     confidence: null,
+    editorAlias: '',
+    nestedSchemaTypeName: dto.nestedSchemaTypeName || '',
+    resolverConfig: dto.resolverConfig || null,
   };
 }
 
@@ -31,6 +36,9 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
     sourceContentTypeAlias: '',
     staticValue: '',
     confidence: s.confidence,
+    editorAlias: s.editorAlias || '',
+    nestedSchemaTypeName: '',
+    resolverConfig: null,
   };
 }
 
@@ -52,13 +60,13 @@ export class SchemaMappingViewElement extends UmbLitElement {
   private _availableProperties: string[] = [];
 
   @state()
-  private _preview: JsonLdPreviewResponse | null = null;
-
-  @state()
   private _saving = false;
 
   @state()
   private _contentTypeAlias = '';
+
+  @state()
+  private _contentTypeKey = '';
 
   constructor() {
     super();
@@ -83,6 +91,12 @@ export class SchemaMappingViewElement extends UmbLitElement {
           },
           '_observeAlias'
         );
+      }
+      if (workspaceContext?.getUnique) {
+        const unique = workspaceContext.getUnique();
+        if (unique) {
+          this._contentTypeKey = unique;
+        }
       }
     } catch {
       this._loading = false;
@@ -121,28 +135,47 @@ export class SchemaMappingViewElement extends UmbLitElement {
     }
   }
 
+  private async _handleMapToSchema() {
+    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
+
+    const pickerResult = await modalManager
+      .open(this, SCHEMEWEAVER_SCHEMA_PICKER_MODAL, {
+        data: { contentTypeAlias: this._contentTypeAlias },
+      })
+      .onSubmit()
+      .catch(() => null);
+
+    if (!pickerResult?.schemaType) return;
+
+    const mappingResult = await modalManager
+      .open(this, SCHEMEWEAVER_PROPERTY_MAPPING_MODAL, {
+        data: {
+          contentTypeAlias: this._contentTypeAlias,
+          schemaType: pickerResult.schemaType,
+          contentTypeKey: this._contentTypeKey,
+        },
+      })
+      .onSubmit()
+      .catch(() => null);
+
+    if (mappingResult?.saved) {
+      await this._fetchMapping();
+    }
+  }
+
   private async _handleAutoMap() {
-    if (!this._contentTypeAlias) return;
+    if (!this._contentTypeAlias || !this._mapping?.schemaTypeName) return;
 
     this._loading = true;
     try {
       const suggestions = await this.#repository.requestAutoMap(
         this._contentTypeAlias,
-        this._mapping?.schemaTypeName || ''
+        this._mapping.schemaTypeName
       );
 
       if (suggestions && Array.isArray(suggestions)) {
         this._rows = suggestions.map(suggestionToRow);
-
-        if (!this._mapping) {
-          this._mapping = {
-            contentTypeAlias: this._contentTypeAlias,
-            contentTypeKey: '',
-            schemaTypeName: '',
-            isEnabled: true,
-            propertyMappings: [],
-          };
-        }
       }
     } catch (error) {
       console.error('SchemeWeaver: Auto-map error:', error);
@@ -156,39 +189,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
     }
   }
 
-  private async _handlePreview() {
-    if (!this._mapping) return;
-
-    try {
-      const preview = await this.#repository.requestPreview(this._contentTypeAlias);
-
-      if (preview) {
-        this._preview = preview;
-      } else {
-        this.#notificationContext?.peek('warning', {
-          data: {
-            message: 'Preview requires published content of this type',
-          },
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('404') || message.includes('not found') || message.toLowerCase().includes('content not found')) {
-        this.#notificationContext?.peek('warning', {
-          data: {
-            message: 'Preview requires published content of this type',
-          },
-        });
-      } else {
-        this.#notificationContext?.peek('danger', {
-          data: {
-            message: message || 'Failed to generate preview',
-          },
-        });
-      }
-    }
-  }
-
   private async _handleSave() {
     if (!this._mapping) return;
 
@@ -196,6 +196,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
     try {
       const dto: SchemaMappingDto = {
         ...this._mapping,
+        contentTypeKey: this._contentTypeKey || this._mapping.contentTypeKey,
         propertyMappings: this._rows.map((row) => ({
           schemaPropertyName: row.schemaPropertyName,
           sourceType: row.sourceType,
@@ -204,7 +205,8 @@ export class SchemaMappingViewElement extends UmbLitElement {
           transformType: null,
           isAutoMapped: row.confidence !== null,
           staticValue: row.staticValue || null,
-          nestedSchemaTypeName: null,
+          nestedSchemaTypeName: row.nestedSchemaTypeName || null,
+          resolverConfig: row.resolverConfig,
         })),
       };
       await this.#repository.saveMapping(dto);
@@ -248,9 +250,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
               <uui-icon name="icon-brackets" class="empty-icon"></uui-icon>
               <h3>${this.localize.term('schemeWeaver_noMapping')}</h3>
               <p>${this.localize.term('schemeWeaver_noMappingDescription')}</p>
-              <uui-button look="primary" @click=${this._handleAutoMap} label=${this.localize.term('schemeWeaver_autoMapSchema')}>
-                <uui-icon name="icon-wand"></uui-icon>
-                ${this.localize.term('schemeWeaver_autoMapSchema')}
+              <uui-button look="primary" @click=${this._handleMapToSchema} label=${this.localize.term('schemeWeaver_mapToSchema')}>
+                <uui-icon name="icon-brackets"></uui-icon>
+                ${this.localize.term('schemeWeaver_mapToSchema')}
               </uui-button>
             </div>
           </uui-box>
@@ -273,10 +275,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
               <uui-icon name="icon-wand"></uui-icon>
               ${this.localize.term('schemeWeaver_autoMap')}
             </uui-button>
-            <uui-button look="outline" compact @click=${this._handlePreview} label=${this.localize.term('schemeWeaver_preview')}>
-              <uui-icon name="icon-brackets"></uui-icon>
-              ${this.localize.term('schemeWeaver_preview')}
-            </uui-button>
           </div>
 
           <schemeweaver-property-mapping-table
@@ -285,14 +283,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
             @mappings-changed=${this._handleMappingsChanged}
           ></schemeweaver-property-mapping-table>
         </uui-box>
-
-        ${this._preview
-          ? html`
-              <uui-box headline=${this.localize.term('schemeWeaver_jsonLdPreview')}>
-                <schemeweaver-jsonld-preview .jsonLd=${this._preview}></schemeweaver-jsonld-preview>
-              </uui-box>
-            `
-          : ''}
 
         <div class="save-bar">
           <uui-button

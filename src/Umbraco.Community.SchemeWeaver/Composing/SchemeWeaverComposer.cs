@@ -5,6 +5,7 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Community.SchemeWeaver.DeliveryApi;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
 namespace Umbraco.Community.SchemeWeaver.Composing;
 
@@ -25,5 +26,13 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<IJsonLdGenerator, JsonLdGenerator>();
         builder.Services.AddScoped<IContentTypeGenerator, ContentTypeGenerator>();
         builder.Services.AddSingleton<IContentIndexHandler, SchemaJsonLdContentIndexHandler>();
+
+        // Property value resolvers — extensible via DI
+        builder.Services.AddScoped<IPropertyValueResolver, DefaultPropertyValueResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, MediaPickerResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, RichTextResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, ContentPickerResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, BlockContentResolver>();
+        builder.Services.AddScoped<IPropertyValueResolverFactory, PropertyValueResolverFactory>();
     }
 }

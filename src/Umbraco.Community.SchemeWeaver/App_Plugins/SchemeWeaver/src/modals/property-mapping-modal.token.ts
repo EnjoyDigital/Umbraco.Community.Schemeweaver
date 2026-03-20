@@ -3,6 +3,7 @@ import { UmbModalToken } from '@umbraco-cms/backoffice/modal';
 export interface PropertyMappingModalData {
   contentTypeAlias: string;
   schemaType: string;
+  contentTypeKey?: string;
 }
 
 export interface PropertyMappingModalValue {

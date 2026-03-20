@@ -1,5 +1,9 @@
 import type { SchemaMappingDto, SchemaTypeInfo, SchemaPropertyInfo, ContentTypeInfo, PropertyMappingSuggestion, JsonLdPreviewResponse } from '../../api/types.js';
 
+interface ContentTypeWithProperties extends ContentTypeInfo {
+  properties?: Array<{ alias: string; editorAlias: string }>;
+}
+
 class SchemeWeaverMockDb {
   private _mappings: SchemaMappingDto[] = [
     {
@@ -17,6 +21,7 @@ class SchemeWeaverMockDb {
           isAutoMapped: true,
           staticValue: null,
           nestedSchemaTypeName: null,
+          resolverConfig: null,
         },
         {
           schemaPropertyName: 'author',
@@ -27,6 +32,7 @@ class SchemeWeaverMockDb {
           isAutoMapped: true,
           staticValue: null,
           nestedSchemaTypeName: null,
+          resolverConfig: null,
         },
         {
           schemaPropertyName: 'datePublished',
@@ -37,15 +43,50 @@ class SchemeWeaverMockDb {
           isAutoMapped: true,
           staticValue: null,
           nestedSchemaTypeName: null,
+          resolverConfig: null,
         },
       ],
     },
   ];
 
-  private _contentTypes: (ContentTypeInfo & { properties?: string[] })[] = [
-    { alias: 'blogArticle', name: 'Blog Article', key: '00000000-0000-0000-0000-000000000001', propertyCount: 5, properties: ['title', 'authorName', 'publishDate', 'bodyText', 'summary'] },
-    { alias: 'faqPage', name: 'FAQ Page', key: '00000000-0000-0000-0000-000000000002', propertyCount: 3, properties: ['title', 'questions', 'bodyText'] },
-    { alias: 'productPage', name: 'Product Page', key: '00000000-0000-0000-0000-000000000003', propertyCount: 4, properties: ['productName', 'price', 'description', 'sku'] },
+  private _contentTypes: ContentTypeWithProperties[] = [
+    {
+      alias: 'blogArticle',
+      name: 'Blog Article',
+      key: '00000000-0000-0000-0000-000000000001',
+      propertyCount: 5,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'authorName', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'publishDate', editorAlias: 'Umbraco.DateTime' },
+        { alias: 'bodyText', editorAlias: 'Umbraco.RichText' },
+        { alias: 'summary', editorAlias: 'Umbraco.TextArea' },
+      ],
+    },
+    {
+      alias: 'faqPage',
+      name: 'FAQ Page',
+      key: '00000000-0000-0000-0000-000000000002',
+      propertyCount: 3,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'questions', editorAlias: 'Umbraco.BlockList' },
+        { alias: 'bodyText', editorAlias: 'Umbraco.RichText' },
+      ],
+    },
+    {
+      alias: 'productPage',
+      name: 'Product Page',
+      key: '00000000-0000-0000-0000-000000000003',
+      propertyCount: 5,
+      properties: [
+        { alias: 'productName', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'price', editorAlias: 'Umbraco.Decimal' },
+        { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'sku', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'productImage', editorAlias: 'Umbraco.MediaPicker3' },
+      ],
+    },
   ];
 
   private _schemaTypes: SchemaTypeInfo[] = [
@@ -55,6 +96,7 @@ class SchemeWeaverMockDb {
     { name: 'Product', description: 'A product offered for sale.', parentTypeName: 'Thing', propertyCount: 6 },
     { name: 'WebPage', description: 'A web page.', parentTypeName: 'CreativeWork', propertyCount: 4 },
     { name: 'Organization', description: 'An organization such as a company.', parentTypeName: 'Thing', propertyCount: 4 },
+    { name: 'Question', description: 'A specific question.', parentTypeName: 'CreativeWork', propertyCount: 3 },
   ];
 
   private _schemaProperties: Record<string, SchemaPropertyInfo[]> = {
@@ -97,6 +139,11 @@ class SchemeWeaverMockDb {
       { name: 'logo', propertyType: 'ImageObject', isRequired: false },
       { name: 'contactPoint', propertyType: 'ContactPoint', isRequired: false },
     ],
+    Question: [
+      { name: 'name', propertyType: 'Text', isRequired: false },
+      { name: 'acceptedAnswer', propertyType: 'Answer', isRequired: false },
+      { name: 'text', propertyType: 'Text', isRequired: false },
+    ],
   };
 
   reset(): void {
@@ -117,6 +164,7 @@ class SchemeWeaverMockDb {
             isAutoMapped: true,
             staticValue: null,
             nestedSchemaTypeName: null,
+            resolverConfig: null,
           },
           {
             schemaPropertyName: 'author',
@@ -127,6 +175,7 @@ class SchemeWeaverMockDb {
             isAutoMapped: true,
             staticValue: null,
             nestedSchemaTypeName: null,
+            resolverConfig: null,
           },
           {
             schemaPropertyName: 'datePublished',
@@ -137,6 +186,7 @@ class SchemeWeaverMockDb {
             isAutoMapped: true,
             staticValue: null,
             nestedSchemaTypeName: null,
+            resolverConfig: null,
           },
         ],
       },
@@ -156,6 +206,19 @@ class SchemeWeaverMockDb {
   }
 
   getContentTypeProperties(alias: string): string[] {
+    return this._contentTypes.find((ct) => ct.alias === alias)?.properties?.map((p) => p.alias) || [];
+  }
+
+  /** Get editor alias for a content type property */
+  getEditorAlias(contentTypeAlias: string, propertyAlias: string): string {
+    const ct = this._contentTypes.find((ct) => ct.alias === contentTypeAlias);
+    if (!ct?.properties) return '';
+    const prop = ct.properties.find((p) => p.alias === propertyAlias);
+    return prop?.editorAlias || '';
+  }
+
+  /** Get all property details for a content type (with editor aliases) */
+  getContentTypePropertyDetails(alias: string): Array<{ alias: string; editorAlias: string }> {
     return this._contentTypes.find((ct) => ct.alias === alias)?.properties || [];
   }
 
@@ -197,14 +260,15 @@ class SchemeWeaverMockDb {
     if (!contentType || !schemaProps) return [];
 
     return schemaProps.map((prop) => {
-      const matchedProp = contentType.properties?.find((p) => p.toLowerCase().includes(prop.name.toLowerCase()));
+      const matchedProp = contentType.properties?.find((p) => p.alias.toLowerCase().includes(prop.name.toLowerCase()));
       return {
         schemaPropertyName: prop.name,
         schemaPropertyType: prop.propertyType,
-        suggestedContentTypePropertyAlias: matchedProp || null,
+        suggestedContentTypePropertyAlias: matchedProp?.alias || null,
         suggestedSourceType: 'property',
         confidence: matchedProp ? 80 : 30,
         isAutoMapped: !!matchedProp,
+        editorAlias: matchedProp?.editorAlias || null,
       };
     });
   }

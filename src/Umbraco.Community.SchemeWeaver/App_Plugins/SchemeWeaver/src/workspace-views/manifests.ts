@@ -17,4 +17,22 @@ export const manifests = [
       },
     ],
   },
+  {
+    type: 'workspaceView',
+    alias: 'SchemeWeaver.WorkspaceView.JsonLdPreview',
+    name: 'JSON-LD Preview',
+    element: () => import('./jsonld-content-view.element.js'),
+    weight: 80,
+    meta: {
+      label: 'JSON-LD',
+      pathname: 'json-ld',
+      icon: 'icon-brackets',
+    },
+    conditions: [
+      {
+        alias: 'Umb.Condition.WorkspaceAlias',
+        match: 'Umb.Workspace.Document',
+      },
+    ],
+  },
 ];

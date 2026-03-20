@@ -1,0 +1,37 @@
+﻿@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+@if (Model.HasValue("description"))
+{
+    <p class="lead" style="font-size: 1.15rem; color: #4b5563;">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <dl>
+        @if (Model.HasValue("price"))
+        {
+            <dt>Price</dt>
+            <dd>@Model.Value("price")</dd>
+        }
+        @if (Model.HasValue("sku"))
+        {
+            <dt>SKU</dt>
+            <dd>@Model.Value("sku")</dd>
+        }
+        @if (Model.HasValue("brand"))
+        {
+            <dt>Brand</dt>
+            <dd>@Model.Value("brand")</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("bodyText"))
+{
+    <div class="card" style="margin-top: 1rem;">
+        @Model.Value("bodyText")
+    </div>
+}

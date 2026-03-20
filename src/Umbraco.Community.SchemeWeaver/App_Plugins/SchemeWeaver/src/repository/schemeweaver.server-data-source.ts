@@ -17,6 +17,7 @@ async function fetchApi<T>(
   host: UmbControllerHost,
   path: string,
   options: RequestInit = {},
+  expect404?: boolean,
 ): Promise<T | undefined> {
   const { data } = await tryExecute(
     host,
@@ -29,6 +30,9 @@ async function fetchApi<T>(
       });
 
       if (!response.ok) {
+        if (expect404 && response.status === 404) {
+          return { data: undefined as T };
+        }
         const errorText = await response.text().catch(() => 'Unknown error');
         throw new Error(errorText || `HTTP ${response.status}`);
       }
@@ -80,6 +84,8 @@ export class SchemeWeaverServerDataSource {
     return fetchApi<SchemaMappingDto>(
       this.#host,
       `/mappings/${encodeURIComponent(contentTypeAlias)}`,
+      {},
+      true,
     );
   }
 
@@ -120,6 +126,7 @@ export class SchemeWeaverServerDataSource {
       this.#host,
       `/mappings/${encodeURIComponent(contentTypeAlias)}/preview${query}`,
       { method: 'POST' },
+      true,
     );
   }
 

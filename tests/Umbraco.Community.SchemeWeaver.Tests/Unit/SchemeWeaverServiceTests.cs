@@ -2,7 +2,9 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using NSubstitute;
+using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -16,12 +18,13 @@ public class SchemeWeaverServiceTests
     private readonly ISchemaAutoMapper _autoMapper = Substitute.For<ISchemaAutoMapper>();
     private readonly IJsonLdGenerator _generator = Substitute.For<IJsonLdGenerator>();
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
+    private readonly IContentTypeService _contentTypeService = Substitute.For<IContentTypeService>();
     private readonly ILogger<SchemeWeaverService> _logger = Substitute.For<ILogger<SchemeWeaverService>>();
     private readonly SchemeWeaverService _sut;
 
     public SchemeWeaverServiceTests()
     {
-        _sut = new SchemeWeaverService(_registry, _autoMapper, _generator, _repository, _logger);
+        _sut = new SchemeWeaverService(_registry, _autoMapper, _generator, _repository, _contentTypeService, _logger);
     }
 
     [Fact]
@@ -128,5 +131,41 @@ public class SchemeWeaverServiceTests
         result.Should().NotBeNull();
         _repository.Received(1).Save(Arg.Any<SchemaMapping>());
         _repository.Received(1).SavePropertyMappings(1, Arg.Any<IEnumerable<PropertyMapping>>());
+    }
+
+    [Fact]
+    public void SaveMapping_ResolvesContentTypeKey_WhenEmpty()
+    {
+        var expectedKey = Guid.NewGuid();
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            ContentTypeKey = Guid.Empty,
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings = new List<PropertyMappingDto>()
+        };
+
+        var contentType = Substitute.For<IContentType>();
+        contentType.Key.Returns(expectedKey);
+        _contentTypeService.Get("article").Returns(contentType);
+
+        var savedEntity = new SchemaMapping
+        {
+            Id = 1,
+            ContentTypeAlias = "article",
+            ContentTypeKey = expectedKey,
+            SchemaTypeName = "Article",
+            IsEnabled = true
+        };
+        _repository.GetByContentTypeAlias("article").Returns(null as SchemaMapping, savedEntity);
+        _repository.Save(Arg.Any<SchemaMapping>()).Returns(savedEntity);
+        _repository.GetPropertyMappings(1).Returns(Enumerable.Empty<PropertyMapping>());
+
+        var result = _sut.SaveMapping(dto);
+
+        result.Should().NotBeNull();
+        _contentTypeService.Received(1).Get("article");
+        _repository.Received(1).Save(Arg.Is<SchemaMapping>(m => m.ContentTypeKey == expectedKey));
     }
 }

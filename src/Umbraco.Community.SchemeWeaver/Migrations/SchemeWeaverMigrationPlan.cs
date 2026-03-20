@@ -14,5 +14,6 @@ public class SchemeWeaverMigrationPlan : PackageMigrationPlan
     protected override void DefinePlan()
     {
         To<CreateTablesMigration>("schemeweaver-tables-v1");
+        To<AddResolverConfigMigration>("schemeweaver-add-resolver-config-v2");
     }
 }

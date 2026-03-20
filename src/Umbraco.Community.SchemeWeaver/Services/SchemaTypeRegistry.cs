@@ -108,8 +108,10 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
     {
         var properties = new List<SchemaPropertyInfo>();
 
-        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(p => p is { CanRead: true, CanWrite: true });
+        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p is { CanRead: true, CanWrite: true })
+            .GroupBy(p => p.Name)
+            .Select(g => g.First());
 
         foreach (var prop in props)
         {

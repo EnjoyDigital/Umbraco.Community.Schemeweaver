@@ -31,6 +31,7 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
         data: {
           contentTypeAlias,
           schemaType: pickerResult.schemaType,
+          contentTypeKey: this.args.unique ?? '',
         },
       })
       .onSubmit()

@@ -46,4 +46,9 @@ public class PropertyMapping
     [Column("NestedSchemaTypeName")]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? NestedSchemaTypeName { get; set; }
+
+    [Column("ResolverConfig")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    [SpecialDbType(SpecialDbTypes.NVARCHARMAX)]
+    public string? ResolverConfig { get; set; }
 }

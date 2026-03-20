@@ -1,11 +1,12 @@
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
+import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
-import '../components/jsonld-preview.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
-import type { PropertyMappingSuggestion, JsonLdPreviewResponse } from '../api/types.js';
+import type { PropertyMappingSuggestion } from '../api/types.js';
+import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from './nested-mapping-modal.token.js';
 
 import type { PropertyMappingModalData, PropertyMappingModalValue } from './property-mapping-modal.token.js';
 
@@ -19,6 +20,9 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
     sourceContentTypeAlias: '',
     staticValue: '',
     confidence: s.confidence,
+    editorAlias: s.editorAlias || '',
+    nestedSchemaTypeName: '',
+    resolverConfig: null,
   };
 }
 
@@ -26,6 +30,7 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
 export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMappingModalData, PropertyMappingModalValue> {
   #repository = new SchemeWeaverRepository(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
+  #modalManagerContext?: typeof UMB_MODAL_MANAGER_CONTEXT.TYPE;
 
   @state()
   private _loading = true;
@@ -39,13 +44,13 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   @state()
   private _availableProperties: string[] = [];
 
-  @state()
-  private _preview: JsonLdPreviewResponse | null = null;
-
   constructor() {
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
+    });
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManagerContext = context;
     });
   }
 
@@ -85,36 +90,42 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
   private _handleMappingsChanged(e: CustomEvent) {
     this._mappings = e.detail.mappings;
-    this._preview = null;
   }
 
-  private async _handlePreview() {
+  private async _handleConfigureNestedMapping(e: CustomEvent) {
+    const detail = e.detail;
+    const index = detail.index as number;
+    const mapping = this._mappings[index];
+
+    if (!mapping || !mapping.nestedSchemaTypeName) {
+      this.#notificationContext?.peek('warning', {
+        data: {
+          message: 'Please enter a nested schema type name first.',
+        },
+      });
+      return;
+    }
+
+    const modalHandler = this.#modalManagerContext?.open(this, SCHEMEWEAVER_NESTED_MAPPING_MODAL, {
+      data: {
+        nestedSchemaTypeName: mapping.nestedSchemaTypeName,
+        contentTypePropertyAlias: mapping.contentTypePropertyAlias,
+        contentTypeAlias: this.data?.contentTypeAlias || '',
+        existingConfig: mapping.resolverConfig,
+      },
+    });
+
+    if (!modalHandler) return;
+
     try {
-      const result = await this.#repository.requestPreview(this.data?.contentTypeAlias || '');
-      if (result) {
-        this._preview = result;
-      } else {
-        this.#notificationContext?.peek('warning', {
-          data: {
-            message: 'Preview requires published content of this type',
-          },
-        });
+      const result = await modalHandler.onSubmit();
+      if (result?.resolverConfig) {
+        const updated = [...this._mappings];
+        updated[index] = { ...updated[index], resolverConfig: result.resolverConfig };
+        this._mappings = updated;
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('404') || message.includes('not found') || message.toLowerCase().includes('content not found')) {
-        this.#notificationContext?.peek('warning', {
-          data: {
-            message: 'Preview requires published content of this type',
-          },
-        });
-      } else {
-        this.#notificationContext?.peek('danger', {
-          data: {
-            message: message || 'Failed to generate preview',
-          },
-        });
-      }
+    } catch {
+      // Modal was rejected / closed — do nothing
     }
   }
 
@@ -124,7 +135,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     try {
       await this.#repository.saveMapping({
         contentTypeAlias: this.data?.contentTypeAlias || '',
-        contentTypeKey: '',
+        contentTypeKey: this.data?.contentTypeKey ?? '',
         schemaTypeName: this.data?.schemaType || '',
         isEnabled: true,
         propertyMappings: this._mappings.map((row) => ({
@@ -135,7 +146,8 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
           transformType: null,
           isAutoMapped: row.confidence !== null,
           staticValue: row.staticValue || null,
-          nestedSchemaTypeName: null,
+          nestedSchemaTypeName: row.nestedSchemaTypeName || null,
+          resolverConfig: row.resolverConfig,
         })),
       });
 
@@ -168,35 +180,20 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
               </div>
             `
           : html`
-              <div class="mapping-layout">
-                <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
-                  <div class="mapping-info">
-                    <uui-tag color="primary">${this.data?.schemaType}</uui-tag>
-                    <span>${this.localize.term('schemeWeaver_mappedTo')}</span>
-                    <uui-tag color="default">${this.data?.contentTypeAlias}</uui-tag>
-                  </div>
+              <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
+                <div class="mapping-info">
+                  <uui-tag color="primary">${this.data?.schemaType}</uui-tag>
+                  <span>${this.localize.term('schemeWeaver_mappedTo')}</span>
+                  <uui-tag color="default">${this.data?.contentTypeAlias}</uui-tag>
+                </div>
 
-                  <schemeweaver-property-mapping-table
-                    .mappings=${this._mappings}
-                    .availableProperties=${this._availableProperties}
-                    @mappings-changed=${this._handleMappingsChanged}
-                  ></schemeweaver-property-mapping-table>
-                </uui-box>
-
-                <uui-box headline=${this.localize.term('schemeWeaver_jsonLdPreview')}>
-                  <uui-button
-                    slot="header-actions"
-                    look="outline"
-                    compact
-                    @click=${this._handlePreview}
-                    label=${this.localize.term('schemeWeaver_generatePreview')}
-                  >
-                    <uui-icon name="icon-refresh"></uui-icon>
-                    ${this.localize.term('schemeWeaver_generatePreview')}
-                  </uui-button>
-                  <schemeweaver-jsonld-preview .jsonLd=${this._preview}></schemeweaver-jsonld-preview>
-                </uui-box>
-              </div>
+                <schemeweaver-property-mapping-table
+                  .mappings=${this._mappings}
+                  .availableProperties=${this._availableProperties}
+                  @mappings-changed=${this._handleMappingsChanged}
+                  @configure-nested-mapping=${this._handleConfigureNestedMapping}
+                ></schemeweaver-property-mapping-table>
+              </uui-box>
             `}
 
         <div slot="actions">
@@ -229,12 +226,6 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         align-items: center;
         gap: var(--uui-size-space-3);
         padding: var(--uui-size-space-6);
-      }
-
-      .mapping-layout {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-5);
       }
 
       .mapping-info {

@@ -11,4 +11,5 @@ public class PropertyMappingSuggestion
     public string SuggestedSourceType { get; set; } = "property";
     public int Confidence { get; set; }
     public bool IsAutoMapped { get; set; }
+    public string? EditorAlias { get; set; }
 }

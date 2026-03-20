@@ -44,6 +44,7 @@ export interface PropertyMappingDto {
   isAutoMapped: boolean;
   staticValue: string | null;
   nestedSchemaTypeName: string | null;
+  resolverConfig: string | null;
 }
 
 /** Matches C# SchemaMappingDto */
@@ -63,6 +64,7 @@ export interface PropertyMappingSuggestion {
   suggestedSourceType: string;
   confidence: number;
   isAutoMapped: boolean;
+  editorAlias: string | null;
 }
 
 /** Matches C# JsonLdPreviewResponse */

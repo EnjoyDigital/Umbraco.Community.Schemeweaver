@@ -18,6 +18,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     /// </summary>
     private static readonly Dictionary<string, string[]> Synonyms = new(StringComparer.OrdinalIgnoreCase)
     {
+        //TODO: This is rather janky refactor
         ["name"] = ["title", "heading", "name", "pageTitle", "blogTitle", "nodeName"],
         ["headline"] = ["title", "heading", "pageTitle", "blogTitle"],
         ["description"] = ["description", "metaDescription", "excerpt", "summary", "intro"],
@@ -76,6 +77,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             if (exactMatch is not null)
             {
                 suggestion.SuggestedContentTypePropertyAlias = exactMatch.Alias;
+                suggestion.EditorAlias = exactMatch.PropertyEditorAlias;
                 suggestion.Confidence = 100;
                 suggestion.IsAutoMapped = true;
                 suggestions.Add(suggestion);
@@ -91,6 +93,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 if (synonymMatch is not null)
                 {
                     suggestion.SuggestedContentTypePropertyAlias = synonymMatch.Alias;
+                    suggestion.EditorAlias = synonymMatch.PropertyEditorAlias;
                     suggestion.Confidence = 80;
                     suggestion.IsAutoMapped = true;
                     suggestions.Add(suggestion);
@@ -106,6 +109,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             if (partialMatch is not null)
             {
                 suggestion.SuggestedContentTypePropertyAlias = partialMatch.Alias;
+                suggestion.EditorAlias = partialMatch.PropertyEditorAlias;
                 suggestion.Confidence = 50;
                 suggestion.IsAutoMapped = true;
                 suggestions.Add(suggestion);

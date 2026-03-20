@@ -95,4 +95,27 @@ public class SchemaTypeRegistryTests
         lower.Should().NotBeNull();
         upper!.Name.Should().Be(lower!.Name);
     }
+
+    [Fact]
+    public void GetProperties_ReturnsInheritedProperties()
+    {
+        var properties = _sut.GetProperties("Article").ToList();
+
+        // Name comes from Thing, Headline from CreativeWork — both inherited
+        properties.Should().Contain(p => p.Name == "Name");
+        properties.Should().Contain(p => p.Name == "Headline");
+    }
+
+    [Fact]
+    public void GetProperties_NoDuplicates()
+    {
+        var properties = _sut.GetProperties("Article").ToList();
+
+        var duplicates = properties.GroupBy(p => p.Name)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        duplicates.Should().BeEmpty("property names should be unique");
+    }
 }

@@ -24,7 +24,7 @@
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="Umbraco.Cms" Version="17.1.0" />
+		<PackageReference Include="Umbraco.Cms" Version="17.2.2" />
 		<PackageReference Include="Schema.NET" Version="13.0.0" />
 	</ItemGroup>
 

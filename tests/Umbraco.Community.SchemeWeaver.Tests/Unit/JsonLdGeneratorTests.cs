@@ -8,6 +8,7 @@ using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 
@@ -18,17 +19,20 @@ public class JsonLdGeneratorTests
     private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
     private readonly IDocumentNavigationQueryService _navigationQueryService = Substitute.For<IDocumentNavigationQueryService>();
     private readonly IPublishedContentStatusFilteringService _publishedStatusFilteringService = Substitute.For<IPublishedContentStatusFilteringService>();
+    private readonly IPropertyValueResolverFactory _resolverFactory;
     private readonly ILogger<JsonLdGenerator> _logger = Substitute.For<ILogger<JsonLdGenerator>>();
     private readonly JsonLdGenerator _sut;
 
     public JsonLdGeneratorTests()
     {
+        _resolverFactory = new PropertyValueResolverFactory([new DefaultPropertyValueResolver()]);
         _sut = new JsonLdGenerator(
             _repository,
             _registry,
             _httpContextAccessor,
             _navigationQueryService,
             _publishedStatusFilteringService,
+            _resolverFactory,
             _logger);
     }
 

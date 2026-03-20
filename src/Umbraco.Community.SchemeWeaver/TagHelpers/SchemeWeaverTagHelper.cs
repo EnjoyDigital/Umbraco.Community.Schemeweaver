@@ -44,6 +44,7 @@ public class SchemeWeaverTagHelper : TagHelper
             }
 
             output.TagName = "script";
+            output.TagMode = TagMode.StartTagAndEndTag;
             output.Attributes.SetAttribute("type", "application/ld+json");
             output.Content.SetHtmlContent(jsonLd);
         }
