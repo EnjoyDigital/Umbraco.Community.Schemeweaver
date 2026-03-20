@@ -57,4 +57,12 @@ export class SchemeWeaverRepository extends UmbControllerBase {
   async generateContentType(request: ContentTypeGenerationRequest) {
     return this.#dataSource.generateContentType(request);
   }
+
+  /** Resolve a document type GUID (unique) to its content type alias */
+  async resolveContentTypeAlias(unique: string): Promise<string | undefined> {
+    const contentTypes = await this.#dataSource.getContentTypes();
+    if (!contentTypes) return undefined;
+    const match = contentTypes.find((ct) => ct.key === unique);
+    return match?.alias;
+  }
 }

@@ -73,4 +73,10 @@ describe('SchemeWeaverRepository', () => {
     const repo = new SchemeWeaverRepository(host);
     expect(typeof repo.requestMapping).to.equal('function');
   });
+
+  it('has resolveContentTypeAlias method', () => {
+    const host = document.createElement('div') as any;
+    const repo = new SchemeWeaverRepository(host);
+    expect(typeof repo.resolveContentTypeAlias).to.equal('function');
+  });
 });

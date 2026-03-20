@@ -1,5 +1,5 @@
 import type { UmbControllerHost } from '@umbraco-cms/backoffice/controller-api';
-import { tryExecuteAndNotify } from '@umbraco-cms/backoffice/resources';
+import { tryExecute } from '@umbraco-cms/backoffice/resources';
 import type {
   SchemaTypeInfo,
   SchemaPropertyInfo,
@@ -18,7 +18,7 @@ async function fetchApi<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T | undefined> {
-  const { data } = await tryExecuteAndNotify(
+  const { data } = await tryExecute(
     host,
     (async () => {
       const response = await fetch(`${API_BASE}${path}`, {

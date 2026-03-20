@@ -14,7 +14,7 @@ export default {
     notMapped: 'Not mapped',
     mapped: 'Mapped',
     unmapped: 'Unmapped',
-    properties: 'properties',
+    properties: 'Properties',
     save: 'Save Mapping',
     saving: 'Saving...',
     cancel: 'Cancel',

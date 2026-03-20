@@ -16,7 +16,7 @@ const translations = {
   'schemeWeaver_notMapped': 'Not mapped',
   'schemeWeaver_mapped': 'Mapped',
   'schemeWeaver_unmapped': 'Unmapped',
-  'schemeWeaver_properties': 'properties',
+  'schemeWeaver_properties': 'Properties',
   'schemeWeaver_save': 'Save Mapping',
   'schemeWeaver_saving': 'Saving...',
   'schemeWeaver_cancel': 'Cancel',

@@ -72,16 +72,16 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
     try {
       const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as any;
-      if (workspaceContext?.unique) {
+      if (workspaceContext?.alias) {
         this.observe(
-          workspaceContext.unique,
-          (unique: string | null) => {
-            if (unique) {
-              this._contentTypeAlias = unique;
+          workspaceContext.alias,
+          (alias: string | null) => {
+            if (alias) {
+              this._contentTypeAlias = alias;
               this._fetchMapping();
             }
           },
-          '_observeUnique'
+          '_observeAlias'
         );
       }
     } catch {
@@ -164,14 +164,28 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
       if (preview) {
         this._preview = preview;
+      } else {
+        this.#notificationContext?.peek('warning', {
+          data: {
+            message: 'Preview requires published content of this type',
+          },
+        });
       }
     } catch (error) {
-      console.error('SchemeWeaver: Preview error:', error);
-      this.#notificationContext?.peek('danger', {
-        data: {
-          message: error instanceof Error ? error.message : 'Failed to generate preview',
-        },
-      });
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('404') || message.includes('not found') || message.toLowerCase().includes('content not found')) {
+        this.#notificationContext?.peek('warning', {
+          data: {
+            message: 'Preview requires published content of this type',
+          },
+        });
+      } else {
+        this.#notificationContext?.peek('danger', {
+          data: {
+            message: message || 'Failed to generate preview',
+          },
+        });
+      }
     }
   }
 

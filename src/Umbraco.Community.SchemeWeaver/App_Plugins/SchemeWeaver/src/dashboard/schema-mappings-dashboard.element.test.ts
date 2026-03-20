@@ -73,6 +73,14 @@ describe('SchemaMappingsDashboardElement', () => {
     expect(mapBtn).to.exist;
   });
 
+  it('renders Properties header with capital P', async () => {
+    const el = await fixture(html`<schemeweaver-schema-mappings-dashboard></schemeweaver-schema-mappings-dashboard>`);
+    await waitForLoad(el);
+    const headCells = el.shadowRoot!.querySelectorAll('uui-table-head-cell');
+    const propertiesHeader = Array.from(headCells).find(cell => cell.textContent!.trim() === 'Properties');
+    expect(propertiesHeader).to.exist;
+  });
+
   it('filters results by search term', async () => {
     const el = await fixture(html`<schemeweaver-schema-mappings-dashboard></schemeweaver-schema-mappings-dashboard>`);
     await waitForLoad(el);

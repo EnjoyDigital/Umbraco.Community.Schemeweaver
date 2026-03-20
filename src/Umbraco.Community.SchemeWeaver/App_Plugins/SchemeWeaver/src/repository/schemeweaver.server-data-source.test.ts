@@ -54,4 +54,23 @@ describe('SchemeWeaverServerDataSource', () => {
       expect(url).to.equal('/umbraco/management/api/v1/schemeweaver/mappings/my%20content%20type');
     });
   });
+
+  describe('resolveContentTypeAlias logic', () => {
+    it('returns alias when key matches a content type', () => {
+      const contentTypes = [
+        { alias: 'blogArticle', name: 'Blog Article', key: 'aaa-bbb-ccc', propertyCount: 5 },
+        { alias: 'faqPage', name: 'FAQ Page', key: 'ddd-eee-fff', propertyCount: 3 },
+      ];
+      const match = contentTypes.find((ct) => ct.key === 'aaa-bbb-ccc');
+      expect(match?.alias).to.equal('blogArticle');
+    });
+
+    it('returns undefined when key does not match any content type', () => {
+      const contentTypes = [
+        { alias: 'blogArticle', name: 'Blog Article', key: 'aaa-bbb-ccc', propertyCount: 5 },
+      ];
+      const match = contentTypes.find((ct) => ct.key === 'zzz-zzz-zzz');
+      expect(match?.alias).to.be.undefined;
+    });
+  });
 });
