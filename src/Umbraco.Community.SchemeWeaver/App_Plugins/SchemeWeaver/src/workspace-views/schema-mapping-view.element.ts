@@ -23,6 +23,11 @@ function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
     editorAlias: '',
     nestedSchemaTypeName: dto.nestedSchemaTypeName || '',
     resolverConfig: dto.resolverConfig || null,
+    acceptedTypes: [],
+    isComplexType: false,
+    expanded: false,
+    subMappings: [],
+    selectedSubType: '',
   };
 }
 
@@ -39,6 +44,11 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
     editorAlias: s.editorAlias || '',
     nestedSchemaTypeName: '',
     resolverConfig: null,
+    acceptedTypes: s.acceptedTypes || [],
+    isComplexType: s.isComplexType || false,
+    expanded: false,
+    subMappings: [],
+    selectedSubType: '',
   };
 }
 
