@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj" />
+    <Project Path="src/SchemeWeaver.TestHost/SchemeWeaver.TestHost.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Umbraco.Community.SchemeWeaver.Tests/Umbraco.Community.SchemeWeaver.Tests.csproj" />
+  </Folder>
+</Solution>

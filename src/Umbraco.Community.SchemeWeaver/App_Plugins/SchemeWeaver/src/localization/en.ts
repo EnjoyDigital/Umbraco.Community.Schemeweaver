@@ -98,5 +98,13 @@ export default {
     selectSubType: 'Select type',
     subPropertyMappings: 'Type Properties',
     configureSubType: 'Configure sub-type properties using the expand arrow',
+    selectContentType: 'Select Content Type',
+    loadingContentTypes: 'Loading content types...',
+    noContentTypes: 'No content types found.',
+    pickContentType: 'Pick content type...',
+    changeContentType: 'Change content type',
+    selectProperty: 'Select Property',
+    searchProperties: 'Search properties...',
+    noProperties: 'No properties found.',
   },
 };

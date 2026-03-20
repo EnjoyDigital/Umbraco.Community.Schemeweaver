@@ -1,0 +1,1 @@
+export const UMB_WORKSPACE_CONTEXT = Symbol('UMB_WORKSPACE_CONTEXT');
