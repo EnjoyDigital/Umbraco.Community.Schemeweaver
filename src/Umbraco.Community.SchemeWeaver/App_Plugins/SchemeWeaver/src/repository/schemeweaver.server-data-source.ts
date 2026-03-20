@@ -1,5 +1,6 @@
 import type { UmbControllerHost } from '@umbraco-cms/backoffice/controller-api';
 import { tryExecute } from '@umbraco-cms/backoffice/resources';
+import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
 import type {
   SchemaTypeInfo,
   SchemaPropertyInfo,
@@ -13,6 +14,19 @@ import type {
 
 const API_BASE = '/umbraco/management/api/v1/schemeweaver';
 
+async function getAuthHeaders(host: UmbControllerHost): Promise<Record<string, string>> {
+  try {
+    const authContext = await (host as any).getContext(UMB_AUTH_CONTEXT);
+    const config = authContext.getOpenApiConfiguration();
+    const token = typeof config.TOKEN === 'function'
+      ? await config.TOKEN({ url: API_BASE })
+      : config.TOKEN;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 async function fetchApi<T>(
   host: UmbControllerHost,
   path: string,
@@ -22,9 +36,11 @@ async function fetchApi<T>(
   const { data } = await tryExecute(
     host,
     (async () => {
+      const authHeaders = await getAuthHeaders(host);
       const response = await fetch(`${API_BASE}${path}`, {
         ...options,
         headers: {
+          ...authHeaders,
           ...options.headers,
         },
       });

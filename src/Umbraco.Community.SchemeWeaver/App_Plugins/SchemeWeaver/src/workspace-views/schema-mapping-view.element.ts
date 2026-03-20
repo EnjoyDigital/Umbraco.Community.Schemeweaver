@@ -133,6 +133,42 @@ export class SchemaMappingViewElement extends UmbLitElement {
       this._mapping = mapping;
       this._rows = mapping.propertyMappings.map(dtoToRow);
 
+      // Enrich rows with schema property info (acceptedTypes, isComplexType)
+      const schemaProps = await this.#repository.requestSchemaTypeProperties(mapping.schemaTypeName);
+      if (schemaProps) {
+        this._rows = this._rows.map(row => {
+          const schemaProp = schemaProps.find(
+            (sp: any) => sp.name.toLowerCase() === row.schemaPropertyName.toLowerCase()
+          );
+          if (schemaProp) {
+            const enriched = {
+              ...row,
+              schemaPropertyType: schemaProp.propertyType || row.schemaPropertyType,
+              acceptedTypes: schemaProp.acceptedTypes || [],
+              isComplexType: schemaProp.isComplexType || false,
+            };
+            // Restore sub-mappings from saved resolverConfig for complexType rows
+            if (enriched.sourceType === 'complexType' && enriched.resolverConfig) {
+              try {
+                const config = JSON.parse(enriched.resolverConfig);
+                if (config.complexTypeMappings?.length) {
+                  enriched.selectedSubType = enriched.nestedSchemaTypeName || enriched.acceptedTypes[0] || '';
+                  enriched.subMappings = config.complexTypeMappings.map((m: any) => ({
+                    schemaProperty: m.schemaProperty || '',
+                    schemaPropertyType: '',
+                    sourceType: m.sourceType || 'property',
+                    contentTypePropertyAlias: m.contentTypePropertyAlias || '',
+                    staticValue: m.staticValue || '',
+                  }));
+                }
+              } catch { /* ignore parse errors */ }
+            }
+            return enriched;
+          }
+          return row;
+        });
+      }
+
       const props = await this.#repository.requestContentTypeProperties(this._contentTypeAlias);
       if (props) {
         this._availableProperties = props.map((p: ContentTypeProperty) => p.alias);
@@ -291,6 +327,15 @@ export class SchemaMappingViewElement extends UmbLitElement {
     table?.setSourceContentType(index, result.contentTypeAlias, propertyAliases);
   }
 
+  private async _handleLoadSubTypeProperties(e: CustomEvent) {
+    const { index, typeName } = e.detail;
+    const props = await this.#repository.requestSchemaTypeProperties(typeName);
+    if (props) {
+      const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as any;
+      table?.setSubTypeProperties(index, props.map((p: any) => ({ name: p.name, propertyType: p.propertyType })));
+    }
+  }
+
   render() {
     if (this._loading) {
       return html`
@@ -343,6 +388,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
             .availableProperties=${this._availableProperties}
             @mappings-changed=${this._handleMappingsChanged}
             @pick-source-content-type=${this._handlePickSourceContentType}
+            @load-sub-type-properties=${this._handleLoadSubTypeProperties}
           ></schemeweaver-property-mapping-table>
         </uui-box>
 

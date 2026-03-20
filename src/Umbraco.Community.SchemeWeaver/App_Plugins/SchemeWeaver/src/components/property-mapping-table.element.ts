@@ -253,15 +253,25 @@ export class PropertyMappingTableElement extends UmbLitElement {
   public setSubTypeProperties(index: number, properties: Array<{name: string; propertyType: string}>) {
     const updated = [...this.mappings];
     const mapping = updated[index];
+    const existingSubs = mapping.subMappings;
+
     updated[index] = {
       ...mapping,
-      subMappings: properties.map(p => ({
-        schemaProperty: p.name,
-        schemaPropertyType: p.propertyType,
-        sourceType: 'property',
-        contentTypePropertyAlias: '',
-        staticValue: '',
-      })),
+      subMappings: properties.map(p => {
+        // Preserve existing mapping values if we already had a sub-mapping for this property
+        const existing = existingSubs.find(
+          s => s.schemaProperty.toLowerCase() === p.name.toLowerCase()
+        );
+        return existing
+          ? { ...existing, schemaPropertyType: p.propertyType }
+          : {
+              schemaProperty: p.name,
+              schemaPropertyType: p.propertyType,
+              sourceType: 'property',
+              contentTypePropertyAlias: '',
+              staticValue: '',
+            };
+      }),
     };
     this.mappings = updated;
     this._loadingSubProperties = { ...this._loadingSubProperties, [index]: false };
@@ -413,7 +423,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
                 @click=${() => { this._showUnmapped = !this._showUnmapped; }}
                 label=${this._showUnmapped ? 'Hide unmapped properties' : `Show ${unmapped.length} unmapped properties`}
               >
-                <uui-icon name=${this._showUnmapped ? 'icon-arrow-up' : 'icon-arrow-down'}></uui-icon>
+                <uui-icon name=${this._showUnmapped ? 'icon-navigation-up' : 'icon-navigation-down'}></uui-icon>
                 ${this._showUnmapped
                   ? this.localize.term('schemeWeaver_hideUnmapped')
                   : `${unmapped.length} ${this.localize.term('schemeWeaver_unmappedProperties')}`}
@@ -430,8 +440,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   private _renderExpandedSection(mapping: PropertyMappingRow, index: number) {
     const isLoading = this._loadingSubProperties[index];
-    const mappedSubs = mapping.subMappings.filter(s => s.contentTypePropertyAlias || s.staticValue);
-    const unmappedSubs = mapping.subMappings.filter(s => !s.contentTypePropertyAlias && !s.staticValue);
 
     return html`
       <uui-table-row class="expanded-section-row">
@@ -455,15 +463,9 @@ export class PropertyMappingTableElement extends UmbLitElement {
               : mapping.subMappings.length > 0
                 ? html`
                     <div class="sub-mappings-list">
-                      ${mappedSubs.map((sub) => {
-                        const actualIndex = mapping.subMappings.indexOf(sub);
-                        return this._renderSubMappingRow(sub, index, actualIndex);
-                      })}
-                      ${unmappedSubs.length > 0
-                        ? html`<div class="sub-unmapped-hint">
-                            <small>${unmappedSubs.length} ${this.localize.term('schemeWeaver_unmappedProperties')}</small>
-                          </div>`
-                        : nothing}
+                      ${mapping.subMappings.map((sub, subIndex) =>
+                        this._renderSubMappingRow(sub, index, subIndex)
+                      )}
                     </div>
                   `
                 : nothing}
