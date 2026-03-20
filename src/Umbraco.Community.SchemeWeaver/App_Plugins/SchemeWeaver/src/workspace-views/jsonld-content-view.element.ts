@@ -1,11 +1,10 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
+import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import '../components/jsonld-preview.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { JsonLdPreviewResponse } from '../api/types.js';
-
-const UMB_DOCUMENT_WORKSPACE_CONTEXT = 'UmbDocumentWorkspaceContext';
 
 @customElement('schemeweaver-jsonld-content-view')
 export class JsonLdContentViewElement extends UmbLitElement {
@@ -41,34 +40,45 @@ export class JsonLdContentViewElement extends UmbLitElement {
     super.connectedCallback();
 
     try {
-      const workspaceContext = await this.getContext(UMB_DOCUMENT_WORKSPACE_CONTEXT) as any;
+      const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as any;
 
       if (workspaceContext?.getUnique) {
         this._contentKey = workspaceContext.getUnique() ?? '';
       }
 
-      if (workspaceContext?.getContentTypeId) {
-        const contentTypeId = workspaceContext.getContentTypeId();
-        if (contentTypeId) {
-          // Resolve content type key to alias
-          const contentTypes = await this.#repository.requestContentTypes();
-          const ct = contentTypes?.find((c) => c.key === contentTypeId);
-          if (ct) {
-            this._contentTypeAlias = ct.alias;
-          }
-        }
-      }
-
-      // Check if mapping exists for this content type
-      if (this._contentTypeAlias) {
-        const mapping = await this.#repository.requestMapping(this._contentTypeAlias);
-        this._hasMappng = !!mapping;
+      // contentTypeUnique is an observable on the Document workspace context
+      if (workspaceContext?.contentTypeUnique) {
+        this.observe(
+          workspaceContext.contentTypeUnique,
+          async (contentTypeId: string | null) => {
+            if (contentTypeId) {
+              const alias = await this.#repository.resolveContentTypeAlias(contentTypeId);
+              if (alias) {
+                this._contentTypeAlias = alias;
+                await this._checkMapping();
+              } else {
+                this._hasMappng = false;
+                this._loading = false;
+              }
+            }
+          },
+          '_observeContentTypeUnique',
+        );
+      } else {
+        this._loading = false;
       }
     } catch {
       // Workspace context may not be available
-    } finally {
       this._loading = false;
     }
+  }
+
+  private async _checkMapping() {
+    if (this._contentTypeAlias) {
+      const mapping = await this.#repository.requestMapping(this._contentTypeAlias);
+      this._hasMappng = !!mapping;
+    }
+    this._loading = false;
   }
 
   private async _handleGeneratePreview() {

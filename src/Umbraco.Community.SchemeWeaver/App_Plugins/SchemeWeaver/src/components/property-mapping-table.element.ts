@@ -1,5 +1,5 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
-import { css, html, customElement, property, nothing } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, property, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 
 /**
  * UI row model for the property mapping table.
@@ -40,6 +40,9 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   @property({ type: Boolean })
   readonly = false;
+
+  @state()
+  private _showUnmapped = false;
 
   /** Source type values matching C# (lowercase) */
   private _getSourceTypes(editorAlias: string) {
@@ -129,11 +132,19 @@ export class PropertyMappingTableElement extends UmbLitElement {
   }
 
   /** Confidence is an integer 0-100 from C# auto-mapper */
-  private _renderConfidenceBadge(confidence: number | null) {
-    if (confidence === null) return '';
+  private _renderConfidenceBadge(mapping: PropertyMappingRow) {
+    // Only show confidence when there is an actual property mapped
+    if (!mapping.contentTypePropertyAlias && mapping.sourceType !== 'static') return nothing;
+    const confidence = mapping.confidence;
+    if (confidence === null) return nothing;
     if (confidence >= 80) return html`<uui-badge color="positive">${this.localize.term('schemeWeaver_confidenceHigh')}</uui-badge>`;
     if (confidence >= 50) return html`<uui-badge color="warning">${this.localize.term('schemeWeaver_confidenceMedium')}</uui-badge>`;
     return html`<uui-badge color="danger">${this.localize.term('schemeWeaver_confidenceLow')}</uui-badge>`;
+  }
+
+  /** Whether a row has an actual mapping configured */
+  private _isMapped(mapping: PropertyMappingRow) {
+    return !!(mapping.contentTypePropertyAlias || mapping.staticValue || mapping.sourceContentTypeAlias);
   }
 
   private _renderEditorBadge(editorAlias: string) {
@@ -152,7 +163,55 @@ export class PropertyMappingTableElement extends UmbLitElement {
     }
   }
 
+  private _renderRow(mapping: PropertyMappingRow, index: number, dimmed = false) {
+    return html`
+      <uui-table-row class=${dimmed ? 'unmapped-row' : ''}>
+        <uui-table-cell>
+          <strong>${mapping.schemaPropertyName}</strong>
+        </uui-table-cell>
+        <uui-table-cell>
+          <small class="type-label">${mapping.schemaPropertyType}</small>
+        </uui-table-cell>
+        <uui-table-cell>
+          ${this.readonly
+            ? html`<span>${mapping.sourceType}</span>`
+            : html`
+                <uui-select
+                  label=${this.localize.term('schemeWeaver_source')}
+                  .options=${this._getSourceTypes(mapping.editorAlias).map((st) => ({
+                    name: st.label,
+                    value: st.value,
+                    selected: mapping.sourceType === st.value,
+                  }))}
+                  @change=${(e: Event) =>
+                    this._handleSourceTypeChange(index, (e.target as HTMLSelectElement).value)}
+                ></uui-select>
+              `}
+        </uui-table-cell>
+        <uui-table-cell>
+          ${this.readonly
+            ? html`<span>${mapping.sourceType === 'static' ? mapping.staticValue : mapping.contentTypePropertyAlias}</span>`
+            : this._renderValueInput(mapping, index)}
+        </uui-table-cell>
+        <uui-table-cell>
+          ${this._renderConfidenceBadge(mapping)}
+        </uui-table-cell>
+      </uui-table-row>
+    `;
+  }
+
   render() {
+    const mapped: Array<{ mapping: PropertyMappingRow; index: number }> = [];
+    const unmapped: Array<{ mapping: PropertyMappingRow; index: number }> = [];
+
+    this.mappings.forEach((mapping, index) => {
+      if (this._isMapped(mapping)) {
+        mapped.push({ mapping, index });
+      } else {
+        unmapped.push({ mapping, index });
+      }
+    });
+
     return html`
       <uui-table aria-label=${this.localize.term('schemeWeaver_propertyMappings')}>
         <uui-table-head>
@@ -163,43 +222,33 @@ export class PropertyMappingTableElement extends UmbLitElement {
           <uui-table-head-cell>${this.localize.term('schemeWeaver_confidence')}</uui-table-head-cell>
         </uui-table-head>
 
-        ${this.mappings.map(
-          (mapping, index) => html`
-            <uui-table-row>
-              <uui-table-cell>
-                <strong>${mapping.schemaPropertyName}</strong>
-              </uui-table-cell>
-              <uui-table-cell>
-                <small class="type-label">${mapping.schemaPropertyType}</small>
-              </uui-table-cell>
-              <uui-table-cell>
-                ${this.readonly
-                  ? html`<span>${mapping.sourceType}</span>`
-                  : html`
-                      <uui-select
-                        label=${this.localize.term('schemeWeaver_source')}
-                        .options=${this._getSourceTypes(mapping.editorAlias).map((st) => ({
-                          name: st.label,
-                          value: st.value,
-                          selected: mapping.sourceType === st.value,
-                        }))}
-                        @change=${(e: Event) =>
-                          this._handleSourceTypeChange(index, (e.target as HTMLSelectElement).value)}
-                      ></uui-select>
-                    `}
-              </uui-table-cell>
-              <uui-table-cell>
-                ${this.readonly
-                  ? html`<span>${mapping.sourceType === 'static' ? mapping.staticValue : mapping.contentTypePropertyAlias}</span>`
-                  : this._renderValueInput(mapping, index)}
-              </uui-table-cell>
-              <uui-table-cell>
-                ${this._renderConfidenceBadge(mapping.confidence)}
-              </uui-table-cell>
-            </uui-table-row>
-          `
-        )}
+        ${mapped.map(({ mapping, index }) => this._renderRow(mapping, index))}
+
+        ${this._showUnmapped
+          ? unmapped.map(({ mapping, index }) => this._renderRow(mapping, index, true))
+          : nothing}
       </uui-table>
+
+      ${unmapped.length > 0
+        ? html`
+            <div class="unmapped-toggle">
+              <uui-button
+                look="placeholder"
+                @click=${() => { this._showUnmapped = !this._showUnmapped; }}
+                label=${this._showUnmapped ? 'Hide unmapped properties' : `Show ${unmapped.length} unmapped properties`}
+              >
+                <uui-icon name=${this._showUnmapped ? 'icon-arrow-up' : 'icon-arrow-down'}></uui-icon>
+                ${this._showUnmapped
+                  ? this.localize.term('schemeWeaver_hideUnmapped')
+                  : `${unmapped.length} ${this.localize.term('schemeWeaver_unmappedProperties')}`}
+              </uui-button>
+            </div>
+          `
+        : nothing}
+
+      ${mapped.length === 0 && !this._showUnmapped
+        ? html`<p class="no-mappings-hint">${this.localize.term('schemeWeaver_noMappedProperties')}</p>`
+        : nothing}
     `;
   }
 
@@ -348,6 +397,23 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
       uui-select {
         min-width: 150px;
+      }
+
+      .unmapped-row {
+        opacity: 0.55;
+      }
+
+      .unmapped-toggle {
+        display: flex;
+        justify-content: center;
+        padding: var(--uui-size-space-3) 0;
+      }
+
+      .no-mappings-hint {
+        color: var(--uui-color-text-alt);
+        font-style: italic;
+        text-align: center;
+        padding: var(--uui-size-space-4);
       }
     `,
   ];

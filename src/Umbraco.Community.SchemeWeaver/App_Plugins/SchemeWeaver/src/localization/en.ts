@@ -91,5 +91,8 @@ export default {
     wrapInType: 'Wrap in Type',
     blockElementType: 'Block Element Type',
     nestedMappings: 'Nested Mappings',
+    hideUnmapped: 'Hide unmapped properties',
+    unmappedProperties: 'unmapped properties',
+    noMappedProperties: 'No properties are mapped yet. Click "Show unmapped properties" below to configure mappings.',
   },
 };
