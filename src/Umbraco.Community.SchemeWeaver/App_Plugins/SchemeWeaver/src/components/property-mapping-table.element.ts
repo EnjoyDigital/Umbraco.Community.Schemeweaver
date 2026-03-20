@@ -1,5 +1,7 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing } from '@umbraco-cms/backoffice/external/lit';
+import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/workspace';
+import { SCHEMEWEAVER_PROPERTY_PICKER_MODAL } from '../modals/property-picker-modal.token.js';
 
 /**
  * UI row model for the property mapping table.
@@ -16,6 +18,7 @@ export interface PropertyMappingRow {
   editorAlias: string;
   nestedSchemaTypeName: string;
   resolverConfig: string | null;
+  sourceContentTypeProperties: string[];
 }
 
 /** Editor aliases that support block content source type */
@@ -40,6 +43,9 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   @property({ type: Boolean })
   readonly = false;
+
+  @property({ type: String })
+  contentTypeAlias = '';
 
   @state()
   private _showUnmapped = false;
@@ -79,6 +85,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
       contentTypePropertyAlias: '',
       staticValue: '',
       sourceContentTypeAlias: '',
+      sourceContentTypeProperties: [],
       nestedSchemaTypeName: value === 'blockContent' ? updated[index].nestedSchemaTypeName : '',
       resolverConfig: value === 'blockContent' ? updated[index].resolverConfig : null,
     };
@@ -103,6 +110,34 @@ export class PropertyMappingTableElement extends UmbLitElement {
   private _handleSourceContentTypeAliasChange(index: number, value: string) {
     const updated = [...this.mappings];
     updated[index] = { ...updated[index], sourceContentTypeAlias: value };
+    this.mappings = updated;
+    this._dispatchChange();
+  }
+
+  /** Whether this source type requires picking a content type */
+  private _needsSourceContentType(sourceType: string): boolean {
+    return sourceType === 'parent' || sourceType === 'ancestor' || sourceType === 'sibling';
+  }
+
+  private _handlePickSourceContentType(index: number) {
+    this.dispatchEvent(
+      new CustomEvent('pick-source-content-type', {
+        detail: { index, currentAlias: this.mappings[index].sourceContentTypeAlias },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  /** Called by parent after content type picker modal completes */
+  public setSourceContentType(index: number, alias: string, properties: string[]) {
+    const updated = [...this.mappings];
+    updated[index] = {
+      ...updated[index],
+      sourceContentTypeAlias: alias,
+      sourceContentTypeProperties: properties,
+      contentTypePropertyAlias: '',
+    };
     this.mappings = updated;
     this._dispatchChange();
   }
@@ -142,8 +177,10 @@ export class PropertyMappingTableElement extends UmbLitElement {
     return html`<uui-tag look="secondary" color="danger" class="confidence-tag">${this.localize.term('schemeWeaver_confidenceLow')}</uui-tag>`;
   }
 
-  /** Whether a row has an actual mapping configured */
+  /** Whether a row has an actual mapping configured or is actively being configured */
   private _isMapped(mapping: PropertyMappingRow) {
+    // If the user explicitly chose a non-default source type, keep the row visible
+    if (mapping.sourceType !== 'property') return true;
     return !!(mapping.contentTypePropertyAlias || mapping.staticValue || mapping.sourceContentTypeAlias);
   }
 
@@ -264,22 +301,14 @@ export class PropertyMappingTableElement extends UmbLitElement {
       return this._renderBlockContentInput(mapping, index);
     }
 
-    const needsSourceContentTypeAlias = mapping.sourceType === 'ancestor' || mapping.sourceType === 'sibling';
+    if (this._needsSourceContentType(mapping.sourceType)) {
+      return this._renderSourceContentTypeInput(mapping, index);
+    }
+
     const isMediaPicker = mapping.editorAlias === 'Umbraco.MediaPicker3';
 
     return html`
       <div class="value-inputs">
-        ${needsSourceContentTypeAlias
-          ? html`
-              <uui-input
-                .value=${mapping.sourceContentTypeAlias}
-                @input=${(e: Event) => this._handleSourceContentTypeAliasChange(index, (e.target as HTMLInputElement).value)}
-                placeholder=${this.localize.term('schemeWeaver_contentTypeAliasPlaceholder')}
-                label=${this.localize.term('schemeWeaver_contentTypeAlias')}
-                class="content-type-input"
-              ></uui-input>
-            `
-          : ''}
         <div class="property-select-row">
           <uui-select
             label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
@@ -293,6 +322,48 @@ export class PropertyMappingTableElement extends UmbLitElement {
           ${this._renderEditorBadge(mapping.editorAlias)}
           ${isMediaPicker ? html`<small class="auto-url-indicator">[${this.localize.term('schemeWeaver_autoUrl')}]</small>` : nothing}
         </div>
+      </div>
+    `;
+  }
+
+  private _renderSourceContentTypeInput(mapping: PropertyMappingRow, index: number) {
+    return html`
+      <div class="value-inputs">
+        ${mapping.sourceContentTypeAlias
+          ? html`
+              <div class="source-content-type-row">
+                <uui-tag look="secondary">${mapping.sourceContentTypeAlias}</uui-tag>
+                <uui-button
+                  compact
+                  look="outline"
+                  label=${this.localize.term('schemeWeaver_changeContentType')}
+                  @click=${() => this._handlePickSourceContentType(index)}
+                >
+                  <uui-icon name="icon-edit"></uui-icon>
+                </uui-button>
+              </div>
+              <div class="property-select-row">
+                <uui-select
+                  label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
+                  .options=${(mapping.sourceContentTypeProperties || []).map((p) => ({
+                    name: p,
+                    value: p,
+                    selected: mapping.contentTypePropertyAlias === p,
+                  }))}
+                  @change=${(e: Event) => this._handlePropertyChange(index, (e.target as HTMLSelectElement).value)}
+                ></uui-select>
+              </div>
+            `
+          : html`
+              <uui-button
+                look="placeholder"
+                label=${this.localize.term('schemeWeaver_pickContentType')}
+                @click=${() => this._handlePickSourceContentType(index)}
+              >
+                <uui-icon name="icon-document"></uui-icon>
+                ${this.localize.term('schemeWeaver_pickContentType')}
+              </uui-button>
+            `}
       </div>
     `;
   }
@@ -377,6 +448,12 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
       .content-type-input {
         font-size: 0.85rem;
+      }
+
+      .source-content-type-row {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
       }
 
       .property-select-row {

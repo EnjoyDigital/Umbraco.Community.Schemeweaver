@@ -23,4 +23,16 @@ export const manifests = [
     name: 'Nested Mapping Modal',
     element: () => import('./nested-mapping-modal.element.js'),
   },
+  {
+    type: 'modal',
+    alias: 'schemeweaver-content-type-picker-modal',
+    name: 'Content Type Picker Modal',
+    element: () => import('./content-type-picker-modal.element.js'),
+  },
+  {
+    type: 'modal',
+    alias: 'SchemeWeaverPropertyPickerModal',
+    name: 'Property Picker Modal',
+    element: () => import('./property-picker-modal.element.js'),
+  },
 ];

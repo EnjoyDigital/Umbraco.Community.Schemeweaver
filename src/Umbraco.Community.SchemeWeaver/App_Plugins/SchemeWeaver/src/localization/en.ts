@@ -94,5 +94,13 @@ export default {
     hideUnmapped: 'Hide unmapped properties',
     unmappedProperties: 'unmapped properties',
     noMappedProperties: 'No properties are mapped yet. Click "Show unmapped properties" below to configure mappings.',
+    selectContentType: 'Select Content Type',
+    loadingContentTypes: 'Loading content types...',
+    noContentTypes: 'No content types found.',
+    pickContentType: 'Pick content type...',
+    changeContentType: 'Change content type',
+    selectProperty: 'Select Property',
+    searchProperties: 'Search properties...',
+    noProperties: 'No properties found.',
   },
 };

@@ -8,7 +8,9 @@ import '../components/property-mapping-table.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
+import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from '../modals/content-type-picker-modal.token.js';
 import type { SchemaMappingDto, PropertyMappingDto, PropertyMappingSuggestion, ContentTypeProperty } from '../api/types.js';
+import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
 
 /** Convert stored PropertyMappingDto to UI row model */
 function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
@@ -23,6 +25,7 @@ function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
     editorAlias: '',
     nestedSchemaTypeName: dto.nestedSchemaTypeName || '',
     resolverConfig: dto.resolverConfig || null,
+    sourceContentTypeProperties: [],
   };
 }
 
@@ -39,6 +42,7 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
     editorAlias: s.editorAlias || '',
     nestedSchemaTypeName: '',
     resolverConfig: null,
+    sourceContentTypeProperties: [],
   };
 }
 
@@ -122,6 +126,32 @@ export class SchemaMappingViewElement extends UmbLitElement {
       const props = await this.#repository.requestContentTypeProperties(this._contentTypeAlias);
       if (props) {
         this._availableProperties = props.map((p: ContentTypeProperty) => p.alias);
+      }
+
+      // Fetch properties for any existing parent/ancestor/sibling source content types
+      const sourceAliases = [...new Set(
+        this._rows
+          .filter((r) => r.sourceContentTypeAlias && ['parent', 'ancestor', 'sibling'].includes(r.sourceType))
+          .map((r) => r.sourceContentTypeAlias)
+      )];
+
+      if (sourceAliases.length > 0) {
+        const sourcePropsMap = new Map<string, string[]>();
+        await Promise.all(
+          sourceAliases.map(async (alias) => {
+            const sourceProps = await this.#repository.requestContentTypeProperties(alias);
+            if (sourceProps) {
+              sourcePropsMap.set(alias, sourceProps.map((p) => p.alias));
+            }
+          })
+        );
+
+        this._rows = this._rows.map((row) => {
+          if (row.sourceContentTypeAlias && sourcePropsMap.has(row.sourceContentTypeAlias)) {
+            return { ...row, sourceContentTypeProperties: sourcePropsMap.get(row.sourceContentTypeAlias)! };
+          }
+          return row;
+        });
       }
     } catch (error) {
       console.error('SchemeWeaver: Error fetching mapping:', error);
@@ -230,6 +260,27 @@ export class SchemaMappingViewElement extends UmbLitElement {
     this._rows = e.detail.mappings;
   }
 
+  private async _handlePickSourceContentType(e: CustomEvent) {
+    const { index, currentAlias } = e.detail;
+    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
+
+    const result = await modalManager
+      .open(this, SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL, {
+        data: { currentAlias },
+      })
+      .onSubmit()
+      .catch(() => null);
+
+    if (!result?.contentTypeAlias) return;
+
+    const props = await this.#repository.requestContentTypeProperties(result.contentTypeAlias);
+    const propertyAliases = props?.map((p) => p.alias) || [];
+
+    const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as PropertyMappingTableElement | null;
+    table?.setSourceContentType(index, result.contentTypeAlias, propertyAliases);
+  }
+
   render() {
     if (this._loading) {
       return html`
@@ -281,6 +332,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
             .mappings=${this._rows}
             .availableProperties=${this._availableProperties}
             @mappings-changed=${this._handleMappingsChanged}
+            @pick-source-content-type=${this._handlePickSourceContentType}
           ></schemeweaver-property-mapping-table>
         </uui-box>
 

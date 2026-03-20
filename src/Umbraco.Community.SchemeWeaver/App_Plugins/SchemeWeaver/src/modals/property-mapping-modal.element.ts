@@ -7,8 +7,10 @@ import '../components/property-mapping-table.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { PropertyMappingSuggestion } from '../api/types.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from './nested-mapping-modal.token.js';
+import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-modal.token.js';
 
 import type { PropertyMappingModalData, PropertyMappingModalValue } from './property-mapping-modal.token.js';
+import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
 
 /** Convert C# PropertyMappingSuggestion to UI row model */
 function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
@@ -23,6 +25,7 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
     editorAlias: s.editorAlias || '',
     nestedSchemaTypeName: '',
     resolverConfig: null,
+    sourceContentTypeProperties: [],
   };
 }
 
@@ -90,6 +93,26 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
   private _handleMappingsChanged(e: CustomEvent) {
     this._mappings = e.detail.mappings;
+  }
+
+  private async _handlePickSourceContentType(e: CustomEvent) {
+    const { index, currentAlias } = e.detail;
+    if (!this.#modalManagerContext) return;
+
+    const result = await this.#modalManagerContext
+      .open(this, SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL, {
+        data: { currentAlias },
+      })
+      .onSubmit()
+      .catch(() => null);
+
+    if (!result?.contentTypeAlias) return;
+
+    const props = await this.#repository.requestContentTypeProperties(result.contentTypeAlias);
+    const propertyAliases = props?.map((p) => p.alias) || [];
+
+    const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as PropertyMappingTableElement | null;
+    table?.setSourceContentType(index, result.contentTypeAlias, propertyAliases);
   }
 
   private async _handleConfigureNestedMapping(e: CustomEvent) {
@@ -192,6 +215,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
                   .availableProperties=${this._availableProperties}
                   @mappings-changed=${this._handleMappingsChanged}
                   @configure-nested-mapping=${this._handleConfigureNestedMapping}
+                  @pick-source-content-type=${this._handlePickSourceContentType}
                 ></schemeweaver-property-mapping-table>
               </uui-box>
             `}
