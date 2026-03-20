@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+     "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    },
+    "umbraco-mcp": {
+      "command": "npx",
+      "args": [
+        "@umbraco-cms/mcp-dev@17.1"
+      ],
+      "env": {
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0",
+        "UMBRACO_CLIENT_ID": "umbraco-back-office-mcp",
+        "UMBRACO_CLIENT_SECRET": "7YubSlcjnIxLRVdTGbcx",
+        "UMBRACO_BASE_URL": "https://localhost:44308"
+      }
+    },
+"framelink": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "figma-developer-mcp", "--stdio"],
+      "env": {
+        "FIGMA_API_KEY": "figd_kwCCHjt1IqKRPerJ5X05q4ylpP4rM1UboAlgpIjq"
+      }
+    }
+
+  }
+}

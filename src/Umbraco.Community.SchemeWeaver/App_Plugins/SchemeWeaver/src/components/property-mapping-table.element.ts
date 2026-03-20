@@ -132,14 +132,14 @@ export class PropertyMappingTableElement extends UmbLitElement {
   }
 
   /** Confidence is an integer 0-100 from C# auto-mapper */
-  private _renderConfidenceBadge(mapping: PropertyMappingRow) {
+  private _renderConfidenceTag(mapping: PropertyMappingRow) {
     // Only show confidence when there is an actual property mapped
     if (!mapping.contentTypePropertyAlias && mapping.sourceType !== 'static') return nothing;
     const confidence = mapping.confidence;
     if (confidence === null) return nothing;
-    if (confidence >= 80) return html`<uui-badge color="positive">${this.localize.term('schemeWeaver_confidenceHigh')}</uui-badge>`;
-    if (confidence >= 50) return html`<uui-badge color="warning">${this.localize.term('schemeWeaver_confidenceMedium')}</uui-badge>`;
-    return html`<uui-badge color="danger">${this.localize.term('schemeWeaver_confidenceLow')}</uui-badge>`;
+    if (confidence >= 80) return html`<uui-tag look="secondary" color="positive" class="confidence-tag">${this.localize.term('schemeWeaver_confidenceHigh')}</uui-tag>`;
+    if (confidence >= 50) return html`<uui-tag look="secondary" color="warning" class="confidence-tag">${this.localize.term('schemeWeaver_confidenceMedium')}</uui-tag>`;
+    return html`<uui-tag look="secondary" color="danger" class="confidence-tag">${this.localize.term('schemeWeaver_confidenceLow')}</uui-tag>`;
   }
 
   /** Whether a row has an actual mapping configured */
@@ -168,8 +168,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
       <uui-table-row class=${dimmed ? 'unmapped-row' : ''}>
         <uui-table-cell>
           <strong>${mapping.schemaPropertyName}</strong>
-        </uui-table-cell>
-        <uui-table-cell>
           <small class="type-label">${mapping.schemaPropertyType}</small>
         </uui-table-cell>
         <uui-table-cell>
@@ -189,12 +187,12 @@ export class PropertyMappingTableElement extends UmbLitElement {
               `}
         </uui-table-cell>
         <uui-table-cell>
-          ${this.readonly
-            ? html`<span>${mapping.sourceType === 'static' ? mapping.staticValue : mapping.contentTypePropertyAlias}</span>`
-            : this._renderValueInput(mapping, index)}
-        </uui-table-cell>
-        <uui-table-cell>
-          ${this._renderConfidenceBadge(mapping)}
+          <div class="value-cell">
+            ${this.readonly
+              ? html`<span>${mapping.sourceType === 'static' ? mapping.staticValue : mapping.contentTypePropertyAlias}</span>`
+              : this._renderValueInput(mapping, index)}
+            ${this._renderConfidenceTag(mapping)}
+          </div>
         </uui-table-cell>
       </uui-table-row>
     `;
@@ -216,10 +214,8 @@ export class PropertyMappingTableElement extends UmbLitElement {
       <uui-table aria-label=${this.localize.term('schemeWeaver_propertyMappings')}>
         <uui-table-head>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
-          <uui-table-head-cell>${this.localize.term('schemeWeaver_type')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_source')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
-          <uui-table-head-cell>${this.localize.term('schemeWeaver_confidence')}</uui-table-head-cell>
         </uui-table-head>
 
         ${mapped.map(({ mapping, index }) => this._renderRow(mapping, index))}
@@ -349,8 +345,28 @@ export class PropertyMappingTableElement extends UmbLitElement {
       }
 
       .type-label {
+        display: block;
         color: var(--uui-color-text-alt);
         font-family: monospace;
+        font-size: 0.8rem;
+        margin-top: 2px;
+      }
+
+      .value-cell {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-3);
+      }
+
+      .value-cell > :first-child {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .confidence-tag {
+        flex-shrink: 0;
+        font-size: 0.75rem;
+        --uui-tag-min-height: 22px;
       }
 
       .value-inputs {

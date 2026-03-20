@@ -73,28 +73,35 @@ export class JsonLdContentViewElement extends UmbLitElement {
     }
   }
 
+  @state()
+  private _unpublished = false;
+
   private async _checkMapping() {
     if (this._contentTypeAlias) {
       const mapping = await this.#repository.requestMapping(this._contentTypeAlias);
       this._hasMappng = !!mapping;
+      if (this._hasMappng) {
+        await this._generatePreview();
+        return;
+      }
     }
     this._loading = false;
   }
 
-  private async _handleGeneratePreview() {
-    if (!this._contentTypeAlias || !this._contentKey) return;
+  private async _generatePreview() {
+    if (!this._contentTypeAlias || !this._contentKey) {
+      this._loading = false;
+      return;
+    }
 
     this._generating = true;
+    this._unpublished = false;
     try {
       const result = await this.#repository.requestPreview(this._contentTypeAlias, this._contentKey);
       if (result) {
         this._preview = result;
       } else {
-        this.#notificationContext?.peek('warning', {
-          data: {
-            message: this.localize.term('schemeWeaver_publishRequired'),
-          },
-        });
+        this._unpublished = true;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -105,6 +112,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
       });
     } finally {
       this._generating = false;
+      this._loading = false;
     }
   }
 
@@ -138,20 +146,25 @@ export class JsonLdContentViewElement extends UmbLitElement {
         <uui-box headline=${this.localize.term('schemeWeaver_jsonLdPreview')}>
           <uui-button
             slot="header-actions"
-            look="outline"
+            look="default"
             compact
-            @click=${this._handleGeneratePreview}
+            @click=${this._generatePreview}
             ?disabled=${this._generating}
-            .state=${this._generating ? 'waiting' : undefined}
             label=${this.localize.term('schemeWeaver_generatePreview')}
           >
             <uui-icon name="icon-refresh"></uui-icon>
-            ${this._generating ? this.localize.term('schemeWeaver_generating') : this.localize.term('schemeWeaver_generatePreview')}
           </uui-button>
 
-          ${this._preview
-            ? html`<schemeweaver-jsonld-preview .jsonLd=${this._preview}></schemeweaver-jsonld-preview>`
-            : html`<p class="hint">${this.localize.term('schemeWeaver_noPreviewData')}</p>`}
+          ${this._generating
+            ? html`<uui-loader-bar></uui-loader-bar>`
+            : this._unpublished
+              ? html`<div class="unpublished-message">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this.localize.term('schemeWeaver_publishRequired')}</span>
+                </div>`
+              : this._preview
+                ? html`<schemeweaver-jsonld-preview .jsonLd=${this._preview}></schemeweaver-jsonld-preview>`
+                : html`<p class="hint">${this.localize.term('schemeWeaver_noPreviewData')}</p>`}
         </uui-box>
       </umb-body-layout>
     `;
@@ -189,6 +202,15 @@ export class JsonLdContentViewElement extends UmbLitElement {
         font-style: italic;
         text-align: center;
         padding: var(--uui-size-space-4);
+      }
+
+      .unpublished-message {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        padding: var(--uui-size-space-4);
+        color: var(--uui-color-warning);
+        font-style: italic;
       }
     `,
   ];

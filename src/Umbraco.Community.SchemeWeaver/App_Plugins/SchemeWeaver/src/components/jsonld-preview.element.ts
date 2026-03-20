@@ -30,28 +30,32 @@ export class JsonLdPreviewElement extends UmbLitElement {
 
     return html`
       <div class="preview-container">
-        <div class="preview-header">
-          <strong>${this.localize.term('schemeWeaver_jsonLdPreview')}</strong>
-          <div class="preview-actions">
-            ${this.jsonLd.isValid
-              ? html`<uui-badge color="positive">${this.localize.term('schemeWeaver_valid')}</uui-badge>`
-              : html`<uui-badge color="danger">${this.localize.term('schemeWeaver_invalid')}</uui-badge>`}
-            <uui-button
-              look="outline"
-              compact
-              @click=${this._handleCopy}
-              label=${this.localize.term('schemeWeaver_copyToClipboard')}
-            >
-              <uui-icon name="icon-documents"></uui-icon>
-              ${this.localize.term('schemeWeaver_copy')}
-            </uui-button>
-          </div>
+        <div class="preview-toolbar">
+          ${this.jsonLd.isValid
+            ? html`<uui-tag look="secondary" color="positive">${this.localize.term('schemeWeaver_valid')}</uui-tag>`
+            : html`<uui-tag look="secondary" color="danger">${this.localize.term('schemeWeaver_invalid')}</uui-tag>`}
+          <uui-button
+            look="default"
+            compact
+            @click=${this._handleCopy}
+            label=${this.localize.term('schemeWeaver_copyToClipboard')}
+          >
+            <uui-icon name="icon-documents"></uui-icon>
+            ${this.localize.term('schemeWeaver_copy')}
+          </uui-button>
         </div>
         ${this.jsonLd.errors.length > 0
           ? html`
-              <div class="errors">
-                ${this.jsonLd.errors.map((err) => html`<div class="error-item">${err}</div>`)}
-              </div>
+              <ul class="error-list">
+                ${this.jsonLd.errors.map(
+                  (err) => html`
+                    <li class="error-item">
+                      <uui-icon name="icon-alert"></uui-icon>
+                      <span>${err}</span>
+                    </li>
+                  `,
+                )}
+              </ul>
             `
           : ''}
         <pre class="json-code"><code>${this._formattedJson}</code></pre>
@@ -71,30 +75,35 @@ export class JsonLdPreviewElement extends UmbLitElement {
         overflow: hidden;
       }
 
-      .preview-header {
+      .preview-toolbar {
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-end;
         align-items: center;
-        padding: var(--uui-size-space-3) var(--uui-size-space-4);
+        gap: var(--uui-size-space-3);
+        padding: var(--uui-size-space-2) var(--uui-size-space-4);
         background-color: var(--uui-color-surface-alt);
         border-bottom: 1px solid var(--uui-color-border);
       }
 
-      .preview-actions {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-3);
-      }
-
-      .errors {
+      .error-list {
+        list-style: none;
+        margin: 0;
         padding: var(--uui-size-space-3) var(--uui-size-space-4);
-        background-color: var(--uui-color-danger-emphasis);
-        color: white;
-        font-size: 0.85rem;
+        border-bottom: 1px solid var(--uui-color-border);
       }
 
       .error-item {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--uui-size-space-2);
         padding: var(--uui-size-space-1) 0;
+        color: var(--uui-color-danger);
+        font-size: 0.85rem;
+      }
+
+      .error-item uui-icon {
+        flex-shrink: 0;
+        margin-top: 2px;
       }
 
       .json-code {

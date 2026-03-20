@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -45,7 +46,7 @@ public class SchemeWeaverTagHelper : TagHelper
 
             output.TagName = "script";
             output.TagMode = TagMode.StartTagAndEndTag;
-            output.Attributes.SetAttribute("type", "application/ld+json");
+            output.Attributes.SetAttribute(new TagHelperAttribute("type", new HtmlString("application/ld+json"), HtmlAttributeValueStyle.DoubleQuotes));
             output.Content.SetHtmlContent(jsonLd);
         }
         catch (Exception ex)

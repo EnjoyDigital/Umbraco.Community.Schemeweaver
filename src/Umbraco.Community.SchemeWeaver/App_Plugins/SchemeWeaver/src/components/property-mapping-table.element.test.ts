@@ -13,7 +13,7 @@ describe('PropertyMappingTableElement', () => {
   it('renders table headers', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[]}></schemeweaver-property-mapping-table>`);
     const headers = el.shadowRoot!.querySelectorAll('uui-table-head-cell');
-    expect(headers.length).to.equal(5);
+    expect(headers.length).to.equal(3);
   });
 
   it('renders correct number of rows', async () => {
@@ -22,35 +22,35 @@ describe('PropertyMappingTableElement', () => {
     expect(rows.length).to.equal(4);
   });
 
-  it('shows positive confidence badge for >= 80', async () => {
+  it('shows positive confidence tag for >= 80', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    const firstRowBadge = (rows[0] as unknown as HTMLElement).querySelector('uui-badge');
-    expect(firstRowBadge).to.exist;
-    expect(firstRowBadge!.getAttribute('color')).to.equal('positive');
+    const tag = (rows[0] as unknown as HTMLElement).querySelector('uui-tag.confidence-tag');
+    expect(tag).to.exist;
+    expect(tag!.getAttribute('color')).to.equal('positive');
   });
 
-  it('shows warning confidence badge for >= 50', async () => {
+  it('shows warning confidence tag for >= 50', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    const badge = (rows[1] as unknown as HTMLElement).querySelector('uui-badge');
-    expect(badge).to.exist;
-    expect(badge!.getAttribute('color')).to.equal('warning');
+    const tag = (rows[1] as unknown as HTMLElement).querySelector('uui-tag.confidence-tag');
+    expect(tag).to.exist;
+    expect(tag!.getAttribute('color')).to.equal('warning');
   });
 
-  it('shows danger confidence badge for < 50', async () => {
+  it('shows danger confidence tag for < 50', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    const badge = (rows[2] as unknown as HTMLElement).querySelector('uui-badge');
-    expect(badge).to.exist;
-    expect(badge!.getAttribute('color')).to.equal('danger');
+    const tag = (rows[2] as unknown as HTMLElement).querySelector('uui-tag.confidence-tag');
+    expect(tag).to.exist;
+    expect(tag!.getAttribute('color')).to.equal('danger');
   });
 
-  it('shows no badge when confidence is null', async () => {
+  it('shows no confidence tag when confidence is null', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    const badge = (rows[3] as unknown as HTMLElement).querySelector('uui-badge');
-    expect(badge).to.not.exist;
+    const tag = (rows[3] as unknown as HTMLElement).querySelector('uui-tag.confidence-tag');
+    expect(tag).to.not.exist;
   });
 
   it('renders spans instead of selects in readonly mode', async () => {

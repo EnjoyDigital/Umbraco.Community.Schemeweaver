@@ -53,30 +53,30 @@ describe('JsonLdPreviewElement', () => {
     expect(btn).to.exist;
   });
 
-  it('shows Valid badge when isValid is true', async () => {
+  it('shows Valid tag when isValid is true', async () => {
     const data: JsonLdPreviewResponse = {
       jsonLd: '{"@type":"Article"}',
       isValid: true,
       errors: [],
     };
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const badge = el.shadowRoot!.querySelector('uui-badge');
-    expect(badge).to.exist;
-    expect(badge!.textContent!.trim()).to.equal('Valid');
-    expect(badge!.getAttribute('color')).to.equal('positive');
+    const tag = el.shadowRoot!.querySelector('uui-tag');
+    expect(tag).to.exist;
+    expect(tag!.textContent!.trim()).to.equal('Valid');
+    expect(tag!.getAttribute('color')).to.equal('positive');
   });
 
-  it('shows Invalid badge and errors when isValid is false', async () => {
+  it('shows Invalid tag and errors when isValid is false', async () => {
     const data: JsonLdPreviewResponse = {
       jsonLd: '{}',
       isValid: false,
       errors: ['Missing @type'],
     };
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const badge = el.shadowRoot!.querySelector('uui-badge');
-    expect(badge).to.exist;
-    expect(badge!.textContent!.trim()).to.equal('Invalid');
-    expect(badge!.getAttribute('color')).to.equal('danger');
+    const tag = el.shadowRoot!.querySelector('uui-tag');
+    expect(tag).to.exist;
+    expect(tag!.textContent!.trim()).to.equal('Invalid');
+    expect(tag!.getAttribute('color')).to.equal('danger');
 
     const errors = el.shadowRoot!.querySelectorAll('.error-item');
     expect(errors.length).to.equal(1);
