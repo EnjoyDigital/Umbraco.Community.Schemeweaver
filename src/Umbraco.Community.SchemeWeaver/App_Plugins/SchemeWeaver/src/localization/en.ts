@@ -94,5 +94,9 @@ export default {
     hideUnmapped: 'Hide unmapped properties',
     unmappedProperties: 'unmapped properties',
     noMappedProperties: 'No properties are mapped yet. Click "Show unmapped properties" below to configure mappings.',
+    sourceComplexType: 'Schema.org Type',
+    selectSubType: 'Select type',
+    subPropertyMappings: 'Type Properties',
+    configureSubType: 'Configure sub-type properties using the expand arrow',
   },
 };

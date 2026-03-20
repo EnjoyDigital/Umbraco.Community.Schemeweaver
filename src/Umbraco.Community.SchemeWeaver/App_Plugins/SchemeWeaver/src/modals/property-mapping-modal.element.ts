@@ -23,6 +23,11 @@ function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
     editorAlias: s.editorAlias || '',
     nestedSchemaTypeName: '',
     resolverConfig: null,
+    acceptedTypes: s.acceptedTypes || [],
+    isComplexType: s.isComplexType || false,
+    expanded: false,
+    subMappings: [],
+    selectedSubType: '',
   };
 }
 
@@ -90,6 +95,15 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
   private _handleMappingsChanged(e: CustomEvent) {
     this._mappings = e.detail.mappings;
+  }
+
+  private async _handleLoadSubTypeProperties(e: CustomEvent) {
+    const { index, typeName } = e.detail;
+    const props = await this.#repository.requestSchemaTypeProperties(typeName);
+    if (props) {
+      const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as any;
+      table?.setSubTypeProperties(index, props.map((p: any) => ({ name: p.name, propertyType: p.propertyType })));
+    }
   }
 
   private async _handleConfigureNestedMapping(e: CustomEvent) {
@@ -192,6 +206,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
                   .availableProperties=${this._availableProperties}
                   @mappings-changed=${this._handleMappingsChanged}
                   @configure-nested-mapping=${this._handleConfigureNestedMapping}
+                  @load-sub-type-properties=${this._handleLoadSubTypeProperties}
                 ></schemeweaver-property-mapping-table>
               </uui-box>
             `}

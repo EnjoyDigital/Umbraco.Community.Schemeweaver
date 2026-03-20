@@ -16,6 +16,8 @@ export interface SchemaPropertyInfo {
   name: string;
   propertyType: string;
   isRequired: boolean;
+  acceptedTypes: string[];
+  isComplexType: boolean;
 }
 
 /** Matches anonymous type from GET /content-types */
@@ -65,6 +67,8 @@ export interface PropertyMappingSuggestion {
   confidence: number;
   isAutoMapped: boolean;
   editorAlias: string | null;
+  acceptedTypes: string[];
+  isComplexType: boolean;
 }
 
 /** Matches C# JsonLdPreviewResponse */
