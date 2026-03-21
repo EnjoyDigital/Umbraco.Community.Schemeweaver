@@ -2,6 +2,8 @@ using System.Text.Json;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Serialization;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Strings;
 
@@ -25,15 +27,21 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private readonly IContentTypeService _contentTypeService;
     private readonly IDataTypeService _dataTypeService;
     private readonly IShortStringHelper _shortStringHelper;
+    private readonly PropertyEditorCollection _propertyEditors;
+    private readonly IConfigurationEditorJsonSerializer _configSerializer;
 
     public TestDataSeeder(
         IContentTypeService contentTypeService,
         IDataTypeService dataTypeService,
-        IShortStringHelper shortStringHelper)
+        IShortStringHelper shortStringHelper,
+        PropertyEditorCollection propertyEditors,
+        IConfigurationEditorJsonSerializer configSerializer)
     {
         _contentTypeService = contentTypeService;
         _dataTypeService = dataTypeService;
         _shortStringHelper = shortStringHelper;
+        _propertyEditors = propertyEditors;
+        _configSerializer = configSerializer;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -162,10 +170,11 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ["validationLimit"] = JsonSerializer.Serialize(new { min = 0, max = 0 }),
         };
 
-        var dataType = new DataType(_shortStringHelper, -1)
+        _propertyEditors.TryGet(Constants.PropertyEditors.Aliases.BlockList, out var blockListEditor);
+
+        var dataType = new DataType(blockListEditor, _configSerializer, -1)
         {
             Name = name,
-            EditorAlias = Constants.PropertyEditors.Aliases.BlockList,
             DatabaseType = ValueStorageType.Ntext,
             ConfigurationData = configData,
         };
