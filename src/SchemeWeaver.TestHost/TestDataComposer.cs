@@ -37,6 +37,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private readonly IConfigurationEditorJsonSerializer _configSerializer;
     private readonly IContentService _contentService;
     private readonly IContentPublishingService _contentPublishingService;
+    private readonly IFileService _fileService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TestDataSeeder> _logger;
 
@@ -48,6 +49,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IConfigurationEditorJsonSerializer configSerializer,
         IContentService contentService,
         IContentPublishingService contentPublishingService,
+        IFileService fileService,
         IServiceScopeFactory scopeFactory,
         ILogger<TestDataSeeder> logger)
     {
@@ -58,6 +60,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         _configSerializer = configSerializer;
         _contentService = contentService;
         _contentPublishingService = contentPublishingService;
+        _fileService = fileService;
         _scopeFactory = scopeFactory;
         _logger = logger;
     }
@@ -140,6 +143,19 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         var eventPageCt = await CreateEventPage(textboxDataType, descDataType, dateTimeDataType, mediaPickerDataType, cancellationToken);
         var recipePageCt = await CreateRecipePage(textboxDataType, descDataType, mediaPickerDataType, ingredientsBlockList, instructionsBlockList, cancellationToken);
 
+        // 3b. Create master template and assign templates to content types
+        if (_fileService.GetTemplate("master") is null)
+        {
+            var masterTemplate = new Umbraco.Cms.Core.Models.Template(_shortStringHelper, "Master", "master");
+            _fileService.SaveTemplate(masterTemplate);
+            _logger.LogInformation("TestDataSeeder: Created master template");
+        }
+
+        foreach (var ct in new[] { blogArticleCt, productPageCt, faqPageCt, eventPageCt, recipePageCt })
+        {
+            await AssignTemplate(ct);
+        }
+
         // 4. Create and publish sample content
         await CreateSampleContent(
             faqItem, reviewItem, recipeIngredient, recipeStep,
@@ -188,19 +204,23 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType[] elementTypes,
         CancellationToken cancellationToken)
     {
-        var blocks = elementTypes.Select(et => new
+        _propertyEditors.TryGet(Constants.PropertyEditors.Aliases.BlockList, out var blockListEditor);
+
+        // Build blocks config as array of objects with contentElementTypeKey
+        var blocks = elementTypes.Select(et => (object)new Dictionary<string, object?>
         {
-            contentElementTypeKey = et.Key,
-            label = et.Name,
-        });
+            ["contentElementTypeKey"] = et.Key.ToString(),
+            ["label"] = et.Name,
+        }).ToList();
 
         var configData = new Dictionary<string, object>
         {
-            ["blocks"] = JsonSerializer.Serialize(blocks),
-            ["validationLimit"] = JsonSerializer.Serialize(new { min = 0, max = 0 }),
+            ["blocks"] = blocks,
+            ["validationLimit"] = new Dictionary<string, object?> { ["min"] = null, ["max"] = null },
+            ["useSingleBlockMode"] = false,
+            ["useLiveEditing"] = false,
+            ["useInlineEditingAsDefault"] = false,
         };
-
-        _propertyEditors.TryGet(Constants.PropertyEditors.Aliases.BlockList, out var blockListEditor);
 
         var dataType = new DataType(blockListEditor, _configSerializer, -1)
         {
@@ -211,6 +231,31 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         await _dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey).ConfigureAwait(false);
         return dataType;
+    }
+
+    private async Task AssignTemplate(IContentType ct)
+    {
+        var template = _fileService.GetTemplate(ct.Alias);
+
+        // Create the template if it doesn't exist (Umbraco stores templates in DB)
+        if (template is null)
+        {
+            var viewContent = $@"@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{{
+    Layout = ""master.cshtml"";
+}}";
+            template = new Umbraco.Cms.Core.Models.Template(_shortStringHelper, ct.Name, ct.Alias)
+            {
+                Content = viewContent,
+            };
+            _fileService.SaveTemplate(template);
+            _logger.LogInformation("TestDataSeeder: Created template {Alias}", ct.Alias);
+        }
+
+        ct.AllowedTemplates = new[] { template };
+        ct.SetDefaultTemplate(template);
+        _contentTypeService.Save(ct);
+        _logger.LogInformation("TestDataSeeder: Assigned template {Alias} to {ContentType}", ct.Alias, ct.Name);
     }
 
     private async Task<IContentType> CreateBlogArticle(
