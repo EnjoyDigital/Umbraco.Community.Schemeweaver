@@ -175,17 +175,26 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         contentTypeKey: this.data?.contentTypeKey ?? '',
         schemaTypeName: this.data?.schemaType || '',
         isEnabled: true,
-        propertyMappings: this._mappings.map((row) => ({
-          schemaPropertyName: row.schemaPropertyName,
-          sourceType: row.sourceType,
-          contentTypePropertyAlias: row.contentTypePropertyAlias || null,
-          sourceContentTypeAlias: row.sourceContentTypeAlias || null,
-          transformType: null,
-          isAutoMapped: row.confidence !== null,
-          staticValue: row.staticValue || null,
-          nestedSchemaTypeName: row.nestedSchemaTypeName || null,
-          resolverConfig: row.resolverConfig,
-        })),
+        propertyMappings: this._mappings
+          .filter((row) => {
+            // Only save rows that are actually configured
+            if (row.sourceType === 'static') return !!row.staticValue;
+            if (row.sourceType === 'complexType') return !!row.resolverConfig;
+            if (row.sourceType === 'blockContent') return !!row.contentTypePropertyAlias;
+            // property/parent/ancestor/sibling: need a content property alias
+            return !!row.contentTypePropertyAlias;
+          })
+          .map((row) => ({
+            schemaPropertyName: row.schemaPropertyName,
+            sourceType: row.sourceType,
+            contentTypePropertyAlias: row.contentTypePropertyAlias || null,
+            sourceContentTypeAlias: row.sourceContentTypeAlias || null,
+            transformType: null,
+            isAutoMapped: row.confidence !== null,
+            staticValue: row.staticValue || null,
+            nestedSchemaTypeName: row.nestedSchemaTypeName || null,
+            resolverConfig: row.resolverConfig,
+          })),
       });
 
       this.modalContext?.setValue({ saved: true });

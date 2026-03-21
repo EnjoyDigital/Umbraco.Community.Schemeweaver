@@ -156,7 +156,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         var config = ParseComplexTypeConfig(propMapping.ResolverConfig);
         if (config?.ComplexTypeMappings is null or { Count: 0 })
-            return nestedInstance;
+            return null; // No sub-mappings configured — skip rather than emit empty object
 
         foreach (var subMapping in config.ComplexTypeMappings)
         {

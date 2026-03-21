@@ -144,6 +144,44 @@ public class SchemeWeaverService : ISchemeWeaverService
         return response;
     }
 
+    public JsonLdPreviewResponse GenerateMockPreview(string contentTypeAlias)
+    {
+        var response = new JsonLdPreviewResponse();
+        var mapping = _repository.GetByContentTypeAlias(contentTypeAlias);
+        if (mapping is not { IsEnabled: true })
+        {
+            response.Errors.Add("No mapping found or mapping is disabled.");
+            return response;
+        }
+
+        var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
+        var result = new Dictionary<string, object?>
+        {
+            ["@context"] = "https://schema.org",
+            ["@type"] = mapping.SchemaTypeName,
+        };
+
+        foreach (var pm in propertyMappings)
+        {
+            object? value = pm.SourceType switch
+            {
+                "static" => pm.StaticValue,
+                "blockContent" => $"[BlockList: {pm.ContentTypePropertyAlias} → {pm.NestedSchemaTypeName}]",
+                "complexType" => $"[{pm.NestedSchemaTypeName}]",
+                _ when !string.IsNullOrEmpty(pm.ContentTypePropertyAlias) => $"[{pm.ContentTypePropertyAlias}]",
+                _ => null
+            };
+
+            if (value is not null)
+                result[pm.SchemaPropertyName] = value;
+        }
+
+        response.JsonLd = System.Text.Json.JsonSerializer.Serialize(result,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        response.IsValid = true;
+        return response;
+    }
+
     public IEnumerable<SchemaTypeInfo> GetSchemaTypes() => _registry.GetAllTypes();
 
     public IEnumerable<SchemaTypeInfo> SearchSchemaTypes(string query) => _registry.Search(query);

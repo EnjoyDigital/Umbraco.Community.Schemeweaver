@@ -157,18 +157,26 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpPost("mappings/{contentTypeAlias}/preview")]
     [ProducesResponseType(typeof(JsonLdPreviewResponse), StatusCodes.Status200OK)]
-    public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid contentKey)
+    public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid? contentKey = null)
     {
-        if (!_umbracoContextAccessor.TryGetUmbracoContext(out var umbracoContext))
+        // When a content key is provided, generate real JSON-LD from published content
+        if (contentKey.HasValue && contentKey.Value != Guid.Empty)
         {
-            return StatusCode(StatusCodes.Status500InternalServerError, "Unable to access Umbraco context.");
+            if (!_umbracoContextAccessor.TryGetUmbracoContext(out var umbracoContext))
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Unable to access Umbraco context.");
+            }
+
+            var content = umbracoContext.Content?.GetById(contentKey.Value);
+            if (content == null) return NotFound("Content not found.");
+
+            var preview = _service.GeneratePreview(content);
+            return Ok(preview);
         }
 
-        var content = umbracoContext.Content?.GetById(contentKey);
-        if (content == null) return NotFound("Content not found.");
-
-        var preview = _service.GeneratePreview(content);
-        return Ok(preview);
+        // No content key — return mock preview based on mapping configuration
+        var mockPreview = _service.GenerateMockPreview(contentTypeAlias);
+        return Ok(mockPreview);
     }
 
     #endregion

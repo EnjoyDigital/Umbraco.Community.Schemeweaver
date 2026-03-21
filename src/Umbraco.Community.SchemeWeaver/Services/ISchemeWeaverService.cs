@@ -14,6 +14,7 @@ public interface ISchemeWeaverService
     void DeleteMapping(string contentTypeAlias);
     IEnumerable<PropertyMappingSuggestion> AutoMap(string contentTypeAlias, string schemaTypeName);
     JsonLdPreviewResponse GeneratePreview(IPublishedContent content);
+    JsonLdPreviewResponse GenerateMockPreview(string contentTypeAlias);
     IEnumerable<SchemaTypeInfo> GetSchemaTypes();
     IEnumerable<SchemaTypeInfo> SearchSchemaTypes(string query);
     IEnumerable<SchemaPropertyInfo> GetSchemaProperties(string typeName);
