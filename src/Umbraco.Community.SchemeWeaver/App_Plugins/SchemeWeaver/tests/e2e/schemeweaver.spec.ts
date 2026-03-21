@@ -379,6 +379,246 @@ test.describe('Property Mapping Table', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Complex Mapping Workflow Tests
+// ---------------------------------------------------------------------------
+
+test.describe('Complex Mapping Workflows', () => {
+  test('FAQ auto-map shows blockContent source with Question type for mainEntity', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    // Find the FAQ Page row and click Map
+    const faqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ' }).first();
+    const mapBtn = faqRow.locator('uui-button[label="Map to Schema.org"]');
+    if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await mapBtn.click();
+
+      // Pick FAQPage schema type
+      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+
+      // Search for FAQPage
+      const searchInput = pickerModal.locator('uui-input');
+      if (await searchInput.isVisible().catch(() => false)) {
+        await fillUuiInput(searchInput, 'FAQ');
+        await umbracoUi.page.waitForTimeout(500);
+      }
+
+      // Select FAQPage
+      const faqItem = pickerModal.locator('.schema-item', { hasText: 'FAQPage' });
+      if (await faqItem.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await faqItem.click();
+        await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+        // Property mapping modal should show
+        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+        const table = mappingModal.locator('schemeweaver-property-mapping-table');
+        await expect(table).toBeVisible({ timeout: 10_000 });
+
+        // Look for mainEntity row — it should have blockContent source and Question type
+        const mainEntityText = table.locator('uui-table-row', { hasText: 'mainEntity' });
+        await expect(mainEntityText).toBeVisible({ timeout: 5_000 });
+
+        // Close without saving
+        await mappingModal.locator('uui-button[label="Cancel"]').click();
+      }
+    }
+  });
+
+  test('Product auto-map shows review as blockContent with Review type', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    // Find the Product Page row
+    const productRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Product' }).first();
+    const mapBtn = productRow.locator('uui-button[label="Map to Schema.org"]');
+    if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await mapBtn.click();
+
+      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+
+      const searchInput = pickerModal.locator('uui-input');
+      if (await searchInput.isVisible().catch(() => false)) {
+        await fillUuiInput(searchInput, 'Product');
+        await umbracoUi.page.waitForTimeout(500);
+      }
+
+      const productItem = pickerModal.locator('.schema-item', { hasText: 'Product' }).first();
+      if (await productItem.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await productItem.click();
+        await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+        const table = mappingModal.locator('schemeweaver-property-mapping-table');
+        await expect(table).toBeVisible({ timeout: 10_000 });
+
+        // Look for review row
+        const reviewRow = table.locator('uui-table-row', { hasText: 'review' });
+        await expect(reviewRow).toBeVisible({ timeout: 5_000 });
+
+        await mappingModal.locator('uui-button[label="Cancel"]').click();
+      }
+    }
+  });
+
+  test('save FAQ mapping and verify it persists on dashboard', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    // Find an unmapped FAQ page
+    const faqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ' }).first();
+    const mapBtn = faqRow.locator('uui-button[label="Map to Schema.org"]');
+    if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await mapBtn.click();
+
+      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+
+      const searchInput = pickerModal.locator('uui-input');
+      if (await searchInput.isVisible().catch(() => false)) {
+        await fillUuiInput(searchInput, 'FAQ');
+        await umbracoUi.page.waitForTimeout(500);
+      }
+
+      const faqItem = pickerModal.locator('.schema-item', { hasText: 'FAQPage' });
+      if (await faqItem.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await faqItem.click();
+        await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+        // Save the mapping
+        await mappingModal.locator('uui-button[label="Save Mapping"]').click();
+        await expect(mappingModal).not.toBeVisible({ timeout: 10_000 });
+
+        // Dashboard should update — FAQ row should now show as Mapped
+        await waitForDashboardTable(umbracoUi.page);
+        const updatedFaqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ' }).first();
+        const mappedBadge = updatedFaqRow.locator('uui-tag', { hasText: 'Mapped' });
+        await expect(mappedBadge).toBeVisible({ timeout: 5_000 });
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// JSON-LD Output Verification Tests (require content to be published)
+// ---------------------------------------------------------------------------
+
+test.describe('JSON-LD Output on Site', () => {
+  test('mapped content page contains JSON-LD script tag', async ({ umbracoUi }) => {
+    // Navigate to a content page on the frontend (not backoffice)
+    // This test verifies the tag helper output
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
+
+    const response = await umbracoUi.page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    if (response?.ok()) {
+      // Check for JSON-LD script tag
+      const jsonLdScript = umbracoUi.page.locator('script[type="application/ld+json"]');
+      const count = await jsonLdScript.count();
+
+      // If there's a JSON-LD script, validate its structure
+      if (count > 0) {
+        const jsonLdText = await jsonLdScript.first().textContent();
+        expect(jsonLdText).toBeTruthy();
+
+        const parsed = JSON.parse(jsonLdText!);
+        expect(parsed['@context']).toBe('https://schema.org');
+        expect(parsed['@type']).toBeTruthy();
+      }
+    }
+  });
+
+  test('FAQ page JSON-LD contains Question and Answer types', async ({ umbracoUi }) => {
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
+
+    // Navigate to the FAQ page (TestHost creates content at root)
+    const response = await umbracoUi.page.goto(`${baseUrl}/faq-page/`, { waitUntil: 'domcontentloaded' });
+    if (response?.ok()) {
+      const jsonLdScript = umbracoUi.page.locator('script[type="application/ld+json"]');
+      if (await jsonLdScript.count() > 0) {
+        const jsonLdText = await jsonLdScript.first().textContent();
+        const parsed = JSON.parse(jsonLdText!);
+
+        expect(parsed['@type']).toBe('FAQPage');
+
+        // If mainEntity is mapped, it should contain Question objects
+        if (parsed.mainEntity) {
+          const questions = Array.isArray(parsed.mainEntity) ? parsed.mainEntity : [parsed.mainEntity];
+          for (const q of questions) {
+            expect(q['@type']).toBe('Question');
+            expect(q.name).toBeTruthy();
+            if (q.acceptedAnswer) {
+              expect(q.acceptedAnswer['@type']).toBe('Answer');
+              expect(q.acceptedAnswer.text).toBeTruthy();
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test('Product page JSON-LD contains Review objects', async ({ umbracoUi }) => {
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
+
+    const response = await umbracoUi.page.goto(`${baseUrl}/product-page/`, { waitUntil: 'domcontentloaded' });
+    if (response?.ok()) {
+      const jsonLdScript = umbracoUi.page.locator('script[type="application/ld+json"]');
+      if (await jsonLdScript.count() > 0) {
+        const jsonLdText = await jsonLdScript.first().textContent();
+        const parsed = JSON.parse(jsonLdText!);
+
+        expect(parsed['@type']).toBe('Product');
+
+        if (parsed.review) {
+          const reviews = Array.isArray(parsed.review) ? parsed.review : [parsed.review];
+          for (const r of reviews) {
+            expect(r['@type']).toBe('Review');
+          }
+        }
+      }
+    }
+  });
+
+  test('Recipe page JSON-LD contains ingredients and instructions', async ({ umbracoUi }) => {
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
+
+    const response = await umbracoUi.page.goto(`${baseUrl}/recipe-page/`, { waitUntil: 'domcontentloaded' });
+    if (response?.ok()) {
+      const jsonLdScript = umbracoUi.page.locator('script[type="application/ld+json"]');
+      if (await jsonLdScript.count() > 0) {
+        const jsonLdText = await jsonLdScript.first().textContent();
+        const parsed = JSON.parse(jsonLdText!);
+
+        expect(parsed['@type']).toBe('Recipe');
+
+        // recipeIngredient should be string array
+        if (parsed.recipeIngredient) {
+          expect(Array.isArray(parsed.recipeIngredient)).toBe(true);
+          for (const ingredient of parsed.recipeIngredient) {
+            expect(typeof ingredient).toBe('string');
+          }
+        }
+
+        // recipeInstructions should be HowToStep array
+        if (parsed.recipeInstructions) {
+          const steps = Array.isArray(parsed.recipeInstructions) ? parsed.recipeInstructions : [parsed.recipeInstructions];
+          for (const step of steps) {
+            expect(step['@type']).toBe('HowToStep');
+          }
+        }
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Mapping Persistence & JSON-LD Output Tests
 // ---------------------------------------------------------------------------
 

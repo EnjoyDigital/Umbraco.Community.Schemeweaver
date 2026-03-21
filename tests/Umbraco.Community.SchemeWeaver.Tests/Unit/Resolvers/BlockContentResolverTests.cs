@@ -315,6 +315,250 @@ public class BlockContentResolverTests
         things.Should().HaveCount(1);
     }
 
+    [Fact]
+    public void Resolve_StringListExtraction_ReturnsListOfStrings()
+    {
+        var block1 = CreateBlockElement("ingredientItem", new Dictionary<string, object?>
+        {
+            ["ingredient"] = "200g flour"
+        });
+        var block2 = CreateBlockElement("ingredientItem", new Dictionary<string, object?>
+        {
+            ["ingredient"] = "100g sugar"
+        });
+        var block3 = CreateBlockElement("ingredientItem", new Dictionary<string, object?>
+        {
+            ["ingredient"] = "2 eggs"
+        });
+        var blockListModel = CreateBlockListModel(block1, block2, block3);
+
+        var resolverConfig = JsonSerializer.Serialize(new { extractAs = "stringList", contentProperty = "ingredient" });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IEnumerable<string>>();
+        var strings = ((IEnumerable<string>)result!).ToList();
+        strings.Should().HaveCount(3);
+        strings[0].Should().Be("200g flour");
+        strings[1].Should().Be("100g sugar");
+        strings[2].Should().Be("2 eggs");
+    }
+
+    [Fact]
+    public void Resolve_StringListExtraction_SkipsEmptyValues()
+    {
+        var block1 = CreateBlockElement("ingredientItem", new Dictionary<string, object?>
+        {
+            ["ingredient"] = "200g flour"
+        });
+        var block2 = CreateBlockElement("ingredientItem", new Dictionary<string, object?>
+        {
+            ["ingredient"] = null
+        });
+        var block3 = CreateBlockElement("ingredientItem", new Dictionary<string, object?>
+        {
+            ["ingredient"] = "2 eggs"
+        });
+        var blockListModel = CreateBlockListModel(block1, block2, block3);
+
+        var resolverConfig = JsonSerializer.Serialize(new { extractAs = "stringList", contentProperty = "ingredient" });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IEnumerable<string>>();
+        var strings = ((IEnumerable<string>)result!).ToList();
+        strings.Should().HaveCount(2);
+        strings[0].Should().Be("200g flour");
+        strings[1].Should().Be("2 eggs");
+    }
+
+    [Fact]
+    public void Resolve_StringListExtraction_EmptyBlocks_ReturnsNull()
+    {
+        var blockListModel = new BlockListModel(new List<BlockListItem>());
+
+        var resolverConfig = JsonSerializer.Serialize(new { extractAs = "stringList", contentProperty = "ingredient" });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Resolve_StringListExtraction_NoNestedSchemaTypeRequired()
+    {
+        var block1 = CreateBlockElement("ingredientItem", new Dictionary<string, object?>
+        {
+            ["ingredient"] = "200g flour"
+        });
+        var block2 = CreateBlockElement("ingredientItem", new Dictionary<string, object?>
+        {
+            ["ingredient"] = "100g sugar"
+        });
+        var blockListModel = CreateBlockListModel(block1, block2);
+
+        var resolverConfig = JsonSerializer.Serialize(new { extractAs = "stringList", contentProperty = "ingredient" });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        // NestedSchemaTypeName is explicitly null — string extraction should still work
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IEnumerable<string>>();
+        var strings = ((IEnumerable<string>)result!).ToList();
+        strings.Should().HaveCount(2);
+        strings[0].Should().Be("200g flour");
+        strings[1].Should().Be("100g sugar");
+    }
+
+    [Fact]
+    public void Resolve_ReviewBlockWithConfig_MapsAuthorAndBody()
+    {
+        var blockElement = CreateBlockElement("reviewItem", new Dictionary<string, object?>
+        {
+            ["reviewAuthor"] = "Jane Smith",
+            ["ratingValue"] = "5",
+            ["reviewBody"] = "Excellent product, highly recommended."
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new() { SchemaProperty = "author", ContentProperty = "reviewAuthor" },
+                new() { SchemaProperty = "reviewBody", ContentProperty = "reviewBody" }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Review", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IEnumerable<Schema.NET.Thing>>();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(1);
+        things[0].Should().BeOfType<Schema.NET.Review>();
+
+        var review = (Schema.NET.Review)things[0];
+        var jsonLd = review.ToString();
+        jsonLd.Should().Contain("Excellent product, highly recommended.");
+    }
+
+    [Fact]
+    public void Resolve_HowToStepBlockWithConfig_MapsNameAndText()
+    {
+        var blockElement = CreateBlockElement("instructionStep", new Dictionary<string, object?>
+        {
+            ["stepName"] = "Preheat Oven",
+            ["stepText"] = "Preheat your oven to 180°C (350°F)."
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new() { SchemaProperty = "name", ContentProperty = "stepName" },
+                new() { SchemaProperty = "text", ContentProperty = "stepText" }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "HowToStep", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IEnumerable<Schema.NET.Thing>>();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(1);
+        things[0].Should().BeOfType<Schema.NET.HowToStep>();
+
+        var step = (Schema.NET.HowToStep)things[0];
+        var jsonLd = step.ToString();
+        jsonLd.Should().Contain("Preheat Oven");
+        jsonLd.Should().Contain("Preheat your oven to 180");
+    }
+
+    [Fact]
+    public void Resolve_FAQWithWrapInType_ProducesQuestionWithAnswer()
+    {
+        var blockElement = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["questionText"] = "What is structured data?",
+            ["answerText"] = "Structured data is a standardised format for providing information about a page."
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new()
+                {
+                    BlockAlias = "faqItem",
+                    SchemaProperty = "name",
+                    ContentProperty = "questionText"
+                },
+                new()
+                {
+                    BlockAlias = "faqItem",
+                    SchemaProperty = "acceptedAnswer",
+                    ContentProperty = "answerText",
+                    WrapInType = "Answer",
+                    WrapInProperty = "Text"
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Question", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IEnumerable<Schema.NET.Thing>>();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(1);
+        things[0].Should().BeOfType<Schema.NET.Question>();
+
+        var question = (Schema.NET.Question)things[0];
+        var jsonLd = question.ToString();
+        jsonLd.Should().Contain("What is structured data?");
+        jsonLd.Should().Contain("Answer");
+        jsonLd.Should().Contain("Structured data is a standardised format for providing information about a page.");
+    }
+
     private static IPublishedElement CreateBlockElement(string contentTypeAlias, Dictionary<string, object?> properties)
     {
         var element = Substitute.For<IPublishedElement>();

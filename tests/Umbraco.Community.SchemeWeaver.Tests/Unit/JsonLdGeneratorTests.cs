@@ -654,5 +654,440 @@ public class JsonLdGeneratorTests
         jsonLd.Should().Contain("123 Main St");
     }
 
+    [Fact]
+    public void GenerateJsonLd_Product_WithReviewBlocks_ProducesReviewArray()
+    {
+        var sut = CreateBlockAwareGenerator();
+
+        // Review.Author is OneOrMany<Values<IOrganization, IPerson>> — a plain string
+        // cannot be implicitly converted. Use wrapInType to nest the author name inside
+        // a Person object, which mirrors how a real mapping configuration would work.
+        var reviewBlocks = new[]
+        {
+            CreateBlockElement("reviewItem", new Dictionary<string, object?>
+            {
+                ["reviewAuthor"] = "Alice Johnson",
+                ["reviewBody"] = "Excellent product, highly recommend!"
+            }),
+            CreateBlockElement("reviewItem", new Dictionary<string, object?>
+            {
+                ["reviewAuthor"] = "Bob Smith",
+                ["reviewBody"] = "Good quality but a bit pricey."
+            })
+        };
+
+        var content = CreateContentWithBlockList("productPage", "reviews", reviewBlocks,
+            new Dictionary<string, object?>
+            {
+                ["productName"] = "Widget Pro",
+                ["sku"] = "WGT-PRO-001"
+            });
+
+        var mapping = CreateMapping("productPage", "Product");
+        _repository.GetByContentTypeAlias("productPage").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "productName" },
+            new() { SchemaPropertyName = "Sku", SourceType = "property", ContentTypePropertyAlias = "sku" },
+            new()
+            {
+                SchemaPropertyName = "Review",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "reviews",
+                NestedSchemaTypeName = "Review",
+                ResolverConfig = """{"nestedMappings":[{"schemaProperty":"author","contentProperty":"reviewAuthor","wrapInType":"Person","wrapInProperty":"Name"},{"schemaProperty":"reviewBody","contentProperty":"reviewBody"}]}"""
+            }
+        });
+
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Product>();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Product");
+        jsonLd.Should().Contain("Review");
+        jsonLd.Should().Contain("Person");
+        jsonLd.Should().Contain("Alice Johnson");
+        jsonLd.Should().Contain("Bob Smith");
+        jsonLd.Should().Contain("Excellent product, highly recommend!");
+        jsonLd.Should().Contain("Good quality but a bit pricey.");
+        jsonLd.Should().Contain("Widget Pro");
+        jsonLd.Should().Contain("WGT-PRO-001");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_BlogPosting_WithAuthorComplexType_ProducesNestedPerson()
+    {
+        var content = CreateContent("blogArticle", new Dictionary<string, object?>
+        {
+            ["headline"] = "Understanding Structured Data",
+            ["articleBody"] = "Structured data helps search engines understand your content.",
+            ["datePublished"] = "2026-01-15",
+            ["authorName"] = "Dr. Emily Carter"
+        });
+
+        var mapping = CreateMapping("blogArticle", "BlogPosting");
+        _repository.GetByContentTypeAlias("blogArticle").Returns(mapping);
+
+        var authorConfig = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Name", sourceType = "property", contentTypePropertyAlias = (string?)"authorName", staticValue = (string?)null },
+                new { schemaProperty = "Email", sourceType = "static", contentTypePropertyAlias = (string?)null, staticValue = (string?)"editor@example.com" }
+            }
+        });
+
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" },
+            new() { SchemaPropertyName = "ArticleBody", SourceType = "property", ContentTypePropertyAlias = "articleBody" },
+            new() { SchemaPropertyName = "DatePublished", SourceType = "property", ContentTypePropertyAlias = "datePublished" },
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig = authorConfig
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.BlogPosting>();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("BlogPosting");
+        jsonLd.Should().Contain("Person");
+        jsonLd.Should().Contain("Dr. Emily Carter");
+        jsonLd.Should().Contain("editor@example.com");
+        jsonLd.Should().Contain("Understanding Structured Data");
+        jsonLd.Should().Contain("Structured data helps search engines understand your content.");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_FAQPage_ValidatesFullStructure()
+    {
+        var sut = CreateBlockAwareGenerator();
+
+        var faqItems = new[]
+        {
+            CreateBlockElement("faqItem", new Dictionary<string, object?>
+            {
+                ["question"] = "What payment methods do you accept?",
+                ["answer"] = "We accept Visa, Mastercard, and PayPal."
+            }),
+            CreateBlockElement("faqItem", new Dictionary<string, object?>
+            {
+                ["question"] = "Do you ship internationally?",
+                ["answer"] = "Yes, we ship to over 50 countries worldwide."
+            }),
+            CreateBlockElement("faqItem", new Dictionary<string, object?>
+            {
+                ["question"] = "What is your warranty policy?",
+                ["answer"] = "All products come with a 2-year manufacturer warranty."
+            })
+        };
+
+        var content = CreateContentWithBlockList("faqPage", "faqItems", faqItems,
+            new Dictionary<string, object?> { ["pageTitle"] = "Frequently Asked Questions" });
+
+        var mapping = CreateMapping("faqPage", "FAQPage");
+        _repository.GetByContentTypeAlias("faqPage").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "pageTitle" },
+            new()
+            {
+                SchemaPropertyName = "MainEntity",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "faqItems",
+                NestedSchemaTypeName = "Question",
+                ResolverConfig = """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"question"},{"schemaProperty":"acceptedAnswer","contentProperty":"answer","wrapInType":"Answer","wrapInProperty":"Text"}]}"""
+            }
+        });
+
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().NotBeNullOrEmpty();
+
+        // Parse the JSON-LD and validate the full structure
+        var doc = System.Text.Json.JsonDocument.Parse(jsonLd);
+        var root = doc.RootElement;
+
+        // Validate top-level structure
+        root.GetProperty("@context").GetString().Should().Contain("schema.org");
+        root.GetProperty("@type").GetString().Should().Be("FAQPage");
+
+        // Validate mainEntity array exists with 3 Question items
+        root.TryGetProperty("mainEntity", out var mainEntity).Should().BeTrue();
+        mainEntity.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Array);
+        mainEntity.GetArrayLength().Should().Be(3);
+
+        // Validate each Question has the correct structure
+        var firstQuestion = mainEntity[0];
+        firstQuestion.GetProperty("@type").GetString().Should().Be("Question");
+        firstQuestion.GetProperty("name").GetString().Should().Be("What payment methods do you accept?");
+        firstQuestion.TryGetProperty("acceptedAnswer", out var firstAnswer).Should().BeTrue();
+        firstAnswer.GetProperty("@type").GetString().Should().Be("Answer");
+        firstAnswer.GetProperty("text").GetString().Should().Be("We accept Visa, Mastercard, and PayPal.");
+
+        var secondQuestion = mainEntity[1];
+        secondQuestion.GetProperty("@type").GetString().Should().Be("Question");
+        secondQuestion.GetProperty("name").GetString().Should().Be("Do you ship internationally?");
+        secondQuestion.TryGetProperty("acceptedAnswer", out var secondAnswer).Should().BeTrue();
+        secondAnswer.GetProperty("@type").GetString().Should().Be("Answer");
+        secondAnswer.GetProperty("text").GetString().Should().Be("Yes, we ship to over 50 countries worldwide.");
+
+        var thirdQuestion = mainEntity[2];
+        thirdQuestion.GetProperty("@type").GetString().Should().Be("Question");
+        thirdQuestion.GetProperty("name").GetString().Should().Be("What is your warranty policy?");
+        thirdQuestion.TryGetProperty("acceptedAnswer", out var thirdAnswer).Should().BeTrue();
+        thirdAnswer.GetProperty("@type").GetString().Should().Be("Answer");
+        thirdAnswer.GetProperty("text").GetString().Should().Be("All products come with a 2-year manufacturer warranty.");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_Recipe_WithIngredientsAndInstructions_ProducesFullOutput()
+    {
+        var sut = CreateBlockAwareGenerator();
+
+        var ingredients = new[]
+        {
+            CreateBlockElement("recipeIngredient", new Dictionary<string, object?> { ["ingredient"] = "500g chicken breast" }),
+            CreateBlockElement("recipeIngredient", new Dictionary<string, object?> { ["ingredient"] = "2 tablespoons olive oil" }),
+            CreateBlockElement("recipeIngredient", new Dictionary<string, object?> { ["ingredient"] = "1 teaspoon paprika" }),
+            CreateBlockElement("recipeIngredient", new Dictionary<string, object?> { ["ingredient"] = "Salt and pepper to taste" })
+        };
+
+        var instructions = new[]
+        {
+            CreateBlockElement("recipeStep", new Dictionary<string, object?>
+            {
+                ["stepName"] = "Prepare",
+                ["stepText"] = "Season the chicken with paprika, salt and pepper."
+            }),
+            CreateBlockElement("recipeStep", new Dictionary<string, object?>
+            {
+                ["stepName"] = "Cook",
+                ["stepText"] = "Heat olive oil in a pan and cook chicken for 6 minutes each side."
+            }),
+            CreateBlockElement("recipeStep", new Dictionary<string, object?>
+            {
+                ["stepName"] = "Rest",
+                ["stepText"] = "Let the chicken rest for 5 minutes before serving."
+            })
+        };
+
+        // Create content with two block list properties manually
+        var content = Substitute.For<IPublishedContent>();
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns("recipePage");
+        content.ContentType.Returns(contentType);
+        content.Id.Returns(1);
+        content.Key.Returns(Guid.NewGuid());
+
+        // Simple properties
+        var nameProperty = Substitute.For<IPublishedProperty>();
+        nameProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("Paprika Chicken");
+        content.GetProperty("recipeName").Returns(nameProperty);
+
+        var descriptionProperty = Substitute.For<IPublishedProperty>();
+        descriptionProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("A quick and flavourful paprika chicken recipe.");
+        content.GetProperty("recipeDescription").Returns(descriptionProperty);
+
+        var yieldProperty = Substitute.For<IPublishedProperty>();
+        yieldProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("4 servings");
+        content.GetProperty("recipeYield").Returns(yieldProperty);
+
+        var categoryProperty = Substitute.For<IPublishedProperty>();
+        categoryProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("Main Course");
+        content.GetProperty("recipeCategory").Returns(categoryProperty);
+
+        // First block list: ingredients
+        var ingredientBlockListItems = ingredients.Select(e =>
+        {
+            var udi = Umbraco.Cms.Core.Udi.Create(Umbraco.Cms.Core.Constants.UdiEntityType.Element, Guid.NewGuid());
+            return new BlockListItem(udi, e, null, null);
+        }).ToList();
+        var ingredientBlockListModel = new BlockListModel(ingredientBlockListItems);
+
+        var ingredientsProperty = Substitute.For<IPublishedProperty>();
+        ingredientsProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(ingredientBlockListModel);
+        var ingredientsPropertyType = Substitute.For<IPublishedPropertyType>();
+        ingredientsPropertyType.EditorAlias.Returns("Umbraco.BlockList");
+        ingredientsProperty.PropertyType.Returns(ingredientsPropertyType);
+        content.GetProperty("ingredients").Returns(ingredientsProperty);
+
+        // Second block list: instructions
+        var instructionBlockListItems = instructions.Select(e =>
+        {
+            var udi = Umbraco.Cms.Core.Udi.Create(Umbraco.Cms.Core.Constants.UdiEntityType.Element, Guid.NewGuid());
+            return new BlockListItem(udi, e, null, null);
+        }).ToList();
+        var instructionBlockListModel = new BlockListModel(instructionBlockListItems);
+
+        var instructionsProperty = Substitute.For<IPublishedProperty>();
+        instructionsProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(instructionBlockListModel);
+        var instructionsPropertyType = Substitute.For<IPublishedPropertyType>();
+        instructionsPropertyType.EditorAlias.Returns("Umbraco.BlockList");
+        instructionsProperty.PropertyType.Returns(instructionsPropertyType);
+        content.GetProperty("instructions").Returns(instructionsProperty);
+
+        var mapping = CreateMapping("recipePage", "Recipe");
+        _repository.GetByContentTypeAlias("recipePage").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "recipeName" },
+            new() { SchemaPropertyName = "Description", SourceType = "property", ContentTypePropertyAlias = "recipeDescription" },
+            new() { SchemaPropertyName = "RecipeYield", SourceType = "property", ContentTypePropertyAlias = "recipeYield" },
+            new() { SchemaPropertyName = "RecipeCategory", SourceType = "property", ContentTypePropertyAlias = "recipeCategory" },
+            new()
+            {
+                SchemaPropertyName = "RecipeIngredient",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "ingredients",
+                ResolverConfig = """{"extractAs":"stringList","contentProperty":"ingredient"}"""
+            },
+            new()
+            {
+                SchemaPropertyName = "RecipeInstructions",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "instructions",
+                NestedSchemaTypeName = "HowToStep",
+                ResolverConfig = """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"stepName"},{"schemaProperty":"text","contentProperty":"stepText"}]}"""
+            }
+        });
+
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Recipe>();
+        var jsonLd = result!.ToString();
+
+        // Validate recipe metadata
+        jsonLd.Should().Contain("Recipe");
+        jsonLd.Should().Contain("Paprika Chicken");
+        jsonLd.Should().Contain("A quick and flavourful paprika chicken recipe.");
+        jsonLd.Should().Contain("4 servings");
+        jsonLd.Should().Contain("Main Course");
+
+        // Validate string ingredients array
+        jsonLd.Should().Contain("500g chicken breast");
+        jsonLd.Should().Contain("2 tablespoons olive oil");
+        jsonLd.Should().Contain("1 teaspoon paprika");
+        jsonLd.Should().Contain("Salt and pepper to taste");
+
+        // Validate HowToStep instructions
+        jsonLd.Should().Contain("HowToStep");
+        jsonLd.Should().Contain("Season the chicken with paprika, salt and pepper.");
+        jsonLd.Should().Contain("Heat olive oil in a pan and cook chicken for 6 minutes each side.");
+        jsonLd.Should().Contain("Let the chicken rest for 5 minutes before serving.");
+
+        // Parse and validate the overall JSON-LD structure
+        var doc = System.Text.Json.JsonDocument.Parse(jsonLd);
+        var root = doc.RootElement;
+        root.GetProperty("@type").GetString().Should().Be("Recipe");
+
+        // Verify recipeIngredient is an array of strings
+        root.TryGetProperty("recipeIngredient", out var ingredientsArray).Should().BeTrue();
+        ingredientsArray.GetArrayLength().Should().Be(4);
+
+        // Verify recipeInstructions is an array of HowToStep objects
+        root.TryGetProperty("recipeInstructions", out var instructionsArray).Should().BeTrue();
+        instructionsArray.GetArrayLength().Should().Be(3);
+        instructionsArray[0].GetProperty("@type").GetString().Should().Be("HowToStep");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_Event_WithLocationAndOffers_ProducesNestedStructure()
+    {
+        var content = CreateContent("eventPage", new Dictionary<string, object?>
+        {
+            ["eventName"] = "Summer Music Festival",
+            ["eventDescription"] = "An outdoor music festival featuring local and international artists.",
+            ["eventUrl"] = "https://summerfest.example.com",
+            ["locationName"] = "Hyde Park",
+            ["locationAddress"] = "London, W2 2UH",
+            ["ticketPrice"] = "45.00",
+            ["ticketUrl"] = "https://tickets.example.com/summer-fest"
+        });
+
+        var mapping = CreateMapping("eventPage", "Event");
+        _repository.GetByContentTypeAlias("eventPage").Returns(mapping);
+
+        var locationConfig = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Name", sourceType = "property", contentTypePropertyAlias = (string?)"locationName", staticValue = (string?)null },
+                new { schemaProperty = "Address", sourceType = "property", contentTypePropertyAlias = (string?)"locationAddress", staticValue = (string?)null }
+            }
+        });
+
+        var offersConfig = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Price", sourceType = "property", contentTypePropertyAlias = (string?)"ticketPrice", staticValue = (string?)null },
+                new { schemaProperty = "Url", sourceType = "property", contentTypePropertyAlias = (string?)"ticketUrl", staticValue = (string?)null }
+            }
+        });
+
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "eventName" },
+            new() { SchemaPropertyName = "Description", SourceType = "property", ContentTypePropertyAlias = "eventDescription" },
+            new() { SchemaPropertyName = "Url", SourceType = "property", ContentTypePropertyAlias = "eventUrl" },
+            new()
+            {
+                SchemaPropertyName = "Location",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Place",
+                ResolverConfig = locationConfig
+            },
+            new()
+            {
+                SchemaPropertyName = "Offers",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Offer",
+                ResolverConfig = offersConfig
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Event>();
+        var jsonLd = result!.ToString();
+
+        // Validate top-level Event properties
+        jsonLd.Should().Contain("Event");
+        jsonLd.Should().Contain("Summer Music Festival");
+        jsonLd.Should().Contain("An outdoor music festival featuring local and international artists.");
+        jsonLd.Should().Contain("https://summerfest.example.com");
+
+        // Validate nested Place location
+        jsonLd.Should().Contain("Place");
+        jsonLd.Should().Contain("Hyde Park");
+        jsonLd.Should().Contain("London, W2 2UH");
+
+        // Validate nested Offer
+        jsonLd.Should().Contain("Offer");
+        jsonLd.Should().Contain("45.00");
+        jsonLd.Should().Contain("https://tickets.example.com/summer-fest");
+
+        // Parse and validate the JSON-LD structure
+        var doc = System.Text.Json.JsonDocument.Parse(jsonLd);
+        var root = doc.RootElement;
+        root.GetProperty("@type").GetString().Should().Be("Event");
+        root.TryGetProperty("location", out var location).Should().BeTrue();
+        location.GetProperty("@type").GetString().Should().Be("Place");
+        root.TryGetProperty("offers", out var offers).Should().BeTrue();
+        offers.GetProperty("@type").GetString().Should().Be("Offer");
+    }
+
     #endregion
 }

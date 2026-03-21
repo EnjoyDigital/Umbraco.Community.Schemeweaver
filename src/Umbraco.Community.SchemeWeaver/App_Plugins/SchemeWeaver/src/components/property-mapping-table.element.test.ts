@@ -311,4 +311,72 @@ describe('PropertyMappingTableElement', () => {
     const preConfigBadge = el.shadowRoot!.querySelector('.pre-configured-badge');
     expect(preConfigBadge).to.not.exist;
   });
+
+  // -- Auto-mapped complex type scenario tests --
+
+  it('renders FAQ auto-mapped row with blockContent source and pre-configured resolver', async () => {
+    const faqConfig = JSON.stringify({ nestedMappings: [
+      { schemaProperty: 'name', contentProperty: 'question' },
+      { schemaProperty: 'acceptedAnswer', contentProperty: 'answer', wrapInType: 'Answer', wrapInProperty: 'Text' },
+    ]});
+    const faqMappings: PropertyMappingRow[] = [
+      { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: 80, editorAlias: 'Umbraco.TextBox', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'faqItems', sourceContentTypeAlias: '', staticValue: '', confidence: 60, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: faqConfig, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${faqMappings} .availableProperties=${['title', 'faqItems']}></schemeweaver-property-mapping-table>`);
+    const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
+    expect(rows.length).to.equal(2);
+    // Second row should have blockContent indicators
+    const configButton = el.shadowRoot!.querySelector('.block-actions uui-button');
+    expect(configButton).to.exist;
+    const badge = el.shadowRoot!.querySelector('.nested-count-badge');
+    expect(badge).to.exist;
+    const preConfigBadge = el.shadowRoot!.querySelector('.pre-configured-badge');
+    expect(preConfigBadge).to.exist;
+  });
+
+  it('renders Product auto-mapped rows with review blockContent and simple properties', async () => {
+    const reviewConfig = JSON.stringify({ nestedMappings: [
+      { schemaProperty: 'author', contentProperty: 'reviewAuthor' },
+      { schemaProperty: 'reviewBody', contentProperty: 'reviewBody' },
+    ]});
+    const productMappings: PropertyMappingRow[] = [
+      { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'productName', sourceContentTypeAlias: '', staticValue: '', confidence: 80, editorAlias: 'Umbraco.TextBox', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'sku', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'sku', sourceContentTypeAlias: '', staticValue: '', confidence: 100, editorAlias: 'Umbraco.TextBox', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'review', schemaPropertyType: 'Review', sourceType: 'blockContent', contentTypePropertyAlias: 'reviews', sourceContentTypeAlias: '', staticValue: '', confidence: 70, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Review', resolverConfig: reviewConfig, acceptedTypes: ['Review'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${productMappings} .availableProperties=${['productName', 'sku', 'reviews']}></schemeweaver-property-mapping-table>`);
+    const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
+    expect(rows.length).to.equal(3);
+  });
+
+  it('renders Recipe auto-mapped rows with both ingredient and instruction block properties', async () => {
+    const ingredientConfig = JSON.stringify({ extractAs: 'stringList', contentProperty: 'ingredientName' });
+    const instructionConfig = JSON.stringify({ nestedMappings: [
+      { schemaProperty: 'name', contentProperty: 'stepName' },
+      { schemaProperty: 'text', contentProperty: 'stepText' },
+    ]});
+    const recipeMappings: PropertyMappingRow[] = [
+      { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: 80, editorAlias: 'Umbraco.TextBox', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'recipeIngredient', schemaPropertyType: 'Text', sourceType: 'blockContent', contentTypePropertyAlias: 'ingredients', sourceContentTypeAlias: '', staticValue: '', confidence: 60, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: '', resolverConfig: ingredientConfig, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'recipeInstructions', schemaPropertyType: 'HowToStep', sourceType: 'blockContent', contentTypePropertyAlias: 'instructions', sourceContentTypeAlias: '', staticValue: '', confidence: 70, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'HowToStep', resolverConfig: instructionConfig, acceptedTypes: ['HowToStep'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${recipeMappings} .availableProperties=${['title', 'ingredients', 'instructions']}></schemeweaver-property-mapping-table>`);
+    const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
+    expect(rows.length).to.equal(3);
+    // Both block rows should show configure buttons
+    const configButtons = el.shadowRoot!.querySelectorAll('.block-actions uui-button');
+    expect(configButtons.length).to.equal(2);
+  });
+
+  it('renders Event auto-mapped rows with complex type location', async () => {
+    const eventMappings: PropertyMappingRow[] = [
+      { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: 80, editorAlias: 'Umbraco.TextBox', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'location', schemaPropertyType: 'Place', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: 60, editorAlias: '', nestedSchemaTypeName: 'Place', resolverConfig: null, acceptedTypes: ['Place'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${eventMappings} .availableProperties=${['title', 'locationName', 'locationAddress']}></schemeweaver-property-mapping-table>`);
+    // Complex type row should show expand chevron
+    const chevron = el.shadowRoot!.querySelector('.expand-chevron');
+    expect(chevron).to.exist;
+  });
 });

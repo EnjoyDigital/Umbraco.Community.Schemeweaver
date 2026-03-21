@@ -12,6 +12,10 @@ const POPULAR_RESOLVER_CONFIGS: Record<string, string> = {
       { schemaProperty: 'acceptedAnswer', contentProperty: 'answer', wrapInType: 'Answer', wrapInProperty: 'Text' },
     ],
   }),
+  'Recipe.recipeIngredient': JSON.stringify({
+    extractAs: 'stringList',
+    contentProperty: 'ingredientName',
+  }),
   'Recipe.recipeInstructions': JSON.stringify({
     nestedMappings: [
       { schemaProperty: 'name', contentProperty: 'stepName' },
@@ -441,6 +445,25 @@ class SchemeWeaverMockDb {
       }
 
       if (prop.isComplexType && !matchedProp) {
+        // For blockContent popular defaults with no name match, suggest the first BlockList property
+        if (resolverConfig) {
+          const blockListProp = contentType.properties?.find((p) => p.editorAlias === 'Umbraco.BlockList');
+          if (blockListProp) {
+            return {
+              schemaPropertyName: prop.name,
+              schemaPropertyType: prop.propertyType,
+              suggestedContentTypePropertyAlias: blockListProp.alias,
+              suggestedSourceType: 'blockContent',
+              confidence: 60,
+              isAutoMapped: true,
+              editorAlias: blockListProp.editorAlias,
+              acceptedTypes: prop.acceptedTypes,
+              isComplexType: prop.isComplexType,
+              suggestedNestedSchemaTypeName: prop.acceptedTypes[0],
+              suggestedResolverConfig: resolverConfig,
+            };
+          }
+        }
         return {
           schemaPropertyName: prop.name,
           schemaPropertyType: prop.propertyType,
