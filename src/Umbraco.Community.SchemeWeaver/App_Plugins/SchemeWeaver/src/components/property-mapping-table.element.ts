@@ -77,7 +77,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
       { value: 'sibling', label: this.localize.term('schemeWeaver_sourceSiblingNode') },
     ];
 
-    if (BLOCK_EDITOR_ALIASES.includes(editorAlias)) {
+    if (BLOCK_EDITOR_ALIASES.includes(editorAlias) || isComplexType) {
       types.push({ value: 'blockContent', label: this.localize.term('schemeWeaver_sourceBlockContent') });
     }
 
@@ -601,6 +601,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   private _renderBlockContentInput(mapping: PropertyMappingRow, index: number) {
     const nestedCount = this._getNestedMappingCount(mapping.resolverConfig);
+    const hasAcceptedTypes = mapping.acceptedTypes.length > 0;
 
     return html`
       <div class="value-inputs">
@@ -616,13 +617,30 @@ export class PropertyMappingTableElement extends UmbLitElement {
           ></uui-select>
           ${this._renderEditorBadge(mapping.editorAlias)}
         </div>
-        <uui-input
-          .value=${mapping.nestedSchemaTypeName}
-          @input=${(e: Event) => this._handleNestedSchemaTypeChange(index, (e.target as HTMLInputElement).value)}
-          placeholder=${this.localize.term('schemeWeaver_nestedSchemaType')}
-          label=${this.localize.term('schemeWeaver_nestedSchemaType')}
-          class="nested-schema-input"
-        ></uui-input>
+        ${hasAcceptedTypes
+          ? html`
+              <uui-select
+                label=${this.localize.term('schemeWeaver_nestedSchemaType')}
+                .options=${[
+                  { name: this.localize.term('schemeWeaver_selectNestedType'), value: '', selected: !mapping.nestedSchemaTypeName },
+                  ...mapping.acceptedTypes.map((t) => ({
+                    name: t,
+                    value: t,
+                    selected: mapping.nestedSchemaTypeName === t,
+                  })),
+                ]}
+                @change=${(e: Event) => this._handleNestedSchemaTypeChange(index, (e.target as HTMLSelectElement).value)}
+              ></uui-select>
+            `
+          : html`
+              <uui-input
+                .value=${mapping.nestedSchemaTypeName}
+                @input=${(e: Event) => this._handleNestedSchemaTypeChange(index, (e.target as HTMLInputElement).value)}
+                placeholder=${this.localize.term('schemeWeaver_nestedSchemaType')}
+                label=${this.localize.term('schemeWeaver_nestedSchemaType')}
+                class="nested-schema-input"
+              ></uui-input>
+            `}
         <div class="block-actions">
           <uui-button
             look="secondary"
@@ -633,7 +651,10 @@ export class PropertyMappingTableElement extends UmbLitElement {
             ${this.localize.term('schemeWeaver_configureNestedMapping')}
           </uui-button>
           ${nestedCount > 0
-            ? html`<uui-tag look="secondary" class="nested-count-badge">${nestedCount} ${this.localize.term('schemeWeaver_nestedMappingCount')}</uui-tag>`
+            ? html`<uui-tag look="secondary" color="positive" class="nested-count-badge">${nestedCount} ${this.localize.term('schemeWeaver_nestedMappingCount')}</uui-tag>`
+            : nothing}
+          ${mapping.resolverConfig && nestedCount > 0
+            ? html`<uui-tag look="secondary" color="warning" class="pre-configured-badge">${this.localize.term('schemeWeaver_preConfigure')}</uui-tag>`
             : nothing}
         </div>
       </div>
@@ -715,6 +736,11 @@ export class PropertyMappingTableElement extends UmbLitElement {
       }
 
       .nested-count-badge {
+        font-size: 0.7rem;
+        --uui-tag-min-height: 20px;
+      }
+
+      .pre-configured-badge {
         font-size: 0.7rem;
         --uui-tag-min-height: 20px;
       }

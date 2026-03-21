@@ -267,4 +267,120 @@ public class JsonLdGeneratorTests
         jsonLd.Should().Contain("Person");
         jsonLd.Should().Contain("Jane Smith");
     }
+
+    [Fact]
+    public void GenerateJsonLd_UrlProperty_SetsUriFromString()
+    {
+        var content = CreateContent("event", new Dictionary<string, object?>
+        {
+            ["ticketUrl"] = "https://tickets.example.com/event/123"
+        });
+        var mapping = CreateMapping("event", "Event");
+        _repository.GetByContentTypeAlias("event").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Url", SourceType = "property", ContentTypePropertyAlias = "ticketUrl" }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("https://tickets.example.com/event/123");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_ImageProperty_SetsUriFromString()
+    {
+        // When the resolver returns a URL string for an image property,
+        // SetPropertyValue should handle OneOrMany<Values<IImageObject, Uri>> conversion
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["heroImage"] = "https://example.com/images/hero.jpg"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Image", SourceType = "property", ContentTypePropertyAlias = "heroImage" }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("https://example.com/images/hero.jpg");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_BlockContentSourceType_ResolvesTargetNode()
+    {
+        // blockContent source type should resolve to the content node (same as property)
+        // so that the resolver factory can route to BlockContentResolver based on editor alias
+        var content = CreateContent("faqPage", new Dictionary<string, object?>
+        {
+            ["faqItems"] = "some block content"
+        });
+        var mapping = CreateMapping("faqPage", "FAQPage");
+        _repository.GetByContentTypeAlias("faqPage").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Name",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "faqItems",
+                NestedSchemaTypeName = "Question"
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        // The key assertion: result is not null, meaning ResolveTargetNode returned
+        // a valid node for blockContent (previously it returned null via the _ => null fallback)
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.FAQPage>();
+    }
+
+    [Fact]
+    public void GenerateJsonLd_ComplexType_ResolvesPropertyViaResolverFactory()
+    {
+        // When a complex type sub-mapping has a property source, it should use the resolver factory
+        // instead of just calling GetValue()?.ToString()
+        var content = CreateContent("product", new Dictionary<string, object?>
+        {
+            ["brandName"] = "Acme Corp",
+            ["brandUrl"] = "https://acme.example.com"
+        });
+        var mapping = CreateMapping("product", "Product");
+        _repository.GetByContentTypeAlias("product").Returns(mapping);
+
+        var config = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Name", sourceType = "property", contentTypePropertyAlias = (string?)"brandName", staticValue = (string?)null },
+                new { schemaProperty = "Url", sourceType = "property", contentTypePropertyAlias = (string?)"brandUrl", staticValue = (string?)null }
+            }
+        });
+
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Brand",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Brand",
+                ResolverConfig = config
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Brand");
+        jsonLd.Should().Contain("Acme Corp");
+        jsonLd.Should().Contain("https://acme.example.com");
+    }
 }

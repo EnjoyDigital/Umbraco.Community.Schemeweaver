@@ -34,7 +34,7 @@ describe('SchemaMappingsDashboardElement', () => {
     const el = await fixture(html`<schemeweaver-schema-mappings-dashboard></schemeweaver-schema-mappings-dashboard>`);
     await waitForLoad(el);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    expect(rows.length).to.equal(3); // blogArticle, faqPage, productPage
+    expect(rows.length).to.equal(6); // blogArticle, faqPage, productPage, contactPage, eventPage, recipePage
   });
 
   it('shows Mapped badge for mapped content type', async () => {

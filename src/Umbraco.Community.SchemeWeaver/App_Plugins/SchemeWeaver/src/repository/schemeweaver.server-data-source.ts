@@ -10,6 +10,7 @@ import type {
   PropertyMappingSuggestion,
   JsonLdPreviewResponse,
   ContentTypeGenerationRequest,
+  BlockElementTypeInfo,
 } from '../api/types.js';
 
 const API_BASE = '/umbraco/management/api/v1/schemeweaver';
@@ -143,6 +144,16 @@ export class SchemeWeaverServerDataSource {
       `/mappings/${encodeURIComponent(contentTypeAlias)}/preview${query}`,
       { method: 'POST' },
       true,
+    );
+  }
+
+  async getBlockElementTypes(
+    contentTypeAlias: string,
+    propertyAlias: string,
+  ): Promise<BlockElementTypeInfo[] | undefined> {
+    return fetchApi<BlockElementTypeInfo[]>(
+      this.#host,
+      `/content-types/${encodeURIComponent(contentTypeAlias)}/properties/${encodeURIComponent(propertyAlias)}/block-types`,
     );
   }
 

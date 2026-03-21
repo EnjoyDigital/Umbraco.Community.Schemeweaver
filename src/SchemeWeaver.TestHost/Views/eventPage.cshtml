@@ -1,5 +1,98 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels;
+@using Umbraco.Cms.Web.Common.PublishedModels
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
-	Layout = null;
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("eventImage"))
+{
+    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("eventImage")?.MediaUrl();
+    if (!string.IsNullOrEmpty(imageUrl))
+    {
+        <img src="@imageUrl" alt="@Model.Value("title")" />
+    }
+}
+
+<div class="card">
+    <h2>Event Details</h2>
+    <dl>
+        @if (Model.HasValue("startDate"))
+        {
+            <dt>Start Date</dt>
+            <dd>@(((DateTime)Model.Value("startDate")).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+        }
+        @if (Model.HasValue("endDate"))
+        {
+            <dt>End Date</dt>
+            <dd>@(((DateTime)Model.Value("endDate")).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+        }
+        @if (Model.HasValue("eventStatus"))
+        {
+            <dt>Status</dt>
+            <dd>@Model.Value("eventStatus")</dd>
+        }
+        @if (Model.HasValue("eventAttendanceMode"))
+        {
+            <dt>Attendance Mode</dt>
+            <dd>@Model.Value("eventAttendanceMode")</dd>
+        }
+    </dl>
+</div>
+
+<div class="card">
+    <h2>Venue</h2>
+    <dl>
+        @if (Model.HasValue("locationName"))
+        {
+            <dt>Location</dt>
+            <dd>@Model.Value("locationName")</dd>
+        }
+        @if (Model.HasValue("locationAddress"))
+        {
+            <dt>Address</dt>
+            <dd>@Model.Value("locationAddress")</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("organiserName"))
+{
+    <div class="card">
+        <h2>Organiser</h2>
+        <dl>
+            <dt>Organised by</dt>
+            <dd>@Model.Value("organiserName")</dd>
+        </dl>
+    </div>
+}
+
+@if (Model.HasValue("ticketPrice") || Model.HasValue("ticketCurrency") || Model.HasValue("ticketUrl"))
+{
+    <div class="card">
+        <h2>Tickets</h2>
+        <dl>
+            @if (Model.HasValue("ticketPrice"))
+            {
+                <dt>Price</dt>
+                <dd>
+                    @if (Model.HasValue("ticketCurrency"))
+                    {
+                        @Model.Value("ticketCurrency")
+                    }
+                    @Model.Value("ticketPrice")
+                </dd>
+            }
+            @if (Model.HasValue("ticketUrl"))
+            {
+                <dt>Book Tickets</dt>
+                <dd><a href="@Model.Value("ticketUrl")" class="btn">Buy tickets</a></dd>
+            }
+        </dl>
+    </div>
 }

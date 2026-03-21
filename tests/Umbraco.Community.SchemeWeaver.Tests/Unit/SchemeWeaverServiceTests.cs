@@ -19,12 +19,13 @@ public class SchemeWeaverServiceTests
     private readonly IJsonLdGenerator _generator = Substitute.For<IJsonLdGenerator>();
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly IContentTypeService _contentTypeService = Substitute.For<IContentTypeService>();
+    private readonly IDataTypeService _dataTypeService = Substitute.For<IDataTypeService>();
     private readonly ILogger<SchemeWeaverService> _logger = Substitute.For<ILogger<SchemeWeaverService>>();
     private readonly SchemeWeaverService _sut;
 
     public SchemeWeaverServiceTests()
     {
-        _sut = new SchemeWeaverService(_registry, _autoMapper, _generator, _repository, _contentTypeService, _logger);
+        _sut = new SchemeWeaverService(_registry, _autoMapper, _generator, _repository, _contentTypeService, _dataTypeService, _logger);
     }
 
     [Fact]

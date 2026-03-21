@@ -6,6 +6,11 @@
 <h1>@Model.Value("siteName")</h1>
 <p class="lead">@Model.Value("siteDescription")</p>
 
+@if (Model.HasValue("siteUrl"))
+{
+    <p><a href="@Model.Value("siteUrl")">@Model.Value("siteUrl")</a></p>
+}
+
 <h2>Our Pages</h2>
 @if (Model.Children != null)
 {
@@ -17,6 +22,10 @@
                 @if (child.HasValue("description"))
                 {
                     <p>@child.Value("description")</p>
+                }
+                else
+                {
+                    <p><span class="tag">@child.ContentType.Alias</span></p>
                 }
             </div>
         }

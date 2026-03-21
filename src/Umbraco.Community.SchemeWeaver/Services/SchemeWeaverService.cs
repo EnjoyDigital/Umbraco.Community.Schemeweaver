@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
@@ -17,7 +18,14 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly IJsonLdGenerator _generator;
     private readonly ISchemaMappingRepository _repository;
     private readonly IContentTypeService _contentTypeService;
+    private readonly IDataTypeService _dataTypeService;
     private readonly ILogger<SchemeWeaverService> _logger;
+
+    private static readonly HashSet<string> BlockEditorAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Umbraco.BlockList",
+        "Umbraco.BlockGrid"
+    };
 
     public SchemeWeaverService(
         ISchemaTypeRegistry registry,
@@ -25,6 +33,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         IJsonLdGenerator generator,
         ISchemaMappingRepository repository,
         IContentTypeService contentTypeService,
+        IDataTypeService dataTypeService,
         ILogger<SchemeWeaverService> logger)
     {
         _registry = registry;
@@ -32,6 +41,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         _generator = generator;
         _repository = repository;
         _contentTypeService = contentTypeService;
+        _dataTypeService = dataTypeService;
         _logger = logger;
     }
 
@@ -139,6 +149,84 @@ public class SchemeWeaverService : ISchemeWeaverService
     public IEnumerable<SchemaTypeInfo> SearchSchemaTypes(string query) => _registry.Search(query);
 
     public IEnumerable<SchemaPropertyInfo> GetSchemaProperties(string typeName) => _registry.GetProperties(typeName);
+
+    public async Task<IEnumerable<BlockElementTypeInfo>> GetBlockElementTypesAsync(string contentTypeAlias, string propertyAlias)
+    {
+        var contentType = _contentTypeService.Get(contentTypeAlias);
+        if (contentType is null)
+            return [];
+
+        var property = contentType.PropertyTypes.FirstOrDefault(
+            p => string.Equals(p.Alias, propertyAlias, StringComparison.OrdinalIgnoreCase));
+        if (property is null)
+            return [];
+
+        if (!BlockEditorAliases.Contains(property.PropertyEditorAlias))
+            return [];
+
+        var dataType = await _dataTypeService.GetAsync(property.DataTypeKey).ConfigureAwait(false);
+        if (dataType is null)
+            return [];
+
+        var elementTypeKeys = ExtractBlockElementTypeKeys(dataType);
+        if (elementTypeKeys.Count == 0)
+            return [];
+
+        var results = new List<BlockElementTypeInfo>();
+        foreach (var key in elementTypeKeys)
+        {
+            var elementType = _contentTypeService.Get(key);
+            if (elementType is null)
+                continue;
+
+            results.Add(new BlockElementTypeInfo
+            {
+                Alias = elementType.Alias,
+                Name = elementType.Name ?? elementType.Alias,
+                Properties = elementType.PropertyTypes.Select(p => p.Alias).ToList()
+            });
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Extracts content element type keys from a BlockList or BlockGrid data type configuration.
+    /// </summary>
+    private static List<Guid> ExtractBlockElementTypeKeys(Umbraco.Cms.Core.Models.IDataType dataType)
+    {
+        var keys = new List<Guid>();
+
+        if (dataType.ConfigurationData is null)
+            return keys;
+
+        // BlockList/BlockGrid stores blocks configuration as JSON
+        if (!dataType.ConfigurationData.TryGetValue("blocks", out var blocksValue))
+            return keys;
+
+        try
+        {
+            var blocksJson = blocksValue?.ToString();
+            if (string.IsNullOrEmpty(blocksJson))
+                return keys;
+
+            using var doc = JsonDocument.Parse(blocksJson);
+            foreach (var block in doc.RootElement.EnumerateArray())
+            {
+                if (block.TryGetProperty("contentElementTypeKey", out var keyProp) &&
+                    Guid.TryParse(keyProp.GetString(), out var elementKey))
+                {
+                    keys.Add(elementKey);
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Configuration format not as expected — return empty
+        }
+
+        return keys;
+    }
 
     private static SchemaMappingDto ToDto(SchemaMapping mapping, IEnumerable<PropertyMapping> propertyMappings)
         => new()

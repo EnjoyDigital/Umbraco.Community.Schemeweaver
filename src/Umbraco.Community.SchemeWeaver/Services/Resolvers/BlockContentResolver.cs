@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.Blocks;
@@ -105,8 +104,8 @@ public class BlockContentResolver : IPropertyValueResolver
         if (string.IsNullOrEmpty(mapping.SchemaProperty) || string.IsNullOrEmpty(mapping.ContentProperty))
             return;
 
-        var prop = blockContent.GetProperty(mapping.ContentProperty);
-        var rawValue = prop?.GetValue()?.ToString();
+        var rawValue = SchemaPropertySetter.ResolveElementPropertyValue(
+            blockContent, mapping.ContentProperty, context.HttpContextAccessor);
         if (rawValue is null)
             return;
 
@@ -118,13 +117,13 @@ public class BlockContentResolver : IPropertyValueResolver
             {
                 // Set the "text" property on the wrapper (e.g., Answer.Text)
                 var textProp = !string.IsNullOrEmpty(mapping.WrapInProperty) ? mapping.WrapInProperty : "Text";
-                SetSimplePropertyValue(wrapInstance, textProp, rawValue);
-                SetThingPropertyValue(instance, mapping.SchemaProperty, wrapInstance);
+                SchemaPropertySetter.SetPropertyValue(wrapInstance, textProp, rawValue);
+                SchemaPropertySetter.SetPropertyValue(instance, mapping.SchemaProperty, wrapInstance);
                 return;
             }
         }
 
-        SetSimplePropertyValue(instance, mapping.SchemaProperty, rawValue);
+        SchemaPropertySetter.SetPropertyValue(instance, mapping.SchemaProperty, rawValue);
     }
 
     private static void AutoMapBlockProperties(
@@ -138,81 +137,12 @@ public class BlockContentResolver : IPropertyValueResolver
         foreach (var schemaProp in schemaProperties)
         {
             // Try exact name match (case-insensitive) between block property and schema property
-            var prop = blockContent.GetProperty(schemaProp.Name);
-            if (prop is null)
-                continue;
-
-            var rawValue = prop.GetValue()?.ToString();
+            var rawValue = SchemaPropertySetter.ResolveElementPropertyValue(
+                blockContent, schemaProp.Name, context.HttpContextAccessor);
             if (rawValue is null)
                 continue;
 
-            SetSimplePropertyValue(instance, schemaProp.Name, rawValue);
-        }
-    }
-
-    private static void SetSimplePropertyValue(Thing instance, string propertyName, string value)
-    {
-        var property = instance.GetType().GetProperty(propertyName,
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-
-        if (property is not { CanWrite: true })
-            return;
-
-        var targetType = property.PropertyType;
-
-        // Try implicit conversion from string
-        var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name == "op_Implicit" && m.GetParameters().Length == 1);
-
-        foreach (var method in methods)
-        {
-            var paramType = method.GetParameters()[0].ParameterType;
-            if (!paramType.IsAssignableFrom(typeof(string)))
-                continue;
-
-            try
-            {
-                var converted = method.Invoke(null, [value]);
-                property.SetValue(instance, converted);
-                return;
-            }
-            catch
-            {
-                // Continue trying other conversions
-            }
-        }
-    }
-
-    private static void SetThingPropertyValue(Thing instance, string propertyName, Thing value)
-    {
-        var property = instance.GetType().GetProperty(propertyName,
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-
-        if (property is not { CanWrite: true })
-            return;
-
-        var targetType = property.PropertyType;
-
-        // Try implicit conversion from Thing
-        var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name == "op_Implicit" && m.GetParameters().Length == 1);
-
-        foreach (var method in methods)
-        {
-            var paramType = method.GetParameters()[0].ParameterType;
-            if (!paramType.IsAssignableFrom(value.GetType()))
-                continue;
-
-            try
-            {
-                var converted = method.Invoke(null, [value]);
-                property.SetValue(instance, converted);
-                return;
-            }
-            catch
-            {
-                // Continue trying other conversions
-            }
+            SchemaPropertySetter.SetPropertyValue(instance, schemaProp.Name, rawValue);
         }
     }
 

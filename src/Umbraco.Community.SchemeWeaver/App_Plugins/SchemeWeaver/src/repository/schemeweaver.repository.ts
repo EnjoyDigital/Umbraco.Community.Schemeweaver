@@ -54,6 +54,10 @@ export class SchemeWeaverRepository extends UmbControllerBase {
     return this.#dataSource.preview(contentTypeAlias, contentKey);
   }
 
+  async requestBlockElementTypes(contentTypeAlias: string, propertyAlias: string) {
+    return this.#dataSource.getBlockElementTypes(contentTypeAlias, propertyAlias);
+  }
+
   async generateContentType(request: ContentTypeGenerationRequest) {
     return this.#dataSource.generateContentType(request);
   }

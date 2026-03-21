@@ -69,6 +69,15 @@ export interface PropertyMappingSuggestion {
   editorAlias: string | null;
   acceptedTypes: string[];
   isComplexType: boolean;
+  suggestedNestedSchemaTypeName?: string;
+  suggestedResolverConfig?: string;
+}
+
+/** Matches C# BlockElementTypeInfo — returned by GET /content-types/{alias}/properties/{propertyAlias}/block-types */
+export interface BlockElementTypeInfo {
+  alias: string;
+  name: string;
+  properties: string[];
 }
 
 /** Matches C# JsonLdPreviewResponse */

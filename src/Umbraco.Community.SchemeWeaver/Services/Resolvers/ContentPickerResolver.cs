@@ -1,4 +1,3 @@
-using System.Reflection;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.PublishedContent;
 
@@ -56,48 +55,15 @@ public class ContentPickerResolver : IPropertyValueResolver
             if (string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
                 continue;
 
-            var prop = content.GetProperty(propMapping.ContentTypePropertyAlias);
-            var propValue = prop?.GetValue()?.ToString();
-            if (propValue is null)
+            var resolvedValue = SchemaPropertySetter.ResolveElementPropertyValue(
+                content, propMapping.ContentTypePropertyAlias, context.HttpContextAccessor);
+            if (resolvedValue is null)
                 continue;
 
-            SetSimplePropertyValue(instance, propMapping.SchemaPropertyName, propValue);
+            SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, resolvedValue);
         }
 
         return instance;
-    }
-
-    private static void SetSimplePropertyValue(Thing instance, string propertyName, string value)
-    {
-        var property = instance.GetType().GetProperty(propertyName,
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-
-        if (property is not { CanWrite: true })
-            return;
-
-        var targetType = property.PropertyType;
-
-        // Try implicit conversion
-        var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name == "op_Implicit" && m.GetParameters().Length == 1);
-
-        foreach (var method in methods)
-        {
-            var paramType = method.GetParameters()[0].ParameterType;
-            if (!paramType.IsAssignableFrom(typeof(string)))
-                continue;
-
-            try
-            {
-                var converted = method.Invoke(null, [value]);
-                property.SetValue(instance, converted);
-                return;
-            }
-            catch
-            {
-                // Continue trying other conversions
-            }
-        }
     }
 
 }

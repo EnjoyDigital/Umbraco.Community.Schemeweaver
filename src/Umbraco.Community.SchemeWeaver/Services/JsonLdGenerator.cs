@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -79,7 +77,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                     value = transformed;
                 }
 
-                SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
+                SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
             }
             catch (Exception ex)
             {
@@ -169,15 +167,47 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             {
                 "static" => subMapping.StaticValue,
                 "property" when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
-                    content.GetProperty(subMapping.ContentTypePropertyAlias)?.GetValue()?.ToString(),
+                    ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias),
                 _ => null
             };
 
             if (value is not null)
-                SetPropertyValue(nestedInstance, subMapping.SchemaProperty, value);
+                SchemaPropertySetter.SetPropertyValue(nestedInstance, subMapping.SchemaProperty, value);
         }
 
         return nestedInstance;
+    }
+
+    /// <summary>
+    /// Resolves a property value for complex type sub-mappings using the resolver factory.
+    /// This ensures media pickers, content pickers, etc. are handled correctly.
+    /// </summary>
+    private object? ResolveComplexTypePropertyValue(IPublishedContent content, string propertyAlias)
+    {
+        var publishedProperty = content.GetProperty(propertyAlias);
+        if (publishedProperty is null)
+            return null;
+
+        var editorAlias = publishedProperty.PropertyType?.EditorAlias;
+        var resolver = _resolverFactory.GetResolver(editorAlias);
+
+        var context = new PropertyResolverContext
+        {
+            Content = content,
+            Mapping = new Models.Entities.PropertyMapping
+            {
+                ContentTypePropertyAlias = propertyAlias,
+                SourceType = "property"
+            },
+            PropertyAlias = propertyAlias,
+            SchemaTypeRegistry = _registry,
+            MappingRepository = _repository,
+            HttpContextAccessor = _httpContextAccessor,
+            Property = publishedProperty,
+            RecursionDepth = 0
+        };
+
+        return resolver.Resolve(context);
     }
 
     private static ComplexTypeConfigModel? ParseComplexTypeConfig(string? json)
@@ -203,7 +233,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     {
         return propMapping.SourceType switch
         {
-            "property" => content,
+            "property" or "blockContent" => content,
             "parent" => content.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService),
             "ancestor" => ResolveAncestorNode(content, propMapping),
             "sibling" => ResolveSiblingNode(content, propMapping),
@@ -301,205 +331,4 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     [GeneratedRegex("<[^>]+>")]
     private static partial Regex StripHtmlRegex();
 
-    /// <summary>
-    /// Sets a property value on a Schema.NET Thing instance.
-    /// Accepts string, Uri, Thing, or IEnumerable&lt;Thing&gt; values.
-    /// </summary>
-    private void SetPropertyValue(Thing instance, string propertyName, object value)
-    {
-        var property = instance.GetType().GetProperty(propertyName,
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-
-        if (property is not { CanWrite: true })
-            return;
-
-        var targetType = property.PropertyType;
-
-        // If the value is already the correct type, set directly
-        if (targetType.IsInstanceOfType(value))
-        {
-            property.SetValue(instance, value);
-            return;
-        }
-
-        // Try to find an implicit conversion operator that accepts our value type
-        var converted = TryConvertViaImplicit(targetType, value);
-
-        if (converted is not null)
-        {
-            property.SetValue(instance, converted);
-            return;
-        }
-
-        // Handle IEnumerable<Thing> for collection properties (e.g., block content results)
-        if (value is IEnumerable<Thing> things)
-        {
-            if (TrySetCollectionValue(property, instance, targetType, things))
-                return;
-        }
-
-        // Handle OneOrMany<T> types from Schema.NET by building from inside out
-        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany"))
-        {
-            if (TrySetOneOrManyValue(property, instance, targetType, value))
-                return;
-        }
-
-        // Simple string assignment
-        if (targetType == typeof(string) && value is string strVal)
-        {
-            property.SetValue(instance, strVal);
-        }
-    }
-
-    /// <summary>
-    /// Attempts to set a collection of Thing instances on a OneOrMany property.
-    /// </summary>
-    private bool TrySetCollectionValue(PropertyInfo property, Thing instance, Type targetType, IEnumerable<Thing> things)
-    {
-        var thingList = things.ToList();
-        if (thingList.Count == 0)
-            return false;
-
-        // Try to convert each item via implicit and build the collection
-        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany"))
-        {
-            var innerType = targetType.GetGenericArguments()[0];
-
-            // Try converting the first item to get the Values<> type right
-            var firstConverted = TryConvertViaImplicit(innerType, thingList[0]);
-            if (firstConverted is not null)
-            {
-                // Create a List<innerType> and add all converted items
-                var listType = typeof(List<>).MakeGenericType(innerType);
-                var list = (IList)Activator.CreateInstance(listType)!;
-                list.Add(firstConverted);
-
-                for (var i = 1; i < thingList.Count; i++)
-                {
-                    var itemConverted = TryConvertViaImplicit(innerType, thingList[i]);
-                    if (itemConverted is not null)
-                        list.Add(itemConverted);
-                }
-
-                // Try constructing OneOrMany from IEnumerable<innerType>
-                try
-                {
-                    var oneOrManyInstance = Activator.CreateInstance(targetType, list);
-                    property.SetValue(instance, oneOrManyInstance);
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Failed to construct OneOrMany collection for property {Property}", property.Name);
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Attempts to set a single value on a OneOrMany property by building from inside out.
-    /// </summary>
-    private bool TrySetOneOrManyValue(PropertyInfo property, Thing instance, Type targetType, object value)
-    {
-        var innerType = targetType.GetGenericArguments()[0];
-
-        if (innerType is { IsGenericType: true } && innerType.GetGenericTypeDefinition().Name.StartsWith("Values"))
-        {
-            var valuesArgs = innerType.GetGenericArguments();
-
-            // Build Values<> via implicit operator
-            object? valuesInstance = null;
-
-            // Try direct conversion from the value
-            valuesInstance = TryConvertViaImplicit(innerType, value);
-
-            // If value is a string, try string-specific conversions
-            if (valuesInstance is null && value is string stringValue)
-            {
-                if (valuesArgs.Any(t => t == typeof(string)))
-                {
-                    valuesInstance = TryConvertViaImplicit(innerType, stringValue);
-                }
-
-                if (valuesInstance is null && valuesArgs.Any(t => t == typeof(Uri))
-                    && Uri.TryCreate(stringValue, UriKind.RelativeOrAbsolute, out var uri))
-                {
-                    valuesInstance = TryConvertViaImplicit(innerType, uri);
-                }
-            }
-
-            if (valuesInstance is not null)
-            {
-                // Build OneOrMany<> from Values<>
-                var oneOrMany = TryConvertViaImplicit(targetType, valuesInstance);
-                if (oneOrMany is not null)
-                {
-                    property.SetValue(instance, oneOrMany);
-                    return true;
-                }
-
-                // Try constructor
-                try
-                {
-                    var oneOrManyInstance = Activator.CreateInstance(targetType, valuesInstance);
-                    property.SetValue(instance, oneOrManyInstance);
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Failed to construct OneOrMany for property {Property}", property.Name);
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private object? TryConvertViaImplicit(Type targetType, object value)
-    {
-        // Search for op_Implicit on the target type
-        var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name == "op_Implicit" && m.GetParameters().Length == 1);
-
-        foreach (var method in methods)
-        {
-            var paramType = method.GetParameters()[0].ParameterType;
-            if (!paramType.IsAssignableFrom(value.GetType()))
-                continue;
-
-            try
-            {
-                return method.Invoke(null, [value]);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Implicit conversion failed on target type {TargetType}", targetType.Name);
-            }
-        }
-
-        // Also search on the source type (value's type) for op_Implicit returning targetType
-        var sourceMethods = value.GetType().GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name == "op_Implicit" && m.ReturnType == targetType && m.GetParameters().Length == 1);
-
-        foreach (var method in sourceMethods)
-        {
-            var paramType = method.GetParameters()[0].ParameterType;
-            if (!paramType.IsAssignableFrom(value.GetType()))
-                continue;
-
-            try
-            {
-                return method.Invoke(null, [value]);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Implicit conversion failed on source type {SourceType}", value.GetType().Name);
-            }
-        }
-
-        return null;
-    }
 }

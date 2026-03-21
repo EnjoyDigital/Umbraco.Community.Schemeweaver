@@ -214,6 +214,29 @@ describe('PropertyMappingTableElement', () => {
     expect(hasComplexType).to.be.false;
   });
 
+  it('shows blockContent source type when isComplexType is true and editorAlias is empty', async () => {
+    // Use 'static' sourceType so the row counts as mapped (visible without toggle)
+    const complexMapping: PropertyMappingRow[] = [
+      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'static', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${[]}></schemeweaver-property-mapping-table>`);
+    const select = el.shadowRoot!.querySelector('uui-select') as any;
+    const options = select?.options || [];
+    const hasBlockContent = options.some((o: any) => o.value === 'blockContent');
+    expect(hasBlockContent).to.be.true;
+  });
+
+  it('does not show blockContent source type when isComplexType is false and editorAlias is empty', async () => {
+    const simpleMapping: PropertyMappingRow[] = [
+      { schemaPropertyName: 'headline', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${simpleMapping} .availableProperties=${['title']}></schemeweaver-property-mapping-table>`);
+    const select = el.shadowRoot!.querySelector('uui-select') as any;
+    const options = select?.options || [];
+    const hasBlockContent = options.some((o: any) => o.value === 'blockContent');
+    expect(hasBlockContent).to.be.false;
+  });
+
   it('shows expand chevron when complexType source is selected', async () => {
     const complexMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
@@ -246,5 +269,46 @@ describe('PropertyMappingTableElement', () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${['authorName', 'authorEmail']}></schemeweaver-property-mapping-table>`);
     const subRows = el.shadowRoot!.querySelectorAll('.sub-mapping-row');
     expect(subRows.length).to.equal(2);
+  });
+
+  it('renders dropdown instead of free text for nestedSchemaTypeName when acceptedTypes available', async () => {
+    const blockMapping: PropertyMappingRow[] = [
+      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: null, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+    // Should render a uui-select for nested type (not a uui-input with class nested-schema-input)
+    const nestedInput = el.shadowRoot!.querySelector('.nested-schema-input');
+    expect(nestedInput).to.not.exist;
+    // Should have 3 uui-selects: source type, content property, nested schema type
+    const selects = el.shadowRoot!.querySelectorAll('uui-select');
+    expect(selects.length).to.equal(3);
+  });
+
+  it('renders free text input for nestedSchemaTypeName when no acceptedTypes', async () => {
+    const blockMapping: PropertyMappingRow[] = [
+      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+    const nestedInput = el.shadowRoot!.querySelector('.nested-schema-input');
+    expect(nestedInput).to.exist;
+  });
+
+  it('shows pre-configured badge when resolverConfig has nested mappings', async () => {
+    const config = JSON.stringify({ nestedMappings: [{ schemaProperty: 'name', contentProperty: 'question' }] });
+    const blockMapping: PropertyMappingRow[] = [
+      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: config, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+    const preConfigBadge = el.shadowRoot!.querySelector('.pre-configured-badge');
+    expect(preConfigBadge).to.exist;
+  });
+
+  it('does not show pre-configured badge when resolverConfig is null', async () => {
+    const blockMapping: PropertyMappingRow[] = [
+      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: null, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+    const preConfigBadge = el.shadowRoot!.querySelector('.pre-configured-badge');
+    expect(preConfigBadge).to.not.exist;
   });
 });

@@ -18,4 +18,5 @@ public interface ISchemeWeaverService
     IEnumerable<SchemaTypeInfo> SearchSchemaTypes(string query);
     IEnumerable<SchemaPropertyInfo> GetSchemaProperties(string typeName);
     IEnumerable<SchemaMappingDto> GetAllMappings();
+    Task<IEnumerable<BlockElementTypeInfo>> GetBlockElementTypesAsync(string contentTypeAlias, string propertyAlias);
 }

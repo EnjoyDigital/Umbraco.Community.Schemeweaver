@@ -6,11 +6,23 @@ namespace Umbraco.Community.SchemeWeaver.Services;
 /// <summary>
 /// Suggests property mappings between Umbraco content types and Schema.org types
 /// using exact, synonym, and partial matching with confidence scores.
+/// Supports complex type inference for BlockList/BlockGrid and popular schema defaults.
 /// </summary>
 public class SchemaAutoMapper : ISchemaAutoMapper
 {
     private readonly IContentTypeService _contentTypeService;
     private readonly ISchemaTypeRegistry _schemaTypeRegistry;
+
+    private static readonly HashSet<string> BlockEditorAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Umbraco.BlockList",
+        "Umbraco.BlockGrid"
+    };
+
+    private static readonly HashSet<string> ContentPickerAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Umbraco.ContentPicker"
+    };
 
     /// <summary>
     /// Synonym dictionary mapping Schema.org property names to common Umbraco property aliases.
@@ -18,7 +30,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     /// </summary>
     private static readonly Dictionary<string, string[]> Synonyms = new(StringComparer.OrdinalIgnoreCase)
     {
-        //TODO: This is rather janky refactor
+        // General / Article
         ["name"] = ["title", "heading", "name", "pageTitle", "blogTitle", "nodeName"],
         ["headline"] = ["title", "heading", "pageTitle", "blogTitle"],
         ["description"] = ["description", "metaDescription", "excerpt", "summary", "intro"],
@@ -43,6 +55,85 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["addressRegion"] = ["region", "county", "state", "province"],
         ["postalCode"] = ["postcode", "postalCode", "zipCode", "zip"],
         ["addressCountry"] = ["country", "countryCode"],
+
+        // Product
+        ["sku"] = ["sku", "productCode"],
+        ["brand"] = ["brand", "manufacturer", "brandName"],
+        ["price"] = ["price", "cost", "amount"],
+        ["offers"] = ["offers", "pricing"],
+        ["review"] = ["review", "reviews", "customerReview"],
+        ["ratingValue"] = ["ratingValue", "rating", "stars", "score"],
+        ["availability"] = ["availability", "inStock", "stockStatus"],
+        ["mpn"] = ["mpn", "partNumber"],
+        ["gtin"] = ["gtin", "barcode", "ean", "upc"],
+        ["currency"] = ["currency", "currencyCode", "priceCurrency"],
+
+        // Event
+        ["startDate"] = ["startDate", "eventDate", "fromDate", "dateFrom"],
+        ["endDate"] = ["endDate", "toDate", "dateTo"],
+        ["eventStatus"] = ["eventStatus", "status"],
+        ["eventAttendanceMode"] = ["eventAttendanceMode", "attendanceMode"],
+        ["location"] = ["location", "venue", "locationName", "eventLocation"],
+        ["organizer"] = ["organizer", "organiser", "organiserName", "organisedBy"],
+        ["performer"] = ["performer", "artist", "speaker"],
+
+        // Recipe
+        ["prepTime"] = ["prepTime", "preparationTime", "prepDuration"],
+        ["cookTime"] = ["cookTime", "cookingTime", "cookDuration"],
+        ["totalTime"] = ["totalTime", "totalDuration"],
+        ["recipeYield"] = ["recipeYield", "servings", "serves", "yield"],
+        ["calories"] = ["calories", "energy", "kcal"],
+        ["recipeCategory"] = ["recipeCategory", "category", "mealType"],
+        ["recipeCuisine"] = ["recipeCuisine", "cuisine", "cuisineType"],
+        ["recipeIngredient"] = ["ingredients", "recipeIngredient", "ingredientList"],
+        ["recipeInstructions"] = ["instructions", "recipeInstructions", "steps", "method"],
+
+        // LocalBusiness
+        ["openingHoursSpecification"] = ["openingHours", "hours", "businessHours", "openingHoursSpecification"],
+        ["geo"] = ["geo", "coordinates", "location", "geoCoordinates"],
+        ["paymentAccepted"] = ["paymentAccepted", "paymentMethods"],
+        ["areaServed"] = ["areaServed", "serviceArea"],
+
+        // Person
+        ["givenName"] = ["givenName", "firstName", "forename"],
+        ["familyName"] = ["familyName", "lastName", "surname"],
+        ["jobTitle"] = ["jobTitle", "role", "position", "title"],
+        ["worksFor"] = ["worksFor", "employer", "company", "organisation"],
+    };
+
+    /// <summary>
+    /// Pre-built defaults for popular Schema.org type/property combinations.
+    /// Key format: "{SchemaTypeName}.{PropertyName}"
+    /// </summary>
+    private static readonly Dictionary<string, PopularSchemaDefault> PopularSchemaDefaults = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["FAQPage.mainEntity"] = new("blockContent", "Question",
+            """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"question"},{"schemaProperty":"acceptedAnswer","contentProperty":"answer","wrapInType":"Answer","wrapInProperty":"Text"}]}"""),
+
+        ["Product.review"] = new("blockContent", "Review",
+            """{"nestedMappings":[{"schemaProperty":"author","contentProperty":"reviewAuthor"},{"schemaProperty":"reviewRating","contentProperty":"ratingValue"},{"schemaProperty":"reviewBody","contentProperty":"reviewBody"}]}"""),
+        ["Product.offers"] = new("complexType", "Offer", null),
+        ["Product.aggregateRating"] = new("complexType", "AggregateRating", null),
+        ["Product.brand"] = new("complexType", "Brand", null),
+
+        ["Event.location"] = new("complexType", "Place", null),
+        ["Event.organizer"] = new("complexType", "Organization", null),
+        ["Event.offers"] = new("complexType", "Offer", null),
+
+        ["Article.author"] = new("complexType", "Person", null),
+        ["Article.publisher"] = new("complexType", "Organization", null),
+
+        ["BlogPosting.author"] = new("complexType", "Person", null),
+        ["BlogPosting.publisher"] = new("complexType", "Organization", null),
+
+        ["Recipe.recipeInstructions"] = new("blockContent", "HowToStep",
+            """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"stepName"},{"schemaProperty":"text","contentProperty":"stepText"}]}"""),
+        ["Recipe.nutrition"] = new("complexType", "NutritionInformation", null),
+        ["Recipe.author"] = new("complexType", "Person", null),
+
+        ["LocalBusiness.address"] = new("complexType", "PostalAddress", null),
+        ["LocalBusiness.openingHoursSpecification"] = new("blockContent", "OpeningHoursSpecification", null),
+        ["LocalBusiness.geo"] = new("complexType", "GeoCoordinates", null),
     };
 
     public SchemaAutoMapper(IContentTypeService contentTypeService, ISchemaTypeRegistry schemaTypeRegistry)
@@ -72,6 +163,10 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 IsComplexType = schemaProp.IsComplexType,
             };
 
+            // Check for popular schema defaults first
+            var defaultKey = $"{schemaTypeName}.{schemaProp.Name}";
+            var hasPopularDefault = PopularSchemaDefaults.TryGetValue(defaultKey, out var popularDefault);
+
             // Exact match (case-insensitive)
             var exactMatch = contentProperties.FirstOrDefault(
                 p => string.Equals(p.Alias, schemaProp.Name, StringComparison.OrdinalIgnoreCase));
@@ -82,6 +177,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 suggestion.EditorAlias = exactMatch.PropertyEditorAlias;
                 suggestion.Confidence = 100;
                 suggestion.IsAutoMapped = true;
+
+                ApplyComplexTypeInference(suggestion, exactMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
                 suggestions.Add(suggestion);
                 continue;
             }
@@ -98,6 +195,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                     suggestion.EditorAlias = synonymMatch.PropertyEditorAlias;
                     suggestion.Confidence = 80;
                     suggestion.IsAutoMapped = true;
+
+                    ApplyComplexTypeInference(suggestion, synonymMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
                     suggestions.Add(suggestion);
                     continue;
                 }
@@ -114,16 +213,106 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 suggestion.EditorAlias = partialMatch.PropertyEditorAlias;
                 suggestion.Confidence = 50;
                 suggestion.IsAutoMapped = true;
+
+                ApplyComplexTypeInference(suggestion, partialMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
                 suggestions.Add(suggestion);
                 continue;
             }
 
-            // No match found
-            suggestion.Confidence = 0;
-            suggestion.IsAutoMapped = false;
+            // No content property match — check for complex type defaults
+            if (schemaProp.IsComplexType && hasPopularDefault)
+            {
+                suggestion.SuggestedSourceType = popularDefault!.SourceType;
+                suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
+                suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
+                suggestion.Confidence = 60;
+                suggestion.IsAutoMapped = true;
+            }
+            else if (schemaProp.IsComplexType)
+            {
+                suggestion.SuggestedSourceType = "complexType";
+                suggestion.SuggestedNestedSchemaTypeName = GetFirstNonPrimitiveAcceptedType(schemaProp.AcceptedTypes);
+                suggestion.Confidence = 60;
+                suggestion.IsAutoMapped = true;
+            }
+            else
+            {
+                suggestion.Confidence = 0;
+                suggestion.IsAutoMapped = false;
+            }
+
             suggestions.Add(suggestion);
         }
 
         return suggestions;
     }
+
+    /// <summary>
+    /// Applies complex type inference when a content property has been matched.
+    /// Adjusts source type and nested schema type based on editor alias and popular defaults.
+    /// </summary>
+    private static void ApplyComplexTypeInference(
+        PropertyMappingSuggestion suggestion,
+        string editorAlias,
+        bool hasPopularDefault,
+        PopularSchemaDefault? popularDefault)
+    {
+        if (!suggestion.IsComplexType)
+            return;
+
+        if (BlockEditorAliases.Contains(editorAlias))
+        {
+            if (hasPopularDefault)
+            {
+                suggestion.SuggestedSourceType = popularDefault!.SourceType;
+                suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
+                suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
+                suggestion.Confidence = 70;
+            }
+            else
+            {
+                suggestion.SuggestedSourceType = "blockContent";
+                suggestion.SuggestedNestedSchemaTypeName = GetFirstNonPrimitiveAcceptedType(suggestion.AcceptedTypes);
+                suggestion.Confidence = 70;
+            }
+        }
+        else if (ContentPickerAliases.Contains(editorAlias))
+        {
+            // Content picker — keep source type as "property", resolver handles nesting
+            if (hasPopularDefault)
+            {
+                suggestion.SuggestedNestedSchemaTypeName = popularDefault!.NestedSchemaTypeName;
+            }
+        }
+        else if (hasPopularDefault)
+        {
+            // Non-block, non-picker editor with a popular default
+            suggestion.SuggestedSourceType = popularDefault!.SourceType;
+            suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
+            suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
+        }
+    }
+
+    /// <summary>
+    /// Returns the first accepted type that is not a primitive Schema.org type (Text, Number, Boolean, etc.).
+    /// </summary>
+    private static string? GetFirstNonPrimitiveAcceptedType(List<string> acceptedTypes)
+    {
+        return acceptedTypes.FirstOrDefault(t =>
+            !string.Equals(t, "Text", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Number", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Boolean", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Date", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "DateTime", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Time", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "URL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Integer", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Float", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Duration", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Represents a pre-built default for a popular Schema.org type/property combination.
+    /// </summary>
+    private sealed record PopularSchemaDefault(string SourceType, string NestedSchemaTypeName, string? ResolverConfig);
 }

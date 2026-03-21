@@ -1,5 +1,107 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels;
+@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Core.Models.Blocks
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
-	Layout = null;
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("authorName"))
+{
+    <p>By <strong>@Model.Value("authorName")</strong></p>
+}
+
+@if (Model.HasValue("recipeImage"))
+{
+    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("recipeImage")?.MediaUrl();
+    if (!string.IsNullOrEmpty(imageUrl))
+    {
+        <img src="@imageUrl" alt="@Model.Value("title")" />
+    }
+}
+
+<div class="card">
+    <h2>Details</h2>
+    <dl>
+        @if (Model.HasValue("prepTime"))
+        {
+            <dt>Prep Time</dt>
+            <dd>@Model.Value("prepTime")</dd>
+        }
+        @if (Model.HasValue("cookTime"))
+        {
+            <dt>Cook Time</dt>
+            <dd>@Model.Value("cookTime")</dd>
+        }
+        @if (Model.HasValue("totalTime"))
+        {
+            <dt>Total Time</dt>
+            <dd>@Model.Value("totalTime")</dd>
+        }
+        @if (Model.HasValue("recipeYield"))
+        {
+            <dt>Yield</dt>
+            <dd>@Model.Value("recipeYield")</dd>
+        }
+        @if (Model.HasValue("calories"))
+        {
+            <dt>Calories</dt>
+            <dd>@Model.Value("calories")</dd>
+        }
+        @if (Model.HasValue("recipeCategory"))
+        {
+            <dt>Category</dt>
+            <dd>@Model.Value("recipeCategory")</dd>
+        }
+        @if (Model.HasValue("recipeCuisine"))
+        {
+            <dt>Cuisine</dt>
+            <dd>@Model.Value("recipeCuisine")</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("ingredients"))
+{
+    <div class="card">
+        <h2>Ingredients</h2>
+        <ul class="ingredient-list">
+            @foreach (var block in Model.Value<BlockListModel>("ingredients"))
+            {
+                <li>@block.Content.Value("ingredient")</li>
+            }
+        </ul>
+    </div>
+}
+
+@if (Model.HasValue("instructions"))
+{
+    <div class="card">
+        <h2>Instructions</h2>
+        <ol class="instruction-list">
+            @foreach (var block in Model.Value<BlockListModel>("instructions"))
+            {
+                <li>
+                    @if (block.Content.HasValue("stepName"))
+                    {
+                        <strong>@block.Content.Value("stepName")</strong><br />
+                    }
+                    @block.Content.Value("stepText")
+                </li>
+            }
+        </ol>
+    </div>
+}
+
+@if (Model.HasValue("bodyText"))
+{
+    <div class="card">
+        <h2>Notes</h2>
+        @Model.Value("bodyText")
+    </div>
 }

@@ -14,4 +14,6 @@ public class PropertyMappingSuggestion
     public string? EditorAlias { get; set; }
     public List<string> AcceptedTypes { get; set; } = [];
     public bool IsComplexType { get; set; }
+    public string? SuggestedNestedSchemaTypeName { get; set; }
+    public string? SuggestedResolverConfig { get; set; }
 }

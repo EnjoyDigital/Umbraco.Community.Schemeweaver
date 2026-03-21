@@ -1,4 +1,5 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Core.Models.Blocks
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
     Layout = "Master.cshtml";
@@ -7,6 +8,19 @@
 @if (Model.HasValue("description"))
 {
     <p class="lead" style="font-size: 1.15rem; color: #4b5563; margin-bottom: 1.5rem;">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("faqItems"))
+{
+    <div class="faq-list">
+        @foreach (var block in Model.Value<BlockListModel>("faqItems"))
+        {
+            <div class="card faq-item">
+                <h3 class="faq-question">@block.Content.Value("question")</h3>
+                <div class="faq-answer">@block.Content.Value("answer")</div>
+            </div>
+        }
+    </div>
 }
 
 @if (Model.HasValue("bodyText"))

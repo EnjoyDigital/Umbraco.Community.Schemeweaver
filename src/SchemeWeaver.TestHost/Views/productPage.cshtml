@@ -1,4 +1,5 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Core.Models.Blocks
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
     Layout = "Master.cshtml";
@@ -9,12 +10,20 @@
     <p class="lead" style="font-size: 1.15rem; color: #4b5563;">@Model.Value("description")</p>
 }
 
+@{
+    var productImage = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("productImage");
+}
+@if (productImage != null)
+{
+    <img src="@productImage.MediaUrl()" alt="@Model.Value("title")" />
+}
+
 <div class="card">
     <dl>
         @if (Model.HasValue("price"))
         {
             <dt>Price</dt>
-            <dd>@Model.Value("price")</dd>
+            <dd>@Model.Value("price") @Model.Value("currency")</dd>
         }
         @if (Model.HasValue("sku"))
         {
@@ -26,6 +35,11 @@
             <dt>Brand</dt>
             <dd>@Model.Value("brand")</dd>
         }
+        @if (Model.HasValue("availability"))
+        {
+            <dt>Availability</dt>
+            <dd>@Model.Value("availability")</dd>
+        }
     </dl>
 </div>
 
@@ -34,4 +48,21 @@
     <div class="card" style="margin-top: 1rem;">
         @Model.Value("bodyText")
     </div>
+}
+
+@if (Model.HasValue("reviews"))
+{
+    <h2>Customer Reviews</h2>
+    @foreach (var block in Model.Value<BlockListModel>("reviews"))
+    {
+        <div class="card review-card" style="margin-top: 1rem;">
+            <strong>@block.Content.Value("author")</strong>
+            <span> &middot; Rating: @block.Content.Value("ratingValue")/5</span>
+            @if (block.Content.HasValue("datePublished"))
+            {
+                <span> &middot; @(((DateTime)block.Content.Value("datePublished")).ToString("d MMMM yyyy"))</span>
+            }
+            <p>@block.Content.Value("reviewBody")</p>
+        </div>
+    }
 }

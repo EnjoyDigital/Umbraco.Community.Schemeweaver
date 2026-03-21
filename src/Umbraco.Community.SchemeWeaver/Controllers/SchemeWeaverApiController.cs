@@ -102,6 +102,14 @@ public class SchemeWeaverApiController : ControllerBase
         return Ok(properties);
     }
 
+    [HttpGet("content-types/{contentTypeAlias}/properties/{propertyAlias}/block-types")]
+    [ProducesResponseType(typeof(IEnumerable<BlockElementTypeInfo>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetBlockElementTypes(string contentTypeAlias, string propertyAlias)
+    {
+        var blockTypes = await _service.GetBlockElementTypesAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
+        return Ok(blockTypes);
+    }
+
     #endregion
 
     #region Mappings

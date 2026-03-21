@@ -22,6 +22,12 @@ export const handlers = [
     return HttpResponse.json(schemeWeaverDb.getContentTypes());
   }),
 
+  http.get(`${BASE}/content-types/:alias/properties/:propertyAlias/block-types`, ({ params }) => {
+    const alias = params.alias as string;
+    const propertyAlias = params.propertyAlias as string;
+    return HttpResponse.json(schemeWeaverDb.getBlockElementTypes(alias, propertyAlias));
+  }),
+
   http.get(`${BASE}/content-types/:alias/properties`, ({ params }) => {
     const alias = params.alias as string;
     return HttpResponse.json(schemeWeaverDb.getContentTypeProperties(alias));

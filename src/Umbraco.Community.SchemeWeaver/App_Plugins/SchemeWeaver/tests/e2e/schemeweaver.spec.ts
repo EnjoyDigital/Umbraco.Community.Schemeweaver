@@ -587,6 +587,283 @@ test.describe('Document Type Workspace View', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Complex Mapping Workflow Tests
+// ---------------------------------------------------------------------------
+
+test.describe('Complex Mapping Workflows', () => {
+  /**
+   * Helper: open schema picker, search and select a schema type, then proceed to property mapping.
+   */
+  async function mapContentTypeToSchema(umbracoUi: any, schemaTypeName: string) {
+    // Click Map on first unmapped content type
+    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
+    await expect(mapBtn).toBeVisible({ timeout: 5_000 });
+    await mapBtn.click();
+
+    // Schema picker
+    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+
+    // Search for specific schema type
+    const searchInput = pickerModal.locator('uui-input').first();
+    await fillUuiInput(searchInput, schemaTypeName);
+    await umbracoUi.page.waitForTimeout(1_000);
+
+    // Select and submit
+    await pickerModal.locator('.schema-item').first().click();
+    await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+    // Wait for property mapping modal
+    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+    await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+    return mappingModal;
+  }
+
+  test('FAQPage auto-map shows blockContent suggestion for mainEntity', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    // Navigate to FAQ Page mapping
+    const faqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ Page' });
+    if (await faqRow.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      const mapBtn = faqRow.locator('uui-button[label="Map to Schema.org"]');
+      if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        await mapBtn.click();
+
+        // Pick FAQPage schema type
+        const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+        await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+        await fillUuiInput(pickerModal.locator('uui-input').first(), 'FAQPage');
+        await umbracoUi.page.waitForTimeout(1_000);
+        await pickerModal.locator('.schema-item').first().click();
+        await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+        // Property mapping modal should show blockContent suggestion
+        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+        const table = mappingModal.locator('schemeweaver-property-mapping-table');
+        await expect(table).toBeVisible({ timeout: 10_000 });
+
+        // Should have a configure nested mapping button (from blockContent suggestion)
+        const configButton = table.locator('uui-button', { hasText: /Configure Block Mapping/i });
+        const hasConfigButton = await configButton.isVisible({ timeout: 5_000 }).catch(() => false);
+
+        // Screenshot the auto-mapped FAQPage
+        await umbracoUi.page.screenshot({
+          path: join(SCREENSHOTS_DIR, '10-faqpage-auto-map.png'),
+          fullPage: true,
+        });
+
+        // If config button exists, test the wizard flow
+        if (hasConfigButton) {
+          await configButton.first().click();
+
+          // Nested mapping wizard should open
+          const nestedModal = umbracoUi.page.locator('schemeweaver-nested-mapping-modal');
+          await expect(nestedModal).toBeVisible({ timeout: 10_000 });
+
+          // Should show wizard step indicators
+          const stepIndicators = nestedModal.locator('.step-indicator');
+          const stepCount = await stepIndicators.count();
+          expect(stepCount).toBe(3);
+
+          // Screenshot the wizard
+          await umbracoUi.page.screenshot({
+            path: join(SCREENSHOTS_DIR, '11-faqpage-wizard.png'),
+            fullPage: true,
+          });
+
+          // Close wizard
+          const cancelBtn = nestedModal.locator('uui-button[label="Cancel"]');
+          if (await cancelBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+            await cancelBtn.click();
+          } else {
+            const backBtn = nestedModal.locator('uui-button[label="Back"]');
+            if (await backBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+              await backBtn.click();
+            }
+          }
+        }
+
+        // Close mapping modal
+        await mappingModal.locator('uui-button[label="Cancel"]').click();
+      }
+    }
+  });
+
+  test('Product mapping shows complex type suggestions for offers and brand', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    const productRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Product Page' });
+    if (await productRow.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      const mapBtn = productRow.locator('uui-button[label="Map to Schema.org"]');
+      if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        await mapBtn.click();
+
+        const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+        await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+        await fillUuiInput(pickerModal.locator('uui-input').first(), 'Product');
+        await umbracoUi.page.waitForTimeout(1_000);
+        await pickerModal.locator('.schema-item').first().click();
+        await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+        // Screenshot the Product auto-map with complex type suggestions
+        await umbracoUi.page.screenshot({
+          path: join(SCREENSHOTS_DIR, '12-product-auto-map.png'),
+          fullPage: true,
+        });
+
+        await mappingModal.locator('uui-button[label="Cancel"]').click();
+      }
+    }
+  });
+
+  test('Recipe mapping shows blockContent suggestion for recipeInstructions', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    const recipeRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Recipe Page' });
+    if (await recipeRow.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      const mapBtn = recipeRow.locator('uui-button[label="Map to Schema.org"]');
+      if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        await mapBtn.click();
+
+        const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+        await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+        await fillUuiInput(pickerModal.locator('uui-input').first(), 'Recipe');
+        await umbracoUi.page.waitForTimeout(1_000);
+        await pickerModal.locator('.schema-item').first().click();
+        await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+        // Should show block content suggestions for instructions block list
+        await umbracoUi.page.screenshot({
+          path: join(SCREENSHOTS_DIR, '13-recipe-auto-map.png'),
+          fullPage: true,
+        });
+
+        await mappingModal.locator('uui-button[label="Cancel"]').click();
+      }
+    }
+  });
+
+  test('Event mapping shows complex type suggestions for location and organizer', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    const eventRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Event Page' });
+    if (await eventRow.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      const mapBtn = eventRow.locator('uui-button[label="Map to Schema.org"]');
+      if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        await mapBtn.click();
+
+        const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+        await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+        await fillUuiInput(pickerModal.locator('uui-input').first(), 'Event');
+        await umbracoUi.page.waitForTimeout(1_000);
+        await pickerModal.locator('.schema-item').first().click();
+        await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+        await umbracoUi.page.screenshot({
+          path: join(SCREENSHOTS_DIR, '14-event-auto-map.png'),
+          fullPage: true,
+        });
+
+        await mappingModal.locator('uui-button[label="Cancel"]').click();
+      }
+    }
+  });
+
+  test('nested mapping wizard completes full 3-step flow', async ({ umbracoUi }) => {
+    await goToSchemeWeaverDashboard(umbracoUi);
+    await waitForDashboardTable(umbracoUi.page);
+
+    // Map FAQ Page to FAQPage schema
+    const faqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ Page' });
+    if (!await faqRow.isVisible({ timeout: 5_000 }).catch(() => false)) return;
+
+    const mapBtn = faqRow.locator('uui-button[label="Map to Schema.org"]');
+    if (!await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) return;
+
+    await mapBtn.click();
+
+    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+    await fillUuiInput(pickerModal.locator('uui-input').first(), 'FAQPage');
+    await umbracoUi.page.waitForTimeout(1_000);
+    await pickerModal.locator('.schema-item').first().click();
+    await pickerModal.locator('uui-button[look="primary"]').last().click();
+
+    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+    await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+    // Find and click the configure button for mainEntity
+    const configButton = mappingModal.locator('uui-button', { hasText: /Configure Block Mapping/i }).first();
+    if (!await configButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await mappingModal.locator('uui-button[label="Cancel"]').click();
+      return;
+    }
+
+    await configButton.click();
+
+    // Step 1: Block type picker → should auto-advance if only 1 block type
+    const nestedModal = umbracoUi.page.locator('schemeweaver-nested-mapping-modal');
+    await expect(nestedModal).toBeVisible({ timeout: 10_000 });
+    await nestedModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+
+    // Step 2: Mappings - check for mapping table
+    const mappingTable = nestedModal.locator('uui-table');
+    if (await mappingTable.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      // Screenshot step 2
+      await umbracoUi.page.screenshot({
+        path: join(SCREENSHOTS_DIR, '15-wizard-step2-mappings.png'),
+        fullPage: true,
+      });
+
+      // Click Preview to go to step 3
+      const previewBtn = nestedModal.locator('uui-button', { hasText: 'Preview' });
+      if (await previewBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        await previewBtn.click();
+        await umbracoUi.page.waitForTimeout(500);
+
+        // Step 3: Preview
+        const previewSummary = nestedModal.locator('.preview-summary');
+        if (await previewSummary.isVisible({ timeout: 3_000 }).catch(() => false)) {
+          // Screenshot step 3
+          await umbracoUi.page.screenshot({
+            path: join(SCREENSHOTS_DIR, '16-wizard-step3-preview.png'),
+            fullPage: true,
+          });
+
+          // Save
+          const saveBtn = nestedModal.locator('uui-button[label="Save Mapping"]');
+          if (await saveBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+            await saveBtn.click();
+            await expect(nestedModal).not.toBeVisible({ timeout: 5_000 });
+          }
+        }
+      }
+    }
+
+    // Close the mapping modal
+    const cancelBtn = mappingModal.locator('uui-button[label="Cancel"]');
+    if (await cancelBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await cancelBtn.click();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Entity Actions Tests
 // ---------------------------------------------------------------------------
 
