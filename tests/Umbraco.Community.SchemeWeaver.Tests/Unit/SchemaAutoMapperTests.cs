@@ -244,6 +244,7 @@ public class SchemaAutoMapperTests
     public void FAQPage_MainEntity_SuggestsQuestionWithResolverConfig()
     {
         // No name match between "faqItems" and "mainEntity", but popular default kicks in
+        // Should also suggest the BlockList property alias
         var contentType = CreateContentTypeWithEditors(
             ("faqItems", "Umbraco.BlockList"));
         _contentTypeService.Get("faqPage").Returns(contentType);
@@ -265,7 +266,8 @@ public class SchemaAutoMapperTests
         mainEntity.SuggestedNestedSchemaTypeName.Should().Be("Question");
         mainEntity.SuggestedResolverConfig.Should().Contain("acceptedAnswer");
         mainEntity.SuggestedResolverConfig.Should().Contain("Answer");
-        mainEntity.Confidence.Should().Be(60); // popular default, no name match
+        mainEntity.SuggestedContentTypePropertyAlias.Should().Be("faqItems");
+        mainEntity.Confidence.Should().Be(60);
     }
 
     [Fact]

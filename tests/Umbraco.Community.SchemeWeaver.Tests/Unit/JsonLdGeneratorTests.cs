@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using NSubstitute;
+using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
@@ -383,4 +384,275 @@ public class JsonLdGeneratorTests
         jsonLd.Should().Contain("Acme Corp");
         jsonLd.Should().Contain("https://acme.example.com");
     }
+
+    #region Block Content Tests
+
+    private JsonLdGenerator CreateBlockAwareGenerator()
+    {
+        var blockResolverFactory = new PropertyValueResolverFactory([
+            new BlockContentResolver(),
+            new DefaultPropertyValueResolver()
+        ]);
+        return new JsonLdGenerator(
+            _repository, _registry, _httpContextAccessor,
+            _navigationQueryService, _publishedStatusFilteringService,
+            blockResolverFactory, _logger);
+    }
+
+    private static IPublishedContent CreateContentWithBlockList(
+        string contentTypeAlias,
+        string blockPropertyAlias,
+        IPublishedElement[] blockElements,
+        Dictionary<string, object?>? extraProperties = null)
+    {
+        var content = Substitute.For<IPublishedContent>();
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns(contentTypeAlias);
+        content.ContentType.Returns(contentType);
+        content.Id.Returns(1);
+        content.Key.Returns(Guid.NewGuid());
+
+        // Create block list items using Udi-based constructor
+        var blockListItems = blockElements.Select(e =>
+        {
+            var udi = Umbraco.Cms.Core.Udi.Create(Umbraco.Cms.Core.Constants.UdiEntityType.Element, Guid.NewGuid());
+            return new BlockListItem(udi, e, null, null);
+        }).ToList();
+
+        var blockListModel = new BlockListModel(blockListItems);
+
+        // Set up the block list property with the correct editor alias
+        var blockProperty = Substitute.For<IPublishedProperty>();
+        blockProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+        var blockPropertyType = Substitute.For<IPublishedPropertyType>();
+        blockPropertyType.EditorAlias.Returns("Umbraco.BlockList");
+        blockProperty.PropertyType.Returns(blockPropertyType);
+        content.GetProperty(blockPropertyAlias).Returns(blockProperty);
+
+        // Add extra properties
+        if (extraProperties is not null)
+        {
+            foreach (var kvp in extraProperties)
+            {
+                var property = Substitute.For<IPublishedProperty>();
+                property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(kvp.Value);
+                content.GetProperty(kvp.Key).Returns(property);
+            }
+        }
+
+        return content;
+    }
+
+    private static IPublishedElement CreateBlockElement(string alias, Dictionary<string, object?> properties)
+    {
+        var element = Substitute.For<IPublishedElement>();
+        var elementType = Substitute.For<IPublishedContentType>();
+        elementType.Alias.Returns(alias);
+        element.ContentType.Returns(elementType);
+
+        foreach (var kvp in properties)
+        {
+            var prop = Substitute.For<IPublishedProperty>();
+            prop.Alias.Returns(kvp.Key);
+            prop.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(kvp.Value);
+            element.GetProperty(kvp.Key).Returns(prop);
+        }
+
+        return element;
+    }
+
+    [Fact]
+    public void GenerateJsonLd_FAQPage_ProducesQuestionsWithAnswers()
+    {
+        var sut = CreateBlockAwareGenerator();
+
+        var faqItems = new[]
+        {
+            CreateBlockElement("faqItem", new Dictionary<string, object?>
+            {
+                ["question"] = "What is your returns policy?",
+                ["answer"] = "You can return within 30 days"
+            }),
+            CreateBlockElement("faqItem", new Dictionary<string, object?>
+            {
+                ["question"] = "How long does delivery take?",
+                ["answer"] = "3-5 working days"
+            })
+        };
+
+        var content = CreateContentWithBlockList("faqPage", "faqItems", faqItems,
+            new Dictionary<string, object?> { ["title"] = "FAQ" });
+
+        var mapping = CreateMapping("faqPage", "FAQPage");
+        _repository.GetByContentTypeAlias("faqPage").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Name",
+                SourceType = "property",
+                ContentTypePropertyAlias = "title"
+            },
+            new()
+            {
+                SchemaPropertyName = "MainEntity",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "faqItems",
+                NestedSchemaTypeName = "Question",
+                ResolverConfig = """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"question"},{"schemaProperty":"acceptedAnswer","contentProperty":"answer","wrapInType":"Answer","wrapInProperty":"Text"}]}"""
+            }
+        });
+
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("FAQPage");
+        jsonLd.Should().Contain("Question");
+        jsonLd.Should().Contain("What is your returns policy?");
+        jsonLd.Should().Contain("How long does delivery take?");
+        jsonLd.Should().Contain("Answer");
+        jsonLd.Should().Contain("You can return within 30 days");
+        jsonLd.Should().Contain("3-5 working days");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_Recipe_StringListExtractsIngredients()
+    {
+        var sut = CreateBlockAwareGenerator();
+
+        var ingredients = new[]
+        {
+            CreateBlockElement("recipeIngredient", new Dictionary<string, object?> { ["ingredient"] = "200g flour" }),
+            CreateBlockElement("recipeIngredient", new Dictionary<string, object?> { ["ingredient"] = "100g sugar" }),
+            CreateBlockElement("recipeIngredient", new Dictionary<string, object?> { ["ingredient"] = "2 eggs" })
+        };
+
+        var content = CreateContentWithBlockList("recipePage", "ingredients", ingredients,
+            new Dictionary<string, object?> { ["title"] = "Chocolate Cake" });
+
+        var mapping = CreateMapping("recipePage", "Recipe");
+        _repository.GetByContentTypeAlias("recipePage").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Name",
+                SourceType = "property",
+                ContentTypePropertyAlias = "title"
+            },
+            new()
+            {
+                SchemaPropertyName = "RecipeIngredient",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "ingredients",
+                ResolverConfig = """{"extractAs":"stringList","contentProperty":"ingredient"}"""
+            }
+        });
+
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Recipe");
+        jsonLd.Should().Contain("200g flour");
+        jsonLd.Should().Contain("100g sugar");
+        jsonLd.Should().Contain("2 eggs");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_Recipe_HowToStepInstructions()
+    {
+        var sut = CreateBlockAwareGenerator();
+
+        var steps = new[]
+        {
+            CreateBlockElement("recipeStep", new Dictionary<string, object?>
+            {
+                ["stepName"] = "Preheat",
+                ["stepText"] = "Preheat oven to 180C"
+            }),
+            CreateBlockElement("recipeStep", new Dictionary<string, object?>
+            {
+                ["stepName"] = "Mix",
+                ["stepText"] = "Mix all dry ingredients"
+            })
+        };
+
+        var content = CreateContentWithBlockList("recipePage", "instructions", steps,
+            new Dictionary<string, object?> { ["title"] = "Chocolate Cake" });
+
+        var mapping = CreateMapping("recipePage", "Recipe");
+        _repository.GetByContentTypeAlias("recipePage").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Name",
+                SourceType = "property",
+                ContentTypePropertyAlias = "title"
+            },
+            new()
+            {
+                SchemaPropertyName = "RecipeInstructions",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "instructions",
+                NestedSchemaTypeName = "HowToStep",
+                ResolverConfig = """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"stepName"},{"schemaProperty":"text","contentProperty":"stepText"}]}"""
+            }
+        });
+
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("HowToStep");
+        jsonLd.Should().Contain("Preheat oven to 180C");
+        jsonLd.Should().Contain("Mix all dry ingredients");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_Event_WithComplexTypeLocation()
+    {
+        var content = CreateContent("eventPage", new Dictionary<string, object?>
+        {
+            ["title"] = "Tech Conference",
+            ["locationName"] = "Convention Centre",
+            ["locationAddress"] = "123 Main St"
+        });
+        var mapping = CreateMapping("eventPage", "Event");
+        _repository.GetByContentTypeAlias("eventPage").Returns(mapping);
+
+        var locationConfig = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Name", sourceType = "property", contentTypePropertyAlias = (string?)"locationName", staticValue = (string?)null },
+                new { schemaProperty = "Address", sourceType = "property", contentTypePropertyAlias = (string?)"locationAddress", staticValue = (string?)null }
+            }
+        });
+
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "title" },
+            new()
+            {
+                SchemaPropertyName = "Location",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Place",
+                ResolverConfig = locationConfig
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Event");
+        jsonLd.Should().Contain("Place");
+        jsonLd.Should().Contain("Convention Centre");
+        jsonLd.Should().Contain("123 Main St");
+    }
+
+    #endregion
 }

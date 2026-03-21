@@ -50,6 +50,13 @@ public static class SchemaPropertySetter
                 return;
         }
 
+        // Handle IEnumerable<string> for string array properties (e.g., recipeIngredient)
+        if (value is IEnumerable<string> strings)
+        {
+            if (TrySetStringCollectionValue(property, instance, targetType, strings))
+                return;
+        }
+
         // Handle OneOrMany<T> types from Schema.NET by building from inside out
         if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany"))
         {
@@ -80,38 +87,148 @@ public static class SchemaPropertySetter
         if (thingList.Count == 0)
             return false;
 
-        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany"))
+        if (targetType is not { IsGenericType: true })
+            return false;
+
+        var genName = targetType.GetGenericTypeDefinition().Name;
+
+        // Handle OneOrMany<T> — extract inner type and build collection
+        if (genName.StartsWith("OneOrMany"))
         {
             var innerType = targetType.GetGenericArguments()[0];
+            return TryBuildAndSetCollection(property, instance, targetType, innerType, thingList);
+        }
 
-            var firstConverted = TryConvertViaImplicit(innerType, thingList[0]);
-            if (firstConverted is not null)
+        // Handle Values<T1,T2,...> directly — some Schema.NET properties use this without OneOrMany wrapper
+        // Values has implicit operators for List<T> and T[] for each type argument
+        if (genName.StartsWith("Values"))
+        {
+            // Find which interface type argument the Things implement
+            var matchingInterfaceType = targetType.GetGenericArguments()
+                .FirstOrDefault(t => t.IsInterface && t.IsAssignableFrom(thingList[0].GetType()));
+
+            if (matchingInterfaceType is not null)
             {
-                var listType = typeof(List<>).MakeGenericType(innerType);
-                var list = (IList)Activator.CreateInstance(listType)!;
-                list.Add(firstConverted);
-
-                for (var i = 1; i < thingList.Count; i++)
+                // Build a typed List<IFoo> and use the op_Implicit(List<IFoo>) operator
+                var typedListType = typeof(List<>).MakeGenericType(matchingInterfaceType);
+                var typedItemList = (IList)Activator.CreateInstance(typedListType)!;
+                foreach (var thing in thingList)
                 {
-                    var itemConverted = TryConvertViaImplicit(innerType, thingList[i]);
-                    if (itemConverted is not null)
-                        list.Add(itemConverted);
+                    if (matchingInterfaceType.IsAssignableFrom(thing.GetType()))
+                        typedItemList.Add(thing);
                 }
 
-                try
+                if (typedItemList.Count > 0)
                 {
-                    var oneOrManyInstance = Activator.CreateInstance(targetType, list);
-                    property.SetValue(instance, oneOrManyInstance);
+                    var valuesConverted = TryConvertViaImplicit(targetType, typedItemList);
+                    if (valuesConverted is not null)
+                    {
+                        property.SetValue(instance, valuesConverted);
+                        return true;
+                    }
+                }
+            }
+
+            // Fallback for single item
+            if (thingList.Count == 1)
+            {
+                var converted = TryConvertViaImplicit(targetType, thingList[0]);
+                if (converted is not null)
+                {
+                    property.SetValue(instance, converted);
                     return true;
-                }
-                catch
-                {
-                    // Fall through
                 }
             }
         }
 
         return false;
+    }
+
+    private static bool TryBuildAndSetCollection(PropertyInfo property, Thing instance, Type targetType, Type innerType, List<Thing> thingList)
+    {
+        // Build a properly typed List<T> where T is the inner type of OneOrMany<T>
+        var listType = typeof(List<>).MakeGenericType(innerType);
+        var typedList = (IList)Activator.CreateInstance(listType)!;
+
+        foreach (var thing in thingList)
+        {
+            var converted = TryConvertViaImplicit(innerType, thing);
+            if (converted is not null)
+                typedList.Add(converted);
+        }
+
+        if (typedList.Count == 0)
+            return false;
+
+        // OneOrMany has constructors: (object[] items), (IEnumerable<object> items)
+        // Use explicit constructor lookup and invocation
+        var ctor = targetType.GetConstructor([typeof(object[])]);
+        if (ctor is not null)
+        {
+            var objectArray = typedList.Cast<object>().ToArray();
+            var oneOrManyInstance = ctor.Invoke([objectArray]);
+            property.SetValue(instance, oneOrManyInstance);
+            return true;
+        }
+
+        // Fallback: try Activator
+        try
+        {
+            var oneOrMany = Activator.CreateInstance(targetType, typedList);
+            property.SetValue(instance, oneOrMany);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to set a collection of strings on a OneOrMany property (e.g., recipeIngredient).
+    /// Converts each string via implicit operators to build the inner Values type, then wraps in OneOrMany.
+    /// </summary>
+    public static bool TrySetStringCollectionValue(PropertyInfo property, Thing instance, Type targetType, IEnumerable<string> strings)
+    {
+        var stringList = strings.ToList();
+        if (stringList.Count == 0)
+            return false;
+
+        if (targetType is not { IsGenericType: true })
+            return false;
+
+        var genDef = targetType.GetGenericTypeDefinition().Name;
+        if (!genDef.StartsWith("OneOrMany"))
+            return false;
+
+        var innerType = targetType.GetGenericArguments()[0];
+
+        // Build a list of inner-type values by converting each string
+        var firstConverted = TryConvertViaImplicit(innerType, stringList[0]);
+        if (firstConverted is null)
+            return false;
+
+        var listType = typeof(List<>).MakeGenericType(innerType);
+        var list = (IList)Activator.CreateInstance(listType)!;
+        list.Add(firstConverted);
+
+        for (var i = 1; i < stringList.Count; i++)
+        {
+            var itemConverted = TryConvertViaImplicit(innerType, stringList[i]);
+            if (itemConverted is not null)
+                list.Add(itemConverted);
+        }
+
+        try
+        {
+            var oneOrManyInstance = Activator.CreateInstance(targetType, list);
+            property.SetValue(instance, oneOrManyInstance);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -228,6 +345,10 @@ public static class SchemaPropertySetter
     /// </summary>
     public static object? TryConvertViaImplicit(Type targetType, object value)
     {
+        // If the value is already assignable to the target type, return it directly
+        if (targetType.IsInstanceOfType(value))
+            return value;
+
         // Search for op_Implicit on the target type
         var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Where(m => m.Name == "op_Implicit" && m.GetParameters().Length == 1);

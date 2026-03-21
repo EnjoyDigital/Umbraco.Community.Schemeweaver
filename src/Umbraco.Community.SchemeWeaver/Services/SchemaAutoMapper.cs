@@ -126,6 +126,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["BlogPosting.author"] = new("complexType", "Person", null),
         ["BlogPosting.publisher"] = new("complexType", "Organization", null),
 
+        ["Recipe.recipeIngredient"] = new("blockContent", null,
+            """{"extractAs":"stringList","contentProperty":"ingredient"}"""),
         ["Recipe.recipeInstructions"] = new("blockContent", "HowToStep",
             """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"stepName"},{"schemaProperty":"text","contentProperty":"stepText"}]}"""),
         ["Recipe.nutrition"] = new("complexType", "NutritionInformation", null),
@@ -227,6 +229,18 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
                 suggestion.Confidence = 60;
                 suggestion.IsAutoMapped = true;
+
+                // For blockContent defaults, suggest the first BlockList/BlockGrid property
+                if (popularDefault.SourceType == "blockContent")
+                {
+                    var blockProperty = contentProperties
+                        .FirstOrDefault(p => BlockEditorAliases.Contains(p.PropertyEditorAlias));
+                    if (blockProperty is not null)
+                    {
+                        suggestion.SuggestedContentTypePropertyAlias = blockProperty.Alias;
+                        suggestion.EditorAlias = blockProperty.PropertyEditorAlias;
+                    }
+                }
             }
             else if (schemaProp.IsComplexType)
             {

@@ -28,14 +28,29 @@ public class BlockContentResolver : IPropertyValueResolver
         if (blockItems is null || !blockItems.Any())
             return null;
 
-        var nestedSchemaTypeName = context.Mapping.NestedSchemaTypeName;
-        if (string.IsNullOrEmpty(nestedSchemaTypeName))
-            return null;
-
         if (context.RecursionDepth >= context.MaxRecursionDepth)
             return null;
 
         var resolverConfig = ParseResolverConfig(context.Mapping.ResolverConfig);
+
+        // String extraction mode: return List<string> from block items (e.g., recipeIngredient)
+        if (resolverConfig?.ExtractAs == "stringList" && !string.IsNullOrEmpty(resolverConfig.ContentProperty))
+        {
+            var strings = new List<string>();
+            foreach (var blockContent in blockItems)
+            {
+                var rawValue = SchemaPropertySetter.ResolveElementPropertyValue(
+                    blockContent, resolverConfig.ContentProperty, context.HttpContextAccessor);
+                if (rawValue is string s && !string.IsNullOrEmpty(s))
+                    strings.Add(s);
+            }
+            return strings.Count > 0 ? strings : null;
+        }
+
+        var nestedSchemaTypeName = context.Mapping.NestedSchemaTypeName;
+        if (string.IsNullOrEmpty(nestedSchemaTypeName))
+            return null;
+
         var things = new List<Thing>();
 
         foreach (var blockContent in blockItems)
@@ -171,6 +186,17 @@ public class BlockContentResolver : IPropertyValueResolver
 public class ResolverConfigModel
 {
     public List<NestedPropertyMapping>? NestedMappings { get; set; }
+
+    /// <summary>
+    /// When set to "stringList", block items are extracted as strings instead of Things.
+    /// Used for properties like recipeIngredient that expect string arrays.
+    /// </summary>
+    public string? ExtractAs { get; set; }
+
+    /// <summary>
+    /// The block element property alias to read when using string extraction mode.
+    /// </summary>
+    public string? ContentProperty { get; set; }
 }
 
 /// <summary>
