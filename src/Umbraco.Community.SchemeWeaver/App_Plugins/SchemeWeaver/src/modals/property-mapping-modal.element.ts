@@ -77,7 +77,10 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       );
 
       if (suggestions && Array.isArray(suggestions)) {
-        this._mappings = suggestions.map(suggestionToRow);
+        // Only show suggestions that have an actual match or popular default
+        this._mappings = suggestions
+          .filter(s => s.confidence > 0 || s.suggestedContentTypePropertyAlias || s.suggestedResolverConfig)
+          .map(suggestionToRow);
       }
 
       const props = await this.#repository.requestContentTypeProperties(this.data?.contentTypeAlias || '');

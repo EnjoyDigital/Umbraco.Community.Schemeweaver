@@ -251,7 +251,10 @@ export class SchemaMappingViewElement extends UmbLitElement {
       );
 
       if (suggestions && Array.isArray(suggestions)) {
-        this._rows = suggestions.map(suggestionToRow);
+        // Only show suggestions that have an actual match or popular default
+        this._rows = suggestions
+          .filter(s => s.confidence > 0 || s.suggestedContentTypePropertyAlias || s.suggestedResolverConfig)
+          .map(suggestionToRow);
       }
     } catch (error) {
       console.error('SchemeWeaver: Auto-map error:', error);
@@ -273,17 +276,24 @@ export class SchemaMappingViewElement extends UmbLitElement {
       const dto: SchemaMappingDto = {
         ...this._mapping,
         contentTypeKey: this._contentTypeKey || this._mapping.contentTypeKey,
-        propertyMappings: this._rows.map((row) => ({
-          schemaPropertyName: row.schemaPropertyName,
-          sourceType: row.sourceType,
-          contentTypePropertyAlias: row.contentTypePropertyAlias || null,
-          sourceContentTypeAlias: row.sourceContentTypeAlias || null,
-          transformType: null,
-          isAutoMapped: row.confidence !== null,
-          staticValue: row.staticValue || null,
-          nestedSchemaTypeName: row.nestedSchemaTypeName || null,
-          resolverConfig: row.resolverConfig,
-        })),
+        propertyMappings: this._rows
+          .filter((row) => {
+            if (row.sourceType === 'static') return !!row.staticValue;
+            if (row.sourceType === 'complexType') return !!row.resolverConfig;
+            if (row.sourceType === 'blockContent') return !!row.contentTypePropertyAlias;
+            return !!row.contentTypePropertyAlias;
+          })
+          .map((row) => ({
+            schemaPropertyName: row.schemaPropertyName,
+            sourceType: row.sourceType,
+            contentTypePropertyAlias: row.contentTypePropertyAlias || null,
+            sourceContentTypeAlias: row.sourceContentTypeAlias || null,
+            transformType: null,
+            isAutoMapped: row.confidence !== null,
+            staticValue: row.staticValue || null,
+            nestedSchemaTypeName: row.nestedSchemaTypeName || null,
+            resolverConfig: row.resolverConfig,
+          })),
       };
       await this.#repository.saveMapping(dto);
       this.#notificationContext?.peek('positive', {
