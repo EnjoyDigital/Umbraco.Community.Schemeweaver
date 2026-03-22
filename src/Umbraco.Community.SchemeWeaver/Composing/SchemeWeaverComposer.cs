@@ -33,6 +33,7 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<IPropertyValueResolver, RichTextResolver>();
         builder.Services.AddScoped<IPropertyValueResolver, ContentPickerResolver>();
         builder.Services.AddScoped<IPropertyValueResolver, BlockContentResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, BuiltInPropertyResolver>();
         builder.Services.AddScoped<IPropertyValueResolverFactory, PropertyValueResolverFactory>();
     }
 }

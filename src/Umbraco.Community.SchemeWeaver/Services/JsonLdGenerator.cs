@@ -116,6 +116,24 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
             return null;
 
+        // Built-in properties (URL, Name, dates) bypass GetProperty() — resolve directly
+        if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
+        {
+            var builtInResolver = _resolverFactory.GetResolver(SchemeWeaverConstants.BuiltInProperties.EditorAlias);
+            var builtInContext = new PropertyResolverContext
+            {
+                Content = targetNode,
+                Mapping = propMapping,
+                PropertyAlias = propMapping.ContentTypePropertyAlias,
+                SchemaTypeRegistry = _registry,
+                MappingRepository = _repository,
+                HttpContextAccessor = _httpContextAccessor,
+                Property = null,
+                RecursionDepth = 0
+            };
+            return builtInResolver.Resolve(builtInContext);
+        }
+
         // Get the property and its editor alias
         var publishedProperty = targetNode.GetProperty(propMapping.ContentTypePropertyAlias);
         if (publishedProperty is null)
@@ -253,10 +271,14 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 continue;
             }
 
-            if (!string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias)
-                && node.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
+            if (!string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
             {
-                return node;
+                // Built-in properties always exist on content nodes
+                if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
+                    return node;
+
+                if (node.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
+                    return node;
             }
         }
 
@@ -281,10 +303,14 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 continue;
             }
 
-            if (!string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias)
-                && sibling.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
+            if (!string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
             {
-                return sibling;
+                // Built-in properties always exist on content nodes
+                if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
+                    return sibling;
+
+                if (sibling.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
+                    return sibling;
             }
         }
 

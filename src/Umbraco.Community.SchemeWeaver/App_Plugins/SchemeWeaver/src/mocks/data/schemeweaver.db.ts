@@ -356,12 +356,21 @@ class SchemeWeaverMockDb {
   }
 
   getContentTypeProperties(alias: string): Array<{ alias: string; name: string; editorAlias: string; description: string }> {
-    return this._contentTypes.find((ct) => ct.alias === alias)?.properties?.map((p) => ({
+    const customProps = this._contentTypes.find((ct) => ct.alias === alias)?.properties?.map((p) => ({
       alias: p.alias,
       name: p.alias.charAt(0).toUpperCase() + p.alias.slice(1).replace(/([A-Z])/g, ' $1'),
       editorAlias: p.editorAlias,
       description: '',
     })) || [];
+
+    const builtInProps = [
+      { alias: '__url', name: 'URL', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
+      { alias: '__name', name: 'Name', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
+      { alias: '__createDate', name: 'Create Date', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
+      { alias: '__updateDate', name: 'Update Date', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
+    ];
+
+    return [...customProps, ...builtInProps];
   }
 
   /** Get editor alias for a content type property */
@@ -479,18 +488,57 @@ class SchemeWeaverMockDb {
         };
       }
 
+      if (matchedProp) {
+        return {
+          schemaPropertyName: prop.name,
+          schemaPropertyType: prop.propertyType,
+          suggestedContentTypePropertyAlias: matchedProp.alias,
+          suggestedSourceType: 'property',
+          confidence: 80,
+          isAutoMapped: true,
+          editorAlias: matchedProp.editorAlias,
+          acceptedTypes: prop.acceptedTypes,
+          isComplexType: prop.isComplexType,
+        };
+      }
+
+      // Built-in property fallback for URL/name/date schema properties
+      const builtInAlias = this._tryMatchBuiltIn(prop.name, prop.propertyType);
+      if (builtInAlias) {
+        return {
+          schemaPropertyName: prop.name,
+          schemaPropertyType: prop.propertyType,
+          suggestedContentTypePropertyAlias: builtInAlias,
+          suggestedSourceType: 'property',
+          confidence: 70,
+          isAutoMapped: true,
+          editorAlias: 'SchemeWeaver.BuiltIn',
+          acceptedTypes: prop.acceptedTypes,
+          isComplexType: prop.isComplexType,
+        };
+      }
+
       return {
         schemaPropertyName: prop.name,
         schemaPropertyType: prop.propertyType,
-        suggestedContentTypePropertyAlias: matchedProp?.alias || null,
+        suggestedContentTypePropertyAlias: null,
         suggestedSourceType: 'property',
-        confidence: matchedProp ? 80 : 30,
-        isAutoMapped: !!matchedProp,
-        editorAlias: matchedProp?.editorAlias || null,
+        confidence: 30,
+        isAutoMapped: false,
+        editorAlias: null,
         acceptedTypes: prop.acceptedTypes,
         isComplexType: prop.isComplexType,
       };
     });
+  }
+
+  private _tryMatchBuiltIn(schemaPropertyName: string, propertyType: string): string | null {
+    const name = schemaPropertyName.toLowerCase();
+    if (name === 'url' || propertyType?.toLowerCase().includes('url')) return '__url';
+    if (name === 'name') return '__name';
+    if (name === 'datemodified') return '__updateDate';
+    if (name === 'datepublished' || name === 'datecreated') return '__createDate';
+    return null;
   }
 
   preview(alias: string): JsonLdPreviewResponse {

@@ -221,6 +221,21 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 continue;
             }
 
+            // Built-in property auto-mapping (URL, Name, dates) as fallback when no custom property matched
+            if (!schemaProp.IsComplexType)
+            {
+                var builtInAlias = TryMatchBuiltInProperty(schemaProp);
+                if (builtInAlias is not null)
+                {
+                    suggestion.SuggestedContentTypePropertyAlias = builtInAlias;
+                    suggestion.EditorAlias = SchemeWeaverConstants.BuiltInProperties.EditorAlias;
+                    suggestion.Confidence = 70;
+                    suggestion.IsAutoMapped = true;
+                    suggestions.Add(suggestion);
+                    continue;
+                }
+            }
+
             // No content property match — check for complex type defaults
             if (schemaProp.IsComplexType && hasPopularDefault)
             {
@@ -323,6 +338,32 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             !string.Equals(t, "Integer", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(t, "Float", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(t, "Duration", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Attempts to match a schema property to a built-in IPublishedContent member.
+    /// Returns the built-in alias (e.g. "__url") or null if no match.
+    /// </summary>
+    private static string? TryMatchBuiltInProperty(SchemaPropertyInfo schemaProp)
+    {
+        // URL schema properties → content URL
+        if (string.Equals(schemaProp.Name, "url", StringComparison.OrdinalIgnoreCase)
+            || schemaProp.PropertyType?.Contains("URL", StringComparison.OrdinalIgnoreCase) == true)
+            return SchemeWeaverConstants.BuiltInProperties.Url;
+
+        // name → content name (only if no custom property matched)
+        if (string.Equals(schemaProp.Name, "name", StringComparison.OrdinalIgnoreCase))
+            return SchemeWeaverConstants.BuiltInProperties.Name;
+
+        // Date properties → built-in dates
+        if (string.Equals(schemaProp.Name, "dateModified", StringComparison.OrdinalIgnoreCase))
+            return SchemeWeaverConstants.BuiltInProperties.UpdateDate;
+
+        if (string.Equals(schemaProp.Name, "datePublished", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(schemaProp.Name, "dateCreated", StringComparison.OrdinalIgnoreCase))
+            return SchemeWeaverConstants.BuiltInProperties.CreateDate;
+
+        return null;
     }
 
     /// <summary>

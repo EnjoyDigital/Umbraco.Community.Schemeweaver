@@ -91,7 +91,7 @@ public class SchemeWeaverApiController : ControllerBase
         var contentType = _contentTypeService.Get(alias);
         if (contentType == null) return NotFound();
 
-        var properties = contentType.PropertyTypes.Select(pt => new
+        var customProperties = contentType.PropertyTypes.Select(pt => new
         {
             pt.Alias,
             pt.Name,
@@ -99,7 +99,15 @@ public class SchemeWeaverApiController : ControllerBase
             pt.Description
         });
 
-        return Ok(properties);
+        var builtInProperties = SchemeWeaverConstants.BuiltInProperties.All.Select(bp => new
+        {
+            Alias = bp.Alias,
+            Name = bp.DisplayName,
+            EditorAlias = bp.EditorAlias,
+            Description = (string?)null
+        });
+
+        return Ok(customProperties.Concat(builtInProperties));
     }
 
     [HttpGet("content-types/{contentTypeAlias}/properties/{propertyAlias}/block-types")]

@@ -35,6 +35,19 @@ export interface PropertyMappingRow {
   sourceContentTypeProperties: string[];
 }
 
+/** Built-in property alias prefix and display name map */
+const BUILT_IN_DISPLAY_NAMES: Record<string, string> = {
+  '__url': 'URL (Built-in)',
+  '__name': 'Name (Built-in)',
+  '__createDate': 'Create Date (Built-in)',
+  '__updateDate': 'Update Date (Built-in)',
+};
+
+/** Returns a display-friendly name for a property alias, with built-in indicator */
+function formatPropertyName(alias: string): string {
+  return BUILT_IN_DISPLAY_NAMES[alias] ?? alias;
+}
+
 /** Editor aliases that support block content source type */
 const BLOCK_EDITOR_ALIASES = ['Umbraco.BlockList', 'Umbraco.BlockGrid'];
 
@@ -501,7 +514,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
             : html`<uui-select
                 label="Property"
                 .options=${this.availableProperties.map(p => ({
-                  name: p,
+                  name: formatPropertyName(p),
                   value: p,
                   selected: sub.contentTypePropertyAlias === p,
                 }))}
@@ -544,7 +557,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
           <uui-select
             label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
             .options=${this.availableProperties.map((p) => ({
-              name: p,
+              name: formatPropertyName(p),
               value: p,
               selected: mapping.contentTypePropertyAlias === p,
             }))}
@@ -577,7 +590,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
                 <uui-select
                   label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
                   .options=${(mapping.sourceContentTypeProperties || []).map((p) => ({
-                    name: p,
+                    name: formatPropertyName(p),
                     value: p,
                     selected: mapping.contentTypePropertyAlias === p,
                   }))}
@@ -609,7 +622,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
           <uui-select
             label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
             .options=${this.availableProperties.map((p) => ({
-              name: p,
+              name: formatPropertyName(p),
               value: p,
               selected: mapping.contentTypePropertyAlias === p,
             }))}

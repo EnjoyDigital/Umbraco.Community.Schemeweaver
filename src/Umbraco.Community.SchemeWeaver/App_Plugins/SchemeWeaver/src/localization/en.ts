@@ -86,6 +86,7 @@ export default {
     mediaPicker: 'Media',
     contentPicker: 'Picker',
     richText: 'Rich Text',
+    builtIn: 'Built-in',
     autoUrl: 'auto URL',
     nestedMappingCount: 'mappings',
     wrapInType: 'Wrap in Type',

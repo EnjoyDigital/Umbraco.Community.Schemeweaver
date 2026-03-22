@@ -956,5 +956,97 @@ public class SchemaAutoMapperTests
 
     #endregion
 
+    #region Built-in Property Auto-Mapping
+
+    [Fact]
+    public void SuggestMappings_UrlSchemaProperty_NoCustomMatch_SuggestsBuiltInUrl()
+    {
+        var contentType = CreateContentTypeWithProperties("title", "description");
+        _contentTypeService.Get("page").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("WebPage").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "url", PropertyType = "URL", AcceptedTypes = ["URL"] }
+        });
+
+        var result = _sut.SuggestMappings("page", "WebPage").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("__url");
+        result[0].EditorAlias.Should().Be(SchemeWeaverConstants.BuiltInProperties.EditorAlias);
+        result[0].Confidence.Should().Be(70);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SuggestMappings_CustomUrlProperty_PrefersCustomOverBuiltIn()
+    {
+        var contentType = CreateContentTypeWithProperties("url", "title");
+        _contentTypeService.Get("page").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("WebPage").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "url", PropertyType = "URL", AcceptedTypes = ["URL"] }
+        });
+
+        var result = _sut.SuggestMappings("page", "WebPage").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("url");
+        result[0].Confidence.Should().Be(100);
+    }
+
+    [Fact]
+    public void SuggestMappings_NameProperty_NoCustomMatch_SuggestsBuiltInName()
+    {
+        var contentType = CreateContentTypeWithProperties("bodyText");
+        _contentTypeService.Get("page").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Thing").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "name", PropertyType = "Text", AcceptedTypes = ["Text"] }
+        });
+
+        var result = _sut.SuggestMappings("page", "Thing").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("__name");
+        result[0].Confidence.Should().Be(70);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SuggestMappings_DateModified_NoCustomMatch_SuggestsBuiltInUpdateDate()
+    {
+        var contentType = CreateContentTypeWithProperties("title");
+        _contentTypeService.Get("page").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Article").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "dateModified", PropertyType = "Date", AcceptedTypes = ["Date"] }
+        });
+
+        var result = _sut.SuggestMappings("page", "Article").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("__updateDate");
+        result[0].Confidence.Should().Be(70);
+    }
+
+    [Fact]
+    public void SuggestMappings_DatePublished_NoCustomMatch_SuggestsBuiltInCreateDate()
+    {
+        var contentType = CreateContentTypeWithProperties("title");
+        _contentTypeService.Get("page").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Article").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "datePublished", PropertyType = "Date", AcceptedTypes = ["Date"] }
+        });
+
+        var result = _sut.SuggestMappings("page", "Article").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("__createDate");
+        result[0].Confidence.Should().Be(70);
+    }
+
+    #endregion
+
     #endregion
 }

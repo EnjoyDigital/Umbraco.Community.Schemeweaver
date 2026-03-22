@@ -168,6 +168,8 @@ public class SchemeWeaverService : ISchemeWeaverService
                 "static" => pm.StaticValue,
                 "blockContent" => $"[BlockList: {pm.ContentTypePropertyAlias} → {pm.NestedSchemaTypeName}]",
                 "complexType" => $"[{pm.NestedSchemaTypeName}]",
+                _ when SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(pm.ContentTypePropertyAlias) =>
+                    GetBuiltInMockValue(pm.ContentTypePropertyAlias),
                 _ when !string.IsNullOrEmpty(pm.ContentTypePropertyAlias) => $"[{pm.ContentTypePropertyAlias}]",
                 _ => null
             };
@@ -181,6 +183,15 @@ public class SchemeWeaverService : ISchemeWeaverService
         response.IsValid = true;
         return response;
     }
+
+    private static string GetBuiltInMockValue(string? alias) => alias switch
+    {
+        SchemeWeaverConstants.BuiltInProperties.Url => "https://example.com/page-url",
+        SchemeWeaverConstants.BuiltInProperties.Name => "[Content Name]",
+        SchemeWeaverConstants.BuiltInProperties.CreateDate => "2024-01-15T10:30:00+00:00",
+        SchemeWeaverConstants.BuiltInProperties.UpdateDate => "2024-03-20T14:45:00+00:00",
+        _ => $"[{alias}]"
+    };
 
     public IEnumerable<SchemaTypeInfo> GetSchemaTypes() => _registry.GetAllTypes();
 
