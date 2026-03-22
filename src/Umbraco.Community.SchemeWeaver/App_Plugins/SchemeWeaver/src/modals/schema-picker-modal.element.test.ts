@@ -29,7 +29,7 @@ describe('SchemaPickerModalElement', () => {
     const el = await fixture(html`<schemeweaver-schema-picker-modal></schemeweaver-schema-picker-modal>`);
     await waitForLoad(el);
     const items = el.shadowRoot!.querySelectorAll('.schema-item');
-    expect(items.length).to.equal(17); // 17 schema types in mock DB
+    expect(items.length).to.equal(32); // 32 schema types in mock DB
   });
 
   it('groups schema types by parentTypeName', async () => {

@@ -956,6 +956,228 @@ public class SchemaAutoMapperTests
 
     #endregion
 
+    #region Expanded Schema Type Coverage
+
+    [Fact]
+    public void SuggestMappings_VideoThumbnail_SynonymMatch()
+    {
+        var contentType = CreateContentTypeWithProperties("thumbnail");
+        _contentTypeService.Get("video").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("VideoObject").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "thumbnailUrl", PropertyType = "URL" }
+        });
+
+        var result = _sut.SuggestMappings("video", "VideoObject").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("thumbnail");
+        result[0].Confidence.Should().Be(80);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SuggestMappings_JobEmploymentType_SynonymMatch()
+    {
+        var contentType = CreateContentTypeWithProperties("jobType");
+        _contentTypeService.Get("jobPosting").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("JobPosting").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "employmentType", PropertyType = "Text" }
+        });
+
+        var result = _sut.SuggestMappings("jobPosting", "JobPosting").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("jobType");
+        result[0].Confidence.Should().Be(80);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SuggestMappings_CourseCode_SynonymMatch()
+    {
+        var contentType = CreateContentTypeWithProperties("code");
+        _contentTypeService.Get("course").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Course").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "courseCode", PropertyType = "Text" }
+        });
+
+        var result = _sut.SuggestMappings("course", "Course").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("code");
+        result[0].Confidence.Should().Be(80);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SuggestMappings_BookIsbn_SynonymMatch()
+    {
+        var contentType = CreateContentTypeWithProperties("isbnNumber");
+        _contentTypeService.Get("book").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Book").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "isbn", PropertyType = "Text" }
+        });
+
+        var result = _sut.SuggestMappings("book", "Book").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("isbnNumber");
+        result[0].Confidence.Should().Be(80);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SuggestMappings_RestaurantCuisine_SynonymMatch()
+    {
+        var contentType = CreateContentTypeWithProperties("cuisineType");
+        _contentTypeService.Get("restaurant").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Restaurant").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "servesCuisine", PropertyType = "Text" }
+        });
+
+        var result = _sut.SuggestMappings("restaurant", "Restaurant").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("cuisineType");
+        result[0].Confidence.Should().Be(80);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void JobPosting_HiringOrganization_SuggestsOrganizationDefault()
+    {
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("jobPosting").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("JobPosting").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "hiringOrganization",
+                PropertyType = "Organization",
+                IsComplexType = true,
+                AcceptedTypes = ["Organization"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("jobPosting", "JobPosting").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedSourceType.Should().Be("complexType");
+        result[0].SuggestedNestedSchemaTypeName.Should().Be("Organization");
+        result[0].Confidence.Should().Be(60);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void HowTo_Step_SuggestsBlockContentWithResolverConfig()
+    {
+        var contentType = CreateContentTypeWithEditors(
+            ("howToSteps", "Umbraco.BlockList"));
+        _contentTypeService.Get("howTo").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("HowTo").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "step",
+                PropertyType = "HowToStep",
+                IsComplexType = true,
+                AcceptedTypes = ["HowToStep"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("howTo", "HowTo").ToList();
+
+        var step = result.First(s => s.SchemaPropertyName == "step");
+        step.SuggestedSourceType.Should().Be("blockContent");
+        step.SuggestedNestedSchemaTypeName.Should().Be("HowToStep");
+        step.SuggestedResolverConfig.Should().Contain("stepName");
+        step.SuggestedResolverConfig.Should().Contain("stepText");
+        step.SuggestedContentTypePropertyAlias.Should().Be("howToSteps");
+        step.IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Book_Author_SuggestsPersonDefault()
+    {
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("book").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Book").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "author",
+                PropertyType = "Person",
+                IsComplexType = true,
+                AcceptedTypes = ["Person"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("book", "Book").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedSourceType.Should().Be("complexType");
+        result[0].SuggestedNestedSchemaTypeName.Should().Be("Person");
+        result[0].Confidence.Should().Be(60);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SoftwareApplication_Offers_SuggestsOfferDefault()
+    {
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("softwareApp").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("SoftwareApplication").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "offers",
+                PropertyType = "Offer",
+                IsComplexType = true,
+                AcceptedTypes = ["Offer"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("softwareApp", "SoftwareApplication").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedSourceType.Should().Be("complexType");
+        result[0].SuggestedNestedSchemaTypeName.Should().Be("Offer");
+        result[0].Confidence.Should().Be(60);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Course_Provider_SuggestsOrganizationDefault()
+    {
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("course").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Course").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "provider",
+                PropertyType = "Organization",
+                IsComplexType = true,
+                AcceptedTypes = ["Organization"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("course", "Course").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedSourceType.Should().Be("complexType");
+        result[0].SuggestedNestedSchemaTypeName.Should().Be("Organization");
+        result[0].Confidence.Should().Be(60);
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    #endregion
+
     #region Built-in Property Auto-Mapping
 
     [Fact]

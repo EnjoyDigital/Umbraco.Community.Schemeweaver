@@ -1,18 +1,41 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Web.Common.PublishedModels
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
     Layout = "Master.cshtml";
 }
 <h1>@Model.Value("siteName")</h1>
-<p class="lead">@Model.Value("siteDescription")</p>
 
-@if (Model.HasValue("siteUrl"))
+@if (Model.HasValue("siteDescription"))
 {
-    <p><a href="@Model.Value("siteUrl")">@Model.Value("siteUrl")</a></p>
+    <p class="lead">@Model.Value("siteDescription")</p>
 }
 
-<h2>Our Pages</h2>
-@if (Model.Children != null)
+@if (Model.HasValue("organisationName") || Model.HasValue("organisationEmail") || Model.HasValue("organisationTelephone"))
+{
+    <div class="card">
+        <h2>Organisation</h2>
+        <dl>
+            @if (Model.HasValue("organisationName"))
+            {
+                <dt>Name</dt>
+                <dd>@Model.Value("organisationName")</dd>
+            }
+            @if (Model.HasValue("organisationEmail"))
+            {
+                <dt>Email</dt>
+                <dd><a href="mailto:@Model.Value("organisationEmail")">@Model.Value("organisationEmail")</a></dd>
+            }
+            @if (Model.HasValue("organisationTelephone"))
+            {
+                <dt>Telephone</dt>
+                <dd>@Model.Value("organisationTelephone")</dd>
+            }
+        </dl>
+    </div>
+}
+
+<h2>Explore Our Site</h2>
+@if (Model.Children != null && Model.Children.Any())
 {
     <div class="card-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
         @foreach (var child in Model.Children)

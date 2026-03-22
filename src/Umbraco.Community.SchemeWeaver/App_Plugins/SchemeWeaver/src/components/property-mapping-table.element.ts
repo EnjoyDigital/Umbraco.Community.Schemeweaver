@@ -175,9 +175,9 @@ export class PropertyMappingTableElement extends UmbLitElement {
     this._dispatchChange();
   }
 
-  /** Whether this source type requires picking a content type */
+  /** Whether this source type requires picking a content type (ancestor/sibling only — parent is implicit) */
   private _needsSourceContentType(sourceType: string): boolean {
-    return sourceType === 'parent' || sourceType === 'ancestor' || sourceType === 'sibling';
+    return sourceType === 'ancestor' || sourceType === 'sibling';
   }
 
   private _handlePickSourceContentType(index: number) {

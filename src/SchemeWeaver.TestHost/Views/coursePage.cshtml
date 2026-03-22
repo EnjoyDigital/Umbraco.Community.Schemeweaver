@@ -1,0 +1,67 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("courseImage"))
+{
+    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("courseImage")?.MediaUrl();
+    if (!string.IsNullOrEmpty(imageUrl))
+    {
+        <img src="@imageUrl" alt="@Model.Value("title")" />
+    }
+}
+
+<div class="card">
+    <h2>Course Details</h2>
+    <dl>
+        @if (Model.HasValue("courseCode"))
+        {
+            <dt>Course Code</dt>
+            <dd>@Model.Value("courseCode")</dd>
+        }
+        @if (Model.HasValue("provider"))
+        {
+            <dt>Provider</dt>
+            <dd>@Model.Value("provider")</dd>
+        }
+        @if (Model.HasValue("duration"))
+        {
+            <dt>Duration</dt>
+            <dd>@Model.Value("duration")</dd>
+        }
+        @if (Model.HasValue("startDate"))
+        {
+            <dt>Start Date</dt>
+            <dd>@(((DateTime)Model.Value("startDate")).ToString("d MMMM yyyy"))</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("price"))
+{
+    <div class="card">
+        <p style="font-size: 1.5rem; font-weight: 700;">
+            @if (Model.HasValue("currency"))
+            {
+                @Model.Value("currency")
+            }
+            @Model.Value("price")
+        </p>
+        <a href="#enrol" class="btn">Enrol Now</a>
+    </div>
+}
+
+@if (Model.HasValue("bodyText"))
+{
+    <div class="card">
+        @Model.Value("bodyText")
+    </div>
+}

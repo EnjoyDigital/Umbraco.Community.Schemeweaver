@@ -1,0 +1,85 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Core.Models.Blocks
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("softwareImage"))
+{
+    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("softwareImage")?.MediaUrl();
+    if (!string.IsNullOrEmpty(imageUrl))
+    {
+        <img src="@imageUrl" alt="@Model.Value("title")" />
+    }
+}
+
+<div class="card">
+    <h2>Software Details</h2>
+    <dl>
+        @if (Model.HasValue("applicationCategory"))
+        {
+            <dt>Category</dt>
+            <dd>@Model.Value("applicationCategory")</dd>
+        }
+        @if (Model.HasValue("operatingSystem"))
+        {
+            <dt>Operating System</dt>
+            <dd>@Model.Value("operatingSystem")</dd>
+        }
+        @if (Model.HasValue("softwareVersion"))
+        {
+            <dt>Version</dt>
+            <dd>@Model.Value("softwareVersion")</dd>
+        }
+        @if (Model.HasValue("downloadUrl"))
+        {
+            <dt>Download</dt>
+            <dd><a href="@Model.Value("downloadUrl")" class="btn">Download</a></dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("price") || Model.HasValue("currency"))
+{
+    <div class="card">
+        <h2>Pricing</h2>
+        <p style="font-size: 1.5rem; font-weight: 700;">
+            @if (Model.HasValue("currency"))
+            {
+                @Model.Value("currency")
+            }
+            @Model.Value("price")
+        </p>
+    </div>
+}
+
+@if (Model.HasValue("bodyText"))
+{
+    <div class="card">
+        @Model.Value("bodyText")
+    </div>
+}
+
+@if (Model.HasValue("reviews"))
+{
+    <h2>Reviews</h2>
+    @foreach (var block in Model.Value<BlockListModel>("reviews"))
+    {
+        <div class="card review-card">
+            <strong>@block.Content.Value("reviewAuthor")</strong>
+            <span> &middot; Rating: @block.Content.Value("ratingValue")/5</span>
+            @if (block.Content.HasValue("reviewDate"))
+            {
+                <span> &middot; @(((DateTime)block.Content.Value("reviewDate")).ToString("d MMMM yyyy"))</span>
+            }
+            <p>@block.Content.Value("reviewBody")</p>
+        </div>
+    }
+}

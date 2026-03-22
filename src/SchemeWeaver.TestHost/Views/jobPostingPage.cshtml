@@ -1,0 +1,80 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Job Details</h2>
+    <dl>
+        @if (Model.HasValue("employmentType"))
+        {
+            <dt>Employment Type</dt>
+            <dd>@Model.Value("employmentType")</dd>
+        }
+        @if (Model.HasValue("baseSalary"))
+        {
+            <dt>Salary</dt>
+            <dd>@Model.Value("baseSalary")</dd>
+        }
+        @if (Model.HasValue("jobLocation"))
+        {
+            <dt>Location</dt>
+            <dd>@Model.Value("jobLocation")</dd>
+        }
+        @if (Model.HasValue("hiringOrganisation"))
+        {
+            <dt>Organisation</dt>
+            <dd>@Model.Value("hiringOrganisation")</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("datePosted") || Model.HasValue("validThrough"))
+{
+    <div class="card">
+        <dl>
+            @if (Model.HasValue("datePosted"))
+            {
+                <dt>Date Posted</dt>
+                <dd>@(((DateTime)Model.Value("datePosted")).ToString("d MMMM yyyy"))</dd>
+            }
+            @if (Model.HasValue("validThrough"))
+            {
+                <dt>Closing Date</dt>
+                <dd>@(((DateTime)Model.Value("validThrough")).ToString("d MMMM yyyy"))</dd>
+            }
+        </dl>
+    </div>
+}
+
+@if (Model.HasValue("qualifications"))
+{
+    <div class="card">
+        <h2>Qualifications</h2>
+        <ul class="ingredient-list">
+            @foreach (var qual in Model.Value("qualifications").ToString().Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                <li>@qual</li>
+            }
+        </ul>
+    </div>
+}
+
+@if (Model.HasValue("bodyText"))
+{
+    <div class="card">
+        @Model.Value("bodyText")
+    </div>
+}
+
+@if (Model.HasValue("applicationUrl"))
+{
+    <a href="@Model.Value("applicationUrl")" class="btn">Apply Now</a>
+}

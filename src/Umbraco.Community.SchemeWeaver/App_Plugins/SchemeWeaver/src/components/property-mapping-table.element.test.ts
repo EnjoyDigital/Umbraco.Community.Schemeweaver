@@ -89,23 +89,24 @@ describe('PropertyMappingTableElement', () => {
     // The row is unmapped (no alias set) so it's in the unmapped section by default
   });
 
-  it('dispatches pick-source-content-type event for parent source type', async () => {
+  it('shows property dropdown directly for parent source type (no picker required)', async () => {
     const parentMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'parent', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
-    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${parentMapping} .availableProperties=${['title']}></schemeweaver-property-mapping-table>`);
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${parentMapping} .availableProperties=${['title', '__url']}></schemeweaver-property-mapping-table>`);
 
     // Show unmapped rows first
     const toggleButton = el.shadowRoot!.querySelector('.unmapped-toggle uui-button') as HTMLElement;
     toggleButton?.click();
     await el.updateComplete;
 
-    let eventFired = false;
-    el.addEventListener('pick-source-content-type', () => { eventFired = true; });
-
+    // Parent should show a property select dropdown, not a picker button
     const pickButton = el.shadowRoot!.querySelector('uui-button[look="placeholder"]') as HTMLElement;
-    pickButton?.click();
-    expect(eventFired).to.be.true;
+    expect(pickButton).to.be.null;
+
+    // Should have a property select dropdown visible
+    const selects = el.shadowRoot!.querySelectorAll('uui-select');
+    expect(selects.length).to.be.greaterThan(0);
   });
 
   it('dispatches mappings-changed event on source type change', async () => {

@@ -1,0 +1,77 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("bookImage"))
+{
+    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("bookImage")?.MediaUrl();
+    if (!string.IsNullOrEmpty(imageUrl))
+    {
+        <img src="@imageUrl" alt="@Model.Value("title")" style="max-width: 300px;" />
+    }
+}
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Book Details</h2>
+    <dl>
+        @if (Model.HasValue("authorName"))
+        {
+            <dt>Author</dt>
+            <dd>@Model.Value("authorName")</dd>
+        }
+        @if (Model.HasValue("isbn"))
+        {
+            <dt>ISBN</dt>
+            <dd>@Model.Value("isbn")</dd>
+        }
+        @if (Model.HasValue("bookFormat"))
+        {
+            <dt>Format</dt>
+            <dd>@Model.Value("bookFormat")</dd>
+        }
+        @if (Model.HasValue("numberOfPages"))
+        {
+            <dt>Pages</dt>
+            <dd>@Model.Value("numberOfPages")</dd>
+        }
+        @if (Model.HasValue("publisher"))
+        {
+            <dt>Publisher</dt>
+            <dd>@Model.Value("publisher")</dd>
+        }
+        @if (Model.HasValue("datePublished"))
+        {
+            <dt>Published</dt>
+            <dd>@(((DateTime)Model.Value("datePublished")).ToString("d MMMM yyyy"))</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("price"))
+{
+    <div class="card">
+        <h2>Price</h2>
+        <p style="font-size: 1.5rem; font-weight: 700;">
+            @if (Model.HasValue("currency"))
+            {
+                @Model.Value("currency")
+            }
+            @Model.Value("price")
+        </p>
+    </div>
+}
+
+@if (Model.HasValue("bodyText"))
+{
+    <div class="card">
+        @Model.Value("bodyText")
+    </div>
+}

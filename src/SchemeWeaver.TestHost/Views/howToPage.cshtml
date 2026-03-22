@@ -1,0 +1,76 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Core.Models.Blocks
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("heroImage"))
+{
+    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage")?.MediaUrl();
+    if (!string.IsNullOrEmpty(imageUrl))
+    {
+        <img src="@imageUrl" alt="@Model.Value("title")" class="featured-image" />
+    }
+}
+
+@if (Model.HasValue("totalTime") || Model.HasValue("estimatedCost"))
+{
+    <div class="meta-grid">
+        @if (Model.HasValue("totalTime"))
+        {
+            <div class="meta-item">
+                <div class="label">Total Time</div>
+                <div class="value">@Model.Value("totalTime")</div>
+            </div>
+        }
+        @if (Model.HasValue("estimatedCost"))
+        {
+            <div class="meta-item">
+                <div class="label">Estimated Cost</div>
+                <div class="value">@Model.Value("estimatedCost")</div>
+            </div>
+        }
+    </div>
+}
+
+@if (Model.HasValue("steps"))
+{
+    <div class="card">
+        <h2>Steps</h2>
+        <ol class="instruction-list">
+            @foreach (var block in Model.Value<BlockListModel>("steps"))
+            {
+                <li>
+                    @if (block.Content.HasValue("stepName"))
+                    {
+                        <h3>@block.Content.Value("stepName")</h3>
+                    }
+                    @if (block.Content.HasValue("stepText"))
+                    {
+                        <p>@block.Content.Value("stepText")</p>
+                    }
+                </li>
+            }
+        </ol>
+    </div>
+}
+
+@if (Model.HasValue("tools"))
+{
+    <div class="card">
+        <h2>Tools Required</h2>
+        <ul class="ingredient-list">
+            @foreach (var block in Model.Value<BlockListModel>("tools"))
+            {
+                <li>@block.Content.Value("toolName")</li>
+            }
+        </ul>
+    </div>
+}

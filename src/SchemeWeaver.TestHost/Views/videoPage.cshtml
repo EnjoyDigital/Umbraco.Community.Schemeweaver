@@ -1,0 +1,47 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("embedUrl"))
+{
+    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; margin-bottom: 1.5rem;">
+        <iframe src="@Model.Value("embedUrl")" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
+    </div>
+}
+else if (Model.HasValue("thumbnailUrl"))
+{
+    var thumbUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("thumbnailUrl")?.MediaUrl();
+    if (!string.IsNullOrEmpty(thumbUrl))
+    {
+        <img src="@thumbUrl" alt="@Model.Value("title")" class="featured-image" />
+    }
+}
+
+<div class="card">
+    <h2>Video Details</h2>
+    <dl>
+        @if (Model.HasValue("uploadDate"))
+        {
+            <dt>Upload Date</dt>
+            <dd>@(((DateTime)Model.Value("uploadDate")).ToString("d MMMM yyyy"))</dd>
+        }
+        @if (Model.HasValue("duration"))
+        {
+            <dt>Duration</dt>
+            <dd>@Model.Value("duration")</dd>
+        }
+        @if (Model.HasValue("contentUrl"))
+        {
+            <dt>Video URL</dt>
+            <dd><a href="@Model.Value("contentUrl")">@Model.Value("contentUrl")</a></dd>
+        }
+    </dl>
+</div>

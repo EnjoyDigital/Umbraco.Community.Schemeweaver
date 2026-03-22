@@ -1,4 +1,4 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Web.Common.PublishedModels
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
     Layout = "Master.cshtml";
@@ -6,29 +6,37 @@
 <article>
     <h1>@Model.Value("title")</h1>
     <div style="color: #6b7280; margin-bottom: 1.5rem;">
+        @if (Model.HasValue("dateline"))
+        {
+            <span>@Model.Value("dateline")</span>
+        }
         @if (Model.HasValue("authorName"))
         {
-            <span>By @Model.Value("authorName")</span>
+            <span> &middot; By @Model.Value("authorName")</span>
         }
         @if (Model.HasValue("publishDate"))
         {
             <span> &middot; @(((DateTime)Model.Value("publishDate")).ToString("d MMMM yyyy"))</span>
         }
     </div>
-    @{
-        var featuredImage = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("featuredImage");
-    }
-    @if (featuredImage != null)
+    @if (Model.HasValue("featuredImage"))
     {
-        <img src="@featuredImage.MediaUrl()" alt="@Model.Value("title")" class="featured-image" />
+        var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("featuredImage")?.MediaUrl();
+        if (!string.IsNullOrEmpty(imageUrl))
+        {
+            <img src="@imageUrl" alt="@Model.Value("title")" class="featured-image" />
+        }
     }
     @if (Model.HasValue("description"))
     {
-        <p class="lead" style="font-size: 1.15rem; color: #4b5563;">@Model.Value("description")</p>
+        <p class="lead">@Model.Value("description")</p>
     }
-    <div class="card">
-        @Model.Value("bodyText")
-    </div>
+    @if (Model.HasValue("bodyText"))
+    {
+        <div class="card">
+            @Model.Value("bodyText")
+        </div>
+    }
     @if (Model.HasValue("keywords"))
     {
         <div class="tag-list">

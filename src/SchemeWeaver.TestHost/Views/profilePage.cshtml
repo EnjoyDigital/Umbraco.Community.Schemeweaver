@@ -1,0 +1,67 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("profileImage"))
+{
+    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("profileImage")?.MediaUrl();
+    if (!string.IsNullOrEmpty(imageUrl))
+    {
+        <img src="@imageUrl" alt="@Model.Value("title")" style="max-width: 300px; border-radius: 50%;" />
+    }
+}
+
+<div class="card">
+    <h2>Person Details</h2>
+    <dl>
+        @if (Model.HasValue("givenName"))
+        {
+            <dt>Given Name</dt>
+            <dd>@Model.Value("givenName")</dd>
+        }
+        @if (Model.HasValue("familyName"))
+        {
+            <dt>Family Name</dt>
+            <dd>@Model.Value("familyName")</dd>
+        }
+        @if (Model.HasValue("jobTitle"))
+        {
+            <dt>Job Title</dt>
+            <dd>@Model.Value("jobTitle")</dd>
+        }
+        @if (Model.HasValue("email"))
+        {
+            <dt>Email</dt>
+            <dd><a href="mailto:@Model.Value("email")">@Model.Value("email")</a></dd>
+        }
+        @if (Model.HasValue("worksFor"))
+        {
+            <dt>Works For</dt>
+            <dd>@Model.Value("worksFor")</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("sameAs"))
+{
+    <div class="card">
+        <h2>Social Links</h2>
+        <ul class="ingredient-list">
+            @foreach (var link in Model.Value("sameAs").ToString().Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                <li><a href="@link">@link</a></li>
+            }
+        </ul>
+    </div>
+}
+
+@if (Model.HasValue("description"))
+{
+    <div class="card">
+        <h2>About</h2>
+        <p>@Model.Value("description")</p>
+    </div>
+}

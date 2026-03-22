@@ -34,7 +34,7 @@ describe('SchemaMappingsDashboardElement', () => {
     const el = await fixture(html`<schemeweaver-schema-mappings-dashboard></schemeweaver-schema-mappings-dashboard>`);
     await waitForLoad(el);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    expect(rows.length).to.equal(6); // blogArticle, faqPage, productPage, contactPage, eventPage, recipePage
+    expect(rows.length).to.equal(23); // all content types in mock DB
   });
 
   it('shows Mapped badge for mapped content type', async () => {
@@ -90,6 +90,6 @@ describe('SchemaMappingsDashboardElement', () => {
     await (el as any).updateComplete;
 
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    expect(rows.length).to.equal(1);
+    expect(rows.length).to.equal(2); // blogArticle + blogListing
   });
 });

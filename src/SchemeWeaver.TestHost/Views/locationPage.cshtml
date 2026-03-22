@@ -1,0 +1,112 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@using Umbraco.Cms.Core.Models.Blocks
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("locationImage"))
+{
+    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("locationImage")?.MediaUrl();
+    if (!string.IsNullOrEmpty(imageUrl))
+    {
+        <img src="@imageUrl" alt="@Model.Value("title")" />
+    }
+}
+
+@if (Model.HasValue("telephone") || Model.HasValue("email"))
+{
+    <div class="card">
+        <h2>Contact</h2>
+        <dl>
+            @if (Model.HasValue("telephone"))
+            {
+                <dt>Telephone</dt>
+                <dd>@Model.Value("telephone")</dd>
+            }
+            @if (Model.HasValue("email"))
+            {
+                <dt>Email</dt>
+                <dd><a href="mailto:@Model.Value("email")">@Model.Value("email")</a></dd>
+            }
+        </dl>
+    </div>
+}
+
+<div class="card">
+    <h2>Address</h2>
+    <dl>
+        @if (Model.HasValue("streetAddress"))
+        {
+            <dt>Street</dt>
+            <dd>@Model.Value("streetAddress")</dd>
+        }
+        @if (Model.HasValue("addressLocality"))
+        {
+            <dt>Locality</dt>
+            <dd>@Model.Value("addressLocality")</dd>
+        }
+        @if (Model.HasValue("addressRegion"))
+        {
+            <dt>Region</dt>
+            <dd>@Model.Value("addressRegion")</dd>
+        }
+        @if (Model.HasValue("postalCode"))
+        {
+            <dt>Post Code</dt>
+            <dd>@Model.Value("postalCode")</dd>
+        }
+        @if (Model.HasValue("addressCountry"))
+        {
+            <dt>Country</dt>
+            <dd>@Model.Value("addressCountry")</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("latitude") || Model.HasValue("longitude"))
+{
+    <div class="card">
+        <h2>Coordinates</h2>
+        <dl>
+            @if (Model.HasValue("latitude"))
+            {
+                <dt>Latitude</dt>
+                <dd>@Model.Value("latitude")</dd>
+            }
+            @if (Model.HasValue("longitude"))
+            {
+                <dt>Longitude</dt>
+                <dd>@Model.Value("longitude")</dd>
+            }
+        </dl>
+    </div>
+}
+
+@if (Model.HasValue("openingHours"))
+{
+    <div class="card">
+        <h2>Opening Hours</h2>
+        @foreach (var block in Model.Value<BlockListModel>("openingHours"))
+        {
+            <p>
+                <strong>@block.Content.Value("dayOfWeek")</strong>:
+                @block.Content.Value("opens") &ndash; @block.Content.Value("closes")
+            </p>
+        }
+    </div>
+}
+
+@if (Model.HasValue("priceRange"))
+{
+    <div class="card">
+        <h2>Price Range</h2>
+        <p style="font-size: 1.25rem; font-weight: 600;">@Model.Value("priceRange")</p>
+    </div>
+}

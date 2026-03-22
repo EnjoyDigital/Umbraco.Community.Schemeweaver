@@ -99,6 +99,56 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["familyName"] = ["familyName", "lastName", "surname"],
         ["jobTitle"] = ["jobTitle", "role", "position", "title"],
         ["worksFor"] = ["worksFor", "employer", "company", "organisation"],
+
+        // Video
+        ["thumbnailUrl"] = ["thumbnail", "thumbnailImage", "videoThumbnail", "posterImage"],
+        ["uploadDate"] = ["uploadDate", "videoDate", "dateUploaded"],
+        ["duration"] = ["duration", "videoLength", "length", "runtime"],
+        ["contentUrl"] = ["contentUrl", "videoUrl", "videoFile", "mediaUrl"],
+        ["embedUrl"] = ["embedUrl", "embedCode", "videoEmbed"],
+
+        // Job Posting
+        ["datePosted"] = ["datePosted", "postingDate", "jobDate", "listedDate"],
+        ["validThrough"] = ["validThrough", "closingDate", "expiryDate", "deadline"],
+        ["employmentType"] = ["employmentType", "jobType", "contractType", "workType"],
+        ["hiringOrganization"] = ["hiringOrganization", "hiringOrganisation", "employer", "company"],
+        ["jobLocation"] = ["jobLocation", "workLocation", "office"],
+        ["baseSalary"] = ["salary", "baseSalary", "pay", "compensation"],
+        ["qualifications"] = ["qualifications", "requirements", "skills"],
+
+        // Course
+        ["courseCode"] = ["courseCode", "code", "referenceNumber"],
+        ["provider"] = ["provider", "institution", "school", "university"],
+
+        // Software
+        ["applicationCategory"] = ["applicationCategory", "category", "softwareCategory", "appCategory"],
+        ["operatingSystem"] = ["operatingSystem", "platform", "os", "systemRequirements"],
+        ["softwareVersion"] = ["softwareVersion", "version", "releaseVersion"],
+        ["downloadUrl"] = ["downloadUrl", "downloadLink", "download"],
+
+        // Book
+        ["isbn"] = ["isbn", "isbnNumber", "bookId"],
+        ["bookFormat"] = ["bookFormat", "format", "binding"],
+        ["numberOfPages"] = ["numberOfPages", "pageCount", "pages"],
+
+        // HowTo
+        ["step"] = ["steps", "instructions", "howToSteps"],
+        ["tool"] = ["tools", "equipment", "toolsNeeded"],
+        ["supply"] = ["supplies", "materials", "suppliesNeeded"],
+        ["estimatedCost"] = ["cost", "estimatedCost", "price"],
+
+        // Restaurant
+        ["servesCuisine"] = ["servesCuisine", "cuisineType", "cuisine", "foodType"],
+        ["menu"] = ["menu", "menuUrl", "menuLink"],
+        ["acceptsReservations"] = ["acceptsReservations", "reservations", "bookingAvailable"],
+
+        // Person (additional)
+        ["sameAs"] = ["sameAs", "socialLinks", "profiles", "socialMedia"],
+        ["alumniOf"] = ["alumniOf", "education", "university"],
+
+        // Organization (additional)
+        ["foundingDate"] = ["foundingDate", "founded", "established"],
+        ["numberOfEmployees"] = ["numberOfEmployees", "teamSize", "employees"],
     };
 
     /// <summary>
@@ -136,6 +186,45 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["LocalBusiness.address"] = new("complexType", "PostalAddress", null),
         ["LocalBusiness.openingHoursSpecification"] = new("blockContent", "OpeningHoursSpecification", null),
         ["LocalBusiness.geo"] = new("complexType", "GeoCoordinates", null),
+
+        // NewsArticle / TechArticle (inherit Article patterns)
+        ["NewsArticle.author"] = new("complexType", "Person", null),
+        ["NewsArticle.publisher"] = new("complexType", "Organization", null),
+        ["TechArticle.author"] = new("complexType", "Person", null),
+        ["TechArticle.publisher"] = new("complexType", "Organization", null),
+
+        // JobPosting
+        ["JobPosting.hiringOrganization"] = new("complexType", "Organization", null),
+        ["JobPosting.jobLocation"] = new("complexType", "Place", null),
+
+        // Course
+        ["Course.provider"] = new("complexType", "Organization", null),
+
+        // SoftwareApplication
+        ["SoftwareApplication.offers"] = new("complexType", "Offer", null),
+        ["SoftwareApplication.aggregateRating"] = new("complexType", "AggregateRating", null),
+        ["SoftwareApplication.author"] = new("complexType", "Organization", null),
+
+        // Book
+        ["Book.author"] = new("complexType", "Person", null),
+        ["Book.publisher"] = new("complexType", "Organization", null),
+        ["Book.offers"] = new("complexType", "Offer", null),
+
+        // HowTo
+        ["HowTo.step"] = new("blockContent", "HowToStep",
+            """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"stepName"},{"schemaProperty":"text","contentProperty":"stepText"}]}"""),
+        ["HowTo.tool"] = new("blockContent", null,
+            """{"extractAs":"stringList","contentProperty":"toolName"}"""),
+
+        // Restaurant (extends LocalBusiness)
+        ["Restaurant.address"] = new("complexType", "PostalAddress", null),
+        ["Restaurant.geo"] = new("complexType", "GeoCoordinates", null),
+
+        // WebSite
+        ["WebSite.publisher"] = new("complexType", "Organization", null),
+
+        // ProfilePage
+        ["ProfilePage.mainEntity"] = new("complexType", "Person", null),
     };
 
     public SchemaAutoMapper(IContentTypeService contentTypeService, ISchemaTypeRegistry schemaTypeRegistry)
