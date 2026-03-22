@@ -418,8 +418,7 @@ public class JsonLdGeneratorTests
         // Create block list items using Udi-based constructor
         var blockListItems = blockElements.Select(e =>
         {
-            var udi = Umbraco.Cms.Core.Udi.Create(Umbraco.Cms.Core.Constants.UdiEntityType.Element, Guid.NewGuid());
-            return new BlockListItem(udi, e, null, null);
+            return new BlockListItem(Guid.NewGuid(), e, null, null);
         }).ToList();
 
         var blockListModel = new BlockListModel(blockListItems);
@@ -912,8 +911,7 @@ public class JsonLdGeneratorTests
         // First block list: ingredients
         var ingredientBlockListItems = ingredients.Select(e =>
         {
-            var udi = Umbraco.Cms.Core.Udi.Create(Umbraco.Cms.Core.Constants.UdiEntityType.Element, Guid.NewGuid());
-            return new BlockListItem(udi, e, null, null);
+            return new BlockListItem(Guid.NewGuid(), e, null, null);
         }).ToList();
         var ingredientBlockListModel = new BlockListModel(ingredientBlockListItems);
 
@@ -927,8 +925,7 @@ public class JsonLdGeneratorTests
         // Second block list: instructions
         var instructionBlockListItems = instructions.Select(e =>
         {
-            var udi = Umbraco.Cms.Core.Udi.Create(Umbraco.Cms.Core.Constants.UdiEntityType.Element, Guid.NewGuid());
-            return new BlockListItem(udi, e, null, null);
+            return new BlockListItem(Guid.NewGuid(), e, null, null);
         }).ToList();
         var instructionBlockListModel = new BlockListModel(instructionBlockListItems);
 

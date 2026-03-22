@@ -18,7 +18,6 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Content Type generation** -- scaffold a new Umbraco document type from any Schema.org type, with properties pre-grouped into Content, SEO, and Metadata tabs
 - **Delivery API integration** -- JSON-LD is automatically indexed and available via the `schemaOrg` field in API responses
 - **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template to render the JSON-LD script tag
-- **CSP nonce support** -- add `nonce="@cspNonce"` or `nonce-data-attribute` to the tag helper for Content Security Policy protected sites
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages (e.g. Organisation schema on the homepage cascading site-wide)
 - **Automatic block traversal** -- BlockList/BlockGrid elements with their own schema mappings are automatically rendered as separate JSON-LD blocks, zero configuration needed
 - **BreadcrumbList auto-generation** -- a BreadcrumbList JSON-LD block is automatically generated from the content's ancestor hierarchy
@@ -129,15 +128,6 @@ In any Razor template or view:
 ```
 
 This renders `<script type="application/ld+json">` tags with the generated JSON-LD (main schema, BreadcrumbList, inherited ancestor schemas, and auto-discovered block element schemas). If the content type has no mapping or the mapping is disabled, nothing is rendered.
-
-For CSP-protected sites, add a nonce:
-
-```html
-<scheme-weaver content="@Model" nonce="@cspNonce" />
-
-@* Or use data-nonce attribute instead *@
-<scheme-weaver content="@Model" nonce="@cspNonce" nonce-data-attribute />
-```
 
 ### Option 2: Delivery API (headless sites)
 
