@@ -458,5 +458,5 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     /// <summary>
     /// Represents a pre-built default for a popular Schema.org type/property combination.
     /// </summary>
-    private sealed record PopularSchemaDefault(string SourceType, string NestedSchemaTypeName, string? ResolverConfig);
+    private sealed record PopularSchemaDefault(string SourceType, string? NestedSchemaTypeName, string? ResolverConfig);
 }

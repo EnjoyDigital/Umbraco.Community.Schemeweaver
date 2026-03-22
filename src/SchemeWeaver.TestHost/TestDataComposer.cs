@@ -38,6 +38,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private readonly IContentService _contentService;
     private readonly IContentPublishingService _contentPublishingService;
     private readonly IFileService _fileService;
+    private readonly ITemplateService _templateService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TestDataSeeder> _logger;
 
@@ -50,6 +51,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentService contentService,
         IContentPublishingService contentPublishingService,
         IFileService fileService,
+        ITemplateService templateService,
         IServiceScopeFactory scopeFactory,
         ILogger<TestDataSeeder> logger)
     {
@@ -61,6 +63,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         _contentService = contentService;
         _contentPublishingService = contentPublishingService;
         _fileService = fileService;
+        _templateService = templateService;
         _scopeFactory = scopeFactory;
         _logger = logger;
     }
@@ -341,10 +344,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         }, cancellationToken);
 
         // 3b. Create master template and assign templates to content types
-        if (_fileService.GetTemplate("master") is null)
+        if (await _templateService.GetAsync("master") is null)
         {
-            var masterTemplate = new Umbraco.Cms.Core.Models.Template(_shortStringHelper, "Master", "master");
-            _fileService.SaveTemplate(masterTemplate);
+            await _templateService.CreateAsync("Master", "master", null, Constants.Security.SuperUserKey);
             _logger.LogInformation("TestDataSeeder: Created master template");
         }
 
@@ -416,9 +418,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     /// </summary>
     private async Task<IContentType> CreateContentType(
         string alias, string name, string icon,
-        (string alias, string name, IDataType dataType)[] properties,
+        (string alias, string name, IDataType? dataType)[] properties,
         CancellationToken cancellationToken,
-        params (string alias, string name, IDataType dataType)[] extraProperties)
+        params (string alias, string name, IDataType? dataType)[] extraProperties)
     {
         var ct = new ContentType(_shortStringHelper, -1)
         {
@@ -432,6 +434,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         foreach (var (propAlias, propName, dataType) in properties)
         {
+            if (dataType is null) continue;
             ct.AddPropertyType(new PropertyType(_shortStringHelper, dataType)
             {
                 Alias = propAlias,
@@ -441,6 +444,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         foreach (var (propAlias, propName, dataType) in extraProperties)
         {
+            if (dataType is null) continue;
             ct.AddPropertyType(new PropertyType(_shortStringHelper, dataType)
             {
                 Alias = propAlias,
@@ -493,7 +497,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
     private async Task AssignTemplate(IContentType ct)
     {
-        var template = _fileService.GetTemplate(ct.Alias);
+        var template = await _templateService.GetAsync(ct.Alias);
 
         // Create the template if it doesn't exist (Umbraco stores templates in DB)
         if (template is null)
@@ -502,17 +506,17 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 @{{
     Layout = ""master.cshtml"";
 }}";
-            template = new Umbraco.Cms.Core.Models.Template(_shortStringHelper, ct.Name, ct.Alias)
-            {
-                Content = viewContent,
-            };
-            _fileService.SaveTemplate(template);
+            var result = await _templateService.CreateAsync(ct.Name ?? ct.Alias, ct.Alias, viewContent, Constants.Security.SuperUserKey);
+            template = result.Result;
             _logger.LogInformation("TestDataSeeder: Created template {Alias}", ct.Alias);
         }
 
-        ct.AllowedTemplates = new[] { template };
-        ct.SetDefaultTemplate(template);
-        _contentTypeService.Save(ct);
+        if (template is not null)
+        {
+            ct.AllowedTemplates = new[] { template };
+            ct.SetDefaultTemplate(template);
+        }
+        await _contentTypeService.UpdateAsync(ct, Constants.Security.SuperUserKey);
         _logger.LogInformation("TestDataSeeder: Assigned template {Alias} to {ContentType}", ct.Alias, ct.Name);
     }
 
