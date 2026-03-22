@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>Umbraco.Community.SchemeWeaver.uSync</PackageId>
+    <Description>uSync addon for SchemeWeaver - sync schema mappings between environments</Description>
+    <PackageTags>umbraco-marketplace umbraco-v17 usync</PackageTags>
+    <Version>1.0.0-beta</Version>
+    <Authors>Oliver Picton</Authors>
+    <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RootNamespace>Umbraco.Community.SchemeWeaver.uSync</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="uSync.Core" Version="17.0.4" />
+  </ItemGroup>
+
+</Project>

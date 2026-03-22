@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -23,6 +24,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     private readonly IDocumentNavigationQueryService _navigationQueryService;
     private readonly IPublishedContentStatusFilteringService _publishedStatusFilteringService;
     private readonly IPropertyValueResolverFactory _resolverFactory;
+    private readonly IPublishedUrlProvider _urlProvider;
     private readonly ILogger<JsonLdGenerator> _logger;
 
     public JsonLdGenerator(
@@ -32,6 +34,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         IDocumentNavigationQueryService navigationQueryService,
         IPublishedContentStatusFilteringService publishedStatusFilteringService,
         IPropertyValueResolverFactory resolverFactory,
+        IPublishedUrlProvider urlProvider,
         ILogger<JsonLdGenerator> logger)
     {
         _repository = repository;
@@ -40,6 +43,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         _navigationQueryService = navigationQueryService;
         _publishedStatusFilteringService = publishedStatusFilteringService;
         _resolverFactory = resolverFactory;
+        _urlProvider = urlProvider;
         _logger = logger;
     }
 
@@ -86,12 +90,99 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             }
         }
 
+        // Set @id from content URL for AI agent discoverability
+        var contentUrl = ResolveAbsoluteUrl(content);
+        if (!string.IsNullOrEmpty(contentUrl))
+        {
+            instance.Id = new Uri(contentUrl, UriKind.Absolute);
+        }
+
         return instance;
     }
 
     public string? GenerateJsonLdString(IPublishedContent content)
     {
         return GenerateJsonLd(content)?.ToString();
+    }
+
+    public string? GenerateBreadcrumbJsonLd(IPublishedContent content)
+    {
+        // Walk the parent chain to build the ancestor list (root-first order)
+        var ancestors = new List<IPublishedContent> { content };
+        try
+        {
+            var current = content.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
+            while (current is not null)
+            {
+                ancestors.Add(current);
+                current = current.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to walk parent chain for breadcrumb generation on content {ContentId}", content.Id);
+            return null;
+        }
+        ancestors.Reverse();
+
+        return BuildBreadcrumbJsonLd(ancestors);
+    }
+
+    /// <summary>
+    /// Builds a BreadcrumbList JSON-LD string from a root-first ordered list of content nodes.
+    /// Returns null if the list has fewer than 2 items (no meaningful breadcrumb trail).
+    /// </summary>
+    internal string? BuildBreadcrumbJsonLd(List<IPublishedContent> ancestors)
+    {
+        if (ancestors.Count <= 1)
+            return null; // No breadcrumbs for root nodes
+
+        var breadcrumb = new BreadcrumbList();
+        var items = new List<IListItem>();
+
+        for (var i = 0; i < ancestors.Count; i++)
+        {
+            var ancestor = ancestors[i];
+            var url = ResolveAbsoluteUrl(ancestor);
+
+            var listItem = new ListItem
+            {
+                Position = i + 1,
+                Name = ancestor.Name
+            };
+
+            if (!string.IsNullOrEmpty(url))
+            {
+                listItem.Url = new Uri(url, UriKind.Absolute);
+                listItem.Id = new Uri(url, UriKind.Absolute);
+            }
+
+            items.Add(listItem);
+        }
+
+        breadcrumb.ItemListElement = items;
+        return breadcrumb.ToString();
+    }
+
+    /// <summary>
+    /// Resolves an absolute URL for content using the URL provider with a request-context fallback.
+    /// </summary>
+    private string? ResolveAbsoluteUrl(IPublishedContent content)
+    {
+        var url = _urlProvider.GetUrl(content, UrlMode.Absolute);
+        if (!string.IsNullOrEmpty(url) && url != "#")
+            return url;
+
+        // Fallback: build absolute URL from relative + request context
+        var relativeUrl = _urlProvider.GetUrl(content, UrlMode.Relative);
+        if (string.IsNullOrEmpty(relativeUrl) || relativeUrl == "#")
+            return null;
+
+        var request = _httpContextAccessor.HttpContext?.Request;
+        if (request is null)
+            return null;
+
+        return $"{request.Scheme}://{request.Host}{relativeUrl}";
     }
 
     /// <summary>

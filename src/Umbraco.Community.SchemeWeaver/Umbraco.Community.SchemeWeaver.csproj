@@ -33,6 +33,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<InternalsVisibleTo Include="Umbraco.Community.SchemeWeaver.Tests" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<!-- Exclude schema files from publish to avoid conflicts with main project -->
 		<Content Remove="appsettings-schema.json" />
 		<Content Remove="appsettings-schema.Umbraco.Cms.json" />

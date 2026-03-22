@@ -48,6 +48,13 @@ public class SchemeWeaverTagHelper : TagHelper
             output.TagMode = TagMode.StartTagAndEndTag;
             output.Attributes.SetAttribute(new TagHelperAttribute("type", new HtmlString("application/ld+json"), HtmlAttributeValueStyle.DoubleQuotes));
             output.Content.SetHtmlContent(jsonLd);
+
+            // Output BreadcrumbList as a separate JSON-LD block
+            var breadcrumbJson = _generator.GenerateBreadcrumbJsonLd(Content);
+            if (!string.IsNullOrEmpty(breadcrumbJson))
+            {
+                output.PostContent.AppendHtml($"\n<script type=\"application/ld+json\">{breadcrumbJson}</script>");
+            }
         }
         catch (Exception ex)
         {

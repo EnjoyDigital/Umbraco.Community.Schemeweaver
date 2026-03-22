@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj" />
     <Project Path="src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj" />
     <Project Path="src/SchemeWeaver.TestHost/SchemeWeaver.TestHost.csproj" />
   </Folder>

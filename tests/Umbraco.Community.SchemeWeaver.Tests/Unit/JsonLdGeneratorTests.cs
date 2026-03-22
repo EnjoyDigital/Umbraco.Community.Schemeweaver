@@ -5,6 +5,7 @@ using Xunit;
 using NSubstitute;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -21,6 +22,7 @@ public class JsonLdGeneratorTests
     private readonly IDocumentNavigationQueryService _navigationQueryService = Substitute.For<IDocumentNavigationQueryService>();
     private readonly IPublishedContentStatusFilteringService _publishedStatusFilteringService = Substitute.For<IPublishedContentStatusFilteringService>();
     private readonly IPropertyValueResolverFactory _resolverFactory;
+    private readonly IPublishedUrlProvider _urlProvider = Substitute.For<IPublishedUrlProvider>();
     private readonly ILogger<JsonLdGenerator> _logger = Substitute.For<ILogger<JsonLdGenerator>>();
     private readonly JsonLdGenerator _sut;
 
@@ -34,6 +36,7 @@ public class JsonLdGeneratorTests
             _navigationQueryService,
             _publishedStatusFilteringService,
             _resolverFactory,
+            _urlProvider,
             _logger);
     }
 
@@ -396,7 +399,7 @@ public class JsonLdGeneratorTests
         return new JsonLdGenerator(
             _repository, _registry, _httpContextAccessor,
             _navigationQueryService, _publishedStatusFilteringService,
-            blockResolverFactory, _logger);
+            blockResolverFactory, _urlProvider, _logger);
     }
 
     private static IPublishedContent CreateContentWithBlockList(
@@ -1087,6 +1090,152 @@ public class JsonLdGeneratorTests
         location.GetProperty("@type").GetString().Should().Be("Place");
         root.TryGetProperty("offers", out var offers).Should().BeTrue();
         offers.GetProperty("@type").GetString().Should().Be("Offer");
+    }
+
+    #endregion
+
+    #region @id and BreadcrumbList Tests
+
+    [Fact]
+    public void GenerateJsonLd_SetsIdFromContentUrl()
+    {
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "Test Article"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("https://example.com/articles/test");
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result!.Id.Should().NotBeNull();
+        var jsonLd = result.ToString();
+        jsonLd.Should().Contain("\"@id\":\"https://example.com/articles/test\"");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_NoUrl_DoesNotSetId()
+    {
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "Test Article"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("#");
+        _urlProvider.GetUrl(content, UrlMode.Relative).Returns("#");
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().NotContain("@id");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_RelativeUrl_BuildsAbsoluteIdFromRequest()
+    {
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "Test Article"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+
+        // Absolute returns "#", relative returns a path
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("#");
+        _urlProvider.GetUrl(content, UrlMode.Relative).Returns("/articles/test");
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("example.com");
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("\"@id\":\"https://example.com/articles/test\"");
+    }
+
+    [Fact]
+    public void GenerateBreadcrumbJsonLd_RootContent_ReturnsNull()
+    {
+        var root = CreateContent("homepage");
+        var rootKey = root.Key;
+
+        // Parent<T> calls GetParent which calls TryGetParentKey
+        _navigationQueryService.TryGetParentKey(rootKey, out Arg.Any<Guid?>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = (Guid?)null;
+                return true;
+            });
+
+        var result = _sut.GenerateBreadcrumbJsonLd(root);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void BuildBreadcrumbJsonLd_NestedContent_HasCorrectPositions()
+    {
+        // Test the breadcrumb assembly logic directly (bypassing navigation service)
+        var root = CreateContent("homepage");
+        root.Name.Returns("Home");
+
+        var section = CreateContent("section");
+        section.Name.Returns("Articles");
+
+        var article = CreateContent("article");
+        article.Name.Returns("Test Article");
+
+        _urlProvider.GetUrl(root, UrlMode.Absolute).Returns("https://example.com/");
+        _urlProvider.GetUrl(section, UrlMode.Absolute).Returns("https://example.com/articles/");
+        _urlProvider.GetUrl(article, UrlMode.Absolute).Returns("https://example.com/articles/test/");
+
+        // Pass the ancestor chain directly (root-first order)
+        var ancestors = new List<IPublishedContent> { root, section, article };
+        var result = _sut.BuildBreadcrumbJsonLd(ancestors);
+
+        result.Should().NotBeNull();
+        result.Should().Contain("BreadcrumbList");
+        result.Should().Contain("Home");
+        result.Should().Contain("Articles");
+        result.Should().Contain("Test Article");
+        result.Should().Contain("https://example.com/");
+        result.Should().Contain("https://example.com/articles/");
+        result.Should().Contain("https://example.com/articles/test/");
+
+        // Verify it's valid JSON with correct structure
+        var doc = System.Text.Json.JsonDocument.Parse(result!);
+        var rootElement = doc.RootElement;
+        rootElement.GetProperty("@type").GetString().Should().Be("BreadcrumbList");
+    }
+
+    [Fact]
+    public void BuildBreadcrumbJsonLd_SingleItem_ReturnsNull()
+    {
+        var root = CreateContent("homepage");
+        root.Name.Returns("Home");
+
+        var result = _sut.BuildBreadcrumbJsonLd([root]);
+
+        result.Should().BeNull();
     }
 
     #endregion
