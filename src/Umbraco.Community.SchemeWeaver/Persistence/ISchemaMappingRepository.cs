@@ -13,4 +13,5 @@ public interface ISchemaMappingRepository
     void Delete(int id);
     IEnumerable<PropertyMapping> GetPropertyMappings(int schemaMappingId);
     void SavePropertyMappings(int schemaMappingId, IEnumerable<PropertyMapping> mappings);
+    IEnumerable<SchemaMapping> GetInheritedMappings();
 }

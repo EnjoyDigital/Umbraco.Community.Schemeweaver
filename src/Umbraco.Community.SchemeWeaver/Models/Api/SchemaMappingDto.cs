@@ -9,6 +9,7 @@ public class SchemaMappingDto
     public Guid ContentTypeKey { get; set; }
     public string SchemaTypeName { get; set; } = string.Empty;
     public bool IsEnabled { get; set; }
+    public bool IsInherited { get; set; }
     public List<PropertyMappingDto> PropertyMappings { get; set; } = [];
 }
 

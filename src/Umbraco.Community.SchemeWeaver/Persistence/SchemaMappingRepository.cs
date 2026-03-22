@@ -77,6 +77,15 @@ public class SchemaMappingRepository : ISchemaMappingRepository
             .ToList();
     }
 
+    public IEnumerable<SchemaMapping> GetInheritedMappings()
+    {
+        using var scope = _scopeProvider.CreateScope(autoComplete: true);
+        return scope.Database
+            .Query<SchemaMapping>()
+            .Where(x => x.IsInherited && x.IsEnabled)
+            .ToList();
+    }
+
     public void SavePropertyMappings(int schemaMappingId, IEnumerable<PropertyMapping> mappings)
     {
         using var scope = _scopeProvider.CreateScope();

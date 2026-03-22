@@ -81,6 +81,7 @@ public class SchemeWeaverService : ISchemeWeaverService
 
         entity.SchemaTypeName = dto.SchemaTypeName;
         entity.IsEnabled = dto.IsEnabled;
+        entity.IsInherited = dto.IsInherited;
 
         var saved = _repository.Save(entity);
 
@@ -284,6 +285,7 @@ public class SchemeWeaverService : ISchemeWeaverService
             ContentTypeKey = mapping.ContentTypeKey,
             SchemaTypeName = mapping.SchemaTypeName,
             IsEnabled = mapping.IsEnabled,
+            IsInherited = mapping.IsInherited,
             PropertyMappings = propertyMappings.Select(p => new PropertyMappingDto
             {
                 SchemaPropertyName = p.SchemaPropertyName,

@@ -55,6 +55,7 @@ export interface SchemaMappingDto {
   contentTypeKey: string;
   schemaTypeName: string;
   isEnabled: boolean;
+  isInherited: boolean;
   propertyMappings: PropertyMappingDto[];
 }
 

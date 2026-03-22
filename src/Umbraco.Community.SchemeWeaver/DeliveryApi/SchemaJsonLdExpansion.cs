@@ -40,24 +40,35 @@ public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
             yield break;
         }
 
-        string? jsonLd = null;
+        var allJsonLd = new List<string>();
+
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var generator = scope.ServiceProvider.GetRequiredService<IJsonLdGenerator>();
-            jsonLd = generator.GenerateJsonLdString(published);
+
+            // Main schema for the current content
+            var jsonLd = generator.GenerateJsonLdString(published);
+            if (!string.IsNullOrEmpty(jsonLd))
+                allJsonLd.Add(jsonLd);
+
+            // Inherited schemas from ancestor nodes
+            allJsonLd.AddRange(generator.GenerateInheritedJsonLdStrings(published));
+
+            // Schemas from mapped block elements
+            allJsonLd.AddRange(generator.GenerateBlockElementJsonLdStrings(published));
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to generate JSON-LD for content {ContentKey}", content.Key);
         }
 
-        if (!string.IsNullOrEmpty(jsonLd))
+        if (allJsonLd.Count > 0)
         {
             yield return new IndexFieldValue
             {
                 FieldName = "schemaOrg",
-                Values = [jsonLd]
+                Values = allJsonLd.ToArray()
             };
         }
     }

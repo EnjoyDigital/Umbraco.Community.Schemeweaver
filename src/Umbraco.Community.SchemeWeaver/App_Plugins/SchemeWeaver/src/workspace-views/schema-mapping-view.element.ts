@@ -316,6 +316,14 @@ export class SchemaMappingViewElement extends UmbLitElement {
     this._rows = e.detail.mappings;
   }
 
+  private _handleInheritedToggle(e: Event) {
+    if (!this._mapping) return;
+    this._mapping = {
+      ...this._mapping,
+      isInherited: (e.target as any).checked,
+    };
+  }
+
   private async _handlePickSourceContentType(e: CustomEvent) {
     const { index, currentAlias } = e.detail;
     const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
@@ -382,6 +390,16 @@ export class SchemaMappingViewElement extends UmbLitElement {
           <div class="schema-type-info">
             <uui-tag color="primary" look="primary">${this._mapping.schemaTypeName}</uui-tag>
             <span class="content-type-alias">${this._mapping.contentTypeAlias}</span>
+          </div>
+          <div class="inherited-toggle">
+            <uui-toggle
+              .checked=${this._mapping.isInherited}
+              @change=${this._handleInheritedToggle}
+              label=${this.localize.term('schemeWeaver_inherited')}
+            >
+              ${this.localize.term('schemeWeaver_inherited')}
+            </uui-toggle>
+            <small>${this.localize.term('schemeWeaver_inheritedDescription')}</small>
           </div>
         </uui-box>
 
@@ -454,6 +472,19 @@ export class SchemaMappingViewElement extends UmbLitElement {
         display: flex;
         align-items: center;
         gap: var(--uui-size-space-4);
+      }
+
+      .inherited-toggle {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-4);
+        margin-top: var(--uui-size-space-4);
+        padding-top: var(--uui-size-space-4);
+        border-top: 1px solid var(--uui-color-border);
+      }
+
+      .inherited-toggle small {
+        color: var(--uui-color-text-alt);
       }
 
       .content-type-alias {

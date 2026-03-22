@@ -78,6 +78,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
     contentTypeKey: '00000000-0000-0000-0000-000000000001',
     schemaTypeName: 'Article',
     isEnabled: true,
+    isInherited: false,
     propertyMappings: [
       {
         schemaPropertyName: 'headline',
@@ -119,6 +120,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
     contentTypeKey: '00000000-0000-0000-0000-000000000007',
     schemaTypeName: 'WebSite',
     isEnabled: true,
+    isInherited: false,
     propertyMappings: [
       {
         schemaPropertyName: 'name',
@@ -160,6 +162,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
     contentTypeKey: '00000000-0000-0000-0000-000000000018',
     schemaTypeName: 'VideoObject',
     isEnabled: true,
+    isInherited: false,
     propertyMappings: [
       {
         schemaPropertyName: 'name',
@@ -223,6 +226,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
     contentTypeKey: '00000000-0000-0000-0000-000000000019',
     schemaTypeName: 'JobPosting',
     isEnabled: true,
+    isInherited: false,
     propertyMappings: [
       {
         schemaPropertyName: 'title',
@@ -275,6 +279,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
     contentTypeKey: '00000000-0000-0000-0000-000000000021',
     schemaTypeName: 'LocalBusiness',
     isEnabled: true,
+    isInherited: false,
     propertyMappings: [
       {
         schemaPropertyName: 'name',
@@ -327,6 +332,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
     contentTypeKey: '00000000-0000-0000-0000-000000000017',
     schemaTypeName: 'HowTo',
     isEnabled: true,
+    isInherited: false,
     propertyMappings: [
       {
         schemaPropertyName: 'name',

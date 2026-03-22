@@ -12,6 +12,7 @@ interface ContentTypeMapping {
   contentTypeKey: string;
   schemaTypeName: string | null;
   isMapped: boolean;
+  isInherited: boolean;
   propertyMappingCount: number;
 }
 
@@ -62,6 +63,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
           contentTypeKey: ct.key,
           schemaTypeName: mapping?.schemaTypeName || null,
           isMapped: !!mapping,
+          isInherited: mapping?.isInherited || false,
           propertyMappingCount: mapping?.propertyMappings?.length || 0,
         };
       });
@@ -218,6 +220,9 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                             ${mapping.isMapped
                               ? html`<uui-badge color="positive">${this.localize.term('schemeWeaver_mapped')}</uui-badge>`
                               : html`<uui-badge color="default">${this.localize.term('schemeWeaver_unmapped')}</uui-badge>`}
+                            ${mapping.isInherited
+                              ? html` <uui-tag color="warning" look="outline" compact>${this.localize.term('schemeWeaver_inherited')}</uui-tag>`
+                              : ''}
                           </uui-table-cell>
                           <uui-table-cell>
                             ${mapping.isMapped

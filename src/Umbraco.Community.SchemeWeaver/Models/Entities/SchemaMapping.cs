@@ -32,4 +32,7 @@ public class SchemaMapping
 
     [Column("UpdatedDate")]
     public DateTime UpdatedDate { get; set; }
+
+    [Column("IsInherited")]
+    public bool IsInherited { get; set; }
 }

@@ -10,7 +10,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 
 - **500+ Schema.org types** -- discovers every type in the [Schema.NET](https://github.com/RehanSaeed/Schema.NET) library at startup (Article, Product, FAQPage, Event, Person, Organisation, and hundreds more)
 - **Auto-mapping with confidence scores** -- suggests property mappings using exact matching, synonym dictionaries, and substring matching, each with a transparency score so you can verify suggestions
-- **Five source types** -- pull values from the current node, a static value, the parent node, an ancestor of a specific type, or a sibling node
+- **Seven source types** -- pull values from the current node, a static value, the parent node, an ancestor of a specific type, a sibling node, block content, or nested complex types
 - **Transforms** -- strip HTML, convert to absolute URL, or format dates before output
 - **Backoffice dashboard** -- bulk view and manage all content type mappings from the Settings section
 - **Workspace view** -- edit the Schema.org mapping directly from the Content Type editor
@@ -18,6 +18,11 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Content Type generation** -- scaffold a new Umbraco document type from any Schema.org type, with properties pre-grouped into Content, SEO, and Metadata tabs
 - **Delivery API integration** -- JSON-LD is automatically indexed and available via the `schemaOrg` field in API responses
 - **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template to render the JSON-LD script tag
+- **CSP nonce support** -- add `nonce="@cspNonce"` or `nonce-data-attribute` to the tag helper for Content Security Policy protected sites
+- **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages (e.g. Organisation schema on the homepage cascading site-wide)
+- **Automatic block traversal** -- BlockList/BlockGrid elements with their own schema mappings are automatically rendered as separate JSON-LD blocks, zero configuration needed
+- **BreadcrumbList auto-generation** -- a BreadcrumbList JSON-LD block is automatically generated from the content's ancestor hierarchy
+- **@id for AI discoverability** -- each schema output includes an `@id` set to the content's absolute URL
 - **Localisation** -- all UI strings use Umbraco's localisation system
 
 ## Requirements
@@ -65,6 +70,8 @@ Within that mapping, individual **property mappings** define where each schema p
 | **parent** | Reads a property from the immediate parent node |
 | **ancestor** | Walks up the content tree to find the first ancestor matching a specific content type alias, then reads the property |
 | **sibling** | Looks at the parent's children to find the first sibling matching a specific content type alias, then reads the property |
+| **blockContent** | Extracts values from BlockList/BlockGrid items, creating nested Schema.org objects |
+| **complexType** | Creates a nested Schema.org type with its own sub-property mappings |
 
 ### Auto-mapping algorithm
 
@@ -121,7 +128,16 @@ In any Razor template or view:
 <scheme-weaver content="@Model" />
 ```
 
-This renders a `<script type="application/ld+json">` tag with the generated JSON-LD. If the content type has no mapping or the mapping is disabled, nothing is rendered.
+This renders `<script type="application/ld+json">` tags with the generated JSON-LD (main schema, BreadcrumbList, inherited ancestor schemas, and auto-discovered block element schemas). If the content type has no mapping or the mapping is disabled, nothing is rendered.
+
+For CSP-protected sites, add a nonce:
+
+```html
+<scheme-weaver content="@Model" nonce="@cspNonce" />
+
+@* Or use data-nonce attribute instead *@
+<scheme-weaver content="@Model" nonce="@cspNonce" nonce-data-attribute />
+```
 
 ### Option 2: Delivery API (headless sites)
 
@@ -202,6 +218,7 @@ SchemeWeaver creates two tables on first run via Umbraco's migration system:
 | ContentTypeKey | Guid | Umbraco content type key |
 | SchemaTypeName | string | Schema.org type name (e.g., "BlogPosting") |
 | IsEnabled | bool | Whether JSON-LD generation is active |
+| IsInherited | bool | Whether this schema is also output on all descendant pages |
 | CreatedDate | DateTime | When the mapping was created |
 | UpdatedDate | DateTime | Last modification time |
 
@@ -212,13 +229,14 @@ SchemeWeaver creates two tables on first run via Umbraco's migration system:
 | Id | int (PK) | Auto-increment |
 | SchemaMappingId | int (FK) | References SchemaMapping |
 | SchemaPropertyName | string | Schema.org property (e.g., "headline") |
-| SourceType | string | "property", "static", "parent", "ancestor", or "sibling" |
+| SourceType | string | "property", "static", "parent", "ancestor", "sibling", "blockContent", or "complexType" |
 | ContentTypePropertyAlias | string? | Which Umbraco property to read |
 | SourceContentTypeAlias | string? | For ancestor/sibling: which content type to look for |
 | TransformType | string? | "stripHtml", "toAbsoluteUrl", or "formatDate" |
 | IsAutoMapped | bool | Whether this was created by the auto-mapper |
 | StaticValue | string? | Hardcoded value (when source type is "static") |
 | NestedSchemaTypeName | string? | For complex nested schema types |
+| ResolverConfig | text? | JSON configuration for nested property mappings and block content extraction |
 
 ## API reference
 
@@ -305,7 +323,7 @@ npm run build    # builds to ../../wwwroot/dist/
 ### Test
 
 ```bash
-# C# unit tests (43 tests)
+# C# unit tests (215 tests)
 dotnet test
 
 # Frontend unit + component tests

@@ -448,4 +448,155 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     [GeneratedRegex("<[^>]+>")]
     private static partial Regex StripHtmlRegex();
 
+    /// <inheritdoc />
+    public IEnumerable<string> GenerateInheritedJsonLdStrings(IPublishedContent content)
+    {
+        var inheritedAliases = _repository.GetInheritedMappings()
+            .Select(m => m.ContentTypeAlias)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (inheritedAliases.Count == 0)
+            yield break;
+
+        // Walk up from the parent (not the current page) to avoid duplicating the current page's own schema
+        var current = content.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
+        while (current is not null)
+        {
+            if (inheritedAliases.Contains(current.ContentType.Alias))
+            {
+                var jsonLd = GenerateJsonLdString(current);
+                if (!string.IsNullOrEmpty(jsonLd))
+                    yield return jsonLd;
+            }
+
+            current = current.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
+        }
+    }
+
+    /// <inheritdoc />
+    public IEnumerable<string> GenerateBlockElementJsonLdStrings(IPublishedContent content)
+    {
+        // Batch-load all mappings in one query and index by alias for O(1) lookups.
+        // This avoids N+1 queries when a page has multiple block element types.
+        var allMappings = _repository.GetAll()
+            .Where(m => m.IsEnabled)
+            .ToDictionary(m => m.ContentTypeAlias, StringComparer.OrdinalIgnoreCase);
+
+        // Identify properties already explicitly mapped via blockContent source type to avoid duplicates
+        allMappings.TryGetValue(content.ContentType.Alias, out var currentMapping);
+        var explicitBlockProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (currentMapping is not null)
+        {
+            var currentPropertyMappings = _repository.GetPropertyMappings(currentMapping.Id);
+            foreach (var pm in currentPropertyMappings)
+            {
+                if (pm.SourceType == "blockContent" && !string.IsNullOrEmpty(pm.ContentTypePropertyAlias))
+                    explicitBlockProperties.Add(pm.ContentTypePropertyAlias);
+            }
+        }
+
+        foreach (var property in content.Properties)
+        {
+            var editorAlias = property.PropertyType?.EditorAlias;
+            if (editorAlias is not ("Umbraco.BlockList" or "Umbraco.BlockGrid"))
+                continue;
+
+            // Skip properties already explicitly mapped as blockContent
+            if (explicitBlockProperties.Contains(property.Alias))
+                continue;
+
+            var value = property.GetValue();
+            if (value is null)
+                continue;
+
+            IEnumerable<IPublishedElement>? blockElements = value switch
+            {
+                Umbraco.Cms.Core.Models.Blocks.BlockListModel blockList => blockList.Select(b => b.Content),
+                Umbraco.Cms.Core.Models.Blocks.BlockGridModel blockGrid => blockGrid.Select(b => b.Content),
+                _ => null
+            };
+
+            if (blockElements is null)
+                continue;
+
+            foreach (var element in blockElements)
+            {
+                if (!allMappings.TryGetValue(element.ContentType.Alias, out var mapping))
+                    continue;
+
+                var thing = GenerateThingFromElement(element, mapping);
+                if (thing is not null)
+                {
+                    var jsonLd = thing.ToString();
+                    if (!string.IsNullOrEmpty(jsonLd))
+                        yield return jsonLd;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Generates a Thing from a block element using its schema mapping.
+    /// Only supports "property" and "static" source types (block elements have no parents/ancestors).
+    /// </summary>
+    private Thing? GenerateThingFromElement(IPublishedElement element, SchemaMapping mapping)
+    {
+        var clrType = _registry.GetClrType(mapping.SchemaTypeName);
+        if (clrType is null)
+            return null;
+
+        if (Activator.CreateInstance(clrType) is not Thing instance)
+            return null;
+
+        var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
+
+        foreach (var propMapping in propertyMappings)
+        {
+            try
+            {
+                object? value = propMapping.SourceType switch
+                {
+                    "static" => propMapping.StaticValue,
+                    "property" when !string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias) =>
+                        ResolveElementPropertyValue(element, propMapping.ContentTypePropertyAlias),
+                    _ => null
+                };
+
+                if (value is null)
+                    continue;
+
+                if (value is string stringValue)
+                {
+                    var transformed = ApplyTransform(stringValue, propMapping.TransformType);
+                    if (transformed is null) continue;
+                    value = transformed;
+                }
+
+                SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to map property {Property} for block element {ElementType}",
+                    propMapping.SchemaPropertyName, element.ContentType.Alias);
+            }
+        }
+
+        return instance;
+    }
+
+    /// <summary>
+    /// Resolves a property value from an IPublishedElement (block content).
+    /// Uses the resolver factory for proper handling of media pickers, rich text, etc.
+    /// </summary>
+    private object? ResolveElementPropertyValue(IPublishedElement element, string propertyAlias)
+    {
+        var publishedProperty = element.GetProperty(propertyAlias);
+        if (publishedProperty is null)
+            return null;
+
+        // Use the utility for media extraction, fall back to GetValue().ToString()
+        return SchemaPropertySetter.ResolveElementPropertyValue(element, propertyAlias, _httpContextAccessor);
+    }
+
 }

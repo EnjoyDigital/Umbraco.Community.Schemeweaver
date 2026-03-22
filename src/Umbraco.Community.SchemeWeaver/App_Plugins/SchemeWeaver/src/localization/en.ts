@@ -109,5 +109,7 @@ export default {
     noProperties: 'No properties found.',
     selectNestedType: 'Select nested type...',
     preConfigure: 'Pre-configured',
+    inherited: 'Inherited',
+    inheritedDescription: 'When enabled, this schema will also be output on all descendant pages.',
   },
 };
