@@ -1293,13 +1293,70 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, locationPageCt, "LocalBusiness", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("PriceRange", "priceRange"), ("Url", "__url"));
         SeedSimpleMapping(repo, restaurantPageCt, "Restaurant", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("ServesCuisine", "servesCuisine"), ("Menu", "menu"), ("PriceRange", "priceRange"), ("Url", "__url"));
 
+        // HowTo — needs blockContent for steps and tools
+        try
+        {
+            SeedHowToMapping(howToPageCt, repo);
+            _logger.LogInformation("TestDataSeeder: HowTo mapping seeded successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "TestDataSeeder: Failed to seed HowTo mapping");
+        }
+
         // Listing pages
         SeedSimpleMapping(repo, blogListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
         SeedSimpleMapping(repo, productListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
         SeedSimpleMapping(repo, eventListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
         SeedSimpleMapping(repo, recipeListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
 
-        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 22);
+        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 23);
+    }
+
+    private void SeedHowToMapping(IContentType ct, ISchemaMappingRepository repo)
+    {
+        var mapping = repo.Save(new SchemaMapping
+        {
+            ContentTypeAlias = ct.Alias,
+            ContentTypeKey = ct.Key,
+            SchemaTypeName = "HowTo",
+            IsEnabled = true,
+        });
+
+        repo.SavePropertyMappings(mapping.Id, new[]
+        {
+            new PropertyMapping { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "title" },
+            new PropertyMapping { SchemaPropertyName = "Description", SourceType = "property", ContentTypePropertyAlias = "description" },
+            new PropertyMapping { SchemaPropertyName = "TotalTime", SourceType = "property", ContentTypePropertyAlias = "totalTime" },
+            new PropertyMapping { SchemaPropertyName = "EstimatedCost", SourceType = "property", ContentTypePropertyAlias = "estimatedCost" },
+            new PropertyMapping { SchemaPropertyName = "Url", SourceType = "property", ContentTypePropertyAlias = "__url" },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Step",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "howToSteps",
+                NestedSchemaTypeName = "HowToStep",
+                ResolverConfig = JsonSerializer.Serialize(new
+                {
+                    nestedMappings = new[]
+                    {
+                        new { schemaProperty = "Name", contentProperty = "stepName" },
+                        new { schemaProperty = "Text", contentProperty = "stepText" },
+                    }
+                }),
+            },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Tool",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "howToTools",
+                ResolverConfig = JsonSerializer.Serialize(new
+                {
+                    extractAs = "stringList",
+                    contentProperty = "toolName",
+                }),
+            },
+        });
     }
 
     private void SeedSimpleMapping(ISchemaMappingRepository repo, IContentType ct, string schemaTypeName, params (string schemaProperty, string contentProperty)[] mappings)

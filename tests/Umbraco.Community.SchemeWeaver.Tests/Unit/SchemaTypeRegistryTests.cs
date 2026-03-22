@@ -156,4 +156,53 @@ public class SchemaTypeRegistryTests
         headlineProp.AcceptedTypes.Should().NotBeEmpty();
         headlineProp.AcceptedTypes.Should().Contain("String");
     }
+
+    [Fact]
+    public void GetProperties_HowTo_ListsStepProperty()
+    {
+        var properties = _sut.GetProperties("HowTo").Select(p => p.Name).ToList();
+        properties.Should().NotBeEmpty();
+
+        // Verify exact step property name
+        properties.Should().Contain("Step", "HowTo must have a property named 'Step'");
+    }
+
+    [Fact]
+    public void GetProperties_HowTo_HasExpectedProperties()
+    {
+        var properties = _sut.GetProperties("HowTo").Select(p => p.Name).ToList();
+
+        // These are the properties we map in the seeder
+        properties.Should().Contain("Name");
+        properties.Should().Contain("Description");
+        properties.Should().Contain("TotalTime");
+        properties.Should().Contain("EstimatedCost");
+        properties.Should().Contain("Step");
+        properties.Should().Contain("Tool");
+    }
+
+    [Theory]
+    [InlineData("NewsArticle")]
+    [InlineData("TechArticle")]
+    [InlineData("HowTo")]
+    [InlineData("ContactPage")]
+    [InlineData("AboutPage")]
+    [InlineData("CollectionPage")]
+    [InlineData("ProfilePage")]
+    [InlineData("WebSite")]
+    [InlineData("WebPage")]
+    [InlineData("VideoObject")]
+    [InlineData("JobPosting")]
+    [InlineData("Course")]
+    [InlineData("SoftwareApplication")]
+    [InlineData("Book")]
+    [InlineData("Restaurant")]
+    [InlineData("LocalBusiness")]
+    public void GetType_ExpandedSchemaTypes_ExistsInRegistry(string typeName)
+    {
+        var result = _sut.GetType(typeName);
+
+        result.Should().NotBeNull($"Schema.NET should contain type '{typeName}'");
+        result!.Name.Should().Be(typeName);
+    }
 }
