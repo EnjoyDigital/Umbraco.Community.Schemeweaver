@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -44,28 +43,28 @@ public class SchemeWeaverTagHelper : TagHelper
                 return;
             }
 
-            output.TagName = "script";
-            output.TagMode = TagMode.StartTagAndEndTag;
-            output.Attributes.SetAttribute(new TagHelperAttribute("type", new HtmlString("application/ld+json"), HtmlAttributeValueStyle.DoubleQuotes));
-            output.Content.SetHtmlContent(jsonLd);
+            // Output all script blocks as independent elements via Content.
+            // Do NOT use output.TagName = "script" — that wraps everything in a single
+            // <script>...</script> and PostContent would nest inside it, breaking the HTML.
+            output.Content.AppendHtml($"<script type=\"application/ld+json\">{jsonLd}</script>");
 
-            // Output BreadcrumbList as a separate JSON-LD block
+            // BreadcrumbList as a separate JSON-LD block
             var breadcrumbJson = _generator.GenerateBreadcrumbJsonLd(Content);
             if (!string.IsNullOrEmpty(breadcrumbJson))
             {
-                output.PostContent.AppendHtml($"\n<script type=\"application/ld+json\">{breadcrumbJson}</script>");
+                output.Content.AppendHtml($"\n<script type=\"application/ld+json\">{breadcrumbJson}</script>");
             }
 
-            // Output inherited schemas from ancestor nodes
+            // Inherited schemas from ancestor nodes
             foreach (var inheritedJsonLd in _generator.GenerateInheritedJsonLdStrings(Content))
             {
-                output.PostContent.AppendHtml($"\n<script type=\"application/ld+json\">{inheritedJsonLd}</script>");
+                output.Content.AppendHtml($"\n<script type=\"application/ld+json\">{inheritedJsonLd}</script>");
             }
 
-            // Output schemas from mapped block elements
+            // Schemas from mapped block elements
             foreach (var blockJsonLd in _generator.GenerateBlockElementJsonLdStrings(Content))
             {
-                output.PostContent.AppendHtml($"\n<script type=\"application/ld+json\">{blockJsonLd}</script>");
+                output.Content.AppendHtml($"\n<script type=\"application/ld+json\">{blockJsonLd}</script>");
             }
         }
         catch (Exception ex)

@@ -1,5 +1,5 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
-import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import '../components/jsonld-preview.element.js';
@@ -116,10 +116,16 @@ export class JsonLdContentViewElement extends UmbLitElement {
     }
   }
 
+  private _handleCopy(): void {
+    const previewEl = this.shadowRoot?.querySelector('schemeweaver-jsonld-preview') as any;
+    const text = previewEl?.formattedJson ?? '';
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+
   render() {
     if (this._loading) {
       return html`
-        <umb-body-layout headline="JSON-LD">
+        <umb-body-layout headline=${this.localize.term('schemeWeaver_preview')}>
           <div class="loading">
             <uui-loader-circle></uui-loader-circle>
           </div>
@@ -129,7 +135,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
 
     if (!this._hasMappng) {
       return html`
-        <umb-body-layout headline="JSON-LD">
+        <umb-body-layout headline=${this.localize.term('schemeWeaver_preview')}>
           <uui-box>
             <div class="empty-state">
               <uui-icon name="icon-brackets" class="empty-icon"></uui-icon>
@@ -142,18 +148,34 @@ export class JsonLdContentViewElement extends UmbLitElement {
     }
 
     return html`
-      <umb-body-layout headline="JSON-LD">
-        <uui-box headline=${this.localize.term('schemeWeaver_jsonLdPreview')}>
-          <uui-button
-            slot="header-actions"
-            look="default"
-            compact
-            @click=${this._generatePreview}
-            ?disabled=${this._generating}
-            label=${this.localize.term('schemeWeaver_generatePreview')}
-          >
-            <uui-icon name="icon-refresh"></uui-icon>
-          </uui-button>
+      <umb-body-layout headline=${this.localize.term('schemeWeaver_preview')}>
+        <uui-box>
+          <span slot="headline">${this.localize.term('schemeWeaver_preview')}</span>
+          <div slot="header-actions" class="header-actions">
+            ${this._preview
+              ? this._preview.isValid
+                ? html`<uui-tag look="secondary" color="positive" compact>${this.localize.term('schemeWeaver_valid')}</uui-tag>`
+                : html`<uui-tag look="secondary" color="danger" compact>${this.localize.term('schemeWeaver_invalid')}</uui-tag>`
+              : nothing}
+            <uui-button
+              look="default"
+              compact
+              @click=${this._handleCopy}
+              ?disabled=${!this._preview}
+              label=${this.localize.term('schemeWeaver_copy')}
+            >
+              <uui-icon name="icon-documents"></uui-icon>
+            </uui-button>
+            <uui-button
+              look="default"
+              compact
+              @click=${this._generatePreview}
+              ?disabled=${this._generating}
+              label=${this.localize.term('schemeWeaver_refresh')}
+            >
+              <uui-icon name="icon-refresh"></uui-icon>
+            </uui-button>
+          </div>
 
           ${this._generating
             ? html`<uui-loader-bar></uui-loader-bar>`
@@ -195,6 +217,12 @@ export class JsonLdContentViewElement extends UmbLitElement {
       .empty-icon {
         font-size: 3rem;
         color: var(--uui-color-text-alt);
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
       }
 
       .hint {

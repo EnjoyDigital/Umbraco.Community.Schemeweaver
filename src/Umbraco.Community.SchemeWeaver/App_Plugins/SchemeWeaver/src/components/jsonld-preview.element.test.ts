@@ -10,76 +10,79 @@ describe('JsonLdPreviewElement', () => {
     expect(empty!.textContent).to.not.be.empty;
   });
 
-  it('does not render copy button in empty state', async () => {
-    const el = await fixture(html`<schemeweaver-jsonld-preview></schemeweaver-jsonld-preview>`);
-    const btn = el.shadowRoot!.querySelector('uui-button');
-    expect(btn).to.not.exist;
-  });
-
-  it('renders formatted JSON when jsonLd is set', async () => {
+  it('renders syntax-highlighted JSON when jsonLd is set', async () => {
     const data: JsonLdPreviewResponse = {
       jsonLd: '{"@context":"https://schema.org","@type":"Article"}',
       isValid: true,
       errors: [],
     };
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const code = el.shadowRoot!.querySelector('code');
-    expect(code).to.exist;
-    expect(code!.textContent).to.contain('"@context"');
-    expect(code!.textContent).to.contain('"@type"');
+    const pre = el.shadowRoot!.querySelector('pre.json-code');
+    expect(pre).to.exist;
+    expect(pre!.innerHTML).to.contain('json-key');
+    expect(pre!.innerHTML).to.contain('json-string');
   });
 
-  it('pretty-prints JSON with indentation', async () => {
+  it('highlights keys and string values with CSS classes', async () => {
+    const data: JsonLdPreviewResponse = {
+      jsonLd: '{"name":"Test"}',
+      isValid: true,
+      errors: [],
+    };
+    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
+    const keys = el.shadowRoot!.querySelectorAll('.json-key');
+    const strings = el.shadowRoot!.querySelectorAll('.json-string');
+    expect(keys.length).to.be.greaterThan(0);
+    expect(strings.length).to.be.greaterThan(0);
+  });
+
+  it('highlights numbers, booleans, and null', async () => {
+    const data: JsonLdPreviewResponse = {
+      jsonLd: '{"count":42,"active":true,"deleted":null}',
+      isValid: true,
+      errors: [],
+    };
+    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
+    const numbers = el.shadowRoot!.querySelectorAll('.json-number');
+    const booleans = el.shadowRoot!.querySelectorAll('.json-boolean');
+    const nulls = el.shadowRoot!.querySelectorAll('.json-null');
+    expect(numbers.length).to.be.greaterThan(0);
+    expect(booleans.length).to.be.greaterThan(0);
+    expect(nulls.length).to.be.greaterThan(0);
+  });
+
+  it('exposes formattedJson as a public getter', async () => {
     const inner = { name: 'Test' };
     const data: JsonLdPreviewResponse = {
       jsonLd: JSON.stringify(inner),
       isValid: true,
       errors: [],
     };
-    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const code = el.shadowRoot!.querySelector('code');
+    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`) as any;
     const expected = JSON.stringify(inner, null, 2);
-    expect(code!.textContent).to.equal(expected);
+    expect(el.formattedJson).to.equal(expected);
   });
 
-  it('renders copy button when data exists', async () => {
-    const data: JsonLdPreviewResponse = {
-      jsonLd: '{"@type":"Article"}',
-      isValid: true,
-      errors: [],
-    };
-    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const btn = el.shadowRoot!.querySelector('uui-button[label="Copy to clipboard"]');
-    expect(btn).to.exist;
-  });
-
-  it('shows Valid tag when isValid is true', async () => {
-    const data: JsonLdPreviewResponse = {
-      jsonLd: '{"@type":"Article"}',
-      isValid: true,
-      errors: [],
-    };
-    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const tag = el.shadowRoot!.querySelector('uui-tag');
-    expect(tag).to.exist;
-    expect(tag!.textContent!.trim()).to.equal('Valid');
-    expect(tag!.getAttribute('color')).to.equal('positive');
-  });
-
-  it('shows Invalid tag and errors when isValid is false', async () => {
+  it('shows errors when isValid is false', async () => {
     const data: JsonLdPreviewResponse = {
       jsonLd: '{}',
       isValid: false,
       errors: ['Missing @type'],
     };
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const tag = el.shadowRoot!.querySelector('uui-tag');
-    expect(tag).to.exist;
-    expect(tag!.textContent!.trim()).to.equal('Invalid');
-    expect(tag!.getAttribute('color')).to.equal('danger');
-
     const errors = el.shadowRoot!.querySelectorAll('.error-item');
     expect(errors.length).to.equal(1);
     expect(errors[0].textContent).to.contain('Missing @type');
+  });
+
+  it('does not render errors when there are none', async () => {
+    const data: JsonLdPreviewResponse = {
+      jsonLd: '{"@type":"Article"}',
+      isValid: true,
+      errors: [],
+    };
+    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
+    const errors = el.shadowRoot!.querySelectorAll('.error-item');
+    expect(errors.length).to.equal(0);
   });
 });
