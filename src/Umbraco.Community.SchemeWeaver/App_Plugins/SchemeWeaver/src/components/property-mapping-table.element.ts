@@ -175,9 +175,9 @@ export class PropertyMappingTableElement extends UmbLitElement {
     this._dispatchChange();
   }
 
-  /** Whether this source type requires picking a content type (ancestor/sibling only — parent is implicit) */
+  /** Whether this source type requires picking a content type */
   private _needsSourceContentType(sourceType: string): boolean {
-    return sourceType === 'ancestor' || sourceType === 'sibling';
+    return sourceType === 'parent' || sourceType === 'ancestor' || sourceType === 'sibling';
   }
 
   private _handlePickSourceContentType(index: number) {
@@ -556,11 +556,14 @@ export class PropertyMappingTableElement extends UmbLitElement {
         <div class="property-select-row">
           <uui-select
             label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
-            .options=${this.availableProperties.map((p) => ({
-              name: formatPropertyName(p),
-              value: p,
-              selected: mapping.contentTypePropertyAlias === p,
-            }))}
+            .options=${[
+              { name: this.localize.term('schemeWeaver_selectProperty'), value: '', selected: !mapping.contentTypePropertyAlias },
+              ...this.availableProperties.map((p) => ({
+                name: formatPropertyName(p),
+                value: p,
+                selected: mapping.contentTypePropertyAlias === p,
+              })),
+            ]}
             @change=${(e: Event) => this._handlePropertyChange(index, (e.target as HTMLSelectElement).value)}
           ></uui-select>
           ${this._renderEditorBadge(mapping.editorAlias)}
@@ -589,11 +592,14 @@ export class PropertyMappingTableElement extends UmbLitElement {
               <div class="property-select-row">
                 <uui-select
                   label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
-                  .options=${(mapping.sourceContentTypeProperties || []).map((p) => ({
-                    name: formatPropertyName(p),
-                    value: p,
-                    selected: mapping.contentTypePropertyAlias === p,
-                  }))}
+                  .options=${[
+                    { name: this.localize.term('schemeWeaver_selectProperty'), value: '', selected: !mapping.contentTypePropertyAlias },
+                    ...(mapping.sourceContentTypeProperties || []).map((p) => ({
+                      name: formatPropertyName(p),
+                      value: p,
+                      selected: mapping.contentTypePropertyAlias === p,
+                    })),
+                  ]}
                   @change=${(e: Event) => this._handlePropertyChange(index, (e.target as HTMLSelectElement).value)}
                 ></uui-select>
               </div>
@@ -621,11 +627,14 @@ export class PropertyMappingTableElement extends UmbLitElement {
         <div class="property-select-row">
           <uui-select
             label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
-            .options=${this.availableProperties.map((p) => ({
-              name: formatPropertyName(p),
-              value: p,
-              selected: mapping.contentTypePropertyAlias === p,
-            }))}
+            .options=${[
+              { name: this.localize.term('schemeWeaver_selectProperty'), value: '', selected: !mapping.contentTypePropertyAlias },
+              ...this.availableProperties.map((p) => ({
+                name: formatPropertyName(p),
+                value: p,
+                selected: mapping.contentTypePropertyAlias === p,
+              })),
+            ]}
             @change=${(e: Event) => this._handlePropertyChange(index, (e.target as HTMLSelectElement).value)}
           ></uui-select>
           ${this._renderEditorBadge(mapping.editorAlias)}

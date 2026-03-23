@@ -21,18 +21,13 @@ export class JsonLdPreviewElement extends UmbLitElement {
     const json = this.formattedJson;
     if (!json) return '';
 
-    // Escape HTML entities first to prevent XSS
-    const escaped = json
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    // Apply syntax highlighting via CSS classes
-    return escaped
+    // Apply syntax highlighting to raw JSON (trusted server content from Schema.NET).
+    // Match actual " characters, not HTML entities.
+    return json
       // Keys: "propertyName":
-      .replace(/(&quot;(?:\\.|[^&])*?&quot;)\s*:/g, '<span class="json-key">$1</span>:')
+      .replace(/("(?:\\.|[^"\\])*")\s*:/g, '<span class="json-key">$1</span>:')
       // String values after colon
-      .replace(/:\s*(&quot;(?:\\.|[^&])*?&quot;)/g, ': <span class="json-string">$1</span>')
+      .replace(/:\s*("(?:\\.|[^"\\])*")/g, ': <span class="json-string">$1</span>')
       // Numbers
       .replace(/:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, ': <span class="json-number">$1</span>')
       // Booleans

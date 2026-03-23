@@ -3,6 +3,8 @@ import { css, html, customElement, state } from '@umbraco-cms/backoffice/externa
 import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
+import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
+import { UmbRequestReloadStructureForEntityEvent } from '@umbraco-cms/backoffice/entity-action';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
@@ -86,6 +88,18 @@ export class SchemaMappingViewElement extends UmbLitElement {
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
+    });
+
+    // Auto-save schema mapping when the document type is saved
+    this.consumeContext(UMB_ACTION_EVENT_CONTEXT, (context) => {
+      context?.addEventListener(
+        UmbRequestReloadStructureForEntityEvent.TYPE,
+        () => {
+          if (this._mapping && this._rows.length > 0) {
+            this._handleSave();
+          }
+        },
+      );
     });
   }
 
@@ -420,17 +434,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
           ></schemeweaver-property-mapping-table>
         </uui-box>
 
-        <div class="save-bar">
-          <uui-button
-            look="primary"
-            @click=${this._handleSave}
-            ?disabled=${this._saving}
-            .state=${this._saving ? 'waiting' : undefined}
-            label=${this.localize.term('schemeWeaver_save')}
-          >
-            ${this._saving ? this.localize.term('schemeWeaver_saving') : this.localize.term('schemeWeaver_save')}
-          </uui-button>
-        </div>
       </umb-body-layout>
     `;
   }
@@ -497,11 +500,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
         gap: var(--uui-size-space-2);
       }
 
-      .save-bar {
-        display: flex;
-        justify-content: flex-end;
-        padding: var(--uui-size-space-4) 0;
-      }
     `,
   ];
 }

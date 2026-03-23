@@ -125,7 +125,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
   render() {
     if (this._loading) {
       return html`
-        <umb-body-layout headline=${this.localize.term('schemeWeaver_preview')}>
+        <umb-body-layout>
           <div class="loading">
             <uui-loader-circle></uui-loader-circle>
           </div>
@@ -135,7 +135,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
 
     if (!this._hasMappng) {
       return html`
-        <umb-body-layout headline=${this.localize.term('schemeWeaver_preview')}>
+        <umb-body-layout>
           <uui-box>
             <div class="empty-state">
               <uui-icon name="icon-brackets" class="empty-icon"></uui-icon>

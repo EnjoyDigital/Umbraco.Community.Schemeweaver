@@ -107,6 +107,7 @@ export default {
     selectProperty: 'Select Property',
     searchProperties: 'Search properties...',
     noProperties: 'No properties found.',
+    selectProperty: 'Select property...',
     selectNestedType: 'Select nested type...',
     preConfigure: 'Pre-configured',
     inherited: 'Inherited',
