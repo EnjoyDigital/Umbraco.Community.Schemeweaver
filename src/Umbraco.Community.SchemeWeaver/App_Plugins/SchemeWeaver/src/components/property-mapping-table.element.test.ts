@@ -89,41 +89,35 @@ describe('PropertyMappingTableElement', () => {
     // The row is unmapped (no alias set) so it's in the unmapped section by default
   });
 
-  it('shows property dropdown directly for parent source type (no picker required)', async () => {
+  it('shows source chip for parent source type', async () => {
     const parentMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'parent', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${parentMapping} .availableProperties=${['title', '__url']}></schemeweaver-property-mapping-table>`);
 
-    // Show unmapped rows first
-    const toggleButton = el.shadowRoot!.querySelector('.unmapped-toggle uui-button') as HTMLElement;
-    toggleButton?.click();
-    await el.updateComplete;
-
-    // Parent should show a property select dropdown, not a picker button
-    const pickButton = el.shadowRoot!.querySelector('uui-button[look="placeholder"]') as HTMLElement;
-    expect(pickButton).to.be.null;
-
-    // Should have a property select dropdown visible
-    const selects = el.shadowRoot!.querySelectorAll('uui-select');
-    expect(selects.length).to.be.greaterThan(0);
+    // Parent rows count as mapped (non-default source type)
+    const sourceChip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
+    expect(sourceChip).to.exist;
   });
 
-  it('dispatches mappings-changed event on source type change', async () => {
+  it('dispatches pick-source-origin event when source chip is clicked', async () => {
     const mapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mapping} .availableProperties=${['title']}></schemeweaver-property-mapping-table>`);
 
     let eventFired = false;
-    el.addEventListener('mappings-changed', () => { eventFired = true; });
+    let eventDetail: any = null;
+    el.addEventListener('pick-source-origin', (e: Event) => {
+      eventFired = true;
+      eventDetail = (e as CustomEvent).detail;
+    });
 
-    const select = el.shadowRoot!.querySelector('uui-select');
-    if (select) {
-      (select as any).value = 'static';
-      select.dispatchEvent(new Event('change'));
-    }
+    const sourceChip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
+    sourceChip?.click();
     expect(eventFired).to.be.true;
+    expect(eventDetail.index).to.equal(0);
+    expect(eventDetail.currentSourceType).to.equal('property');
   });
 
   it('renders nested schema type input for blockContent source type', async () => {
@@ -144,14 +138,14 @@ describe('PropertyMappingTableElement', () => {
     expect(configButton).to.exist;
   });
 
-  it('shows nested mapping count badge when resolverConfig is set', async () => {
+  it('shows configured checkmark when resolverConfig is set', async () => {
     const config = JSON.stringify({ nestedMappings: [{ blockAlias: 'faqItem', schemaProperty: 'name', contentProperty: 'question' }] });
     const blockMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: config, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
-    const badge = el.shadowRoot!.querySelector('.nested-count-badge');
-    expect(badge).to.exist;
+    const check = el.shadowRoot!.querySelector('.configured-check');
+    expect(check).to.exist;
   });
 
   it('shows auto URL indicator for media picker properties', async () => {
@@ -193,49 +187,55 @@ describe('PropertyMappingTableElement', () => {
     expect(eventDetail.index).to.equal(0);
   });
 
-  it('shows Schema.org Type source when isComplexType is true', async () => {
+  it('shows source chip with complexType label when source is complexType', async () => {
     const complexMapping: PropertyMappingRow[] = [
-      { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'property', contentTypePropertyAlias: 'authorName', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${['authorName']}></schemeweaver-property-mapping-table>`);
-    const select = el.shadowRoot!.querySelector('uui-select') as any;
-    const options = select?.options || [];
-    const hasComplexType = options.some((o: any) => o.value === 'complexType');
-    expect(hasComplexType).to.be.true;
+    const chip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
+    expect(chip).to.exist;
+    const icon = chip.querySelector('uui-icon');
+    expect(icon?.getAttribute('name')).to.equal('icon-brackets');
   });
 
-  it('does not show Schema.org Type source when isComplexType is false', async () => {
+  it('shows source chip with property label for simple types', async () => {
     const simpleMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'headline', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${simpleMapping} .availableProperties=${['title']}></schemeweaver-property-mapping-table>`);
-    const select = el.shadowRoot!.querySelector('uui-select') as any;
-    const options = select?.options || [];
-    const hasComplexType = options.some((o: any) => o.value === 'complexType');
-    expect(hasComplexType).to.be.false;
+    const chip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
+    expect(chip).to.exist;
+    const icon = chip.querySelector('uui-icon');
+    expect(icon?.getAttribute('name')).to.equal('icon-document');
   });
 
-  it('shows blockContent source type when isComplexType is true and editorAlias is empty', async () => {
-    // Use 'static' sourceType so the row counts as mapped (visible without toggle)
+  it('shows source chip with blockContent icon when source is blockContent', async () => {
+    const blockMapping: PropertyMappingRow[] = [
+      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+    ];
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${[]}></schemeweaver-property-mapping-table>`);
+    const chip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
+    expect(chip).to.exist;
+    const icon = chip.querySelector('uui-icon');
+    expect(icon?.getAttribute('name')).to.equal('icon-grid');
+  });
+
+  it('passes isComplexType and editorAlias in pick-source-origin event', async () => {
     const complexMapping: PropertyMappingRow[] = [
-      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'static', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'property', contentTypePropertyAlias: 'authorName', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
-    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${[]}></schemeweaver-property-mapping-table>`);
-    const select = el.shadowRoot!.querySelector('uui-select') as any;
-    const options = select?.options || [];
-    const hasBlockContent = options.some((o: any) => o.value === 'blockContent');
-    expect(hasBlockContent).to.be.true;
-  });
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${['authorName']}></schemeweaver-property-mapping-table>`);
 
-  it('does not show blockContent source type when isComplexType is false and editorAlias is empty', async () => {
-    const simpleMapping: PropertyMappingRow[] = [
-      { schemaPropertyName: 'headline', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
-    ];
-    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${simpleMapping} .availableProperties=${['title']}></schemeweaver-property-mapping-table>`);
-    const select = el.shadowRoot!.querySelector('uui-select') as any;
-    const options = select?.options || [];
-    const hasBlockContent = options.some((o: any) => o.value === 'blockContent');
-    expect(hasBlockContent).to.be.false;
+    let eventDetail: any = null;
+    el.addEventListener('pick-source-origin', (e: Event) => {
+      eventDetail = (e as CustomEvent).detail;
+    });
+
+    const chip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
+    chip?.click();
+    expect(eventDetail).to.exist;
+    expect(eventDetail.isComplexType).to.be.true;
+    expect(eventDetail.editorAlias).to.equal('Umbraco.BlockList');
   });
 
   it('shows expand chevron when complexType source is selected', async () => {
@@ -280,9 +280,9 @@ describe('PropertyMappingTableElement', () => {
     // Should render a uui-select for nested type (not a uui-input with class nested-schema-input)
     const nestedInput = el.shadowRoot!.querySelector('.nested-schema-input');
     expect(nestedInput).to.not.exist;
-    // Should have 3 uui-selects: source type, content property, nested schema type
+    // Should have a uui-select for nested schema type (source is a chip button, property is a combobox)
     const selects = el.shadowRoot!.querySelectorAll('uui-select');
-    expect(selects.length).to.equal(3);
+    expect(selects.length).to.equal(1);
   });
 
   it('renders free text input for nestedSchemaTypeName when no acceptedTypes', async () => {
@@ -294,23 +294,23 @@ describe('PropertyMappingTableElement', () => {
     expect(nestedInput).to.exist;
   });
 
-  it('shows pre-configured badge when resolverConfig has nested mappings', async () => {
+  it('shows configured checkmark when resolverConfig has nested mappings', async () => {
     const config = JSON.stringify({ nestedMappings: [{ schemaProperty: 'name', contentProperty: 'question' }] });
     const blockMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: config, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
-    const preConfigBadge = el.shadowRoot!.querySelector('.pre-configured-badge');
-    expect(preConfigBadge).to.exist;
+    const check = el.shadowRoot!.querySelector('.configured-check');
+    expect(check).to.exist;
   });
 
-  it('does not show pre-configured badge when resolverConfig is null', async () => {
+  it('does not show configured checkmark when resolverConfig is null', async () => {
     const blockMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: 'blockContent', contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: null, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
-    const preConfigBadge = el.shadowRoot!.querySelector('.pre-configured-badge');
-    expect(preConfigBadge).to.not.exist;
+    const check = el.shadowRoot!.querySelector('.configured-check');
+    expect(check).to.not.exist;
   });
 
   // -- Auto-mapped complex type scenario tests --
@@ -330,10 +330,8 @@ describe('PropertyMappingTableElement', () => {
     // Second row should have blockContent indicators
     const configButton = el.shadowRoot!.querySelector('.block-actions uui-button');
     expect(configButton).to.exist;
-    const badge = el.shadowRoot!.querySelector('.nested-count-badge');
-    expect(badge).to.exist;
-    const preConfigBadge = el.shadowRoot!.querySelector('.pre-configured-badge');
-    expect(preConfigBadge).to.exist;
+    const check = el.shadowRoot!.querySelector('.configured-check');
+    expect(check).to.exist;
   });
 
   it('renders Product auto-mapped rows with review blockContent and simple properties', async () => {

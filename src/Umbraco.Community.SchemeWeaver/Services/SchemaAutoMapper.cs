@@ -331,10 +331,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 suggestion.SuggestedSourceType = popularDefault!.SourceType;
                 suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
                 suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
-                suggestion.Confidence = 60;
-                suggestion.IsAutoMapped = true;
 
-                // For blockContent defaults, suggest the first BlockList/BlockGrid property
+                // For blockContent defaults, only auto-map if a matching block property exists
                 if (popularDefault.SourceType == "blockContent")
                 {
                     var blockProperty = contentProperties
@@ -343,15 +341,28 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                     {
                         suggestion.SuggestedContentTypePropertyAlias = blockProperty.Alias;
                         suggestion.EditorAlias = blockProperty.PropertyEditorAlias;
+                        suggestion.Confidence = 60;
+                        suggestion.IsAutoMapped = true;
                     }
+                    else
+                    {
+                        suggestion.Confidence = 0;
+                        suggestion.IsAutoMapped = false;
+                    }
+                }
+                else
+                {
+                    suggestion.Confidence = 60;
+                    suggestion.IsAutoMapped = true;
                 }
             }
             else if (schemaProp.IsComplexType)
             {
+                // No popular default and no property match — keep suggestion data but don't auto-map
                 suggestion.SuggestedSourceType = "complexType";
                 suggestion.SuggestedNestedSchemaTypeName = GetFirstNonPrimitiveAcceptedType(schemaProp.AcceptedTypes);
-                suggestion.Confidence = 60;
-                suggestion.IsAutoMapped = true;
+                suggestion.Confidence = 0;
+                suggestion.IsAutoMapped = false;
             }
             else
             {

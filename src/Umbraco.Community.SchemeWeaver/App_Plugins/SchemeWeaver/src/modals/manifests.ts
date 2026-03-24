@@ -35,4 +35,10 @@ export const manifests = [
     name: 'Property Picker Modal',
     element: () => import('./property-picker-modal.element.js'),
   },
+  {
+    type: 'modal',
+    alias: 'schemeweaver-source-origin-picker-modal',
+    name: 'Source Origin Picker Modal',
+    element: () => import('./source-origin-picker-modal.element.js'),
+  },
 ];

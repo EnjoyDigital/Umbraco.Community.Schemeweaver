@@ -241,6 +241,91 @@ public class SchemaAutoMapperTests
     }
 
     [Fact]
+    public void ComplexProperty_BlockContentDefault_NoBlockProperty_ReturnsConfidence0()
+    {
+        // blockContent popular default but NO BlockList/BlockGrid property on content type
+        // → confidence 0, IsAutoMapped false
+        var contentType = CreateContentTypeWithEditors(
+            ("someTextField", "Umbraco.TextBox"));
+        _contentTypeService.Get("faqPage").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("FAQPage").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "mainEntity",
+                PropertyType = "Question",
+                IsComplexType = true,
+                AcceptedTypes = ["Question"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("faqPage", "FAQPage").ToList();
+
+        var mainEntity = result.First(s => s.SchemaPropertyName == "mainEntity");
+        mainEntity.Confidence.Should().Be(0);
+        mainEntity.IsAutoMapped.Should().BeFalse();
+        // Still populates the default source type and nested schema type for user to configure
+        mainEntity.SuggestedSourceType.Should().Be("blockContent");
+        mainEntity.SuggestedNestedSchemaTypeName.Should().Be("Question");
+    }
+
+    [Fact]
+    public void ComplexProperty_NoPopularDefault_NoMatch_ReturnsConfidence0()
+    {
+        // Complex type without popular default and no matching property
+        // → confidence 0, IsAutoMapped false
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("custom").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("CustomType").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "someComplexField",
+                PropertyType = "SomeCustomType",
+                IsComplexType = true,
+                AcceptedTypes = ["SomeCustomType"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("custom", "CustomType").ToList();
+
+        result.Should().ContainSingle();
+        result[0].Confidence.Should().Be(0);
+        result[0].IsAutoMapped.Should().BeFalse();
+        result[0].SuggestedSourceType.Should().Be("complexType");
+        result[0].SuggestedNestedSchemaTypeName.Should().Be("SomeCustomType");
+        result[0].SuggestedContentTypePropertyAlias.Should().BeNull();
+    }
+
+    [Fact]
+    public void ComplexProperty_BlockContentDefault_WithBlockList_ReturnsConfidence60()
+    {
+        // blockContent popular default AND a BlockList property → confidence 60, IsAutoMapped true
+        var contentType = CreateContentTypeWithEditors(
+            ("faqItems", "Umbraco.BlockList"));
+        _contentTypeService.Get("faqPage").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("FAQPage").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "mainEntity",
+                PropertyType = "Question",
+                IsComplexType = true,
+                AcceptedTypes = ["Question"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("faqPage", "FAQPage").ToList();
+
+        var mainEntity = result.First(s => s.SchemaPropertyName == "mainEntity");
+        mainEntity.Confidence.Should().Be(60);
+        mainEntity.IsAutoMapped.Should().BeTrue();
+        mainEntity.SuggestedSourceType.Should().Be("blockContent");
+        mainEntity.SuggestedNestedSchemaTypeName.Should().Be("Question");
+        mainEntity.SuggestedContentTypePropertyAlias.Should().Be("faqItems");
+    }
+
+    [Fact]
     public void FAQPage_MainEntity_SuggestsQuestionWithResolverConfig()
     {
         // No name match between "faqItems" and "mainEntity", but popular default kicks in
@@ -407,7 +492,9 @@ public class SchemaAutoMapperTests
         result.Should().ContainSingle();
         result[0].SuggestedSourceType.Should().Be("complexType");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("SomeType");
-        result[0].Confidence.Should().Be(60);
+        // No popular default and no property match → confidence 0, not auto-mapped
+        result[0].Confidence.Should().Be(0);
+        result[0].IsAutoMapped.Should().BeFalse();
     }
 
     [Fact]

@@ -7,7 +7,8 @@ import '../components/property-mapping-table.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from './nested-mapping-modal.token.js';
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-modal.token.js';
-import { suggestionToRow } from '../utils/mapping-converters.js';
+import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
+import { mergeAutoMapSuggestions, applySourceTypeChange } from '../utils/mapping-converters.js';
 
 import type { PropertyMappingModalData, PropertyMappingModalValue } from './property-mapping-modal.token.js';
 import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
@@ -55,10 +56,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       );
 
       if (suggestions && Array.isArray(suggestions)) {
-        // Only show suggestions that have an actual match or popular default
-        this._mappings = suggestions
-          .filter(s => s.confidence > 0 || s.suggestedContentTypePropertyAlias || s.suggestedResolverConfig)
-          .map(suggestionToRow);
+        this._mappings = mergeAutoMapSuggestions(this._mappings, suggestions);
       }
 
       const props = await this.#repository.requestContentTypeProperties(this.data?.contentTypeAlias || '');
@@ -69,7 +67,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       console.error('SchemeWeaver: Error initialising property mapping:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Failed to load mapping data',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToLoadMappingData'),
         },
       });
     } finally {
@@ -88,6 +86,24 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as any;
       table?.setSubTypeProperties(index, props.map((p: any) => ({ name: p.name, propertyType: p.propertyType })));
     }
+  }
+
+  private async _handlePickSourceOrigin(e: CustomEvent) {
+    const { index, editorAlias, isComplexType, currentSourceType } = e.detail;
+    if (!this.#modalManagerContext) return;
+
+    const result = await this.#modalManagerContext
+      .open(this, SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL, {
+        data: { editorAlias, isComplexType, currentSourceType },
+      })
+      .onSubmit()
+      .catch(() => null);
+
+    if (!result?.sourceType) return;
+
+    const updated = [...this._mappings];
+    updated[index] = applySourceTypeChange(updated[index], result.sourceType);
+    this._mappings = updated;
   }
 
   private async _handlePickSourceContentType(e: CustomEvent) {
@@ -118,7 +134,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     if (!mapping || !mapping.nestedSchemaTypeName) {
       this.#notificationContext?.peek('warning', {
         data: {
-          message: 'Please enter a nested schema type name first.',
+          message: this.localize.term('schemeWeaver_pleaseEnterNestedSchemaType'),
         },
       });
       return;
@@ -185,7 +201,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       console.error('SchemeWeaver: Save error:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Failed to save',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToSave'),
         },
       });
     } finally {
@@ -220,6 +236,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
                   .availableProperties=${this._availableProperties}
                   @mappings-changed=${this._handleMappingsChanged}
                   @configure-nested-mapping=${this._handleConfigureNestedMapping}
+                  @pick-source-origin=${this._handlePickSourceOrigin}
                   @load-sub-type-properties=${this._handleLoadSubTypeProperties}
                   @pick-source-content-type=${this._handlePickSourceContentType}
                 ></schemeweaver-property-mapping-table>

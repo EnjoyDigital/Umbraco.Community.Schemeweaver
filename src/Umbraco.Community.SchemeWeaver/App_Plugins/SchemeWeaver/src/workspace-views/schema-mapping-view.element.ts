@@ -11,10 +11,12 @@ import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from '../modals/content-type-picker-modal.token.js';
+import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from '../modals/source-origin-picker-modal.token.js';
+import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from '../modals/nested-mapping-modal.token.js';
 import type { SchemaMappingDto, ContentTypeProperty } from '../api/types.js';
 import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
 
-import { dtoToRow, suggestionToRow } from '../utils/mapping-converters.js';
+import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange } from '../utils/mapping-converters.js';
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
@@ -104,7 +106,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       }
 
       this._mapping = mapping;
-      this._rows = mapping.propertyMappings.map(dtoToRow);
+      this._rows = sortMappingRows(mapping.propertyMappings.map(dtoToRow));
 
       // Enrich rows with schema property info (acceptedTypes, isComplexType)
       const schemaProps = await this.#repository.requestSchemaTypeProperties(mapping.schemaTypeName);
@@ -176,7 +178,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       console.error('SchemeWeaver: Error fetching mapping:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Failed to load mapping',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToLoadMapping'),
         },
       });
     } finally {
@@ -224,16 +226,13 @@ export class SchemaMappingViewElement extends UmbLitElement {
       );
 
       if (suggestions && Array.isArray(suggestions)) {
-        // Only show suggestions that have an actual match or popular default
-        this._rows = suggestions
-          .filter(s => s.confidence > 0 || s.suggestedContentTypePropertyAlias || s.suggestedResolverConfig)
-          .map(suggestionToRow);
+        this._rows = mergeAutoMapSuggestions(this._rows, suggestions);
       }
     } catch (error) {
       console.error('SchemeWeaver: Auto-map error:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Auto-map failed',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_autoMapFailed'),
         },
       });
     } finally {
@@ -277,7 +276,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       console.error('SchemeWeaver: Save error:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Failed to save',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToSave'),
         },
       });
     } finally {
@@ -318,12 +317,73 @@ export class SchemaMappingViewElement extends UmbLitElement {
     table?.setSourceContentType(index, result.contentTypeAlias, propertyAliases);
   }
 
+  private async _handlePickSourceOrigin(e: CustomEvent) {
+    const { index, editorAlias, isComplexType, currentSourceType } = e.detail;
+    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
+
+    const result = await modalManager
+      .open(this, SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL, {
+        data: { editorAlias, isComplexType, currentSourceType },
+      })
+      .onSubmit()
+      .catch(() => null);
+
+    if (!result?.sourceType) return;
+
+    const updated = [...this._rows];
+    updated[index] = applySourceTypeChange(updated[index], result.sourceType);
+    this._rows = updated;
+  }
+
   private async _handleLoadSubTypeProperties(e: CustomEvent) {
     const { index, typeName } = e.detail;
     const props = await this.#repository.requestSchemaTypeProperties(typeName);
     if (props) {
       const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as PropertyMappingTableElement | null;
       table?.setSubTypeProperties(index, props.map((p: any) => ({ name: p.name, propertyType: p.propertyType })));
+    }
+  }
+
+  private async _handleConfigureNestedMapping(e: CustomEvent) {
+    const { index } = e.detail;
+    const mapping = this._rows[index];
+
+    if (!mapping || !mapping.nestedSchemaTypeName) {
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_pleaseEnterNestedSchemaType') },
+      });
+      return;
+    }
+
+    if (!mapping.contentTypePropertyAlias) {
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_pleaseSelectBlockContentProperty') },
+      });
+      return;
+    }
+
+    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
+
+    const modalHandler = modalManager.open(this, SCHEMEWEAVER_NESTED_MAPPING_MODAL, {
+      data: {
+        nestedSchemaTypeName: mapping.nestedSchemaTypeName,
+        contentTypePropertyAlias: mapping.contentTypePropertyAlias,
+        contentTypeAlias: this._contentTypeAlias,
+        existingConfig: mapping.resolverConfig,
+      },
+    });
+
+    try {
+      const result = await modalHandler.onSubmit();
+      if (result?.resolverConfig) {
+        const updated = [...this._rows];
+        updated[index] = { ...updated[index], resolverConfig: result.resolverConfig };
+        this._rows = updated;
+      }
+    } catch {
+      // Modal was rejected / closed — do nothing
     }
   }
 
@@ -388,8 +448,10 @@ export class SchemaMappingViewElement extends UmbLitElement {
             .mappings=${this._rows}
             .availableProperties=${this._availableProperties}
             @mappings-changed=${this._handleMappingsChanged}
+            @pick-source-origin=${this._handlePickSourceOrigin}
             @pick-source-content-type=${this._handlePickSourceContentType}
             @load-sub-type-properties=${this._handleLoadSubTypeProperties}
+            @configure-nested-mapping=${this._handleConfigureNestedMapping}
           ></schemeweaver-property-mapping-table>
         </uui-box>
 

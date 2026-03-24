@@ -619,6 +619,75 @@ test.describe('JSON-LD Output on Site', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Delivery API JSON-LD Tests (require Delivery API enabled + published content)
+// ---------------------------------------------------------------------------
+
+test.describe('Delivery API JSON-LD', () => {
+  test('Delivery API returns schemaOrg field for mapped content', async ({ umbracoUi }) => {
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
+
+    // Fetch content items via Delivery API
+    const response = await umbracoUi.page.request.get(
+      `${baseUrl}/umbraco/delivery/api/v2/content`,
+      { headers: { 'Accept': 'application/json' } }
+    );
+
+    if (!response.ok()) {
+      console.warn('Delivery API not available — skipping test');
+      return;
+    }
+
+    const data = await response.json();
+    expect(data.items).toBeTruthy();
+
+    // Find any content item that has a schemaOrg property (i.e. has a mapping)
+    const itemWithSchema = data.items.find(
+      (item: any) => item.properties?.schemaOrg
+    );
+
+    if (!itemWithSchema) {
+      console.warn('No content with schemaOrg mapping found in Delivery API — skipping validation');
+      return;
+    }
+
+    // schemaOrg should be a JSON-LD string (or array of strings)
+    const schemaOrg = itemWithSchema.properties.schemaOrg;
+    const jsonLdString = Array.isArray(schemaOrg) ? schemaOrg[0] : schemaOrg;
+    expect(jsonLdString).toBeTruthy();
+
+    const parsed = JSON.parse(jsonLdString);
+    expect(parsed['@context']).toBe('https://schema.org');
+    expect(parsed['@type']).toBeTruthy();
+  });
+
+  test('Delivery API content item by path includes JSON-LD', async ({ umbracoUi }) => {
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
+
+    // Fetch the home page by path via Delivery API
+    const response = await umbracoUi.page.request.get(
+      `${baseUrl}/umbraco/delivery/api/v2/content/item/`,
+      { headers: { 'Accept': 'application/json' } }
+    );
+
+    if (!response.ok()) {
+      console.warn('Delivery API item endpoint not available — skipping test');
+      return;
+    }
+
+    const item = await response.json();
+
+    // If the home page has a schema mapping, validate the schemaOrg property
+    if (item.properties?.schemaOrg) {
+      const schemaOrg = item.properties.schemaOrg;
+      const jsonLdString = Array.isArray(schemaOrg) ? schemaOrg[0] : schemaOrg;
+      const parsed = JSON.parse(jsonLdString);
+      expect(parsed['@context']).toBe('https://schema.org');
+      expect(parsed['@type']).toBeTruthy();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Mapping Persistence & JSON-LD Output Tests
 // ---------------------------------------------------------------------------
 

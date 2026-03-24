@@ -34,6 +34,14 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<IPropertyValueResolver, ContentPickerResolver>();
         builder.Services.AddScoped<IPropertyValueResolver, BlockContentResolver>();
         builder.Services.AddScoped<IPropertyValueResolver, BuiltInPropertyResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, DateTimeResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, NumericResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, BooleanResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, TagsResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, MultipleTextStringResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, DropdownListResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, ColorPickerResolver>();
+        builder.Services.AddScoped<IPropertyValueResolver, MultiUrlPickerResolver>();
         builder.Services.AddScoped<IPropertyValueResolverFactory, PropertyValueResolverFactory>();
     }
 }
