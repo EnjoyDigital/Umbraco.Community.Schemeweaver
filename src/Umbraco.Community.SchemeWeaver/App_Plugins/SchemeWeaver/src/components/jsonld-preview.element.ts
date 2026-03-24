@@ -1,7 +1,11 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, nothing } from '@umbraco-cms/backoffice/external/lit';
-import { unsafeHTML } from '@umbraco-cms/backoffice/external/lit';
 import type { JsonLdPreviewResponse } from '../api/types.js';
+
+interface JsonToken {
+  type: 'key' | 'string' | 'number' | 'boolean' | 'null' | 'text';
+  value: string;
+}
 
 @customElement('schemeweaver-jsonld-preview')
 export class JsonLdPreviewElement extends UmbLitElement {
@@ -17,23 +21,56 @@ export class JsonLdPreviewElement extends UmbLitElement {
     }
   }
 
-  private get _highlightedJson(): string {
+  /** Tokenise formatted JSON for safe syntax highlighting without innerHTML. */
+  private _tokeniseJson(): JsonToken[] {
     const json = this.formattedJson;
-    if (!json) return '';
+    if (!json) return [];
 
-    // Apply syntax highlighting to raw JSON (trusted server content from Schema.NET).
-    // Match actual " characters, not HTML entities.
-    return json
-      // Keys: "propertyName":
-      .replace(/("(?:\\.|[^"\\])*")\s*:/g, '<span class="json-key">$1</span>:')
-      // String values after colon
-      .replace(/:\s*("(?:\\.|[^"\\])*")/g, ': <span class="json-string">$1</span>')
-      // Numbers
-      .replace(/:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, ': <span class="json-number">$1</span>')
-      // Booleans
-      .replace(/:\s*(true|false)/g, ': <span class="json-boolean">$1</span>')
-      // Null
-      .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+    const tokens: JsonToken[] = [];
+    let i = 0;
+
+    while (i < json.length) {
+      const ch = json[i];
+
+      if (ch === '"') {
+        // Consume a quoted string (handles escaped characters)
+        let end = i + 1;
+        while (end < json.length && json[end] !== '"') {
+          if (json[end] === '\\') end++; // skip escaped char
+          end++;
+        }
+        const str = json.substring(i, end + 1);
+
+        // Determine if this is a key (followed by ':') or a string value
+        let j = end + 1;
+        while (j < json.length && /\s/.test(json[j])) j++;
+        tokens.push({ type: json[j] === ':' ? 'key' : 'string', value: str });
+        i = end + 1;
+      } else if (/[-0-9]/.test(ch)) {
+        // Number
+        let end = i;
+        while (end < json.length && /[0-9.eE+\-]/.test(json[end])) end++;
+        tokens.push({ type: 'number', value: json.substring(i, end) });
+        i = end;
+      } else if (json.substring(i, i + 4) === 'true') {
+        tokens.push({ type: 'boolean', value: 'true' });
+        i += 4;
+      } else if (json.substring(i, i + 5) === 'false') {
+        tokens.push({ type: 'boolean', value: 'false' });
+        i += 5;
+      } else if (json.substring(i, i + 4) === 'null') {
+        tokens.push({ type: 'null', value: 'null' });
+        i += 4;
+      } else {
+        // Whitespace, brackets, colons, commas — accumulate plain text
+        let end = i + 1;
+        while (end < json.length && !/["0-9\-tfn]/.test(json[end])) end++;
+        tokens.push({ type: 'text', value: json.substring(i, end) });
+        i = end;
+      }
+    }
+
+    return tokens;
   }
 
   render() {
@@ -56,7 +93,11 @@ export class JsonLdPreviewElement extends UmbLitElement {
             </ul>
           `
         : nothing}
-      <pre class="json-code">${unsafeHTML(this._highlightedJson)}</pre>
+      <pre class="json-code">${this._tokeniseJson().map((t) =>
+        t.type === 'text'
+          ? t.value
+          : html`<span class="json-${t.type}">${t.value}</span>`
+      )}</pre>
     `;
   }
 

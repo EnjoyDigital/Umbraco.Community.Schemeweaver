@@ -11,52 +11,10 @@ import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from '../modals/content-type-picker-modal.token.js';
-import type { SchemaMappingDto, PropertyMappingDto, PropertyMappingSuggestion, ContentTypeProperty } from '../api/types.js';
+import type { SchemaMappingDto, ContentTypeProperty } from '../api/types.js';
 import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
 
-/** Convert stored PropertyMappingDto to UI row model */
-function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
-  return {
-    schemaPropertyName: dto.schemaPropertyName || '',
-    schemaPropertyType: '',
-    sourceType: dto.sourceType || 'property',
-    contentTypePropertyAlias: dto.contentTypePropertyAlias || '',
-    sourceContentTypeAlias: dto.sourceContentTypeAlias || '',
-    staticValue: dto.staticValue || '',
-    confidence: null,
-    editorAlias: '',
-    nestedSchemaTypeName: dto.nestedSchemaTypeName || '',
-    resolverConfig: dto.resolverConfig || null,
-    acceptedTypes: [],
-    isComplexType: false,
-    expanded: false,
-    subMappings: [],
-    selectedSubType: '',
-    sourceContentTypeProperties: [],
-  };
-}
-
-/** Convert PropertyMappingSuggestion to UI row model */
-function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
-  return {
-    schemaPropertyName: s.schemaPropertyName,
-    schemaPropertyType: s.schemaPropertyType || '',
-    sourceType: s.suggestedSourceType,
-    contentTypePropertyAlias: s.suggestedContentTypePropertyAlias || '',
-    sourceContentTypeAlias: '',
-    staticValue: '',
-    confidence: s.confidence,
-    editorAlias: s.editorAlias || '',
-    nestedSchemaTypeName: s.suggestedNestedSchemaTypeName || '',
-    resolverConfig: s.suggestedResolverConfig || null,
-    acceptedTypes: s.acceptedTypes || [],
-    isComplexType: s.isComplexType || false,
-    expanded: false,
-    subMappings: [],
-    selectedSubType: '',
-    sourceContentTypeProperties: [],
-  };
-}
+import { dtoToRow, suggestionToRow } from '../utils/mapping-converters.js';
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
@@ -107,7 +65,8 @@ export class SchemaMappingViewElement extends UmbLitElement {
     super.connectedCallback();
 
     try {
-      const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as any;
+      const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as
+        { alias?: { subscribe(cb: (v: string | null) => void): void }; getUnique?(): string | undefined };
       if (workspaceContext?.alias) {
         this.observe(
           workspaceContext.alias,
@@ -363,7 +322,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
     const { index, typeName } = e.detail;
     const props = await this.#repository.requestSchemaTypeProperties(typeName);
     if (props) {
-      const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as any;
+      const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as PropertyMappingTableElement | null;
       table?.setSubTypeProperties(index, props.map((p: any) => ({ name: p.name, propertyType: p.propertyType })));
     }
   }

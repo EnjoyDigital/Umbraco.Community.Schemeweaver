@@ -10,3 +10,8 @@ export class UmbEntityActionBase {
 
   async execute() {}
 }
+
+export class UmbRequestReloadStructureForEntityEvent {
+  static TYPE = 'request-reload-structure-for-entity';
+  constructor() {}
+}

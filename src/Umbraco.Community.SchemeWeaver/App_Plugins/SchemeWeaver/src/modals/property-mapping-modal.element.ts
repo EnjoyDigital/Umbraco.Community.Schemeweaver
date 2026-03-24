@@ -5,34 +5,12 @@ import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
-import type { PropertyMappingSuggestion } from '../api/types.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from './nested-mapping-modal.token.js';
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-modal.token.js';
+import { suggestionToRow } from '../utils/mapping-converters.js';
 
 import type { PropertyMappingModalData, PropertyMappingModalValue } from './property-mapping-modal.token.js';
 import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
-
-/** Convert C# PropertyMappingSuggestion to UI row model */
-function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
-  return {
-    schemaPropertyName: s.schemaPropertyName,
-    schemaPropertyType: s.schemaPropertyType || '',
-    sourceType: s.suggestedSourceType,
-    contentTypePropertyAlias: s.suggestedContentTypePropertyAlias || '',
-    sourceContentTypeAlias: '',
-    staticValue: '',
-    confidence: s.confidence,
-    editorAlias: s.editorAlias || '',
-    nestedSchemaTypeName: s.suggestedNestedSchemaTypeName || '',
-    resolverConfig: s.suggestedResolverConfig || null,
-    acceptedTypes: s.acceptedTypes || [],
-    isComplexType: s.isComplexType || false,
-    expanded: false,
-    subMappings: [],
-    selectedSubType: '',
-    sourceContentTypeProperties: [],
-  };
-}
 
 @customElement('schemeweaver-property-mapping-modal')
 export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMappingModalData, PropertyMappingModalValue> {
@@ -178,6 +156,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         contentTypeKey: this.data?.contentTypeKey ?? '',
         schemaTypeName: this.data?.schemaType || '',
         isEnabled: true,
+        isInherited: false,
         propertyMappings: this._mappings
           .filter((row) => {
             // Only save rows that are actually configured

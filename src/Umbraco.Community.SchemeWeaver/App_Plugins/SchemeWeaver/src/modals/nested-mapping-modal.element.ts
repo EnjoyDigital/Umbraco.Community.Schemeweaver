@@ -277,9 +277,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                   look="primary"
                   ?disabled=${!this._selectedBlockType}
                   @click=${() => this._goToStep('mappings')}
-                  label="Next"
+                  label=${this.localize.term('schemeWeaver_next')}
                 >
-                  Next
+                  ${this.localize.term('schemeWeaver_next')}
                 </uui-button>
               `
             : nothing}
@@ -316,7 +316,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     if (this._blockElementTypes.length === 0) {
       return html`
         <uui-box headline=${this.localize.term('schemeWeaver_blockElementType')}>
-          <p class="no-block-types-hint">No block element types found for this property. Enter an alias manually:</p>
+          <p class="no-block-types-hint">${this.localize.term('schemeWeaver_noBlockTypesHint')}</p>
           <uui-input
             .value=${this._selectedBlockType?.alias || ''}
             @input=${(e: Event) => {
@@ -332,12 +332,14 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_blockElementType')}>
-        <p class="step-description">Select the block element type that contains the content for each ${this.data?.nestedSchemaTypeName || ''} item:</p>
+        <p class="step-description">${this.localize.term('schemeWeaver_selectBlockTypeHint')} ${this.data?.nestedSchemaTypeName || ''}:</p>
         <div class="block-type-list">
           ${this._blockElementTypes.map(
             (bt) => html`
-              <button
+              <uui-button
                 class="block-type-card ${this._selectedBlockType?.alias === bt.alias ? 'selected' : ''}"
+                look="placeholder"
+                label=${bt.name}
                 @click=${() => {
                   this._selectedBlockType = bt;
                 }}
@@ -349,7 +351,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                 <div class="block-type-props">
                   ${bt.properties.map((p) => html`<uui-tag look="secondary" class="prop-tag">${p}</uui-tag>`)}
                 </div>
-              </button>
+              </uui-button>
             `
           )}
         </div>
@@ -364,7 +366,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       <uui-box headline=${this.localize.term('schemeWeaver_nestedMappings')}>
         <div class="mapping-header-info">
           <uui-tag color="primary">${this.data?.nestedSchemaTypeName}</uui-tag>
-          <span>from</span>
+          <span>${this.localize.term('schemeWeaver_from')}</span>
           <uui-tag color="default">${this._selectedBlockType?.name || this._selectedBlockType?.alias}</uui-tag>
         </div>
 
@@ -403,7 +405,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                       <uui-input
                         .value=${mapping.contentProperty}
                         @input=${(e: Event) => this._handleContentPropertyChange(index, (e.target as HTMLInputElement).value)}
-                        placeholder="Block property alias..."
+                        placeholder=${this.localize.term('schemeWeaver_blockPropertyPlaceholder')}
                         label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaProperty}
                       ></uui-input>
                     `}
@@ -463,7 +465,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         </div>
 
         <details class="json-details">
-          <summary>Resolver Config JSON</summary>
+          <summary>${this.localize.term('schemeWeaver_resolverConfigJson')}</summary>
           <pre class="json-preview">${this._previewJson}</pre>
         </details>
       </uui-box>
@@ -556,12 +558,10 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         display: block;
         width: 100%;
         text-align: left;
-        padding: var(--uui-size-space-3);
+        --uui-button-padding-left-factor: 3;
+        --uui-button-padding-right-factor: 3;
         border: 2px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
-        background: var(--uui-color-surface);
-        cursor: pointer;
-        transition: border-color 0.15s;
       }
 
       .block-type-card:hover {

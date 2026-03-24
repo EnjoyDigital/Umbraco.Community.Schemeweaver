@@ -31,7 +31,7 @@ export const manifests = [
   },
   {
     type: 'modal',
-    alias: 'SchemeWeaverPropertyPickerModal',
+    alias: 'schemeweaver-property-picker-modal',
     name: 'Property Picker Modal',
     element: () => import('./property-picker-modal.element.js'),
   },

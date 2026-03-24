@@ -18,7 +18,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
   private _generating = false;
 
   @state()
-  private _hasMappng = false;
+  private _hasMapping = false;
 
   @state()
   private _contentTypeAlias = '';
@@ -40,7 +40,8 @@ export class JsonLdContentViewElement extends UmbLitElement {
     super.connectedCallback();
 
     try {
-      const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as any;
+      const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as
+        { getUnique?(): string | undefined; contentTypeUnique?: { subscribe(cb: (v: string | null) => void): void } };
 
       if (workspaceContext?.getUnique) {
         this._contentKey = workspaceContext.getUnique() ?? '';
@@ -57,7 +58,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
                 this._contentTypeAlias = alias;
                 await this._checkMapping();
               } else {
-                this._hasMappng = false;
+                this._hasMapping = false;
                 this._loading = false;
               }
             }
@@ -79,8 +80,8 @@ export class JsonLdContentViewElement extends UmbLitElement {
   private async _checkMapping() {
     if (this._contentTypeAlias) {
       const mapping = await this.#repository.requestMapping(this._contentTypeAlias);
-      this._hasMappng = !!mapping;
-      if (this._hasMappng) {
+      this._hasMapping = !!mapping;
+      if (this._hasMapping) {
         await this._generatePreview();
         return;
       }
@@ -133,7 +134,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
       `;
     }
 
-    if (!this._hasMappng) {
+    if (!this._hasMapping) {
       return html`
         <umb-body-layout>
           <uui-box>

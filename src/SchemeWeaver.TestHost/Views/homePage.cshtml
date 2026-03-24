@@ -37,7 +37,7 @@
 <h2>Explore Our Site</h2>
 @if (Model.Children != null && Model.Children.Any())
 {
-    <div class="card-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+    <div class="card-grid">
         @foreach (var child in Model.Children)
         {
             <div class="card">

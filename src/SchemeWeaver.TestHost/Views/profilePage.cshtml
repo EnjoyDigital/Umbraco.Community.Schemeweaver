@@ -10,7 +10,7 @@
     var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("profileImage")?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
     {
-        <img src="@imageUrl" alt="@Model.Value("title")" style="max-width: 300px; border-radius: 50%;" />
+        <img src="@imageUrl" alt="@Model.Value("title")" class="profile-image" />
     }
 }
 

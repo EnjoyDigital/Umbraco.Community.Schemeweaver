@@ -1,7 +1,5 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing } from '@umbraco-cms/backoffice/external/lit';
-import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/workspace';
-import { SCHEMEWEAVER_PROPERTY_PICKER_MODAL } from '../modals/property-picker-modal.token.js';
 
 /** Sub-property mapping for complex Schema.org types */
 export interface SubPropertyMapping {
@@ -360,11 +358,15 @@ export class PropertyMappingTableElement extends UmbLitElement {
         <uui-table-cell>
           <div class="property-name-cell">
             ${isExpandable && !this.readonly
-              ? html`<uui-icon
-                  name=${mapping.expanded ? 'icon-navigation-down' : 'icon-navigation-right'}
+              ? html`<uui-button
+                  compact
+                  look="default"
                   class="expand-chevron"
+                  label=${mapping.expanded ? this.localize.term('schemeWeaver_collapse') : this.localize.term('schemeWeaver_expand')}
                   @click=${() => this._handleToggleExpand(index)}
-                ></uui-icon>`
+                >
+                  <uui-icon name=${mapping.expanded ? 'icon-navigation-down' : 'icon-navigation-right'}></uui-icon>
+                </uui-button>`
               : nothing}
             <div>
               <strong>${mapping.schemaPropertyName}</strong>
@@ -509,10 +511,10 @@ export class PropertyMappingTableElement extends UmbLitElement {
                 .value=${sub.staticValue}
                 @input=${(e: Event) => this._handleSubMappingStaticValueChange(parentIndex, subIndex, (e.target as HTMLInputElement).value)}
                 placeholder=${this.localize.term('schemeWeaver_enterStaticValue')}
-                label="Static value"
+                label=${this.localize.term('schemeWeaver_staticValueLabel')}
               ></uui-input>`
             : html`<uui-select
-                label="Property"
+                label=${this.localize.term('schemeWeaver_propertyLabel')}
                 .options=${this.availableProperties.map(p => ({
                   name: formatPropertyName(p),
                   value: p,
@@ -795,13 +797,8 @@ export class PropertyMappingTableElement extends UmbLitElement {
       }
 
       .expand-chevron {
-        cursor: pointer;
         font-size: 0.8rem;
         flex-shrink: 0;
-      }
-
-      .expand-chevron:hover {
-        color: var(--uui-color-interactive-emphasis);
       }
 
       .expanded-section-row {

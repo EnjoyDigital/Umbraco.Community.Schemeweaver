@@ -45,7 +45,7 @@ describe('SchemaMappingViewElement', () => {
     expect(emptyState).to.exist;
   });
 
-  it('renders property table and save button when mapping exists', async () => {
+  it('renders property table when mapping exists', async () => {
     const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`) as any;
 
     // Simulate the alias being set to a mapped content type
@@ -55,9 +55,6 @@ describe('SchemaMappingViewElement', () => {
 
     const table = el.shadowRoot!.querySelector('schemeweaver-property-mapping-table');
     expect(table).to.exist;
-
-    const saveBtn = el.shadowRoot!.querySelector('uui-button[look="primary"]');
-    expect(saveBtn).to.exist;
   });
 
   it('renders schema type tag when mapping exists', async () => {

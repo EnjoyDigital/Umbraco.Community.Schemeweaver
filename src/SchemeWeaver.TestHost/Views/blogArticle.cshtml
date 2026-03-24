@@ -5,7 +5,7 @@
 }
 <article>
     <h1>@Model.Value("title")</h1>
-    <div style="color: #6b7280; margin-bottom: 1.5rem;">
+    <div class="article-meta">
         @if (Model.HasValue("authorName"))
         {
             <span>By @Model.Value("authorName")</span>
@@ -24,7 +24,7 @@
     }
     @if (Model.HasValue("description"))
     {
-        <p class="lead" style="font-size: 1.15rem; color: #4b5563;">@Model.Value("description")</p>
+        <p class="lead">@Model.Value("description")</p>
     }
     <div class="card">
         @Model.Value("bodyText")
