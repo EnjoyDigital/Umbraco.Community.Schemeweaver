@@ -8,7 +8,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 
 ## Features
 
-- **500+ Schema.org types** -- discovers every type in the [Schema.NET](https://github.com/RehanSaeed/Schema.NET) library at startup (Article, Product, FAQPage, Event, Person, Organisation, and hundreds more)
+- **657 Schema.org types** -- discovers every type in the [Schema.NET](https://github.com/RehanSaeed/Schema.NET) library at startup (Article, Product, FAQPage, Event, Person, Organisation, and hundreds more)
 - **Auto-mapping with confidence scores** -- suggests property mappings using exact matching, synonym dictionaries, and substring matching, each with a transparency score so you can verify suggestions
 - **Seven source types** -- pull values from the current node, a static value, the parent node, an ancestor of a specific type, a sibling node, block content, or nested complex types
 - **Transforms** -- strip HTML, convert to absolute URL, or format dates before output
@@ -174,7 +174,7 @@ Navigate to **Settings > Schema.org Mappings** to see all content types with the
 ### Mapping flow
 
 1. Click **Map** on an unmapped content type
-2. **Schema Picker** modal opens -- browse or search 500+ Schema.org types, grouped by parent type
+2. **Schema Picker** modal opens -- browse or search 657 Schema.org types, grouped by parent type
 3. Select a type and click **Select**
 4. **Property Mapping** modal opens -- auto-mapped suggestions appear with confidence badges:
    - **High** (green, 80%+) -- very likely correct
@@ -337,6 +337,14 @@ Login at `http://localhost:5000/umbraco` with `admin@test.com` / `SecurePass1234
 dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj \
   --configuration Release --output ./artifacts
 ```
+
+## Known Issues (v0.1.0-alpha)
+
+- **Block content author wrapping** -- Review `author` with `wrapInType: Person` may produce an empty Person object. The name is not resolved from block element properties at runtime, though the same mechanism works correctly for FAQ Answer wrapping and Recipe Author (complexType). Under investigation.
+- **Complex type sub-properties** -- Some nested types (Rating, Person) created via block content `wrapInType` may not populate all fields. The `SetPropertyValue` conversion works in unit tests but behaves differently with live Umbraco block list data.
+- **Generate Content Type** -- The "Generate Content Type from Schema.org" feature is not yet implemented (endpoint returns 501).
+- **Media picker on block elements** -- Media URLs from block list items use a simplified resolution path (`GetValue().ToString()`) which may not handle all Umbraco media picker variants (e.g. multiple crops).
+- **JSON-LD preview double-render** -- Fixed in v0.1.0-alpha but may reappear if workspace view layout changes.
 
 ## Licence
 
