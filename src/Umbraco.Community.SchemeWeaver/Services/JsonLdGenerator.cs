@@ -221,6 +221,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 SchemaTypeRegistry = _registry,
                 MappingRepository = _repository,
                 HttpContextAccessor = _httpContextAccessor,
+                ResolverFactory = _resolverFactory,
                 Property = null,
                 RecursionDepth = 0
             };
@@ -245,6 +246,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             SchemaTypeRegistry = _registry,
             MappingRepository = _repository,
             HttpContextAccessor = _httpContextAccessor,
+            ResolverFactory = _resolverFactory,
             Property = publishedProperty,
             RecursionDepth = 0
         };
@@ -314,6 +316,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             SchemaTypeRegistry = _registry,
             MappingRepository = _repository,
             HttpContextAccessor = _httpContextAccessor,
+            ResolverFactory = _resolverFactory,
             Property = publishedProperty,
             RecursionDepth = 0
         };

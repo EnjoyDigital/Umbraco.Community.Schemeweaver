@@ -108,11 +108,19 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
     this._generating = true;
 
     try {
-      await this.#repository.generateContentType({
+      const result = await this.#repository.generateContentType({
         schemaTypeName: this._selectedSchemaType.name,
         documentTypeName: this._documentTypeName,
         documentTypeAlias: this._documentTypeAlias,
         selectedProperties: Array.from(this._selectedProperties),
+      });
+
+      if (!result) {
+        throw new Error('Failed to generate content type');
+      }
+
+      this.#notificationContext?.peek('positive', {
+        data: { message: this.localize.term('schemeWeaver_contentTypeGenerated') },
       });
 
       this.modalContext?.setValue({ generated: true });

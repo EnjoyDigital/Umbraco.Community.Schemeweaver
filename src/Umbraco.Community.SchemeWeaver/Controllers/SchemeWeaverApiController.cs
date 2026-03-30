@@ -195,15 +195,8 @@ public class SchemeWeaverApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GenerateContentType([FromBody] ContentTypeGenerationRequest request, CancellationToken cancellationToken)
     {
-        try
-        {
-            var key = await _contentTypeGenerator.GenerateContentTypeAsync(request, cancellationToken).ConfigureAwait(false);
-            return Ok(new { Key = key });
-        }
-        catch (NotImplementedException)
-        {
-            return StatusCode(StatusCodes.Status501NotImplemented, "Content type generation is not yet available.");
-        }
+        var key = await _contentTypeGenerator.GenerateContentTypeAsync(request, cancellationToken).ConfigureAwait(false);
+        return Ok(new { Key = key });
     }
 
     #endregion

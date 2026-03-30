@@ -41,6 +41,12 @@ public class PropertyResolverContext
     public required IHttpContextAccessor HttpContextAccessor { get; init; }
 
     /// <summary>
+    /// The property value resolver factory for resolving nested/block element properties
+    /// using the full resolver pipeline (media pickers, dates, etc.).
+    /// </summary>
+    public IPropertyValueResolverFactory? ResolverFactory { get; init; }
+
+    /// <summary>
     /// The raw published property, already located on the correct node. May be null.
     /// </summary>
     public IPublishedProperty? Property { get; init; }

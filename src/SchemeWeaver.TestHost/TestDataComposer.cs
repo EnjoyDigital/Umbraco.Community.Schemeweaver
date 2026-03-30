@@ -3105,6 +3105,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             {
                 alias = kvp.Key,
                 value = kvp.Value,
+                culture = (string?)null,
+                segment = (string?)null,
             }).ToList();
 
             contentDataItems.Add(new

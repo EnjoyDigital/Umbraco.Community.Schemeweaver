@@ -119,8 +119,8 @@ public class BlockContentResolver : IPropertyValueResolver
         if (string.IsNullOrEmpty(mapping.SchemaProperty) || string.IsNullOrEmpty(mapping.ContentProperty))
             return;
 
-        var rawValue = SchemaPropertySetter.ResolveElementPropertyValue(
-            blockContent, mapping.ContentProperty, context.HttpContextAccessor);
+        // Use the full resolver pipeline when available (handles media pickers, dates, etc.)
+        var rawValue = ResolveBlockElementProperty(blockContent, mapping.ContentProperty, context);
         if (rawValue is null)
             return;
 
@@ -145,6 +145,20 @@ public class BlockContentResolver : IPropertyValueResolver
         }
 
         SchemaPropertySetter.SetPropertyValue(instance, mapping.SchemaProperty, rawValue);
+    }
+
+    /// <summary>
+    /// Resolves a property value from a block element.
+    /// Delegates to <see cref="SchemaPropertySetter.ResolveElementPropertyValue"/> which handles
+    /// media pickers, editor alias detection, and string extraction.
+    /// </summary>
+    private static object? ResolveBlockElementProperty(
+        IPublishedElement blockContent,
+        string propertyAlias,
+        PropertyResolverContext context)
+    {
+        return SchemaPropertySetter.ResolveElementPropertyValue(
+            blockContent, propertyAlias, context.HttpContextAccessor);
     }
 
     /// <summary>

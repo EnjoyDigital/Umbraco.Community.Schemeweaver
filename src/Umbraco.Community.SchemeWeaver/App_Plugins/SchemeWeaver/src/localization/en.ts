@@ -33,6 +33,7 @@ export default {
     selectSchemaType: 'Select Schema.org Type',
     mapProperties: 'Map Properties',
     generateContentType: 'Generate Content Type from Schema.org',
+    contentTypeGenerated: 'Content type generated successfully',
     contentTypeName: 'Content Type Name',
     contentTypeAlias: 'Content Type Alias',
     selectProperties: 'Select Properties',

@@ -340,11 +340,8 @@ dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.cs
 
 ## Known Issues (v0.1.0-alpha)
 
-- **Block content author wrapping** -- Review `author` with `wrapInType: Person` may produce an empty Person object. The name is not resolved from block element properties at runtime, though the same mechanism works correctly for FAQ Answer wrapping and Recipe Author (complexType). Under investigation.
-- **Complex type sub-properties** -- Some nested types (Rating, Person) created via block content `wrapInType` may not populate all fields. The `SetPropertyValue` conversion works in unit tests but behaves differently with live Umbraco block list data.
-- **Generate Content Type** -- The "Generate Content Type from Schema.org" feature is not yet implemented (endpoint returns 501).
-- **Media picker on block elements** -- Media URLs from block list items use a simplified resolution path (`GetValue().ToString()`) which may not handle all Umbraco media picker variants (e.g. multiple crops).
-- **JSON-LD preview double-render** -- Fixed in v0.1.0-alpha but may reappear if workspace view layout changes.
+- **Block content nested type fields** -- Some complex Schema.NET property types (e.g. `ReviewRating` which expects a `Rating` object) cannot be set from a plain string via `SetPropertyValue`. The workaround is to use `wrapInType` config to explicitly construct the nested type.
+- **Media picker on block elements** -- Media URLs from block list items use `GetValue().ToString()` with media picker detection. Complex multi-crop scenarios may need manual URL mapping.
 
 ## Licence
 
