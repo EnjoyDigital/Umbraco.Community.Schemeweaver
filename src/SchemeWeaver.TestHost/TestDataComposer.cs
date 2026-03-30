@@ -1220,7 +1220,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
                 var fileName = Path.GetFileName(filePath);
                 var mediaName = $"Product Image {index}";
 
-                await using var stream = File.OpenRead(filePath);
+                await using var stream = System.IO.File.OpenRead(filePath);
                 var result = await _mediaImportService.ImportAsync(
                     fileName,
                     stream,
