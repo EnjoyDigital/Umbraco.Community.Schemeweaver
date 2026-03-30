@@ -124,21 +124,55 @@ public class BlockContentResolver : IPropertyValueResolver
         if (rawValue is null)
             return;
 
+        // Guard against empty string values to avoid generating empty wrapper types
+        if (rawValue is string s && string.IsNullOrWhiteSpace(s))
+            return;
+
         // Check if we need to wrap the value in another Thing type
         if (!string.IsNullOrEmpty(mapping.WrapInType))
         {
             var wrapType = context.SchemaTypeRegistry.GetClrType(mapping.WrapInType);
             if (wrapType is not null && Activator.CreateInstance(wrapType) is Thing wrapInstance)
             {
-                // Set the "text" property on the wrapper (e.g., Answer.Text)
-                var textProp = !string.IsNullOrEmpty(mapping.WrapInProperty) ? mapping.WrapInProperty : "Text";
-                SchemaPropertySetter.SetPropertyValue(wrapInstance, textProp, rawValue);
+                // Determine wrapper property: explicit config, inferred from content property, or "Text" fallback
+                var wrapPropertyName = !string.IsNullOrEmpty(mapping.WrapInProperty)
+                    ? mapping.WrapInProperty
+                    : InferWrapProperty(mapping.WrapInType, mapping.ContentProperty, context.SchemaTypeRegistry);
+                SchemaPropertySetter.SetPropertyValue(wrapInstance, wrapPropertyName, rawValue);
                 SchemaPropertySetter.SetPropertyValue(instance, mapping.SchemaProperty, wrapInstance);
                 return;
             }
         }
 
         SchemaPropertySetter.SetPropertyValue(instance, mapping.SchemaProperty, rawValue);
+    }
+
+    /// <summary>
+    /// Infers the best property on the wrapper type to set the value on,
+    /// by matching the content property name against the wrapper type's schema properties.
+    /// Falls back to "Text" if no match found.
+    /// </summary>
+    private static string InferWrapProperty(string wrapTypeName, string? contentPropertyName, ISchemaTypeRegistry registry)
+    {
+        if (!string.IsNullOrEmpty(contentPropertyName))
+        {
+            var wrapProps = registry.GetProperties(wrapTypeName).ToList();
+
+            // Exact match (case-insensitive)
+            var exact = wrapProps.FirstOrDefault(p =>
+                string.Equals(p.Name, contentPropertyName, StringComparison.OrdinalIgnoreCase));
+            if (exact is not null)
+                return exact.Name;
+
+            // Partial match
+            var partial = wrapProps.FirstOrDefault(p =>
+                p.Name.Contains(contentPropertyName, StringComparison.OrdinalIgnoreCase)
+                || contentPropertyName.Contains(p.Name, StringComparison.OrdinalIgnoreCase));
+            if (partial is not null)
+                return partial.Name;
+        }
+
+        return "Text";
     }
 
     private static void AutoMapBlockProperties(

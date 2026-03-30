@@ -1,0 +1,32 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Photo Details</h2>
+    <dl>
+        @if (Model.HasValue("creator"))
+        {
+            <dt>Photographer</dt>
+            <dd>@Model.Value("creator")</dd>
+        }
+        @if (Model.HasValue("dateCreated"))
+        {
+            <dt>Date Taken</dt>
+            <dd>@(((DateTime)Model.Value("dateCreated")).ToString("d MMMM yyyy"))</dd>
+        }
+        @if (Model.HasValue("contentUrl"))
+        {
+            <dt>Image</dt>
+            <dd><a href="@Model.Value("contentUrl")">View full size</a></dd>
+        }
+    </dl>
+</div>

@@ -1,0 +1,27 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Event Details</h2>
+    <dl>
+        @if (Model.HasValue("startDate"))
+        {
+            <dt>Date</dt>
+            <dd>@(((DateTime)Model.Value("startDate")).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+        }
+        @if (Model.HasValue("locationName"))
+        {
+            <dt>Venue</dt>
+            <dd>@Model.Value("locationName")</dd>
+        }
+    </dl>
+</div>

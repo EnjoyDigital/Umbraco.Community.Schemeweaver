@@ -1,0 +1,32 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Rental Details</h2>
+    <dl>
+        @if (Model.HasValue("reservationId"))
+        {
+            <dt>Reservation ID</dt>
+            <dd>@Model.Value("reservationId")</dd>
+        }
+        @if (Model.HasValue("pickupLocation"))
+        {
+            <dt>Pick-up Location</dt>
+            <dd>@Model.Value("pickupLocation")</dd>
+        }
+        @if (Model.HasValue("pickupTime"))
+        {
+            <dt>Pick-up Time</dt>
+            <dd>@Model.Value("pickupTime")</dd>
+        }
+    </dl>
+</div>

@@ -46,6 +46,15 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   @state()
   private _previewJson = '';
 
+  @state()
+  private _autoMapping = false;
+
+  @state()
+  private _wrapOverrideRows = new Set<number>();
+
+  /** Cache of schema type properties for wrap detection */
+  private _typePropsCache: Record<string, SchemaPropertyInfo[]> = {};
+
   constructor() {
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
@@ -93,13 +102,13 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
       // If only one block type available, auto-select it
       if (!this._selectedBlockType && this._blockElementTypes.length === 1) {
-        this._selectBlockType(this._blockElementTypes[0]);
+        await this._selectBlockType(this._blockElementTypes[0]);
       }
     } catch (error) {
       console.error('SchemeWeaver: Error loading nested mapping data:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Failed to load nested mapping data',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToLoadMappingData'),
         },
       });
     } finally {
@@ -141,10 +150,10 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     }
   }
 
-  private _selectBlockType(blockType: BlockElementTypeInfo) {
+  private async _selectBlockType(blockType: BlockElementTypeInfo) {
     this._selectedBlockType = blockType;
 
-    // If no existing mappings, create from schema properties
+    // If no existing mappings, create from schema properties and auto-map
     if (this._nestedMappings.length === 0) {
       this._nestedMappings = this._schemaProperties.map((prop) => ({
         schemaProperty: prop.name,
@@ -155,14 +164,27 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         acceptedTypes: prop.acceptedTypes,
         isComplexType: prop.isComplexType,
       }));
+      await this._autoMapMappings();
     }
 
     this._currentStep = 'mappings';
   }
 
-  private _handleContentPropertyChange(index: number, value: string) {
+  private async _handleContentPropertyChange(index: number, value: string) {
     const updated = [...this._nestedMappings];
-    updated[index] = { ...updated[index], contentProperty: value };
+    const mapping = updated[index];
+    updated[index] = { ...mapping, contentProperty: value };
+
+    // Auto-detect wrapping for complex types when a property is selected
+    if (mapping.isComplexType && value && mapping.acceptedTypes.length > 0) {
+      const wrapResult = await this._detectWrapping(mapping.acceptedTypes, value);
+      if (wrapResult) {
+        updated[index] = { ...updated[index], wrapInType: wrapResult.wrapInType, wrapInProperty: wrapResult.wrapInProperty };
+      }
+    } else if (!value) {
+      updated[index] = { ...updated[index], wrapInType: '', wrapInProperty: '' };
+    }
+
     this._nestedMappings = updated;
   }
 
@@ -172,10 +194,182 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     this._nestedMappings = updated;
   }
 
-  private _handleWrapInPropertyChange(index: number, value: string) {
+  private _toggleWrapOverride(index: number) {
+    const updated = new Set(this._wrapOverrideRows);
+    if (updated.has(index)) updated.delete(index);
+    else updated.add(index);
+    this._wrapOverrideRows = updated;
+  }
+
+  // ── Auto-map algorithm ──────────────────────────────────────────────
+
+  private async _handleAutoMap() {
+    this._autoMapping = true;
+    try {
+      await this._autoMapMappings();
+    } finally {
+      this._autoMapping = false;
+    }
+  }
+
+  /**
+   * Auto-maps block properties to schema properties using a 3-tier algorithm:
+   * 1. Exact name match (case-insensitive)
+   * 2. Partial/contains match
+   * 3. Complex type sub-property match (fetches accepted type's properties)
+   * Only fills empty mappings — does not overwrite user selections.
+   */
+  private async _autoMapMappings(): Promise<void> {
+    if (!this._selectedBlockType) return;
+    const blockProps = this._selectedBlockType.properties;
+    if (blockProps.length === 0) return;
+
     const updated = [...this._nestedMappings];
-    updated[index] = { ...updated[index], wrapInProperty: value };
+    const usedBlockProps = new Set(
+      updated.filter((m) => m.contentProperty).map((m) => m.contentProperty),
+    );
+
+    for (let i = 0; i < updated.length; i++) {
+      const mapping = updated[i];
+      if (mapping.contentProperty) continue; // skip already mapped
+
+      // Tier 1: exact match
+      const exactMatch = blockProps.find(
+        (bp) => !usedBlockProps.has(bp) && bp.toLowerCase() === mapping.schemaProperty.toLowerCase(),
+      );
+      if (exactMatch) {
+        updated[i] = { ...mapping, contentProperty: exactMatch };
+        usedBlockProps.add(exactMatch);
+        // Auto-detect wrapping for complex types
+        if (mapping.isComplexType && mapping.acceptedTypes.length > 0) {
+          const wrapResult = await this._detectWrapping(mapping.acceptedTypes, exactMatch);
+          if (wrapResult) {
+            updated[i] = { ...updated[i], ...wrapResult };
+          }
+        }
+        continue;
+      }
+
+      // Tier 2: partial match (one name contains the other)
+      const partialMatch = blockProps.find(
+        (bp) =>
+          !usedBlockProps.has(bp) &&
+          (bp.toLowerCase().includes(mapping.schemaProperty.toLowerCase()) ||
+            mapping.schemaProperty.toLowerCase().includes(bp.toLowerCase())),
+      );
+      if (partialMatch) {
+        updated[i] = { ...mapping, contentProperty: partialMatch };
+        usedBlockProps.add(partialMatch);
+        // Auto-detect wrapping for complex types
+        if (mapping.isComplexType && mapping.acceptedTypes.length > 0) {
+          const wrapResult = await this._detectWrapping(mapping.acceptedTypes, partialMatch);
+          if (wrapResult) {
+            updated[i] = { ...updated[i], ...wrapResult };
+          }
+        }
+        continue;
+      }
+
+      // Tier 3: complex type sub-property match
+      if (mapping.isComplexType && mapping.acceptedTypes.length > 0) {
+        const complexResult = await this._findComplexTypeMatch(mapping, blockProps, usedBlockProps);
+        if (complexResult) {
+          updated[i] = { ...mapping, ...complexResult };
+          usedBlockProps.add(complexResult.contentProperty);
+        }
+      }
+    }
+
     this._nestedMappings = updated;
+  }
+
+  /**
+   * For a complex schema property, check if any block property matches a sub-property
+   * of an accepted type. E.g., block has "ratingValue" → schema "reviewRating" accepts "Rating"
+   * → Rating has "ratingValue" → match with wrap.
+   */
+  private async _findComplexTypeMatch(
+    mapping: NestedMappingEntry,
+    blockProps: string[],
+    usedBlockProps: Set<string>,
+  ): Promise<Partial<NestedMappingEntry> | null> {
+    for (const acceptedType of mapping.acceptedTypes) {
+      const subProps = await this._getTypeProperties(acceptedType);
+
+      for (const subProp of subProps) {
+        // Exact match of block property to sub-property
+        const match = blockProps.find(
+          (bp) => !usedBlockProps.has(bp) && bp.toLowerCase() === subProp.name.toLowerCase(),
+        );
+        if (match) {
+          return {
+            contentProperty: match,
+            wrapInType: acceptedType,
+            wrapInProperty: subProp.name,
+          };
+        }
+
+        // Partial match
+        const partialMatch = blockProps.find(
+          (bp) =>
+            !usedBlockProps.has(bp) &&
+            (bp.toLowerCase().includes(subProp.name.toLowerCase()) ||
+              subProp.name.toLowerCase().includes(bp.toLowerCase())),
+        );
+        if (partialMatch) {
+          return {
+            contentProperty: partialMatch,
+            wrapInType: acceptedType,
+            wrapInProperty: subProp.name,
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Auto-detect wrapping: given accepted types and a content property name,
+   * find the best wrapper type and property.
+   */
+  private async _detectWrapping(
+    acceptedTypes: string[],
+    contentPropertyName: string,
+  ): Promise<{ wrapInType: string; wrapInProperty: string } | null> {
+    // Check all accepted types for the best match, not just the first
+    for (const wrapType of acceptedTypes) {
+      const subProps = await this._getTypeProperties(wrapType);
+      if (subProps.length === 0) continue;
+
+      // Exact match
+      const exact = subProps.find(
+        (sp) => sp.name.toLowerCase() === contentPropertyName.toLowerCase(),
+      );
+      if (exact) return { wrapInType: wrapType, wrapInProperty: exact.name };
+
+      // Partial match
+      const partial = subProps.find(
+        (sp) =>
+          sp.name.toLowerCase().includes(contentPropertyName.toLowerCase()) ||
+          contentPropertyName.toLowerCase().includes(sp.name.toLowerCase()),
+      );
+      if (partial) return { wrapInType: wrapType, wrapInProperty: partial.name };
+    }
+
+    // Fallback: use the first accepted type with a "Text" property or first property
+    const fallbackType = acceptedTypes[0];
+    const fallbackProps = await this._getTypeProperties(fallbackType);
+    const textProp = fallbackProps.find((sp) => sp.name.toLowerCase() === 'text');
+    return { wrapInType: fallbackType, wrapInProperty: textProp?.name || fallbackProps[0]?.name || 'Text' };
+  }
+
+  /** Fetch and cache schema type properties */
+  private async _getTypeProperties(typeName: string): Promise<SchemaPropertyInfo[]> {
+    if (!this._typePropsCache[typeName]) {
+      const props = await this.#repository.requestSchemaTypeProperties(typeName);
+      this._typePropsCache[typeName] = props || [];
+    }
+    return this._typePropsCache[typeName];
   }
 
   private _goToStep(step: WizardStep) {
@@ -368,6 +562,17 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           <uui-tag color="primary">${this.data?.nestedSchemaTypeName}</uui-tag>
           <span>${this.localize.term('schemeWeaver_from')}</span>
           <uui-tag color="default">${this._selectedBlockType?.name || this._selectedBlockType?.alias}</uui-tag>
+
+          <uui-button
+            class="auto-map-button"
+            look="secondary"
+            ?disabled=${this._autoMapping}
+            @click=${this._handleAutoMap}
+            label=${this.localize.term('schemeWeaver_autoMapNested')}
+          >
+            <uui-icon name="icon-wand"></uui-icon>
+            ${this._autoMapping ? '...' : this.localize.term('schemeWeaver_autoMapNested')}
+          </uui-button>
         </div>
 
         <uui-table aria-label=${this.localize.term('schemeWeaver_nestedMappings')}>
@@ -391,7 +596,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                       <uui-select
                         label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaProperty}
                         .options=${[
-                          { name: '-- None --', value: '', selected: !mapping.contentProperty },
+                          { name: this.localize.term('schemeWeaver_none'), value: '', selected: !mapping.contentProperty },
                           ...blockProperties.map((p) => ({
                             name: p,
                             value: p,
@@ -411,34 +616,82 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                     `}
               </uui-table-cell>
               <uui-table-cell>
-                ${mapping.isComplexType && mapping.acceptedTypes.length > 0
-                  ? html`
-                      <uui-select
-                        label=${this.localize.term('schemeWeaver_wrapInType') + ' ' + mapping.schemaProperty}
-                        .options=${[
-                          { name: '-- None --', value: '', selected: !mapping.wrapInType },
-                          ...mapping.acceptedTypes.map((t) => ({
-                            name: t,
-                            value: t,
-                            selected: mapping.wrapInType === t,
-                          })),
-                        ]}
-                        @change=${(e: Event) => this._handleWrapInTypeChange(index, (e.target as HTMLSelectElement).value)}
-                      ></uui-select>
-                    `
-                  : html`
-                      <uui-input
-                        .value=${mapping.wrapInType}
-                        @input=${(e: Event) => this._handleWrapInTypeChange(index, (e.target as HTMLInputElement).value)}
-                        placeholder=${this.localize.term('schemeWeaver_wrapInType')}
-                        label=${this.localize.term('schemeWeaver_wrapInType') + ' ' + mapping.schemaProperty}
-                      ></uui-input>
-                    `}
+                ${this._renderWrapColumn(mapping, index)}
               </uui-table-cell>
             </uui-table-row>
           `)}
         </uui-table>
       </uui-box>
+    `;
+  }
+
+  private _renderWrapColumn(mapping: NestedMappingEntry, index: number) {
+    // Non-complex types don't need wrapping
+    if (!mapping.isComplexType) {
+      return html`<span class="type-label">--</span>`;
+    }
+
+    // Show override dropdown if user clicked edit
+    if (this._wrapOverrideRows.has(index)) {
+      return html`
+        <div class="wrap-override-row">
+          ${mapping.acceptedTypes.length > 0
+            ? html`
+                <uui-select
+                  label=${this.localize.term('schemeWeaver_wrapInType') + ' ' + mapping.schemaProperty}
+                  .options=${[
+                    { name: this.localize.term('schemeWeaver_none'), value: '', selected: !mapping.wrapInType },
+                    ...mapping.acceptedTypes.map((t) => ({
+                      name: t,
+                      value: t,
+                      selected: mapping.wrapInType === t,
+                    })),
+                  ]}
+                  @change=${(e: Event) => this._handleWrapInTypeChange(index, (e.target as HTMLSelectElement).value)}
+                ></uui-select>
+              `
+            : html`
+                <uui-input
+                  .value=${mapping.wrapInType}
+                  @input=${(e: Event) => this._handleWrapInTypeChange(index, (e.target as HTMLInputElement).value)}
+                  placeholder=${this.localize.term('schemeWeaver_wrapInType')}
+                  label=${this.localize.term('schemeWeaver_wrapInType') + ' ' + mapping.schemaProperty}
+                ></uui-input>
+              `}
+          <uui-button compact look="secondary" label=${this.localize.term('schemeWeaver_done')} @click=${() => this._toggleWrapOverride(index)}>
+            <uui-icon name="icon-check"></uui-icon>
+          </uui-button>
+        </div>
+      `;
+    }
+
+    // Auto-detected wrap: show badge
+    if (mapping.wrapInType && mapping.contentProperty) {
+      return html`
+        <div class="wrap-auto-detected">
+          <uui-tag color="positive" look="secondary" class="wrap-tag">
+            ${mapping.wrapInType}${mapping.wrapInProperty ? `.${mapping.wrapInProperty}` : ''}
+          </uui-tag>
+          <uui-button compact look="secondary" label=${this.localize.term('schemeWeaver_change')} @click=${() => this._toggleWrapOverride(index)}>
+            <uui-icon name="icon-edit"></uui-icon>
+          </uui-button>
+        </div>
+      `;
+    }
+
+    // No wrap set and no content property — show placeholder
+    if (!mapping.contentProperty) {
+      return html`<span class="type-label">--</span>`;
+    }
+
+    // Content property set but no wrap detected — show "None" with edit option
+    return html`
+      <div class="wrap-auto-detected">
+        <span class="type-label">${this.localize.term('schemeWeaver_none')}</span>
+        <uui-button compact look="secondary" label=${this.localize.term('schemeWeaver_set')} @click=${() => this._toggleWrapOverride(index)}>
+          <uui-icon name="icon-edit"></uui-icon>
+        </uui-button>
+      </div>
     `;
   }
 
@@ -607,6 +860,22 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         align-items: center;
         gap: var(--uui-size-space-3);
         margin-bottom: var(--uui-size-space-4);
+      }
+
+      .auto-map-button {
+        margin-left: auto;
+      }
+
+      .wrap-auto-detected {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+      }
+
+      .wrap-override-row {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
       }
 
       .type-label {

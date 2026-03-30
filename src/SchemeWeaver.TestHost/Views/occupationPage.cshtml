@@ -1,0 +1,32 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Occupation Details</h2>
+    <dl>
+        @if (Model.HasValue("occupationalCategory"))
+        {
+            <dt>Category</dt>
+            <dd>@Model.Value("occupationalCategory")</dd>
+        }
+        @if (Model.HasValue("estimatedSalary"))
+        {
+            <dt>Estimated Salary</dt>
+            <dd>@Model.Value("estimatedSalary")</dd>
+        }
+        @if (Model.HasValue("skills"))
+        {
+            <dt>Skills</dt>
+            <dd>@Model.Value("skills")</dd>
+        }
+    </dl>
+</div>

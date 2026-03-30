@@ -36,35 +36,46 @@ public class SchemeWeaverTagHelper : TagHelper
 
         try
         {
-            var jsonLd = _generator.GenerateJsonLdString(Content);
-            if (string.IsNullOrEmpty(jsonLd))
+            var hasOutput = false;
+
+            // 1. Inherited schemas from ancestor nodes (root-first order)
+            foreach (var inheritedJsonLd in _generator.GenerateInheritedJsonLdStrings(Content))
             {
-                output.SuppressOutput();
-                return;
+                var prefix = hasOutput ? "\n" : "";
+                output.Content.AppendHtml($"{prefix}<script type=\"application/ld+json\">{inheritedJsonLd}</script>");
+                hasOutput = true;
             }
 
-            // Output all script blocks as independent elements via Content.
-            // Do NOT use output.TagName = "script" — that wraps everything in a single
-            // <script>...</script> and PostContent would nest inside it, breaking the HTML.
-            output.Content.AppendHtml($"<script type=\"application/ld+json\">{jsonLd}</script>");
-
-            // BreadcrumbList as a separate JSON-LD block
+            // 2. BreadcrumbList as a separate JSON-LD block
             var breadcrumbJson = _generator.GenerateBreadcrumbJsonLd(Content);
             if (!string.IsNullOrEmpty(breadcrumbJson))
             {
-                output.Content.AppendHtml($"\n<script type=\"application/ld+json\">{breadcrumbJson}</script>");
+                var prefix = hasOutput ? "\n" : "";
+                output.Content.AppendHtml($"{prefix}<script type=\"application/ld+json\">{breadcrumbJson}</script>");
+                hasOutput = true;
             }
 
-            // Inherited schemas from ancestor nodes
-            foreach (var inheritedJsonLd in _generator.GenerateInheritedJsonLdStrings(Content))
+            // 3. Main page schema
+            var jsonLd = _generator.GenerateJsonLdString(Content);
+            if (!string.IsNullOrEmpty(jsonLd))
             {
-                output.Content.AppendHtml($"\n<script type=\"application/ld+json\">{inheritedJsonLd}</script>");
+                var prefix = hasOutput ? "\n" : "";
+                output.Content.AppendHtml($"{prefix}<script type=\"application/ld+json\">{jsonLd}</script>");
+                hasOutput = true;
             }
 
-            // Schemas from mapped block elements
+            // 4. Schemas from mapped block elements
             foreach (var blockJsonLd in _generator.GenerateBlockElementJsonLdStrings(Content))
             {
-                output.Content.AppendHtml($"\n<script type=\"application/ld+json\">{blockJsonLd}</script>");
+                var prefix = hasOutput ? "\n" : "";
+                output.Content.AppendHtml($"{prefix}<script type=\"application/ld+json\">{blockJsonLd}</script>");
+                hasOutput = true;
+            }
+
+            if (!hasOutput)
+            {
+                output.SuppressOutput();
+                return;
             }
         }
         catch (Exception ex)

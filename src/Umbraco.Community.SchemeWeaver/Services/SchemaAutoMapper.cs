@@ -161,7 +161,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             """{"nestedMappings":[{"schemaProperty":"name","contentProperty":"question"},{"schemaProperty":"acceptedAnswer","contentProperty":"answer","wrapInType":"Answer","wrapInProperty":"Text"}]}"""),
 
         ["Product.review"] = new("blockContent", "Review",
-            """{"nestedMappings":[{"schemaProperty":"author","contentProperty":"reviewAuthor"},{"schemaProperty":"reviewRating","contentProperty":"ratingValue"},{"schemaProperty":"reviewBody","contentProperty":"reviewBody"}]}"""),
+            """{"nestedMappings":[{"schemaProperty":"author","contentProperty":"reviewAuthor"},{"schemaProperty":"reviewRating","contentProperty":"ratingValue","wrapInType":"Rating","wrapInProperty":"RatingValue"},{"schemaProperty":"reviewBody","contentProperty":"reviewBody"}]}"""),
         ["Product.offers"] = new("complexType", "Offer", null),
         ["Product.aggregateRating"] = new("complexType", "AggregateRating", null),
         ["Product.brand"] = new("complexType", "Brand", null),

@@ -559,6 +559,101 @@ public class BlockContentResolverTests
         jsonLd.Should().Contain("Structured data is a standardised format for providing information about a page.");
     }
 
+    [Fact]
+    public void Resolve_ReviewWithWrapInPersonName_PersonContainsName()
+    {
+        var blockElement = CreateBlockElement("reviewItem", new Dictionary<string, object?>
+        {
+            ["reviewAuthor"] = "Alice Smith",
+            ["ratingValue"] = "5",
+            ["reviewBody"] = "Excellent product, highly recommended."
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new()
+                {
+                    SchemaProperty = "author",
+                    ContentProperty = "reviewAuthor",
+                    WrapInType = "Person",
+                    WrapInProperty = "Name"
+                },
+                new()
+                {
+                    SchemaProperty = "reviewBody",
+                    ContentProperty = "reviewBody"
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Review", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(1);
+
+        var review = (Schema.NET.Review)things[0];
+        var jsonLd = review.ToString();
+        jsonLd.Should().Contain("Person");
+        jsonLd.Should().Contain("Alice Smith");
+        jsonLd.Should().Contain("Excellent product, highly recommended.");
+    }
+
+    [Fact]
+    public void Resolve_WrapInType_EmptyValue_DoesNotCreateEmptyWrapper()
+    {
+        var blockElement = CreateBlockElement("reviewItem", new Dictionary<string, object?>
+        {
+            ["reviewAuthor"] = null,
+            ["reviewBody"] = "Good product."
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new()
+                {
+                    SchemaProperty = "author",
+                    ContentProperty = "reviewAuthor",
+                    WrapInType = "Person",
+                    WrapInProperty = "Name"
+                },
+                new()
+                {
+                    SchemaProperty = "reviewBody",
+                    ContentProperty = "reviewBody"
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Review", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(1);
+
+        var review = (Schema.NET.Review)things[0];
+        var jsonLd = review.ToString();
+        // Should contain the review body but NOT an empty Person wrapper
+        jsonLd.Should().Contain("Good product.");
+        jsonLd.Should().NotContain("\"author\"");
+    }
+
     private static IPublishedElement CreateBlockElement(string contentTypeAlias, Dictionary<string, object?> properties)
     {
         var element = Substitute.For<IPublishedElement>();

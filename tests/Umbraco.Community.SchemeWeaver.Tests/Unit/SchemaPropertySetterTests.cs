@@ -63,6 +63,32 @@ public class SchemaPropertySetterTests
         jsonLd.Should().Contain("https://twitter.com/example");
     }
 
+    [Fact]
+    public void SetPropertyValue_PersonName_SetsFromString()
+    {
+        // Person.Name is OneOrMany<Values<string>> — verify SetPropertyValue can set it
+        var person = new Person();
+        SchemaPropertySetter.SetPropertyValue(person, "Name", "Alice Smith");
+
+        var jsonLd = person.ToString();
+        jsonLd.Should().Contain("Alice Smith");
+    }
+
+    [Fact]
+    public void SetPropertyValue_ReviewAuthorWithPerson_SetsPersonName()
+    {
+        // Full wrapping scenario: create Person, set Name, set on Review.Author
+        var person = new Person();
+        SchemaPropertySetter.SetPropertyValue(person, "Name", "Alice Smith");
+
+        var review = new Review();
+        SchemaPropertySetter.SetPropertyValue(review, "Author", person);
+
+        var jsonLd = review.ToString();
+        jsonLd.Should().Contain("Person");
+        jsonLd.Should().Contain("Alice Smith");
+    }
+
     #region Collection (List<Thing>) tests
 
     [Fact]

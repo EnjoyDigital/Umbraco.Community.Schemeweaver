@@ -25,7 +25,7 @@ const POPULAR_RESOLVER_CONFIGS: Record<string, string> = {
   'Product.review': JSON.stringify({
     nestedMappings: [
       { schemaProperty: 'author', contentProperty: 'reviewAuthor' },
-      { schemaProperty: 'reviewRating', contentProperty: 'ratingValue' },
+      { schemaProperty: 'reviewRating', contentProperty: 'ratingValue', wrapInType: 'Rating', wrapInProperty: 'RatingValue' },
       { schemaProperty: 'reviewBody', contentProperty: 'reviewBody' },
     ],
   }),
@@ -744,6 +744,129 @@ class SchemeWeaverMockDb {
         { alias: 'currency', editorAlias: 'Umbraco.TextBox' },
       ],
     },
+    // --- New subtype content types ---
+    { alias: 'vehiclePage', name: 'Vehicle Page', key: '00000000-0000-0000-0000-000000000030', propertyCount: 10,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'brand', editorAlias: 'Umbraco.TextBox' }, { alias: 'model', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'fuelType', editorAlias: 'Umbraco.TextBox' }, { alias: 'mileageFromOdometer', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'color', editorAlias: 'Umbraco.TextBox' }, { alias: 'numberOfDoors', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    { alias: 'financialProductPage', name: 'Financial Product', key: '00000000-0000-0000-0000-000000000031', propertyCount: 6,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'interestRate', editorAlias: 'Umbraco.TextBox' }, { alias: 'annualPercentageRate', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    { alias: 'individualProductPage', name: 'Individual Product', key: '00000000-0000-0000-0000-000000000032', propertyCount: 7,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'serialNumber', editorAlias: 'Umbraco.TextBox' }, { alias: 'sku', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'color', editorAlias: 'Umbraco.TextBox' }, { alias: 'weight', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    { alias: 'productModelPage', name: 'Product Model', key: '00000000-0000-0000-0000-000000000033', propertyCount: 4,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+      ] },
+    { alias: 'musicEventPage', name: 'Music Event', key: '00000000-0000-0000-0000-000000000034', propertyCount: 7,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'performer', editorAlias: 'Umbraco.TextBox' }, { alias: 'startDate', editorAlias: 'Umbraco.DateTime' },
+        { alias: 'locationName', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    { alias: 'sportsEventPage', name: 'Sports Event', key: '00000000-0000-0000-0000-000000000035', propertyCount: 7,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'competitor', editorAlias: 'Umbraco.TextBox' }, { alias: 'startDate', editorAlias: 'Umbraco.DateTime' },
+        { alias: 'sport', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    { alias: 'corporationPage', name: 'Corporation', key: '00000000-0000-0000-0000-000000000036', propertyCount: 6,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'tickerSymbol', editorAlias: 'Umbraco.TextBox' }, { alias: 'legalName', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'foundingDate', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    { alias: 'hotelPage', name: 'Hotel', key: '00000000-0000-0000-0000-000000000037', propertyCount: 8,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'starRating', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    { alias: 'moviePage', name: 'Movie', key: '00000000-0000-0000-0000-000000000038', propertyCount: 7,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'director', editorAlias: 'Umbraco.TextBox' }, { alias: 'actor', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'duration', editorAlias: 'Umbraco.TextBox' }, { alias: 'dateCreated', editorAlias: 'Umbraco.DateTime' },
+      ] },
+    { alias: 'mobileAppPage', name: 'Mobile Application', key: '00000000-0000-0000-0000-000000000039', propertyCount: 6,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'operatingSystem', editorAlias: 'Umbraco.TextBox' }, { alias: 'applicationCategory', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'downloadUrl', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    { alias: 'webAppPage', name: 'Web Application', key: '00000000-0000-0000-0000-000000000040', propertyCount: 6,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'browserRequirements', editorAlias: 'Umbraco.TextBox' }, { alias: 'applicationCategory', editorAlias: 'Umbraco.TextBox' },
+      ] },
+    // --- Stores ---
+    { alias: 'bookStorePage', name: 'Book Store', key: '00000000-0000-0000-0000-000000000050', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'addressLocality', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'electronicsStorePage', name: 'Electronics Store', key: '00000000-0000-0000-0000-000000000051', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'addressLocality', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'clothingStorePage', name: 'Clothing Store', key: '00000000-0000-0000-0000-000000000052', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'addressLocality', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'groceryStorePage', name: 'Grocery Store', key: '00000000-0000-0000-0000-000000000053', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'addressLocality', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'furnitureStorePage', name: 'Furniture Store', key: '00000000-0000-0000-0000-000000000054', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'addressLocality', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'jewelryStorePage', name: 'Jewelry Store', key: '00000000-0000-0000-0000-000000000055', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'addressLocality', editorAlias: 'Umbraco.TextBox' }] },
+    // --- Food & Drink ---
+    { alias: 'bakeryPage', name: 'Bakery', key: '00000000-0000-0000-0000-000000000056', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'servesCuisine', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'cafePage', name: 'Cafe', key: '00000000-0000-0000-0000-000000000057', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'barPage', name: 'Bar/Pub', key: '00000000-0000-0000-0000-000000000058', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'fastFoodPage', name: 'Fast Food', key: '00000000-0000-0000-0000-000000000059', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'servesCuisine', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'wineryPage', name: 'Winery', key: '00000000-0000-0000-0000-000000000060', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'breweryPage', name: 'Brewery', key: '00000000-0000-0000-0000-000000000061', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }] },
+    // --- Travel & Reservations ---
+    { alias: 'flightReservationPage', name: 'Flight Reservation', key: '00000000-0000-0000-0000-000000000062', propertyCount: 7,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'reservationId', editorAlias: 'Umbraco.TextBox' }, { alias: 'flightNumber', editorAlias: 'Umbraco.TextBox' }, { alias: 'departureAirport', editorAlias: 'Umbraco.TextBox' }, { alias: 'arrivalAirport', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'touristAttractionPage', name: 'Tourist Attraction', key: '00000000-0000-0000-0000-000000000063', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }] },
+    // --- Healthcare ---
+    { alias: 'drugPage', name: 'Drug', key: '00000000-0000-0000-0000-000000000064', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'activeIngredient', editorAlias: 'Umbraco.TextBox' }, { alias: 'dosageForm', editorAlias: 'Umbraco.TextBox' }, { alias: 'prescriptionStatus', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'physicianPage', name: 'Physician', key: '00000000-0000-0000-0000-000000000065', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'medicalSpecialty', editorAlias: 'Umbraco.TextBox' }] },
+    // --- Automotive ---
+    { alias: 'carPage', name: 'Car', key: '00000000-0000-0000-0000-000000000066', propertyCount: 9,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'brand', editorAlias: 'Umbraco.TextBox' }, { alias: 'model', editorAlias: 'Umbraco.TextBox' }, { alias: 'fuelType', editorAlias: 'Umbraco.TextBox' }, { alias: 'color', editorAlias: 'Umbraco.TextBox' }, { alias: 'numberOfDoors', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'motorcyclePage', name: 'Motorcycle', key: '00000000-0000-0000-0000-000000000067', propertyCount: 7,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'brand', editorAlias: 'Umbraco.TextBox' }, { alias: 'model', editorAlias: 'Umbraco.TextBox' }, { alias: 'fuelType', editorAlias: 'Umbraco.TextBox' }, { alias: 'color', editorAlias: 'Umbraco.TextBox' }] },
+    // --- Entertainment ---
+    { alias: 'musicGroupPage', name: 'Music Group', key: '00000000-0000-0000-0000-000000000068', propertyCount: 4,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'genre', editorAlias: 'Umbraco.TextBox' }, { alias: 'foundingDate', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'zooPage', name: 'Zoo', key: '00000000-0000-0000-0000-000000000069', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'museumPage', name: 'Museum', key: '00000000-0000-0000-0000-000000000070', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }] },
+    // --- Services ---
+    { alias: 'attorneyPage', name: 'Attorney', key: '00000000-0000-0000-0000-000000000071', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }] },
+    // --- Education ---
+    { alias: 'universityPage', name: 'University', key: '00000000-0000-0000-0000-000000000072', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'streetAddress', editorAlias: 'Umbraco.TextBox' }, { alias: 'telephone', editorAlias: 'Umbraco.TextBox' }, { alias: 'foundingDate', editorAlias: 'Umbraco.TextBox' }] },
+    // --- Other ---
+    { alias: 'videoGamePage', name: 'Video Game', key: '00000000-0000-0000-0000-000000000073', propertyCount: 6,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'applicationCategory', editorAlias: 'Umbraco.TextBox' }, { alias: 'gamePlatform', editorAlias: 'Umbraco.TextBox' }, { alias: 'genre', editorAlias: 'Umbraco.TextBox' }] },
+    { alias: 'occupationPage', name: 'Occupation', key: '00000000-0000-0000-0000-000000000074', propertyCount: 5,
+      properties: [{ alias: 'title', editorAlias: 'Umbraco.TextBox' }, { alias: 'description', editorAlias: 'Umbraco.TextArea' }, { alias: 'occupationalCategory', editorAlias: 'Umbraco.TextBox' }, { alias: 'estimatedSalary', editorAlias: 'Umbraco.TextBox' }] },
   ];
 
   private _schemaTypes: SchemaTypeInfo[] = [
@@ -762,6 +885,7 @@ class SchemeWeaverMockDb {
     { name: 'HowToStep', description: 'A step in a how-to guide.', parentTypeName: 'ListItem', propertyCount: 2 },
     { name: 'Event', description: 'An event happening at a certain time and location.', parentTypeName: 'Thing', propertyCount: 10 },
     { name: 'Review', description: 'A review of an item.', parentTypeName: 'CreativeWork', propertyCount: 4 },
+    { name: 'Rating', description: 'A rating of an item.', parentTypeName: 'Intangible', propertyCount: 4 },
     { name: 'AggregateRating', description: 'The average rating for a product.', parentTypeName: 'Rating', propertyCount: 4 },
     { name: 'Offer', description: 'An offer to transfer an item.', parentTypeName: 'Intangible', propertyCount: 4 },
     // --- New schema types ---
@@ -780,6 +904,96 @@ class SchemeWeaverMockDb {
     { name: 'CollectionPage', description: 'A web page that lists items.', parentTypeName: 'WebPage', propertyCount: 3 },
     { name: 'ProfilePage', description: 'A web page representing a person\'s profile.', parentTypeName: 'WebPage', propertyCount: 4 },
     { name: 'BreadcrumbList', description: 'A breadcrumb trail for a page.', parentTypeName: 'ItemList', propertyCount: 1 },
+    // Product subtypes
+    { name: 'Vehicle', description: 'A vehicle.', parentTypeName: 'Product', propertyCount: 12 },
+    { name: 'FinancialProduct', description: 'A product provided to consumers for financial purposes.', parentTypeName: 'Service', propertyCount: 6 },
+    { name: 'IndividualProduct', description: 'A single identifiable product instance.', parentTypeName: 'Product', propertyCount: 8 },
+    { name: 'ProductModel', description: 'A datasheet or vendor specification of a product.', parentTypeName: 'Product', propertyCount: 6 },
+    // Event subtypes
+    { name: 'MusicEvent', description: 'A music event.', parentTypeName: 'Event', propertyCount: 8 },
+    { name: 'SportsEvent', description: 'A sports event.', parentTypeName: 'Event', propertyCount: 8 },
+    { name: 'BusinessEvent', description: 'A business event.', parentTypeName: 'Event', propertyCount: 7 },
+    { name: 'FoodEvent', description: 'A food-related event.', parentTypeName: 'Event', propertyCount: 6 },
+    { name: 'Festival', description: 'A festival.', parentTypeName: 'Event', propertyCount: 7 },
+    { name: 'EducationEvent', description: 'An educational event.', parentTypeName: 'Event', propertyCount: 7 },
+    // Organisation subtypes
+    { name: 'Corporation', description: 'A corporation.', parentTypeName: 'Organization', propertyCount: 6 },
+    { name: 'SportsTeam', description: 'A sports team.', parentTypeName: 'Organization', propertyCount: 5 },
+    { name: 'Airline', description: 'An airline.', parentTypeName: 'Organization', propertyCount: 4 },
+    { name: 'NGO', description: 'A non-governmental organisation.', parentTypeName: 'Organization', propertyCount: 4 },
+    // Place/LocalBusiness subtypes
+    { name: 'Hotel', description: 'A hotel.', parentTypeName: 'LodgingBusiness', propertyCount: 8 },
+    { name: 'Store', description: 'A retail store.', parentTypeName: 'LocalBusiness', propertyCount: 6 },
+    { name: 'Hospital', description: 'A hospital.', parentTypeName: 'MedicalOrganization', propertyCount: 6 },
+    { name: 'ExerciseGym', description: 'A gym or fitness centre.', parentTypeName: 'SportsActivityLocation', propertyCount: 5 },
+    // CreativeWork subtypes
+    { name: 'Movie', description: 'A movie.', parentTypeName: 'CreativeWork', propertyCount: 7 },
+    { name: 'MusicAlbum', description: 'A collection of music tracks.', parentTypeName: 'MusicPlaylist', propertyCount: 5 },
+    { name: 'Episode', description: 'A media episode.', parentTypeName: 'CreativeWork', propertyCount: 5 },
+    { name: 'Photograph', description: 'A photograph.', parentTypeName: 'CreativeWork', propertyCount: 5 },
+    { name: 'Dataset', description: 'A body of structured information.', parentTypeName: 'CreativeWork', propertyCount: 5 },
+    // SoftwareApplication subtypes
+    { name: 'MobileApplication', description: 'A mobile software application.', parentTypeName: 'SoftwareApplication', propertyCount: 7 },
+    { name: 'WebApplication', description: 'A web-based software application.', parentTypeName: 'SoftwareApplication', propertyCount: 7 },
+    // Store subtypes
+    { name: 'BookStore', description: 'A bookshop.', parentTypeName: 'Store', propertyCount: 6 },
+    { name: 'ElectronicsStore', description: 'An electronics retailer.', parentTypeName: 'Store', propertyCount: 6 },
+    { name: 'ClothingStore', description: 'A clothing shop.', parentTypeName: 'Store', propertyCount: 6 },
+    { name: 'GroceryStore', description: 'A grocery shop.', parentTypeName: 'Store', propertyCount: 6 },
+    { name: 'FurnitureStore', description: 'A furniture shop.', parentTypeName: 'Store', propertyCount: 6 },
+    { name: 'JewelryStore', description: 'A jewellery shop.', parentTypeName: 'Store', propertyCount: 6 },
+    // Food & drink subtypes
+    { name: 'Bakery', description: 'A bakery.', parentTypeName: 'FoodEstablishment', propertyCount: 6 },
+    { name: 'CafeOrCoffeeShop', description: 'A cafe or coffee shop.', parentTypeName: 'FoodEstablishment', propertyCount: 5 },
+    { name: 'BarOrPub', description: 'A bar or pub.', parentTypeName: 'FoodEstablishment', propertyCount: 5 },
+    { name: 'FastFoodRestaurant', description: 'A fast food restaurant.', parentTypeName: 'FoodEstablishment', propertyCount: 6 },
+    { name: 'Winery', description: 'A winery.', parentTypeName: 'FoodEstablishment', propertyCount: 5 },
+    { name: 'Brewery', description: 'A brewery.', parentTypeName: 'FoodEstablishment', propertyCount: 5 },
+    // Travel & reservation subtypes
+    { name: 'FlightReservation', description: 'A reservation for a flight.', parentTypeName: 'Reservation', propertyCount: 7 },
+    { name: 'LodgingReservation', description: 'A reservation for lodging.', parentTypeName: 'Reservation', propertyCount: 6 },
+    { name: 'EventReservation', description: 'A reservation for an event.', parentTypeName: 'Reservation', propertyCount: 5 },
+    { name: 'RentalCarReservation', description: 'A reservation for a rental car.', parentTypeName: 'Reservation', propertyCount: 5 },
+    { name: 'Flight', description: 'An airline flight.', parentTypeName: 'Trip', propertyCount: 7 },
+    { name: 'TouristAttraction', description: 'A tourist attraction.', parentTypeName: 'Place', propertyCount: 5 },
+    { name: 'BedAndBreakfast', description: 'A bed and breakfast.', parentTypeName: 'LodgingBusiness', propertyCount: 6 },
+    { name: 'Campground', description: 'A campsite or campground.', parentTypeName: 'CivicStructure', propertyCount: 5 },
+    // Healthcare subtypes
+    { name: 'Drug', description: 'A pharmaceutical drug.', parentTypeName: 'Substance', propertyCount: 6 },
+    { name: 'MedicalCondition', description: 'A medical condition.', parentTypeName: 'MedicalEntity', propertyCount: 5 },
+    { name: 'Physician', description: 'A doctor or physician.', parentTypeName: 'MedicalOrganization', propertyCount: 6 },
+    { name: 'Pharmacy', description: 'A pharmacy.', parentTypeName: 'MedicalBusiness', propertyCount: 5 },
+    { name: 'Dentist', description: 'A dentist.', parentTypeName: 'MedicalBusiness', propertyCount: 5 },
+    { name: 'MedicalClinic', description: 'A medical clinic.', parentTypeName: 'MedicalBusiness', propertyCount: 6 },
+    // Automotive subtypes
+    { name: 'Car', description: 'A car.', parentTypeName: 'Vehicle', propertyCount: 9 },
+    { name: 'Motorcycle', description: 'A motorcycle.', parentTypeName: 'Vehicle', propertyCount: 7 },
+    { name: 'AutoDealer', description: 'A car dealership.', parentTypeName: 'AutomotiveBusiness', propertyCount: 5 },
+    { name: 'AutoRepair', description: 'A car repair shop.', parentTypeName: 'AutomotiveBusiness', propertyCount: 5 },
+    // Entertainment subtypes
+    { name: 'TheaterEvent', description: 'A theatre performance.', parentTypeName: 'Event', propertyCount: 6 },
+    { name: 'ScreeningEvent', description: 'A film screening event.', parentTypeName: 'Event', propertyCount: 6 },
+    { name: 'MusicGroup', description: 'A music group or band.', parentTypeName: 'PerformingGroup', propertyCount: 4 },
+    { name: 'Zoo', description: 'A zoo.', parentTypeName: 'CivicStructure', propertyCount: 5 },
+    { name: 'Museum', description: 'A museum.', parentTypeName: 'CivicStructure', propertyCount: 5 },
+    { name: 'AmusementPark', description: 'An amusement park.', parentTypeName: 'EntertainmentBusiness', propertyCount: 5 },
+    // Professional services subtypes
+    { name: 'Attorney', description: 'A solicitor or attorney.', parentTypeName: 'LegalService', propertyCount: 5 },
+    { name: 'AccountingService', description: 'An accounting firm.', parentTypeName: 'FinancialService', propertyCount: 5 },
+    { name: 'RealEstateAgent', description: 'An estate agent.', parentTypeName: 'LocalBusiness', propertyCount: 5 },
+    { name: 'InsuranceAgency', description: 'An insurance agency.', parentTypeName: 'FinancialService', propertyCount: 5 },
+    { name: 'TravelAgency', description: 'A travel agency.', parentTypeName: 'LocalBusiness', propertyCount: 5 },
+    // Education subtypes
+    { name: 'CollegeOrUniversity', description: 'A university or college.', parentTypeName: 'EducationalOrganization', propertyCount: 6 },
+    { name: 'School', description: 'A school.', parentTypeName: 'EducationalOrganization', propertyCount: 5 },
+    { name: 'CourseInstance', description: 'A specific instance of a course.', parentTypeName: 'Event', propertyCount: 6 },
+    // Other common types
+    { name: 'Blog', description: 'A blog.', parentTypeName: 'CreativeWork', propertyCount: 3 },
+    { name: 'LiveBlogPosting', description: 'A live blog post.', parentTypeName: 'BlogPosting', propertyCount: 7 },
+    { name: 'Report', description: 'A report.', parentTypeName: 'Article', propertyCount: 5 },
+    { name: 'VideoGame', description: 'A video game.', parentTypeName: 'SoftwareApplication', propertyCount: 6 },
+    { name: 'SoftwareSourceCode', description: 'Source code for software.', parentTypeName: 'CreativeWork', propertyCount: 5 },
+    { name: 'Occupation', description: 'A profession or occupation.', parentTypeName: 'Intangible', propertyCount: 5 },
   ];
 
   private _schemaProperties: Record<string, SchemaPropertyInfo[]> = {
@@ -889,6 +1103,12 @@ class SchemeWeaverMockDb {
       { name: 'reviewBody', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },
       { name: 'reviewRating', propertyType: 'Rating', isRequired: false, acceptedTypes: ['Rating'], isComplexType: true },
       { name: 'datePublished', propertyType: 'Date', isRequired: false, acceptedTypes: ['DateTime'], isComplexType: false },
+    ],
+    Rating: [
+      { name: 'ratingValue', propertyType: 'Number', isRequired: false, acceptedTypes: ['Number'], isComplexType: false },
+      { name: 'bestRating', propertyType: 'Number', isRequired: false, acceptedTypes: ['Number'], isComplexType: false },
+      { name: 'worstRating', propertyType: 'Number', isRequired: false, acceptedTypes: ['Number'], isComplexType: false },
+      { name: 'ratingExplanation', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },
     ],
     AggregateRating: [
       { name: 'ratingValue', propertyType: 'Number', isRequired: false, acceptedTypes: ['Number'], isComplexType: false },
@@ -1049,13 +1269,13 @@ class SchemeWeaverMockDb {
     })) || [];
 
     const builtInProps = [
-      { alias: '__url', name: 'URL', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
-      { alias: '__name', name: 'Name', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
-      { alias: '__createDate', name: 'Create Date', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
-      { alias: '__updateDate', name: 'Update Date', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
+      { alias: '__url', name: 'url', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
+      { alias: '__name', name: 'name', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
+      { alias: '__createDate', name: 'createDate', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
+      { alias: '__updateDate', name: 'updateDate', editorAlias: 'SchemeWeaver.BuiltIn', description: '' },
     ];
 
-    return [...customProps, ...builtInProps];
+    return [...builtInProps, ...customProps];
   }
 
   /** Get editor alias for a content type property */

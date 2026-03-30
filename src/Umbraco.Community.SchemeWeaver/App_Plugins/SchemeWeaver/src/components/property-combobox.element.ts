@@ -2,13 +2,24 @@ import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, repeat, nothing } from '@umbraco-cms/backoffice/external/lit';
 import type { UUIComboboxElement, UUIComboboxEvent } from '@umbraco-cms/backoffice/external/uui';
 
-/** Built-in property alias display names */
+/** Built-in property alias display names (camelCase to match custom properties) */
 const BUILT_IN_DISPLAY_NAMES: Record<string, string> = {
-  '__url': 'URL (Built-in)',
-  '__name': 'Name (Built-in)',
-  '__createDate': 'Create Date (Built-in)',
-  '__updateDate': 'Update Date (Built-in)',
+  '__url': 'url',
+  '__name': 'name',
+  '__createDate': 'createDate',
+  '__updateDate': 'updateDate',
 };
+
+/** Sorts properties so built-in (__-prefixed) appear first, preserving relative order within each group */
+function sortBuiltInFirst(properties: string[]): string[] {
+  return [...properties].sort((a, b) => {
+    const aBuiltIn = a.startsWith('__');
+    const bBuiltIn = b.startsWith('__');
+    if (aBuiltIn && !bBuiltIn) return -1;
+    if (!aBuiltIn && bBuiltIn) return 1;
+    return 0;
+  });
+}
 
 /** Returns a display-friendly name for a property alias */
 export function formatPropertyDisplayName(alias: string): string {
@@ -19,8 +30,8 @@ export function formatPropertyDisplayName(alias: string): string {
 export class PropertyComboboxElement extends UmbLitElement {
   @property({ type: Array })
   public set properties(value: string[]) {
-    this.#properties = value;
-    this._filteredProperties = value;
+    this.#properties = sortBuiltInFirst(value);
+    this._filteredProperties = this.#properties;
   }
   public get properties(): string[] {
     return this.#properties;
@@ -46,8 +57,10 @@ export class PropertyComboboxElement extends UmbLitElement {
       return;
     }
     const pattern = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    this._filteredProperties = this.properties.filter(
-      (p) => pattern.test(p) || pattern.test(formatPropertyDisplayName(p)),
+    this._filteredProperties = sortBuiltInFirst(
+      this.properties.filter(
+        (p) => pattern.test(p) || pattern.test(formatPropertyDisplayName(p)),
+      ),
     );
   }
 

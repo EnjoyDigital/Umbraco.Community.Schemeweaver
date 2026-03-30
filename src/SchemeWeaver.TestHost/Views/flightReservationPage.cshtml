@@ -1,0 +1,37 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Reservation Details</h2>
+    <dl>
+        @if (Model.HasValue("reservationId"))
+        {
+            <dt>Reservation ID</dt>
+            <dd>@Model.Value("reservationId")</dd>
+        }
+        @if (Model.HasValue("flightNumber"))
+        {
+            <dt>Flight Number</dt>
+            <dd>@Model.Value("flightNumber")</dd>
+        }
+        @if (Model.HasValue("departureAirport"))
+        {
+            <dt>Departure Airport</dt>
+            <dd>@Model.Value("departureAirport")</dd>
+        }
+        @if (Model.HasValue("arrivalAirport"))
+        {
+            <dt>Arrival Airport</dt>
+            <dd>@Model.Value("arrivalAirport")</dd>
+        }
+    </dl>
+</div>

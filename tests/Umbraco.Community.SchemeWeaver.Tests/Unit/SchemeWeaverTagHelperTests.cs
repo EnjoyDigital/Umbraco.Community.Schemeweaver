@@ -54,6 +54,8 @@ public class SchemeWeaverTagHelperTests
     {
         var content = Substitute.For<IPublishedContent>();
         _generator.GenerateJsonLdString(content).Returns((string?)null);
+        _generator.GenerateInheritedJsonLdStrings(content).Returns([]);
+        _generator.GenerateBlockElementJsonLdStrings(content).Returns([]);
 
         var helper = CreateTagHelper();
         helper.Content = content;
@@ -62,6 +64,8 @@ public class SchemeWeaverTagHelperTests
         helper.Process(context, output);
 
         output.TagName.Should().BeNull();
+        var html = GetContentHtml(output);
+        html.Should().BeEmpty();
     }
 
     [Fact]
@@ -196,6 +200,62 @@ public class SchemeWeaverTagHelperTests
 
         // TagName should remain null — no wrapping element around the script tags
         output.TagName.Should().BeNull();
+    }
+
+    [Fact]
+    public void Process_OutputsCorrectOrder_InheritedThenBreadcrumbThenMainThenBlocks()
+    {
+        var content = Substitute.For<IPublishedContent>();
+        var inheritedJson = """{"@type":"WebSite","name":"My Site"}""";
+        var breadcrumbJson = """{"@type":"BreadcrumbList"}""";
+        var mainJson = """{"@type":"Product"}""";
+        var blockJson = """{"@type":"Review"}""";
+
+        _generator.GenerateJsonLdString(content).Returns(mainJson);
+        _generator.GenerateBreadcrumbJsonLd(content).Returns(breadcrumbJson);
+        _generator.GenerateInheritedJsonLdStrings(content).Returns([inheritedJson]);
+        _generator.GenerateBlockElementJsonLdStrings(content).Returns([blockJson]);
+
+        var helper = CreateTagHelper();
+        helper.Content = content;
+        var (context, output) = CreateTagHelperContextAndOutput();
+
+        helper.Process(context, output);
+
+        var html = GetContentHtml(output);
+
+        // Verify ordering: inherited → breadcrumb → main → blocks
+        var inheritedPos = html.IndexOf(inheritedJson, StringComparison.Ordinal);
+        var breadcrumbPos = html.IndexOf(breadcrumbJson, StringComparison.Ordinal);
+        var mainPos = html.IndexOf(mainJson, StringComparison.Ordinal);
+        var blockPos = html.IndexOf(blockJson, StringComparison.Ordinal);
+
+        inheritedPos.Should().BeGreaterThanOrEqualTo(0);
+        breadcrumbPos.Should().BeGreaterThan(inheritedPos, "breadcrumb should come after inherited");
+        mainPos.Should().BeGreaterThan(breadcrumbPos, "main should come after breadcrumb");
+        blockPos.Should().BeGreaterThan(mainPos, "blocks should come after main");
+    }
+
+    [Fact]
+    public void Process_WithOnlyInheritedSchemas_DoesNotSuppressOutput()
+    {
+        var content = Substitute.For<IPublishedContent>();
+        var inheritedJson = """{"@type":"WebSite","name":"My Site"}""";
+
+        _generator.GenerateJsonLdString(content).Returns((string?)null);
+        _generator.GenerateBreadcrumbJsonLd(content).Returns((string?)null);
+        _generator.GenerateInheritedJsonLdStrings(content).Returns([inheritedJson]);
+        _generator.GenerateBlockElementJsonLdStrings(content).Returns([]);
+
+        var helper = CreateTagHelper();
+        helper.Content = content;
+        var (context, output) = CreateTagHelperContextAndOutput();
+
+        helper.Process(context, output);
+
+        var html = GetContentHtml(output);
+        html.Should().Contain(inheritedJson);
+        CountOccurrences(html, "<script type=\"application/ld+json\">").Should().Be(1);
     }
 
     private static string GetContentHtml(TagHelperOutput output)

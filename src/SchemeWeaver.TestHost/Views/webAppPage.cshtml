@@ -1,0 +1,32 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Web App Details</h2>
+    <dl>
+        @if (Model.HasValue("browserRequirements"))
+        {
+            <dt>Browser Requirements</dt>
+            <dd>@Model.Value("browserRequirements")</dd>
+        }
+        @if (Model.HasValue("applicationCategory"))
+        {
+            <dt>Category</dt>
+            <dd>@Model.Value("applicationCategory")</dd>
+        }
+        @if (Model.HasValue("url"))
+        {
+            <dt>URL</dt>
+            <dd><a href="@Model.Value("url")">@Model.Value("url")</a></dd>
+        }
+    </dl>
+</div>

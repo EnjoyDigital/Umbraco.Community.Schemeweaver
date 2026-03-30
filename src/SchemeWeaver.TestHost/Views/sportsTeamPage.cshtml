@@ -1,0 +1,27 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Team Details</h2>
+    <dl>
+        @if (Model.HasValue("sport"))
+        {
+            <dt>Sport</dt>
+            <dd>@Model.Value("sport")</dd>
+        }
+        @if (Model.HasValue("coach"))
+        {
+            <dt>Coach</dt>
+            <dd>@Model.Value("coach")</dd>
+        }
+    </dl>
+</div>

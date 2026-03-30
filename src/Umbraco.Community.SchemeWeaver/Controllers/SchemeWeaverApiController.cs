@@ -107,7 +107,7 @@ public class SchemeWeaverApiController : ControllerBase
             Description = (string?)null
         });
 
-        return Ok(customProperties.Concat(builtInProperties));
+        return Ok(builtInProperties.Concat(customProperties));
     }
 
     [HttpGet("content-types/{contentTypeAlias}/properties/{propertyAlias}/block-types")]

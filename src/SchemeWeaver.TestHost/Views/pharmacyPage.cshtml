@@ -1,0 +1,38 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Pharmacy Details</h2>
+    <dl>
+        @if (Model.HasValue("telephone"))
+        {
+            <dt>Telephone</dt>
+            <dd>@Model.Value("telephone")</dd>
+        }
+    </dl>
+</div>
+
+<div class="card">
+    <h2>Address</h2>
+    <dl>
+        @if (Model.HasValue("streetAddress"))
+        {
+            <dt>Street</dt>
+            <dd>@Model.Value("streetAddress")</dd>
+        }
+        @if (Model.HasValue("addressLocality"))
+        {
+            <dt>Locality</dt>
+            <dd>@Model.Value("addressLocality")</dd>
+        }
+    </dl>
+</div>

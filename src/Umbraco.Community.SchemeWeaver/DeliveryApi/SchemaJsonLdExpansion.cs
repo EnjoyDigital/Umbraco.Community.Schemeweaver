@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.DeliveryApi;
 using Umbraco.Cms.Core.Models;
-using Umbraco.Cms.Core.Models.DeliveryApi;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Community.SchemeWeaver.Services;
 
@@ -47,13 +46,13 @@ public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
             using var scope = _scopeFactory.CreateScope();
             var generator = scope.ServiceProvider.GetRequiredService<IJsonLdGenerator>();
 
+            // Inherited schemas from ancestor nodes (root-first order)
+            allJsonLd.AddRange(generator.GenerateInheritedJsonLdStrings(published));
+
             // Main schema for the current content
             var jsonLd = generator.GenerateJsonLdString(published);
             if (!string.IsNullOrEmpty(jsonLd))
                 allJsonLd.Add(jsonLd);
-
-            // Inherited schemas from ancestor nodes
-            allJsonLd.AddRange(generator.GenerateInheritedJsonLdStrings(published));
 
             // Schemas from mapped block elements
             allJsonLd.AddRange(generator.GenerateBlockElementJsonLdStrings(published));

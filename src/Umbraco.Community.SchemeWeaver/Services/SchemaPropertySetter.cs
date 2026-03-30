@@ -418,7 +418,8 @@ public static class SchemaPropertySetter
                 return mediaUrl;
         }
 
-        return value.ToString();
+        var stringValue = value.ToString();
+        return string.IsNullOrWhiteSpace(stringValue) ? null : stringValue;
     }
 
     /// <summary>

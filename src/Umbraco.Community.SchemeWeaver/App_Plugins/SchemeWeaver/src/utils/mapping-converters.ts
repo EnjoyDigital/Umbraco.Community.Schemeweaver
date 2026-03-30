@@ -136,6 +136,11 @@ export function sortMappingRows(rows: PropertyMappingRow[]): PropertyMappingRow[
     if (aMapped && !bMapped) return -1;
     if (!aMapped && bMapped) return 1;
 
+    // Higher confidence before lower confidence
+    const aConf = a.confidence ?? -1;
+    const bConf = b.confidence ?? -1;
+    if (aConf !== bConf) return bConf - aConf;
+
     // Alphabetical within same group
     return a.schemaPropertyName.localeCompare(b.schemaPropertyName);
   });

@@ -1,0 +1,39 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Product Details</h2>
+    <dl>
+        @if (Model.HasValue("interestRate"))
+        {
+            <dt>Interest Rate</dt>
+            <dd>@Model.Value("interestRate")%</dd>
+        }
+        @if (Model.HasValue("annualPercentageRate"))
+        {
+            <dt>APR</dt>
+            <dd>@Model.Value("annualPercentageRate")</dd>
+        }
+        @if (Model.HasValue("feesAndCommissionsSpecification"))
+        {
+            <dt>Fees &amp; Commissions</dt>
+            <dd>@Model.Value("feesAndCommissionsSpecification")</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.HasValue("bodyText"))
+{
+    <div class="card">
+        @Model.Value("bodyText")
+    </div>
+}

@@ -1,0 +1,37 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Company Details</h2>
+    <dl>
+        @if (Model.HasValue("legalName"))
+        {
+            <dt>Legal Name</dt>
+            <dd>@Model.Value("legalName")</dd>
+        }
+        @if (Model.HasValue("tickerSymbol"))
+        {
+            <dt>Ticker Symbol</dt>
+            <dd>@Model.Value("tickerSymbol")</dd>
+        }
+        @if (Model.HasValue("foundingDate"))
+        {
+            <dt>Founded</dt>
+            <dd>@Model.Value("foundingDate")</dd>
+        }
+        @if (Model.HasValue("numberOfEmployees"))
+        {
+            <dt>Employees</dt>
+            <dd>@Model.Value("numberOfEmployees")</dd>
+        }
+    </dl>
+</div>

@@ -149,7 +149,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
     }
 
     return html`
-      <umb-body-layout headline=${this.localize.term('schemeWeaver_preview')}>
+      <umb-body-layout>
         <uui-box>
           <span slot="headline">${this.localize.term('schemeWeaver_preview')}</span>
           <div slot="header-actions" class="header-actions">

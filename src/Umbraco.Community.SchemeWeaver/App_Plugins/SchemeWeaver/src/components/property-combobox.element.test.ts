@@ -19,13 +19,13 @@ describe('PropertyComboboxElement', () => {
     expect(options.length).to.equal(3);
   });
 
-  it('shows friendly names for built-in properties', async () => {
+  it('shows camelCase names for built-in properties', async () => {
     const el = await fixture<PropertyComboboxElement>(
       html`<schemeweaver-property-combobox .properties=${['__url', '__name', 'title']}></schemeweaver-property-combobox>`,
     );
     const options = el.shadowRoot!.querySelectorAll('uui-combobox-list-option');
-    expect(options[0].textContent!.trim()).to.contain('URL (Built-in)');
-    expect(options[1].textContent!.trim()).to.contain('Name (Built-in)');
+    expect(options[0].textContent!.trim()).to.equal('url');
+    expect(options[1].textContent!.trim()).to.equal('name');
     expect(options[2].textContent!.trim()).to.equal('title');
   });
 
@@ -63,20 +63,32 @@ describe('PropertyComboboxElement', () => {
     expect(options[0].textContent!.trim()).to.equal('heroImage');
   });
 
-  it('filters by display name for built-in properties', async () => {
+  it('filters by camelCase display name for built-in properties', async () => {
     const el = await fixture<PropertyComboboxElement>(
       html`<schemeweaver-property-combobox .properties=${['__url', '__name', 'title']}></schemeweaver-property-combobox>`,
     );
 
     const combobox = el.shadowRoot!.querySelector('uui-combobox') as any;
     if (combobox) {
-      combobox.search = 'Built-in';
+      combobox.search = 'url';
       combobox.dispatchEvent(new CustomEvent('search'));
       await el.updateComplete;
     }
 
     const options = el.shadowRoot!.querySelectorAll('uui-combobox-list-option');
-    expect(options.length).to.equal(2);
+    expect(options.length).to.equal(1);
+  });
+
+  it('sorts built-in properties to top of dropdown', async () => {
+    const el = await fixture<PropertyComboboxElement>(
+      html`<schemeweaver-property-combobox .properties=${['title', 'description', '__url', '__name']}></schemeweaver-property-combobox>`,
+    );
+    const options = el.shadowRoot!.querySelectorAll('uui-combobox-list-option');
+    expect(options.length).to.equal(4);
+    expect(options[0].textContent!.trim()).to.equal('url');
+    expect(options[1].textContent!.trim()).to.equal('name');
+    expect(options[2].textContent!.trim()).to.equal('title');
+    expect(options[3].textContent!.trim()).to.equal('description');
   });
 
   it('resets filter when search is cleared', async () => {

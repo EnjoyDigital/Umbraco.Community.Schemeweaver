@@ -112,19 +112,20 @@ describe('NestedMappingModalElement', () => {
     expect(selects.length).to.be.greaterThan(0);
   });
 
-  it('renders wrap-in type dropdown for complex schema properties', async () => {
+  it('renders auto-detected wrap badge for complex schema properties with existing config', async () => {
     const el = createElement();
     await waitForLoad(el);
-    // Question.acceptedAnswer has acceptedTypes: ['Answer'] and isComplexType: true
-    // So it should get a wrap-in dropdown
+    // Question.acceptedAnswer has wrapInType: 'Answer' in existing config
+    // So it should show an auto-detected wrap badge (uui-tag), not a manual dropdown
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
     // Find the acceptedAnswer row (index 1)
     const acceptedAnswerRow = rows[1];
     if (acceptedAnswerRow) {
       const cells = acceptedAnswerRow.querySelectorAll('uui-table-cell');
-      // Last cell should have a uui-select for wrap-in type
-      const wrapInSelect = cells[2]?.querySelector('uui-select');
-      expect(wrapInSelect).to.exist;
+      // Last cell should have a uui-tag badge for auto-detected wrap
+      const wrapTag = cells[2]?.querySelector('uui-tag');
+      expect(wrapTag).to.exist;
+      expect(wrapTag!.textContent!.trim()).to.contain('Answer');
     }
   });
 

@@ -538,8 +538,7 @@ test.describe('JSON-LD Output on Site', () => {
   test('FAQ page JSON-LD contains Question and Answer types', async ({ umbracoUi }) => {
     const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
 
-    // Navigate to the FAQ page (TestHost creates content at root)
-    const response = await umbracoUi.page.goto(`${baseUrl}/faq-page/`, { waitUntil: 'domcontentloaded' });
+    const response = await umbracoUi.page.goto(`${baseUrl}/frequently-asked-questions/`, { waitUntil: 'domcontentloaded' });
     if (response?.ok()) {
       const jsonLdScript = umbracoUi.page.locator('script[type="application/ld+json"]');
       if (await jsonLdScript.count() > 0) {
@@ -567,17 +566,27 @@ test.describe('JSON-LD Output on Site', () => {
   test('Product page JSON-LD contains Review objects', async ({ umbracoUi }) => {
     const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
 
-    const response = await umbracoUi.page.goto(`${baseUrl}/product-page/`, { waitUntil: 'domcontentloaded' });
+    const response = await umbracoUi.page.goto(`${baseUrl}/products/wireless-headphones-pro/`, { waitUntil: 'domcontentloaded' });
     if (response?.ok()) {
-      const jsonLdScript = umbracoUi.page.locator('script[type="application/ld+json"]');
-      if (await jsonLdScript.count() > 0) {
-        const jsonLdText = await jsonLdScript.first().textContent();
-        const parsed = JSON.parse(jsonLdText!);
+      const jsonLdScripts = umbracoUi.page.locator('script[type="application/ld+json"]');
+      const count = await jsonLdScripts.count();
 
-        expect(parsed['@type']).toBe('Product');
+      // Find the Product script (may not be first due to ordering)
+      let productJson: any = null;
+      for (let i = 0; i < count; i++) {
+        const text = await jsonLdScripts.nth(i).textContent();
+        const parsed = JSON.parse(text!);
+        if (parsed['@type'] === 'Product') {
+          productJson = parsed;
+          break;
+        }
+      }
 
-        if (parsed.review) {
-          const reviews = Array.isArray(parsed.review) ? parsed.review : [parsed.review];
+      if (productJson) {
+        expect(productJson['@type']).toBe('Product');
+
+        if (productJson.review) {
+          const reviews = Array.isArray(productJson.review) ? productJson.review : [productJson.review];
           for (const r of reviews) {
             expect(r['@type']).toBe('Review');
           }
@@ -589,7 +598,7 @@ test.describe('JSON-LD Output on Site', () => {
   test('Recipe page JSON-LD contains ingredients and instructions', async ({ umbracoUi }) => {
     const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
 
-    const response = await umbracoUi.page.goto(`${baseUrl}/recipe-page/`, { waitUntil: 'domcontentloaded' });
+    const response = await umbracoUi.page.goto(`${baseUrl}/recipes/classic-victoria-sponge/`, { waitUntil: 'domcontentloaded' });
     if (response?.ok()) {
       const jsonLdScript = umbracoUi.page.locator('script[type="application/ld+json"]');
       if (await jsonLdScript.count() > 0) {
@@ -614,6 +623,73 @@ test.describe('JSON-LD Output on Site', () => {
           }
         }
       }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// JSON-LD Ordering Tests
+// ---------------------------------------------------------------------------
+
+test.describe('JSON-LD Script Ordering', () => {
+  test('scripts are ordered: inherited → breadcrumb → page schema', async ({ umbracoUi }) => {
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
+
+    // Navigate to a child page that should have inherited WebSite + BreadcrumbList + own schema
+    const response = await umbracoUi.page.goto(`${baseUrl}/products/wireless-headphones-pro/`, { waitUntil: 'domcontentloaded' });
+    if (!response?.ok()) return;
+
+    const jsonLdScripts = umbracoUi.page.locator('script[type="application/ld+json"]');
+    const count = await jsonLdScripts.count();
+    expect(count).toBeGreaterThanOrEqual(3);
+
+    // Parse all scripts to get their types in order
+    const types: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const text = await jsonLdScripts.nth(i).textContent();
+      const parsed = JSON.parse(text!);
+      types.push(parsed['@type']);
+    }
+
+    // Verify ordering: WebSite (inherited) should come before BreadcrumbList, which comes before Product
+    const websiteIdx = types.indexOf('WebSite');
+    const breadcrumbIdx = types.indexOf('BreadcrumbList');
+    const productIdx = types.indexOf('Product');
+
+    expect(websiteIdx).toBeGreaterThanOrEqual(0);
+    expect(breadcrumbIdx).toBeGreaterThan(websiteIdx);
+    expect(productIdx).toBeGreaterThan(breadcrumbIdx);
+  });
+
+  test('all pages with schemas have valid JSON-LD', async ({ umbracoUi }) => {
+    const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44389';
+
+    // Smoke test: check that all known pages have at least one valid JSON-LD script
+    const pages = [
+      '/',
+      '/blog/',
+      '/products/',
+      '/events/',
+      '/recipes/',
+      '/frequently-asked-questions/',
+      '/products/wireless-headphones-pro/',
+      '/recipes/classic-victoria-sponge/',
+    ];
+
+    for (const path of pages) {
+      const response = await umbracoUi.page.goto(`${baseUrl}${path}`, { waitUntil: 'domcontentloaded' });
+      if (!response?.ok()) continue;
+
+      const jsonLdScripts = umbracoUi.page.locator('script[type="application/ld+json"]');
+      const count = await jsonLdScripts.count();
+      expect(count).toBeGreaterThan(0);
+
+      // Validate first script is valid JSON with @context
+      const text = await jsonLdScripts.first().textContent();
+      expect(text).toBeTruthy();
+      const parsed = JSON.parse(text!);
+      expect(parsed['@context']).toBe('https://schema.org');
+      expect(parsed['@type']).toBeTruthy();
     }
   });
 });

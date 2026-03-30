@@ -60,7 +60,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
   contentTypeAlias = '';
 
   @state()
-  private _showUnmapped = false;
+  private _showMore = false;
 
   @state()
   private _loadingSubProperties: Record<number, boolean> = {};
@@ -382,15 +382,22 @@ export class PropertyMappingTableElement extends UmbLitElement {
     `;
   }
 
+  /** Whether a property is "likely" — either already mapped or has a reasonable auto-map suggestion */
+  private _isLikely(mapping: PropertyMappingRow) {
+    if (this._isMapped(mapping)) return true;
+    return mapping.confidence !== null && mapping.confidence >= 50;
+  }
+
   render() {
-    const mapped: Array<{ mapping: PropertyMappingRow; index: number }> = [];
-    const unmapped: Array<{ mapping: PropertyMappingRow; index: number }> = [];
+    // Split into likely (shown by default) and other (behind "Show more")
+    const likely: Array<{ mapping: PropertyMappingRow; index: number }> = [];
+    const other: Array<{ mapping: PropertyMappingRow; index: number }> = [];
 
     this.mappings.forEach((mapping, index) => {
-      if (this._isMapped(mapping)) {
-        mapped.push({ mapping, index });
+      if (this._isLikely(mapping)) {
+        likely.push({ mapping, index });
       } else {
-        unmapped.push({ mapping, index });
+        other.push({ mapping, index });
       }
     });
 
@@ -402,31 +409,34 @@ export class PropertyMappingTableElement extends UmbLitElement {
           <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
         </uui-table-head>
 
-        ${mapped.map(({ mapping, index }) => this._renderRow(mapping, index))}
+        ${likely.map(({ mapping, index }) => this._renderRow(mapping, index))}
 
-        ${this._showUnmapped
-          ? unmapped.map(({ mapping, index }) => this._renderRow(mapping, index, true))
+        ${this._showMore
+          ? other.map(({ mapping, index }) => this._renderRow(mapping, index, true))
           : nothing}
       </uui-table>
 
-      ${unmapped.length > 0
+      ${other.length > 0
         ? html`
             <div class="unmapped-toggle">
               <uui-button
                 look="placeholder"
-                @click=${() => { this._showUnmapped = !this._showUnmapped; }}
-                label=${this._showUnmapped ? this.localize.term('schemeWeaver_hideUnmapped') : `${unmapped.length} ${this.localize.term('schemeWeaver_unmappedProperties')}`}
+                aria-expanded=${this._showMore}
+                @click=${() => { this._showMore = !this._showMore; }}
+                label=${this._showMore
+                  ? this.localize.term('schemeWeaver_showFewerProperties')
+                  : this.localize.term('schemeWeaver_showMoreProperties').replace('{0}', String(other.length))}
               >
-                <uui-icon name=${this._showUnmapped ? 'icon-navigation-up' : 'icon-navigation-down'}></uui-icon>
-                ${this._showUnmapped
-                  ? this.localize.term('schemeWeaver_hideUnmapped')
-                  : `${unmapped.length} ${this.localize.term('schemeWeaver_unmappedProperties')}`}
+                <uui-icon name=${this._showMore ? 'icon-navigation-up' : 'icon-navigation-down'}></uui-icon>
+                ${this._showMore
+                  ? this.localize.term('schemeWeaver_showFewerProperties')
+                  : this.localize.term('schemeWeaver_showMoreProperties').replace('{0}', String(other.length))}
               </uui-button>
             </div>
           `
         : nothing}
 
-      ${mapped.length === 0 && !this._showUnmapped
+      ${likely.length === 0 && other.length > 0 && !this._showMore
         ? html`<p class="no-mappings-hint">${this.localize.term('schemeWeaver_noMappedProperties')}</p>`
         : nothing}
     `;

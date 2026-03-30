@@ -38,10 +38,10 @@ public static class SchemeWeaverConstants
 
         public static readonly IReadOnlyList<(string Alias, string DisplayName, string EditorAlias)> All =
         [
-            (Url, "URL", EditorAlias),
-            (Name, "Name", EditorAlias),
-            (CreateDate, "Create Date", EditorAlias),
-            (UpdateDate, "Update Date", EditorAlias),
+            (Url, "url", EditorAlias),
+            (Name, "name", EditorAlias),
+            (CreateDate, "createDate", EditorAlias),
+            (UpdateDate, "updateDate", EditorAlias),
         ];
 
         public static bool IsBuiltIn(string? alias) =>

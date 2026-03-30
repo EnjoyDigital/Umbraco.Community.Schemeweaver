@@ -1,0 +1,47 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+<div class="card">
+    <h2>Motorcycle Details</h2>
+    <dl>
+        @if (Model.HasValue("brand"))
+        {
+            <dt>Brand</dt>
+            <dd>@Model.Value("brand")</dd>
+        }
+        @if (Model.HasValue("model"))
+        {
+            <dt>Model</dt>
+            <dd>@Model.Value("model")</dd>
+        }
+        @if (Model.HasValue("fuelType"))
+        {
+            <dt>Fuel Type</dt>
+            <dd>@Model.Value("fuelType")</dd>
+        }
+        @if (Model.HasValue("mileageFromOdometer"))
+        {
+            <dt>Mileage</dt>
+            <dd>@Model.Value("mileageFromOdometer")</dd>
+        }
+        @if (Model.HasValue("color"))
+        {
+            <dt>Colour</dt>
+            <dd>@Model.Value("color")</dd>
+        }
+        @if (Model.HasValue("vehicleTransmission"))
+        {
+            <dt>Transmission</dt>
+            <dd>@Model.Value("vehicleTransmission")</dd>
+        }
+    </dl>
+</div>

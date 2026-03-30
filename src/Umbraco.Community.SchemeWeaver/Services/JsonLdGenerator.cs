@@ -73,11 +73,13 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 if (value is null)
                     continue;
 
-                // Apply transforms only to string values
+                // Apply transforms only to string values; skip empty/whitespace
                 if (value is string stringValue)
                 {
+                    if (string.IsNullOrWhiteSpace(stringValue))
+                        continue;
                     var transformed = ApplyTransform(stringValue, propMapping.TransformType);
-                    if (transformed is null) continue;
+                    if (string.IsNullOrWhiteSpace(transformed)) continue;
                     value = transformed;
                 }
 
@@ -456,9 +458,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (inheritedAliases.Count == 0)
-            yield break;
+            return [];
 
         // Walk up from the parent (not the current page) to avoid duplicating the current page's own schema
+        var results = new List<string>();
         var current = content.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
         while (current is not null)
         {
@@ -466,11 +469,14 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             {
                 var jsonLd = GenerateJsonLdString(current);
                 if (!string.IsNullOrEmpty(jsonLd))
-                    yield return jsonLd;
+                    results.Add(jsonLd);
             }
 
             current = current.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
         }
+
+        results.Reverse(); // Root-first order: Website before intermediate schemas
+        return results;
     }
 
     /// <inheritdoc />
@@ -568,8 +574,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
                 if (value is string stringValue)
                 {
+                    if (string.IsNullOrWhiteSpace(stringValue))
+                        continue;
                     var transformed = ApplyTransform(stringValue, propMapping.TransformType);
-                    if (transformed is null) continue;
+                    if (string.IsNullOrWhiteSpace(transformed)) continue;
                     value = transformed;
                 }
 
