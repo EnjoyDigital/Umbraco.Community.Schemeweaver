@@ -196,11 +196,11 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
             : html`
                   <uui-table>
                     <uui-table-head>
-                      <uui-table-head-cell>${this.localize.term('schemeWeaver_contentType')}</uui-table-head-cell>
-                      <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaType')}</uui-table-head-cell>
-                      <uui-table-head-cell>${this.localize.term('schemeWeaver_status')}</uui-table-head-cell>
-                      <uui-table-head-cell>${this.localize.term('schemeWeaver_properties')}</uui-table-head-cell>
-                      <uui-table-head-cell>${this.localize.term('schemeWeaver_actions')}</uui-table-head-cell>
+                      <uui-table-head-cell style="width: 25%">${this.localize.term('schemeWeaver_contentType')}</uui-table-head-cell>
+                      <uui-table-head-cell style="width: 20%">${this.localize.term('schemeWeaver_schemaType')}</uui-table-head-cell>
+                      <uui-table-head-cell style="width: 15%">${this.localize.term('schemeWeaver_status')}</uui-table-head-cell>
+                      <uui-table-head-cell style="width: 15%">${this.localize.term('schemeWeaver_properties')}</uui-table-head-cell>
+                      <uui-table-head-cell style="width: 25%">${this.localize.term('schemeWeaver_actions')}</uui-table-head-cell>
                     </uui-table-head>
 
                     ${this._filteredMappings.map(
