@@ -10,6 +10,7 @@ import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-mo
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { mergeAutoMapSuggestions, applySourceTypeChange } from '../utils/mapping-converters.js';
 
+import type { SchemaPropertyInfo } from '../api/types.js';
 import type { PropertyMappingModalData, PropertyMappingModalValue } from './property-mapping-modal.token.js';
 import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
 
@@ -83,8 +84,8 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     const { index, typeName } = e.detail;
     const props = await this.#repository.requestSchemaTypeProperties(typeName);
     if (props) {
-      const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as any;
-      table?.setSubTypeProperties(index, props.map((p: any) => ({ name: p.name, propertyType: p.propertyType })));
+      const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as PropertyMappingTableElement | null;
+      table?.setSubTypeProperties(index, props.map((p: SchemaPropertyInfo) => ({ name: p.name, propertyType: p.propertyType })));
     }
   }
 

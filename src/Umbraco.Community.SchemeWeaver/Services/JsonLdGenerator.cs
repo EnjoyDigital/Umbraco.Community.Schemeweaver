@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -331,10 +332,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         try
         {
-            return System.Text.Json.JsonSerializer.Deserialize<ComplexTypeConfigModel>(json,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return JsonSerializer.Deserialize<ComplexTypeConfigModel>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         }
-        catch
+        catch (JsonException)
         {
             return null;
         }

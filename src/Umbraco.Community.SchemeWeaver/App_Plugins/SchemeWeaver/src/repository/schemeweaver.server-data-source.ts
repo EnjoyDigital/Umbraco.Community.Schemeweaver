@@ -17,6 +17,7 @@ const API_BASE = '/umbraco/management/api/v1/schemeweaver';
 
 async function getAuthHeaders(host: UmbControllerHost): Promise<Record<string, string>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- UmbControllerHost lacks getContext in its type definition
     const authContext = await (host as any).getContext(UMB_AUTH_CONTEXT);
     const config = authContext.getOpenApiConfiguration();
     const token = typeof config.TOKEN === 'function'

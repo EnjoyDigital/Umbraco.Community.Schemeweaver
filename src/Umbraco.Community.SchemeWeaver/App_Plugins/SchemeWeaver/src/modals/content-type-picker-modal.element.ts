@@ -97,7 +97,7 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
                 </div>
               `
             : html`
-                <div class="content-type-list" role="listbox">
+                <div class="content-type-list" role="listbox" aria-label="Content types">
                   ${this._filteredTypes.length > 0
                     ? this._filteredTypes.map(
                         (ct) => html`

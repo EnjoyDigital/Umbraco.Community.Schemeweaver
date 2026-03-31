@@ -95,7 +95,7 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
                 </div>
               `
             : html`
-                <div class="property-list">
+                <div class="property-list" role="listbox" aria-label="Properties">
                   ${this._filteredProperties.length > 0
                     ? this._filteredProperties.map(
                         (prop) => html`

@@ -141,8 +141,15 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpPost("mappings")]
     [ProducesResponseType(typeof(SchemaMappingDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult SaveMapping([FromBody] SchemaMappingDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.ContentTypeAlias))
+            return BadRequest("ContentTypeAlias is required.");
+
+        if (string.IsNullOrWhiteSpace(dto.SchemaTypeName))
+            return BadRequest("SchemaTypeName is required.");
+
         var saved = _service.SaveMapping(dto);
         return Ok(saved);
     }
@@ -157,8 +164,12 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpPost("mappings/{contentTypeAlias}/auto-map")]
     [ProducesResponseType(typeof(IEnumerable<PropertyMappingSuggestion>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult AutoMap(string contentTypeAlias, [FromQuery] string schemaTypeName)
     {
+        if (string.IsNullOrWhiteSpace(schemaTypeName))
+            return BadRequest("schemaTypeName query parameter is required.");
+
         var suggestions = _service.AutoMap(contentTypeAlias, schemaTypeName);
         return Ok(suggestions);
     }
@@ -193,8 +204,15 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpPost("generate-content-type")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GenerateContentType([FromBody] ContentTypeGenerationRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.SchemaTypeName))
+            return BadRequest("SchemaTypeName is required.");
+
+        if (string.IsNullOrWhiteSpace(request.DocumentTypeName))
+            return BadRequest("DocumentTypeName is required.");
+
         var key = await _contentTypeGenerator.GenerateContentTypeAsync(request, cancellationToken).ConfigureAwait(false);
         return Ok(new { Key = key });
     }

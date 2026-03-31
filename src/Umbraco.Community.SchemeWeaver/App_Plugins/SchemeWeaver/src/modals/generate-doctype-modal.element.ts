@@ -9,6 +9,7 @@ import type { GenerateDoctypeModalData, GenerateDoctypeModalValue } from './gene
 export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoctypeModalData, GenerateDoctypeModalValue> {
   #repository = new SchemeWeaverRepository(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
+  #searchTimer?: ReturnType<typeof setTimeout>;
 
   @state()
   private _loading = false;
@@ -63,8 +64,13 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
     }
   }
 
-  private async _handleSearch(e: Event) {
+  private _handleSearch(e: Event) {
     this._searchTerm = (e.target as HTMLInputElement).value;
+    clearTimeout(this.#searchTimer);
+    this.#searchTimer = setTimeout(() => this._doSearch(), 300);
+  }
+
+  private async _doSearch() {
     try {
       const types = await this.#repository.requestSchemaTypes(this._searchTerm || undefined);
       if (types) {
@@ -116,7 +122,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
       });
 
       if (!result) {
-        throw new Error('Failed to generate content type');
+        throw new Error(this.localize.term('schemeWeaver_failedToGenerateContentType'));
       }
 
       this.#notificationContext?.peek('positive', {
@@ -129,7 +135,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
       console.error('SchemeWeaver: Generate error:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Failed to generate content type',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToGenerateContentType'),
         },
       });
     } finally {

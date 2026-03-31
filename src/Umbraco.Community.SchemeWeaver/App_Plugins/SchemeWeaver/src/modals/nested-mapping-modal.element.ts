@@ -132,7 +132,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         // Rebuild mappings from schema properties, preserving existing values
         this._nestedMappings = this._schemaProperties.map((prop) => {
           const existing = config.nestedMappings.find(
-            (m: any) => m.schemaProperty === prop.name
+            (m: Record<string, string>) => m.schemaProperty === prop.name
           );
           return {
             schemaProperty: prop.name,

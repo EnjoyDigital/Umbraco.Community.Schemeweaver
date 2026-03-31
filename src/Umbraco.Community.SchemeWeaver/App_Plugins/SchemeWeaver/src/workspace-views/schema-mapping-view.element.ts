@@ -13,7 +13,7 @@ import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from '../modals/content-type-picker-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from '../modals/source-origin-picker-modal.token.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from '../modals/nested-mapping-modal.token.js';
-import type { SchemaMappingDto, ContentTypeProperty } from '../api/types.js';
+import type { SchemaMappingDto, ContentTypeProperty, SchemaPropertyInfo } from '../api/types.js';
 import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
 
 import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange } from '../utils/mapping-converters.js';
@@ -113,7 +113,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       if (schemaProps) {
         this._rows = this._rows.map(row => {
           const schemaProp = schemaProps.find(
-            (sp: any) => sp.name.toLowerCase() === row.schemaPropertyName.toLowerCase()
+            (sp: SchemaPropertyInfo) => sp.name.toLowerCase() === row.schemaPropertyName.toLowerCase()
           );
           if (schemaProp) {
             const enriched = {
@@ -128,7 +128,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
                 const config = JSON.parse(enriched.resolverConfig);
                 if (config.complexTypeMappings?.length) {
                   enriched.selectedSubType = enriched.nestedSchemaTypeName || enriched.acceptedTypes[0] || '';
-                  enriched.subMappings = config.complexTypeMappings.map((m: any) => ({
+                  enriched.subMappings = config.complexTypeMappings.map((m: Record<string, string>) => ({
                     schemaProperty: m.schemaProperty || '',
                     schemaPropertyType: '',
                     sourceType: m.sourceType || 'property',
@@ -292,7 +292,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
     if (!this._mapping) return;
     this._mapping = {
       ...this._mapping,
-      isInherited: (e.target as any).checked,
+      isInherited: (e.target as HTMLInputElement).checked,
     };
   }
 
@@ -341,7 +341,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
     const props = await this.#repository.requestSchemaTypeProperties(typeName);
     if (props) {
       const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as PropertyMappingTableElement | null;
-      table?.setSubTypeProperties(index, props.map((p: any) => ({ name: p.name, propertyType: p.propertyType })));
+      table?.setSubTypeProperties(index, props.map((p: SchemaPropertyInfo) => ({ name: p.name, propertyType: p.propertyType })));
     }
   }
 

@@ -47,4 +47,16 @@ public static class SchemeWeaverConstants
         public static bool IsBuiltIn(string? alias) =>
             alias is not null && alias.StartsWith(Prefix, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Umbraco property editor aliases used for block-based editors.
+    /// </summary>
+    public static class PropertyEditors
+    {
+        public static readonly HashSet<string> BlockEditorAliases = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Umbraco.BlockList",
+            "Umbraco.BlockGrid"
+        };
+    }
 }

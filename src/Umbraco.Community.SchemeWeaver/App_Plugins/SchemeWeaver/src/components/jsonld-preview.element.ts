@@ -140,23 +140,23 @@ export class JsonLdPreviewElement extends UmbLitElement {
       }
 
       .json-key {
-        color: var(--uui-color-default-emphasis, #1b264f);
+        color: var(--uui-color-default-emphasis, var(--uui-color-text));
       }
 
       .json-string {
-        color: #c2185b;
+        color: var(--uui-color-danger-emphasis, var(--uui-color-danger));
       }
 
       .json-number {
-        color: #1565c0;
+        color: var(--uui-color-interactive-emphasis, var(--uui-color-interactive));
       }
 
       .json-boolean {
-        color: #1565c0;
+        color: var(--uui-color-interactive-emphasis, var(--uui-color-interactive));
       }
 
       .json-null {
-        color: #e65100;
+        color: var(--uui-color-warning-emphasis, var(--uui-color-warning));
       }
 
       .empty {

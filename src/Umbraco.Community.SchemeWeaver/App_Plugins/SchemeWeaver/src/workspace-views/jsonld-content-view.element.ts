@@ -108,7 +108,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
       const message = error instanceof Error ? error.message : String(error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: message || 'Failed to generate preview',
+          message: message || this.localize.term('schemeWeaver_failedToGeneratePreview'),
         },
       });
     } finally {

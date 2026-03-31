@@ -52,7 +52,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
       ]);
 
       if (!mappings || !contentTypes) {
-        throw new Error('Failed to fetch data from SchemeWeaver API');
+        throw new Error(this.localize.term('schemeWeaver_failedToLoadMapping'));
       }
 
       this._mappings = contentTypes.map((ct) => {
@@ -71,7 +71,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
       console.error('SchemeWeaver: Error fetching mappings:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Failed to load mappings',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToLoadMapping'),
         },
       });
     } finally {
@@ -105,7 +105,7 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
       console.error('SchemeWeaver: Error deleting mapping:', error);
       this.#notificationContext?.peek('danger', {
         data: {
-          message: error instanceof Error ? error.message : 'Failed to delete mapping',
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToDeleteMapping'),
         },
       });
     }

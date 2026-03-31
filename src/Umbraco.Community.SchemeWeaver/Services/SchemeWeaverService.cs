@@ -21,12 +21,6 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly IDataTypeService _dataTypeService;
     private readonly ILogger<SchemeWeaverService> _logger;
 
-    private static readonly HashSet<string> BlockEditorAliases = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Umbraco.BlockList",
-        "Umbraco.BlockGrid"
-    };
-
     public SchemeWeaverService(
         ISchemaTypeRegistry registry,
         ISchemaAutoMapper autoMapper,
@@ -104,7 +98,8 @@ public class SchemeWeaverService : ISchemeWeaverService
         _logger.LogInformation("Saved schema mapping for {Alias} -> {SchemaType}",
             dto.ContentTypeAlias, dto.SchemaTypeName);
 
-        return GetMapping(dto.ContentTypeAlias)!;
+        return GetMapping(dto.ContentTypeAlias)
+            ?? throw new InvalidOperationException($"Failed to retrieve mapping after save for '{dto.ContentTypeAlias}'.");
     }
 
     public void DeleteMapping(string contentTypeAlias)
@@ -179,8 +174,8 @@ public class SchemeWeaverService : ISchemeWeaverService
                 result[pm.SchemaPropertyName] = value;
         }
 
-        response.JsonLd = System.Text.Json.JsonSerializer.Serialize(result,
-            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        response.JsonLd = JsonSerializer.Serialize(result,
+            new JsonSerializerOptions { WriteIndented = true });
         response.IsValid = true;
         return response;
     }
@@ -211,7 +206,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         if (property is null)
             return [];
 
-        if (!BlockEditorAliases.Contains(property.PropertyEditorAlias))
+        if (!SchemeWeaverConstants.PropertyEditors.BlockEditorAliases.Contains(property.PropertyEditorAlias))
             return [];
 
         var dataType = await _dataTypeService.GetAsync(property.DataTypeKey).ConfigureAwait(false);

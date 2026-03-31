@@ -13,11 +13,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     private readonly IContentTypeService _contentTypeService;
     private readonly ISchemaTypeRegistry _schemaTypeRegistry;
 
-    private static readonly HashSet<string> BlockEditorAliases = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Umbraco.BlockList",
-        "Umbraco.BlockGrid"
-    };
+    private static HashSet<string> BlockEditorAliases => SchemeWeaverConstants.PropertyEditors.BlockEditorAliases;
 
     private static readonly HashSet<string> ContentPickerAliases = new(StringComparer.OrdinalIgnoreCase)
     {

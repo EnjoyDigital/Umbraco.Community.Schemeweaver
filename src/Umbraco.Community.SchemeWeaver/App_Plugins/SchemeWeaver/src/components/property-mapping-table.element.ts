@@ -813,12 +813,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
         min-width: 150px;
       }
 
-      .sub-unmapped-hint {
-        text-align: center;
-        padding: var(--uui-size-space-2);
-        color: var(--uui-color-text-alt);
-      }
-
       .complex-type-hint {
         color: var(--uui-color-text-alt);
         font-style: italic;

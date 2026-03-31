@@ -12,6 +12,7 @@ interface SchemaTypeGroup {
 @customElement('schemeweaver-schema-picker-modal')
 export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerModalData, SchemaPickerModalValue> {
   #repository = new SchemeWeaverRepository(this);
+  #searchTimer?: ReturnType<typeof setTimeout>;
 
   @state()
   private _loading = true;
@@ -44,9 +45,13 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     }
   }
 
-  private async _handleSearch(e: Event) {
+  private _handleSearch(e: Event) {
     this._searchTerm = (e.target as HTMLInputElement).value;
+    clearTimeout(this.#searchTimer);
+    this.#searchTimer = setTimeout(() => this._doSearch(), 300);
+  }
 
+  private async _doSearch() {
     try {
       const types = await this.#repository.requestSchemaTypes(this._searchTerm || undefined);
       if (types) {
@@ -110,7 +115,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
                 </div>
               `
             : html`
-                <div class="schema-list">
+                <div class="schema-list" role="listbox" aria-label="Schema.org types">
                   ${this._groupedTypes.map(
                     (group) => html`
                       <div class="schema-group">

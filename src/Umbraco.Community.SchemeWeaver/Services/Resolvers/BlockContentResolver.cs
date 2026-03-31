@@ -221,7 +221,7 @@ public class BlockContentResolver : IPropertyValueResolver
                 PropertyNameCaseInsensitive = true
             });
         }
-        catch
+        catch (JsonException)
         {
             return null;
         }

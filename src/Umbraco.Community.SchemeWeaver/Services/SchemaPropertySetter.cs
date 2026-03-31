@@ -178,7 +178,7 @@ public static class SchemaPropertySetter
             property.SetValue(instance, oneOrMany);
             return true;
         }
-        catch
+        catch (Exception)
         {
             return false;
         }
@@ -225,7 +225,7 @@ public static class SchemaPropertySetter
             property.SetValue(instance, oneOrManyInstance);
             return true;
         }
-        catch
+        catch (Exception)
         {
             return false;
         }
@@ -279,7 +279,7 @@ public static class SchemaPropertySetter
                     property.SetValue(instance, oneOrManyInstance);
                     return true;
                 }
-                catch
+                catch (Exception)
                 {
                     // Fall through
                 }
@@ -363,7 +363,7 @@ public static class SchemaPropertySetter
             {
                 return method.Invoke(null, [value]);
             }
-            catch
+            catch (Exception)
             {
                 // Continue trying other conversions
             }
@@ -383,7 +383,7 @@ public static class SchemaPropertySetter
             {
                 return method.Invoke(null, [value]);
             }
-            catch
+            catch (Exception)
             {
                 // Continue trying other conversions
             }
