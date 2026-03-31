@@ -10,8 +10,9 @@
     "test": "web-test-runner --config web-test-runner.config.mjs",
     "test:watch": "web-test-runner --config web-test-runner.config.mjs --watch",
     "test:msw": "web-test-runner --config web-test-runner.msw.config.mjs",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test tests/e2e/schemeweaver.spec.ts",
     "test:e2e:ui": "playwright test --ui",
+    "test:screenshots": "playwright test tests/e2e/screenshots.spec.ts",
     "postinstall": "npx msw init . --save"
   },
   "keywords": [

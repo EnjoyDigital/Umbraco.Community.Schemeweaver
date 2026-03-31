@@ -1,9 +1,5 @@
 import { expect } from '@playwright/test';
 import { ConstantHelper, test } from '@umbraco/playwright-testhelpers';
-import { join } from 'path';
-
-/** Root screenshots directory (repo root). */
-const SCREENSHOTS_DIR = join(__dirname, '..', '..', '..', '..', '..', '..', 'screenshots');
 
 /**
  * Helper: navigate to SchemeWeaver dashboard in Settings section.
@@ -66,11 +62,6 @@ test.describe('SchemeWeaver Dashboard', () => {
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
 
-    // Screenshot: dashboard overview for documentation
-    await umbracoUi.page.screenshot({
-      path: join(SCREENSHOTS_DIR, '01-dashboard-overview.png'),
-      fullPage: true,
-    });
   });
 
   test('table has correct column headers', async ({ umbracoUi }) => {
@@ -165,11 +156,6 @@ test.describe('Schema Picker Modal', () => {
     const count = await items.count();
     expect(count).toBeGreaterThan(0);
 
-    // Screenshot: schema picker modal for documentation
-    await umbracoUi.page.screenshot({
-      path: join(SCREENSHOTS_DIR, '02-schema-picker.png'),
-      fullPage: true,
-    });
   });
 
   test('schema picker search filters types', async ({ umbracoUi }) => {
@@ -266,12 +252,6 @@ test.describe('Schema Mapping Workflow', () => {
     await expect(mappingModal.locator('uui-button[label="Save Mapping"]')).toBeVisible();
     await expect(mappingModal.locator('uui-button[label="Cancel"]')).toBeVisible();
 
-    // Screenshot: property mapping modal with auto-suggestions for documentation
-    await umbracoUi.page.screenshot({
-      path: join(SCREENSHOTS_DIR, '03-basic-mapping.png'),
-      fullPage: true,
-    });
-
     // Step 4: Save the mapping
     await mappingModal.locator('uui-button[label="Save Mapping"]').click();
 
@@ -360,12 +340,6 @@ test.describe('Property Mapping Table', () => {
     await expect(table.locator('uui-table-head-cell', { hasText: 'Source' })).toBeVisible();
     await expect(table.locator('uui-table-head-cell', { hasText: 'Confidence' })).toBeVisible();
 
-    // Screenshot: property mapping table for documentation
-    await umbracoUi.page.screenshot({
-      path: join(SCREENSHOTS_DIR, '05-property-table.png'),
-      fullPage: true,
-    });
-
     // Close
     await mappingModal.locator('uui-button[label="Cancel"]').click();
   });
@@ -396,11 +370,6 @@ test.describe('Property Mapping Table', () => {
       const firstSelect = table.locator('uui-select').first();
       await expect(firstSelect).toBeVisible();
 
-      // Screenshot: source type options for documentation
-      await umbracoUi.page.screenshot({
-        path: join(SCREENSHOTS_DIR, '04-source-types.png'),
-        fullPage: true,
-      });
     }
 
     // Close
@@ -826,12 +795,6 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
     const table = modal.locator('schemeweaver-property-mapping-table');
     await expect(table.locator('uui-table-row').first()).toBeVisible({ timeout: 10_000 });
 
-    // Screenshot the persisted mapping modal
-    await umbracoUi.page.screenshot({
-      path: join(SCREENSHOTS_DIR, '06-mapping-persistence.png'),
-      fullPage: true,
-    });
-
     // Close modal
     await modal.locator('uui-button[label="Cancel"]').click();
     await expect(modal).not.toBeVisible({ timeout: 5_000 });
@@ -875,11 +838,6 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
     // We had 2 unmapped (blogArticle + contactPage), mapped one, so at most 1 left
     expect(unmappedCount).toBeLessThanOrEqual(1);
 
-    // Screenshot the dashboard showing mapped types
-    await umbracoUi.page.screenshot({
-      path: join(SCREENSHOTS_DIR, '07-dashboard-all-mapped.png'),
-      fullPage: true,
-    });
   });
 
   test('JSON-LD renders on published page', async ({ umbracoUi }) => {
@@ -905,12 +863,6 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
     expect(jsonLd['@context']).toBe('https://schema.org');
     expect(jsonLd['@type']).toBe('WebSite');
     expect(jsonLd['name']).toBeTruthy();
-
-    // Screenshot the published page
-    await umbracoUi.page.screenshot({
-      path: join(SCREENSHOTS_DIR, '08-jsonld-page-output.png'),
-      fullPage: true,
-    });
 
     // Also verify the product page has JSON-LD
     await umbracoUi.page.goto(baseUrl + '/schemeweaver-pro/');
@@ -962,11 +914,6 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
         // Wait for preview to render
         await umbracoUi.page.waitForTimeout(3_000);
 
-        // Screenshot the JSON-LD preview
-        await umbracoUi.page.screenshot({
-          path: join(SCREENSHOTS_DIR, '09-jsonld-preview.png'),
-          fullPage: true,
-        });
       }
     }
   });
@@ -1064,12 +1011,6 @@ test.describe('Complex Mapping Workflows', () => {
         const configButton = table.locator('uui-button', { hasText: /Configure Block Mapping/i });
         const hasConfigButton = await configButton.isVisible({ timeout: 5_000 }).catch(() => false);
 
-        // Screenshot the auto-mapped FAQPage
-        await umbracoUi.page.screenshot({
-          path: join(SCREENSHOTS_DIR, '10-faqpage-auto-map.png'),
-          fullPage: true,
-        });
-
         // If config button exists, test the wizard flow
         if (hasConfigButton) {
           await configButton.first().click();
@@ -1082,12 +1023,6 @@ test.describe('Complex Mapping Workflows', () => {
           const stepIndicators = nestedModal.locator('.step-indicator');
           const stepCount = await stepIndicators.count();
           expect(stepCount).toBe(3);
-
-          // Screenshot the wizard
-          await umbracoUi.page.screenshot({
-            path: join(SCREENSHOTS_DIR, '11-faqpage-wizard.png'),
-            fullPage: true,
-          });
 
           // Close wizard
           const cancelBtn = nestedModal.locator('uui-button[label="Cancel"]');
@@ -1127,12 +1062,6 @@ test.describe('Complex Mapping Workflows', () => {
         const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
         await expect(mappingModal).toBeVisible({ timeout: 10_000 });
 
-        // Screenshot the Product auto-map with complex type suggestions
-        await umbracoUi.page.screenshot({
-          path: join(SCREENSHOTS_DIR, '12-product-auto-map.png'),
-          fullPage: true,
-        });
-
         await mappingModal.locator('uui-button[label="Cancel"]').click();
       }
     }
@@ -1158,12 +1087,6 @@ test.describe('Complex Mapping Workflows', () => {
         const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
         await expect(mappingModal).toBeVisible({ timeout: 10_000 });
 
-        // Should show block content suggestions for instructions block list
-        await umbracoUi.page.screenshot({
-          path: join(SCREENSHOTS_DIR, '13-recipe-auto-map.png'),
-          fullPage: true,
-        });
-
         await mappingModal.locator('uui-button[label="Cancel"]').click();
       }
     }
@@ -1188,11 +1111,6 @@ test.describe('Complex Mapping Workflows', () => {
 
         const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
         await expect(mappingModal).toBeVisible({ timeout: 10_000 });
-
-        await umbracoUi.page.screenshot({
-          path: join(SCREENSHOTS_DIR, '14-event-auto-map.png'),
-          fullPage: true,
-        });
 
         await mappingModal.locator('uui-button[label="Cancel"]').click();
       }
@@ -1239,12 +1157,6 @@ test.describe('Complex Mapping Workflows', () => {
     // Step 2: Mappings - check for mapping table
     const mappingTable = nestedModal.locator('uui-table');
     if (await mappingTable.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      // Screenshot step 2
-      await umbracoUi.page.screenshot({
-        path: join(SCREENSHOTS_DIR, '15-wizard-step2-mappings.png'),
-        fullPage: true,
-      });
-
       // Click Preview to go to step 3
       const previewBtn = nestedModal.locator('uui-button', { hasText: 'Preview' });
       if (await previewBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
@@ -1254,12 +1166,6 @@ test.describe('Complex Mapping Workflows', () => {
         // Step 3: Preview
         const previewSummary = nestedModal.locator('.preview-summary');
         if (await previewSummary.isVisible({ timeout: 3_000 }).catch(() => false)) {
-          // Screenshot step 3
-          await umbracoUi.page.screenshot({
-            path: join(SCREENSHOTS_DIR, '16-wizard-step3-preview.png'),
-            fullPage: true,
-          });
-
           // Save
           const saveBtn = nestedModal.locator('uui-button[label="Save Mapping"]');
           if (await saveBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
