@@ -442,6 +442,16 @@ export class SchemaMappingViewElement extends UmbLitElement {
               <uui-icon name="icon-wand"></uui-icon>
               ${this.localize.term('schemeWeaver_autoMap')}
             </uui-button>
+            <uui-button
+              look="primary"
+              compact
+              @click=${this._handleSave}
+              ?disabled=${this._saving}
+              .state=${this._saving ? 'waiting' : undefined}
+              label=${this.localize.term('schemeWeaver_save')}
+            >
+              ${this.localize.term('schemeWeaver_save')}
+            </uui-button>
           </div>
 
           <schemeweaver-property-mapping-table

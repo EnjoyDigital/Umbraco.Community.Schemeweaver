@@ -11,12 +11,12 @@
 		<PackageTags>umbraco plugin package umbraco-marketplace schema.org json-ld structured-data seo schema-mapping</PackageTags>
 		<StaticWebAssetBasePath>App_Plugins/SchemeWeaver</StaticWebAssetBasePath>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-		<Version>0.1.0-alpha</Version>
+		<Version>0.2.0-beta</Version>
 		<Authors>Oliver Picton</Authors>
 		<Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
 		<PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</RepositoryUrl>
-		<PackageReleaseNotes>v0.1.0-alpha: Initial alpha release. 657 Schema.org types, auto-mapping with confidence scores, JSON-LD generation via tag helper and Delivery API, block content support, schema inheritance, BreadcrumbList, smart property UI with "Show more" toggle. See README for known issues.</PackageReleaseNotes>
+		<PackageReleaseNotes>v0.2.0-beta: First beta release. 657 Schema.org types, auto-mapping with confidence scores, JSON-LD generation via tag helper and Delivery API, block content support, schema inheritance, BreadcrumbList. Compatible with Umbraco 17.0+. See README for known issues.</PackageReleaseNotes>
 		<RepositoryType>git</RepositoryType>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
