@@ -19,8 +19,6 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
 
-![Dashboard](screenshots/01-dashboard-overview.png)
-
 ## Requirements
 
 - Umbraco 17+
