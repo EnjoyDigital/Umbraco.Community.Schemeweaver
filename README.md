@@ -19,6 +19,8 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
 
+![Dashboard](screenshots/01-dashboard-overview.png)
+
 ## Requirements
 
 - Umbraco 17+
@@ -65,6 +67,18 @@ const data = await response.json();
 const jsonLd = data.properties.schemaOrg;
 ```
 
+## Documentation
+
+- [Getting Started](docs/getting-started.md) -- installation, tag helper, first mapping
+- [Dashboard](docs/dashboard.md) -- dashboard overview and navigation
+- [Mapping Content Types](docs/mapping-content-types.md) -- full mapping workflow
+- [Property Mappings](docs/property-mappings.md) -- source types, transforms, confidence tiers
+- [Block Content](docs/block-content.md) -- BlockList/BlockGrid mapping, nested types, wrapInType
+- [Content Type Generation](docs/content-type-generation.md) -- scaffold document types from Schema.org
+- [Delivery API](docs/delivery-api.md) -- headless integration
+- [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, extending, troubleshooting
+- [API Reference](docs/api-reference.md) -- REST API endpoints
+
 ## How it works
 
 Each mapping connects one Umbraco **Content Type** to one **Schema.org type**. Within that mapping, individual **property mappings** define where each schema property gets its value:
@@ -98,10 +112,10 @@ The generated output:
 }
 ```
 
-## Known Issues (v0.1.0-alpha)
+## Notes (v0.2.0-beta)
 
-- **Block content nested types** -- some complex Schema.NET property types (e.g. `ReviewRating`) cannot be set from a plain string. Use `wrapInType` config to explicitly construct the nested type.
-- **Media picker on block elements** -- complex multi-crop scenarios may need manual URL mapping.
+- **Block content nested types** -- complex Schema.org properties (e.g. `acceptedAnswer`, `reviewRating`) require a wrapper type. The auto-mapper pre-configures this for common patterns (FAQ, Product, Recipe). For custom types, see the [`wrapInType` guide](docs/block-content.md#wrapintype-configuration).
+- **Media picker edge cases** -- complex multi-crop scenarios with specific crop aliases may need manual URL configuration. See [Property Mappings](docs/property-mappings.md#property-value-resolvers).
 
 ## Contributing
 

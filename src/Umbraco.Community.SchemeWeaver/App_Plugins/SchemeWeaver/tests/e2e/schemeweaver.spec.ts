@@ -65,6 +65,12 @@ test.describe('SchemeWeaver Dashboard', () => {
     // Should have at least one content type
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
+
+    // Screenshot: dashboard overview for documentation
+    await umbracoUi.page.screenshot({
+      path: join(SCREENSHOTS_DIR, '01-dashboard-overview.png'),
+      fullPage: true,
+    });
   });
 
   test('table has correct column headers', async ({ umbracoUi }) => {
@@ -158,6 +164,12 @@ test.describe('Schema Picker Modal', () => {
 
     const count = await items.count();
     expect(count).toBeGreaterThan(0);
+
+    // Screenshot: schema picker modal for documentation
+    await umbracoUi.page.screenshot({
+      path: join(SCREENSHOTS_DIR, '02-schema-picker.png'),
+      fullPage: true,
+    });
   });
 
   test('schema picker search filters types', async ({ umbracoUi }) => {
@@ -254,6 +266,12 @@ test.describe('Schema Mapping Workflow', () => {
     await expect(mappingModal.locator('uui-button[label="Save Mapping"]')).toBeVisible();
     await expect(mappingModal.locator('uui-button[label="Cancel"]')).toBeVisible();
 
+    // Screenshot: property mapping modal with auto-suggestions for documentation
+    await umbracoUi.page.screenshot({
+      path: join(SCREENSHOTS_DIR, '03-basic-mapping.png'),
+      fullPage: true,
+    });
+
     // Step 4: Save the mapping
     await mappingModal.locator('uui-button[label="Save Mapping"]').click();
 
@@ -342,6 +360,12 @@ test.describe('Property Mapping Table', () => {
     await expect(table.locator('uui-table-head-cell', { hasText: 'Source' })).toBeVisible();
     await expect(table.locator('uui-table-head-cell', { hasText: 'Confidence' })).toBeVisible();
 
+    // Screenshot: property mapping table for documentation
+    await umbracoUi.page.screenshot({
+      path: join(SCREENSHOTS_DIR, '05-property-table.png'),
+      fullPage: true,
+    });
+
     // Close
     await mappingModal.locator('uui-button[label="Cancel"]').click();
   });
@@ -371,6 +395,12 @@ test.describe('Property Mapping Table', () => {
     if (rowCount > 0) {
       const firstSelect = table.locator('uui-select').first();
       await expect(firstSelect).toBeVisible();
+
+      // Screenshot: source type options for documentation
+      await umbracoUi.page.screenshot({
+        path: join(SCREENSHOTS_DIR, '04-source-types.png'),
+        fullPage: true,
+      });
     }
 
     // Close
