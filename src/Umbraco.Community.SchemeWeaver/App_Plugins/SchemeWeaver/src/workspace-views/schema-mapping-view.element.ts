@@ -142,6 +142,31 @@ export class SchemaMappingViewElement extends UmbLitElement {
           }
           return row;
         });
+        // Add unmapped schema properties so "Show more" toggle works
+        const existingNames = new Set(this._rows.map(r => r.schemaPropertyName.toLowerCase()));
+        for (const sp of schemaProps) {
+          if (!existingNames.has(sp.name.toLowerCase())) {
+            this._rows.push({
+              schemaPropertyName: sp.name,
+              schemaPropertyType: sp.propertyType || '',
+              sourceType: 'property',
+              contentTypePropertyAlias: '',
+              sourceContentTypeAlias: '',
+              staticValue: '',
+              confidence: null,
+              editorAlias: '',
+              nestedSchemaTypeName: '',
+              resolverConfig: null,
+              acceptedTypes: sp.acceptedTypes || [],
+              isComplexType: sp.isComplexType || false,
+              expanded: false,
+              subMappings: [],
+              selectedSubType: '',
+              sourceContentTypeProperties: [],
+            });
+          }
+        }
+        this._rows = sortMappingRows(this._rows);
       }
 
       const props = await this.#repository.requestContentTypeProperties(this._contentTypeAlias);
