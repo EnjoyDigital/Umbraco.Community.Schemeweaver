@@ -26,7 +26,7 @@ Or via the .NET CLI in your solution directory:
 dotnet add src/MyUmbracoSite/MyUmbracoSite.csproj package Umbraco.Community.SchemeWeaver
 ```
 
-The current version is **1.0.0-beta**. If your NuGet source does not show pre-release packages by default, add the `--prerelease` flag:
+The current version is **1.0.0-beta.3**. If your NuGet source does not show pre-release packages by default, add the `--prerelease` flag:
 
 ```bash
 dotnet add package Umbraco.Community.SchemeWeaver --prerelease

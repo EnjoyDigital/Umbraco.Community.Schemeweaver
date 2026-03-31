@@ -1,7 +1,7 @@
 {
   "id": "Umbraco.Community.SchemeWeaver",
   "name": "Umbraco SchemeWeaver",
-  "version": "1.0.0-beta",
+  "version": "1.0.0-beta.3",
   "extensions": [
     {
       "type": "bundle",
