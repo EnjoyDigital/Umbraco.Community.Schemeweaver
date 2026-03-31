@@ -1607,9 +1607,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         home.SetValue("siteName", "SchemeWeaver Demo Site");
         home.SetValue("siteDescription", "Comprehensive Schema.org structured data demo — covering 30+ schema types with working JSON-LD output.");
         home.SetValue("organisationName", "Enjoy Digital");
-        home.SetValue("organisationEmail", "hello@enjoydigital.co.uk");
+        home.SetValue("organisationEmail", "hello@enjoy-digital.co.uk");
         home.SetValue("organisationTelephone", "+44 113 357 0000");
-        home.SetValue("sameAs", "https://twitter.com/enjoydigital,https://github.com/nickyoliverpicton");
+        home.SetValue("sameAs", "https://twitter.com/enjoydigital,https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver");
         _contentService.Save(home);
         await PublishContent(home, cancellationToken);
 
@@ -2073,9 +2073,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("givenName", "Oliver");
         content.SetValue("familyName", "Picton");
         content.SetValue("jobTitle", "Software Engineer");
-        content.SetValue("email", "oliver@enjoydigital.co.uk");
+        content.SetValue("email", "oliver@enjoy-digital.co.uk");
         content.SetValue("worksFor", "Enjoy Digital");
-        content.SetValue("sameAs", "https://github.com/nickyoliverpicton,https://twitter.com/oliverpicton");
+        content.SetValue("sameAs", "https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver,https://twitter.com/oliverpicton");
         await SaveAndPublishAsync(content);
     }
 
@@ -2085,7 +2085,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("title", "Enjoy Digital");
         content.SetValue("description", "Digital agency specialising in Umbraco CMS development and structured data solutions.");
         content.SetValue("telephone", "+44 113 357 0000");
-        content.SetValue("email", "hello@enjoydigital.co.uk");
+        content.SetValue("email", "hello@enjoy-digital.co.uk");
         content.SetValue("streetAddress", "7 Park Row");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("addressRegion", "West Yorkshire");
@@ -2175,7 +2175,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         var content = _contentService.Create("Contact Us", parentId, "contactPage");
         content.SetValue("title", "Contact Us");
         content.SetValue("telephone", "+44 113 357 0000");
-        content.SetValue("email", "hello@enjoydigital.co.uk");
+        content.SetValue("email", "hello@enjoy-digital.co.uk");
         content.SetValue("streetAddress", "7 Park Row");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 5HD");
@@ -3048,7 +3048,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "Open-source repository for the Umbraco SchemeWeaver package — contributions welcome.");
         content.SetValue("programmingLanguage", "C#, TypeScript");
         content.SetValue("runtimePlatform", ".NET 10");
-        content.SetValue("codeRepository", "https://github.com/nickyoliverpicton/Umbraco.Community.SchemeWeaver");
+        content.SetValue("codeRepository", "https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver");
         await SaveAndPublishAsync(content);
     }
 

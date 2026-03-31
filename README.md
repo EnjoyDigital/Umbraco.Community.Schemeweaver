@@ -138,4 +138,4 @@ MIT -- see [LICENSE](LICENSE).
 
 ## Author
 
-Oliver Picton / [Enjoy Digital](https://enjoydigital.co.uk)
+Oliver Picton / [Enjoy Digital](https://www.enjoy-digital.co.uk)
