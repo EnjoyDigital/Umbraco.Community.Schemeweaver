@@ -14,7 +14,6 @@ project.lock.json
 ## Node
 node_modules/
 dist/
-package-lock.json
 *.map
 
 ## Build
