@@ -2,7 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj" />
     <Project Path="src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj" />
-    <Project Path="src/SchemeWeaver.TestHost/SchemeWeaver.TestHost.csproj" />
+    <Project Path="src/Umbraco.Community.SchemeWeaver.TestHost/Umbraco.Community.SchemeWeaver.TestHost.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Umbraco.Community.SchemeWeaver.Tests/Umbraco.Community.SchemeWeaver.Tests.csproj" />

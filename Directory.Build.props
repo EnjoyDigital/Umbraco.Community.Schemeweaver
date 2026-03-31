@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
     <!-- Suppress transitive NuGet vulnerability warnings we cannot fix (MimeKit via Umbraco) -->
-    <NoWarn>$(NoWarn);NU1902</NoWarn>
+    <NoWarn>$(NoWarn);NU1902;NU1903</NoWarn>
   </PropertyGroup>
 </Project>

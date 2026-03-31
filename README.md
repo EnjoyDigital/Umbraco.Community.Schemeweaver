@@ -115,7 +115,7 @@ cd src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
 npm test                       # Frontend tests
 
 # Run the test host (100+ sample content types with Schema.org mappings)
-dotnet run --project src/SchemeWeaver.TestHost
+dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
 ```
 
 ## Licence

@@ -13,7 +13,7 @@ using Umbraco.Cms.Core.Strings;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 
-namespace SchemeWeaver.TestHost;
+namespace Umbraco.Community.SchemeWeaver.TestHost;
 
 /// <summary>
 /// Seeds document types, sample content, and schema mappings for e2e testing.
