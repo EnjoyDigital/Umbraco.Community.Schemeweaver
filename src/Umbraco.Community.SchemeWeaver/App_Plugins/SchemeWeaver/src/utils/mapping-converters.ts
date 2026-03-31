@@ -81,8 +81,10 @@ export function mergeAutoMapSuggestions(
     if (existing && rowHasUserData(existing)) {
       // Preserve user data, only update confidence
       rowMap.set(key, { ...existing, confidence: suggestion.confidence });
-    } else {
-      // New property or existing without user data — use suggestion
+    } else if (suggestion.suggestedContentTypePropertyAlias || suggestion.isComplexType) {
+      // Only add suggestions that have an actual match or are complex types
+      // (user-configurable). Skip zero-confidence properties with no match to
+      // avoid cluttering the table with empty rows.
       rowMap.set(key, suggestionToRow(suggestion));
     }
   }
