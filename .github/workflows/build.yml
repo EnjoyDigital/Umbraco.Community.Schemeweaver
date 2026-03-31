@@ -27,6 +27,10 @@ jobs:
         working-directory: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
         run: npm ci
 
+      - name: Install Playwright browsers
+        working-directory: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
+        run: npx playwright install chromium
+
       - name: Build frontend
         working-directory: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
         run: npm run build
