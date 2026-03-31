@@ -196,27 +196,27 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
             : html`
                   <uui-table>
                     <uui-table-head>
-                      <uui-table-head-cell class="col-content-type">${this.localize.term('schemeWeaver_contentType')}</uui-table-head-cell>
-                      <uui-table-head-cell class="col-schema-type">${this.localize.term('schemeWeaver_schemaType')}</uui-table-head-cell>
-                      <uui-table-head-cell class="col-status">${this.localize.term('schemeWeaver_status')}</uui-table-head-cell>
-                      <uui-table-head-cell class="col-properties">${this.localize.term('schemeWeaver_properties')}</uui-table-head-cell>
-                      <uui-table-head-cell class="col-actions">${this.localize.term('schemeWeaver_actions')}</uui-table-head-cell>
+                      <uui-table-head-cell style="--uui-table-cell-padding: 0 var(--uui-size-space-3); min-width: 180px; width: 25%;">${this.localize.term('schemeWeaver_contentType')}</uui-table-head-cell>
+                      <uui-table-head-cell style="--uui-table-cell-padding: 0 var(--uui-size-space-3); min-width: 120px; width: 20%;">${this.localize.term('schemeWeaver_schemaType')}</uui-table-head-cell>
+                      <uui-table-head-cell style="--uui-table-cell-padding: 0 var(--uui-size-space-3); min-width: 80px; width: 12%;">${this.localize.term('schemeWeaver_status')}</uui-table-head-cell>
+                      <uui-table-head-cell style="--uui-table-cell-padding: 0 var(--uui-size-space-3); min-width: 100px; width: 15%;">${this.localize.term('schemeWeaver_properties')}</uui-table-head-cell>
+                      <uui-table-head-cell style="--uui-table-cell-padding: 0 var(--uui-size-space-3); min-width: 80px; width: 10%;">${this.localize.term('schemeWeaver_actions')}</uui-table-head-cell>
                     </uui-table-head>
 
                     ${this._filteredMappings.map(
                       (mapping) => html`
                         <uui-table-row>
-                          <uui-table-cell class="col-content-type">
+                          <uui-table-cell style="min-width: 180px; width: 25%;">
                             <strong>${mapping.contentTypeName}</strong>
                             <br />
                             <small class="alias">${mapping.contentTypeAlias}</small>
                           </uui-table-cell>
-                          <uui-table-cell class="col-schema-type">
+                          <uui-table-cell style="min-width: 120px; width: 20%;">
                             ${mapping.schemaTypeName
                               ? html`<uui-tag color="primary" look="primary">${mapping.schemaTypeName}</uui-tag>`
                               : html`<span class="unmapped-text">${this.localize.term('schemeWeaver_notMapped')}</span>`}
                           </uui-table-cell>
-                          <uui-table-cell class="col-status">
+                          <uui-table-cell style="min-width: 80px; width: 12%;">
                             ${mapping.isMapped
                               ? html`<uui-badge color="positive">${this.localize.term('schemeWeaver_mapped')}</uui-badge>`
                               : html`<uui-badge color="default">${this.localize.term('schemeWeaver_unmapped')}</uui-badge>`}
@@ -224,12 +224,12 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
                               ? html` <uui-tag color="warning" look="outline" compact>${this.localize.term('schemeWeaver_inherited')}</uui-tag>`
                               : ''}
                           </uui-table-cell>
-                          <uui-table-cell class="col-properties">
+                          <uui-table-cell style="min-width: 100px; width: 15%;">
                             ${mapping.isMapped
                               ? html`${mapping.propertyMappingCount} ${this.localize.term('schemeWeaver_properties')}`
                               : html`-`}
                           </uui-table-cell>
-                          <uui-table-cell class="col-actions">
+                          <uui-table-cell style="min-width: 80px; width: 10%;">
                             <div class="action-buttons">
                               ${mapping.isMapped
                                 ? html`
@@ -313,12 +313,6 @@ export class SchemaMappingsDashboardElement extends UmbLitElement {
         color: var(--uui-color-text-alt);
         font-style: italic;
       }
-
-      .col-content-type { width: 22%; }
-      .col-schema-type { width: 18%; }
-      .col-status { width: 12%; }
-      .col-properties { width: 15%; }
-      .col-actions { width: 10%; }
 
       .action-buttons {
         display: flex;
