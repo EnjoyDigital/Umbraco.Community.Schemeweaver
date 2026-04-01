@@ -1,0 +1,7 @@
+[   71052ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://localhost:5501/umbraco/management/api/v1/schema-generator/document-type-properties?contentTypeKey=0df7da71-3ab1-485b-a935-663a29b730b9:0
+[  104864ms] [WARNING] UUI-INPUT needs a `label` JSHandle@node @ https://localhost:5501/umbraco/backoffice/6df323776fea4248bc8972117fd36a92c1414ab4/external/uui/index.js:1852
+[  131532ms] [WARNING] UUI-INPUT needs a `label` JSHandle@node @ https://localhost:5501/umbraco/backoffice/6df323776fea4248bc8972117fd36a92c1414ab4/external/uui/index.js:1852
+[  144183ms] undefined
+[  178672ms] undefined
+[  188551ms] [WARNING] UUI-INPUT needs a `label` JSHandle@node @ https://localhost:5501/umbraco/backoffice/6df323776fea4248bc8972117fd36a92c1414ab4/external/uui/index.js:1852
+[  200620ms] undefined

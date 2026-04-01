@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(npm test:*)",
+      "Skill(umbraco-review-checks)",
+      "Bash(npm run:*)",
+      "Skill(umbraco-cms-backoffice-skills:umbraco-validation-checks)",
+      "Bash(dotnet test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

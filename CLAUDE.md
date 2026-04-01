@@ -86,3 +86,8 @@ All under `/umbraco/management/api/v1/schemeweaver`, backoffice-authenticated:
 - Package name is "SchemeWeaver" (intentional wordplay, not a typo)
 - Frontend uses Umbraco backoffice patterns: `UmbLitElement`, `UmbModalBaseElement`, `UmbControllerBase`, `UmbContextToken`
 - C# uses standard Umbraco patterns: `IComposer`, management API controllers, NPoco migrations
+
+## Workflow
+- Use **Umbraco backoffice skills** for UI/extension work (dashboards, modals, property editors, etc.)
+- Run the **review agent** (`umbraco-extension-reviewer`) when finished with UI changes
+- Run **E2E tests** (`npm run test:e2e`) to close the loop on UI changes before considering work complete
