@@ -17,6 +17,10 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
   private _view: 'main' | 'related' = 'main';
 
   private get _mainOptions(): OriginOption[] {
+    const editorAlias = this.data?.editorAlias ?? '';
+    const isComplexType = this.data?.isComplexType ?? false;
+    const restrictToSimple = this.data?.restrictToSimpleSources ?? false;
+
     const options: OriginOption[] = [
       {
         sourceType: 'property',
@@ -30,18 +34,18 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
         labelKey: 'schemeWeaver_sourceStaticValue',
         descriptionKey: 'schemeWeaver_originStaticValueDescription',
       },
-      {
+    ];
+
+    if (!restrictToSimple) {
+      options.push({
         sourceType: '_related',
         icon: 'icon-link',
         labelKey: 'schemeWeaver_originRelatedContent',
         descriptionKey: 'schemeWeaver_originRelatedContentDescription',
-      },
-    ];
+      });
+    }
 
-    const editorAlias = this.data?.editorAlias ?? '';
-    const isComplexType = this.data?.isComplexType ?? false;
-
-    if (BLOCK_EDITOR_ALIASES.includes(editorAlias) || isComplexType) {
+    if (!restrictToSimple && (BLOCK_EDITOR_ALIASES.includes(editorAlias) || isComplexType)) {
       options.push({
         sourceType: 'blockContent',
         icon: 'icon-grid',

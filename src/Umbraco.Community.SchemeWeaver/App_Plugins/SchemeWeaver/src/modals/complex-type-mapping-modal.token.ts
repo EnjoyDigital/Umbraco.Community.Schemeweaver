@@ -7,6 +7,7 @@ export interface ComplexTypeMappingModalData {
   contentTypeAlias: string;
   availableProperties: string[];
   existingConfig: string | null;
+  parentPath?: string;
 }
 
 export interface ComplexTypeMappingModalValue {

@@ -264,11 +264,21 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (string.IsNullOrEmpty(nestedTypeName))
             return null;
 
-        var clrType = _registry.GetClrType(nestedTypeName);
+        var config = ParseComplexTypeConfig(propMapping.ResolverConfig);
+        return ResolveComplexTypeFromConfig(nestedTypeName, config, content);
+    }
+
+    /// <summary>
+    /// Recursively resolves a complex Schema.org type from its config.
+    /// No depth limit — recursion is bounded by the finite JSON structure of resolverConfig.
+    /// </summary>
+    private object? ResolveComplexTypeFromConfig(
+        string typeName, ComplexTypeConfigModel? config, IPublishedContent content)
+    {
+        var clrType = _registry.GetClrType(typeName);
         if (clrType is null || Activator.CreateInstance(clrType) is not Thing nestedInstance)
             return null;
 
-        var config = ParseComplexTypeConfig(propMapping.ResolverConfig);
         if (config?.ComplexTypeMappings is null or { Count: 0 })
             return null; // No sub-mappings configured — skip rather than emit empty object
 
@@ -282,6 +292,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 "static" => subMapping.StaticValue,
                 "property" when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
                     ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias),
+                "complexType" when !string.IsNullOrEmpty(subMapping.ResolverConfig) =>
+                    ResolveNestedComplexType(subMapping, content),
                 _ => null
             };
 
@@ -290,6 +302,20 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         }
 
         return nestedInstance;
+    }
+
+    /// <summary>
+    /// Resolves a nested complex type sub-mapping by parsing its ResolverConfig and recursing.
+    /// </summary>
+    private object? ResolveNestedComplexType(
+        ComplexTypeMappingEntry entry, IPublishedContent content)
+    {
+        var nestedConfig = ParseComplexTypeConfig(entry.ResolverConfig);
+        var nestedTypeName = nestedConfig?.SelectedSubType;
+        if (string.IsNullOrEmpty(nestedTypeName))
+            return null;
+
+        return ResolveComplexTypeFromConfig(nestedTypeName, nestedConfig, content);
     }
 
     /// <summary>

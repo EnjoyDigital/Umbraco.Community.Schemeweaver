@@ -6,6 +6,7 @@ import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-modal.token.js';
 import type { SchemaPropertyInfo } from '../api/types.js';
+import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import type { ComplexTypeMappingModalData, ComplexTypeMappingModalValue } from './complex-type-mapping-modal.token.js';
 import '../components/property-combobox.element.js';
 
@@ -19,6 +20,7 @@ interface ComplexSubMapping {
   sourceContentTypeProperties: string[];
   acceptedTypes: string[];
   isComplexType: boolean;
+  resolverConfig: string | null;
 }
 
 type WizardStep = 'type-selection' | 'mappings' | 'preview';
@@ -106,16 +108,21 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
       const config = JSON.parse(this.data!.existingConfig!);
       if (config.complexTypeMappings && Array.isArray(config.complexTypeMappings)) {
         this._selectedSubType = config.selectedSubType || this.data?.selectedSubType || '';
-        this._subMappings = config.complexTypeMappings.map((m: Record<string, string>) => ({
-          schemaProperty: m.schemaProperty || '',
+        this._subMappings = config.complexTypeMappings.map((m: Record<string, unknown>) => ({
+          schemaProperty: (m.schemaProperty as string) || '',
           schemaPropertyType: '',
-          sourceType: m.sourceType || 'property',
-          contentTypePropertyAlias: m.contentTypePropertyAlias || '',
-          staticValue: m.staticValue || '',
-          sourceContentTypeAlias: m.sourceContentTypeAlias || '',
+          sourceType: (m.sourceType as string) || 'property',
+          contentTypePropertyAlias: (m.contentTypePropertyAlias as string) || '',
+          staticValue: (m.staticValue as string) || '',
+          sourceContentTypeAlias: (m.sourceContentTypeAlias as string) || '',
           sourceContentTypeProperties: [],
           acceptedTypes: [],
           isComplexType: false,
+          resolverConfig: m.resolverConfig
+            ? (typeof m.resolverConfig === 'string'
+              ? m.resolverConfig as string
+              : JSON.stringify(m.resolverConfig))
+            : null,
         }));
       }
     } catch {
@@ -150,6 +157,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         sourceContentTypeProperties: [],
         acceptedTypes: prop.acceptedTypes || [],
         isComplexType: prop.isComplexType || false,
+        resolverConfig: null,
       };
     });
 
@@ -191,6 +199,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
       case 'parent': return 'icon-arrow-up';
       case 'ancestor': return 'icon-hierarchy';
       case 'sibling': return 'icon-split-alt';
+      case 'complexType': return 'icon-brackets';
       default: return 'icon-document';
     }
   }
@@ -202,6 +211,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
       case 'parent': return 'schemeWeaver_sourceParentNode';
       case 'ancestor': return 'schemeWeaver_sourceAncestorNode';
       case 'sibling': return 'schemeWeaver_sourceSiblingNode';
+      case 'complexType': return 'schemeWeaver_sourceComplexType';
       default: return 'schemeWeaver_sourceCurrentNode';
     }
   }
@@ -222,6 +232,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
           editorAlias: '',
           isComplexType: mapping.isComplexType,
           currentSourceType: mapping.sourceType,
+          restrictToSimpleSources: true,
         },
       })
       .onSubmit()
@@ -289,6 +300,53 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
     this._subMappings = updated;
   }
 
+  private async _handleConfigureSubComplexType(index: number) {
+    if (!this.#modalManagerContext) return;
+    const mapping = this._subMappings[index];
+    if (!mapping.isComplexType || mapping.acceptedTypes.length === 0) return;
+
+    let existingSelectedSubType = '';
+    if (mapping.resolverConfig) {
+      try {
+        const parsed = JSON.parse(mapping.resolverConfig);
+        existingSelectedSubType = parsed.selectedSubType || '';
+      } catch { /* ignore */ }
+    }
+
+    const modalHandler = this.#modalManagerContext.open(
+      this,
+      SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL,
+      {
+        data: {
+          schemaPropertyName: mapping.schemaProperty,
+          acceptedTypes: mapping.acceptedTypes,
+          selectedSubType: existingSelectedSubType,
+          contentTypeAlias: this.data?.contentTypeAlias || '',
+          availableProperties: this.data?.availableProperties || [],
+          existingConfig: mapping.resolverConfig,
+          parentPath: (this.data?.parentPath ? this.data.parentPath + ' > ' : '') + (this.data?.schemaPropertyName || ''),
+        },
+      }
+    );
+
+    try {
+      const result = await modalHandler.onSubmit();
+      if (result?.resolverConfig) {
+        const updated = [...this._subMappings];
+        updated[index] = {
+          ...updated[index],
+          resolverConfig: result.resolverConfig,
+          sourceType: 'complexType',
+          contentTypePropertyAlias: '',
+          staticValue: '',
+        };
+        this._subMappings = updated;
+      }
+    } catch {
+      // Modal rejected/closed
+    }
+  }
+
   // ── Auto-map ──────────────────────────────────────────────────────
 
   private async _handleAutoMap() {
@@ -344,9 +402,9 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
     this._currentStep = step;
   }
 
-  private _generatePreview() {
-    const active = this._subMappings.filter(m => m.contentTypePropertyAlias || m.staticValue);
-    const config = {
+  private _buildConfig() {
+    const active = this._subMappings.filter(m => m.contentTypePropertyAlias || m.staticValue || m.resolverConfig);
+    return {
       selectedSubType: this._selectedSubType,
       complexTypeMappings: active.map(m => ({
         schemaProperty: m.schemaProperty,
@@ -354,24 +412,17 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         ...(m.contentTypePropertyAlias ? { contentTypePropertyAlias: m.contentTypePropertyAlias } : {}),
         ...(m.staticValue ? { staticValue: m.staticValue } : {}),
         ...(m.sourceContentTypeAlias ? { sourceContentTypeAlias: m.sourceContentTypeAlias } : {}),
+        ...(m.resolverConfig ? { resolverConfig: m.resolverConfig } : {}),
       })),
     };
-    this._previewJson = JSON.stringify(config, null, 2);
+  }
+
+  private _generatePreview() {
+    this._previewJson = JSON.stringify(this._buildConfig(), null, 2);
   }
 
   private _handleSave() {
-    const active = this._subMappings.filter(m => m.contentTypePropertyAlias || m.staticValue);
-    const config = JSON.stringify({
-      selectedSubType: this._selectedSubType,
-      complexTypeMappings: active.map(m => ({
-        schemaProperty: m.schemaProperty,
-        sourceType: m.sourceType,
-        ...(m.contentTypePropertyAlias ? { contentTypePropertyAlias: m.contentTypePropertyAlias } : {}),
-        ...(m.staticValue ? { staticValue: m.staticValue } : {}),
-        ...(m.sourceContentTypeAlias ? { sourceContentTypeAlias: m.sourceContentTypeAlias } : {}),
-      })),
-    });
-
+    const config = JSON.stringify(this._buildConfig());
     this.modalContext?.setValue({ resolverConfig: config, selectedSubType: this._selectedSubType });
     this.modalContext?.submit();
   }
@@ -386,7 +437,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
     const stepNumber = this._currentStep === 'type-selection' ? 1 : this._currentStep === 'mappings' ? 2 : 3;
 
     return html`
-      <umb-body-layout headline="${this.localize.term('schemeWeaver_configureComplexType')} — ${this.data?.schemaPropertyName || ''}">
+      <umb-body-layout headline="${this.localize.term('schemeWeaver_configureComplexType')} — ${this.data?.parentPath ? this.data.parentPath + ' > ' : ''}${this.data?.schemaPropertyName || ''}">
         ${this._loading
           ? html`
               <div class="loading">
@@ -422,7 +473,15 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
             ? html`
                 <uui-button
                   look="secondary"
-                  @click=${() => this._goToStep(this._currentStep === 'preview' ? 'mappings' : 'type-selection')}
+                  @click=${() => {
+                    if (this._currentStep === 'preview') {
+                      this._goToStep('mappings');
+                    } else if (this.data?.acceptedTypes?.length === 1) {
+                      this._handleClose();
+                    } else {
+                      this._goToStep('type-selection');
+                    }
+                  }}
                   label=${this.localize.term('schemeWeaver_back')}
                 >
                   ${this.localize.term('schemeWeaver_back')}
@@ -535,6 +594,25 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
   }
 
   private _renderSubMappingValue(mapping: ComplexSubMapping, index: number) {
+    if (mapping.isComplexType && mapping.acceptedTypes.length > 0) {
+      return html`
+        <div class="block-actions">
+          <uui-button
+            look="secondary"
+            compact
+            label=${this.localize.term('schemeWeaver_configureComplexType')}
+            @click=${() => this._handleConfigureSubComplexType(index)}
+          >
+            <uui-icon name="icon-brackets"></uui-icon>
+            ${this.localize.term('schemeWeaver_configureComplexType')}
+          </uui-button>
+          ${mapping.resolverConfig
+            ? html`<uui-icon name="icon-check" class="configured-check"></uui-icon>`
+            : nothing}
+        </div>
+      `;
+    }
+
     if (mapping.sourceType === 'static') {
       return html`
         <uui-input
@@ -603,7 +681,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
   }
 
   private _renderPreview() {
-    const active = this._subMappings.filter(m => m.contentTypePropertyAlias || m.staticValue);
+    const active = this._subMappings.filter(m => m.contentTypePropertyAlias || m.staticValue || m.resolverConfig);
 
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_preview')}>
@@ -615,7 +693,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
               <span>${m.schemaProperty}</span>
               <span class="preview-arrow">&larr;</span>
               <uui-tag look="secondary" class="source-tag">${this.localize.term(this._getSourceLabelKey(m.sourceType))}</uui-tag>
-              <span>${m.sourceType === 'static' ? m.staticValue : m.contentTypePropertyAlias}</span>
+              <span>${m.sourceType === 'static' ? m.staticValue : m.resolverConfig ? this.localize.term('schemeWeaver_complexTypeConfigured') : m.contentTypePropertyAlias}</span>
               ${m.sourceContentTypeAlias
                 ? html`<small class="type-label">(${m.sourceContentTypeAlias})</small>`
                 : nothing}
@@ -711,6 +789,17 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
 
       .source-chip uui-icon {
         margin-right: var(--uui-size-space-1);
+      }
+
+      .block-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+      }
+
+      .configured-check {
+        color: var(--uui-color-positive);
+        font-size: 1.2rem;
       }
 
       .value-inputs {

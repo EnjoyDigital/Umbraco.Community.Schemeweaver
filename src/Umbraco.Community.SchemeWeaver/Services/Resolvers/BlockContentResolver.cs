@@ -283,6 +283,7 @@ public class NestedPropertyMapping
 /// </summary>
 public class ComplexTypeConfigModel
 {
+    public string? SelectedSubType { get; set; }
     public List<ComplexTypeMappingEntry>? ComplexTypeMappings { get; set; }
 }
 
@@ -292,7 +293,9 @@ public class ComplexTypeConfigModel
 public class ComplexTypeMappingEntry
 {
     public string SchemaProperty { get; set; } = string.Empty;
-    public string SourceType { get; set; } = "property";   // "property" or "static"
+    public string SourceType { get; set; } = "property";   // "property", "static", or "complexType"
     public string? ContentTypePropertyAlias { get; set; }
     public string? StaticValue { get; set; }
+    public string? SourceContentTypeAlias { get; set; }
+    public string? ResolverConfig { get; set; }
 }

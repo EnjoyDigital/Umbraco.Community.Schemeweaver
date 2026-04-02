@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -1233,6 +1234,132 @@ public class JsonLdGeneratorTests
         var result = _sut.BuildBreadcrumbJsonLd([root]);
 
         result.Should().BeNull();
+    }
+
+    #endregion
+
+    #region Nested Complex Type Tests
+
+    [Fact]
+    public void GenerateJsonLd_NestedComplexType_TwoLevelsDeep()
+    {
+        var content = CreateContent("productPage", new Dictionary<string, object?>
+        {
+            ["reviewText"] = "Great product",
+            ["authorName"] = "Jane Doe"
+        });
+        var mapping = CreateMapping("productPage", "Product");
+        _repository.GetByContentTypeAlias("productPage").Returns(mapping);
+
+        var reviewConfig = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            selectedSubType = "Review",
+            complexTypeMappings = new object[]
+            {
+                new { schemaProperty = "ReviewBody", sourceType = "property", contentTypePropertyAlias = "reviewText" },
+                new
+                {
+                    schemaProperty = "Author",
+                    sourceType = "complexType",
+                    resolverConfig = "{\"selectedSubType\":\"Person\",\"complexTypeMappings\":[{\"schemaProperty\":\"Name\",\"sourceType\":\"property\",\"contentTypePropertyAlias\":\"authorName\"}]}"
+                }
+            }
+        });
+
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Review",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Review",
+                ResolverConfig = reviewConfig
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Product>();
+        var jsonLd = result!.ToString();
+
+        // Validate the nested structure: Product > Review > Person
+        jsonLd.Should().Contain("Product");
+        jsonLd.Should().Contain("Review");
+        jsonLd.Should().Contain("Great product");
+        jsonLd.Should().Contain("Person");
+        jsonLd.Should().Contain("Jane Doe");
+
+        // Parse and validate the JSON-LD structure at depth
+        var doc = System.Text.Json.JsonDocument.Parse(jsonLd);
+        var root = doc.RootElement;
+        root.GetProperty("@type").GetString().Should().Be("Product");
+
+        root.TryGetProperty("review", out var review).Should().BeTrue();
+        review.GetProperty("@type").GetString().Should().Be("Review");
+        review.GetProperty("reviewBody").GetString().Should().Be("Great product");
+
+        review.TryGetProperty("author", out var author).Should().BeTrue();
+        author.GetProperty("@type").GetString().Should().Be("Person");
+        author.GetProperty("name").GetString().Should().Be("Jane Doe");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_NestedComplexType_ResolvesArbitraryDepth()
+    {
+        // Build a 3-level deep resolverConfig using proper JSON serialisation.
+        // Organization.Member → Organization.Member → Person.Name = "DeepLeaf"
+        var innerPersonConfig = JsonSerializer.Serialize(new
+        {
+            selectedSubType = "Person",
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Name", sourceType = "static", staticValue = "DeepLeaf" }
+            }
+        });
+
+        var middleOrgConfig = JsonSerializer.Serialize(new
+        {
+            selectedSubType = "Organization",
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Member", sourceType = "complexType", resolverConfig = innerPersonConfig }
+            }
+        });
+
+        var outerOrgConfig = JsonSerializer.Serialize(new
+        {
+            selectedSubType = "Organization",
+            complexTypeMappings = new[]
+            {
+                new { schemaProperty = "Member", sourceType = "complexType", resolverConfig = middleOrgConfig }
+            }
+        });
+
+        var content = CreateContent("orgPage");
+        var mapping = CreateMapping("orgPage", "Organization");
+        _repository.GetByContentTypeAlias("orgPage").Returns(mapping);
+
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Member",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig = outerOrgConfig
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Organization>();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Organization");
+
+        // With no depth limit, the deepest "DeepLeaf" Person should be fully resolved
+        jsonLd.Should().Contain("DeepLeaf");
     }
 
     #endregion

@@ -4,6 +4,7 @@ export interface SourceOriginPickerModalData {
   editorAlias: string;
   isComplexType: boolean;
   currentSourceType: string;
+  restrictToSimpleSources?: boolean;
 }
 
 export interface SourceOriginPickerModalValue {

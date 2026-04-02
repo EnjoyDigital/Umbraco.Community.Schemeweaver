@@ -69,7 +69,7 @@ describe('SchemaMappingViewElement', () => {
     expect(tag!.textContent!.trim()).to.equal('Article');
   });
 
-  it('renders auto-map and save buttons when mapping exists', async () => {
+  it('renders auto-map button when mapping exists', async () => {
     const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`) as any;
 
     el._contentTypeAlias = 'blogArticle';
@@ -77,6 +77,6 @@ describe('SchemaMappingViewElement', () => {
     await el.updateComplete;
 
     const buttons = el.shadowRoot!.querySelectorAll('.actions-bar uui-button');
-    expect(buttons.length).to.equal(2);
+    expect(buttons.length).to.equal(1);
   });
 });
