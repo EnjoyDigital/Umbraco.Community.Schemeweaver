@@ -1,13 +1,12 @@
 export default {
   schemeWeaver: {
-    dashboardHeadline: 'Schema.org Mappings',
     searchContentTypes: 'Search content types...',
     searchSchemaTypes: 'Search schema types...',
     loading: 'Loading...',
     loadingMappings: 'Loading schema mappings...',
     loadingSchemaTypes: 'Loading schema types...',
     loadingProperties: 'Loading property mappings...',
-    noResults: 'No content types found matching your search.',
+    noResults: 'No results found.',
     noSchemaTypes: 'No schema types found.',
     noMapping: 'No Schema.org Mapping',
     noMappingDescription: 'This content type has not been mapped to a Schema.org type yet.',
@@ -26,6 +25,8 @@ export default {
     mapToSchema: 'Map to Schema.org',
     editMapping: 'Edit mapping',
     deleteMapping: 'Delete mapping',
+    deleteMappingConfirm: 'Are you sure you want to delete this Schema.org mapping?',
+    noMappingExists: 'No mapping exists for this content type',
     previewJsonLd: 'Preview JSON-LD',
     autoMap: 'Auto-map',
     autoMapSchema: 'Auto-map Schema',

@@ -2,35 +2,6 @@ import { expect } from '@playwright/test';
 import { ConstantHelper, test } from '@umbraco/playwright-testhelpers';
 
 /**
- * Helper: navigate to SchemeWeaver dashboard in Settings section.
- * Uses testhelpers for core Umbraco navigation, then waits for the custom dashboard.
- */
-async function goToSchemeWeaverDashboard(umbracoUi: any) {
-  await umbracoUi.goToBackOffice();
-  await umbracoUi.content.goToSection(ConstantHelper.sections.settings);
-
-  // Wait for the SchemeWeaver dashboard tab to appear and click it
-  const dashboardTab = umbracoUi.page.getByRole('tab', { name: 'Schema.org Mappings' });
-  await dashboardTab.waitFor({ timeout: 15_000 });
-  await dashboardTab.click();
-
-  // Wait for the dashboard custom element to load
-  await umbracoUi.page
-    .locator('schemeweaver-schema-mappings-dashboard')
-    .waitFor({ timeout: 15_000 });
-}
-
-/**
- * Helper: wait for the dashboard table to finish loading.
- */
-async function waitForDashboardTable(page: any) {
-  // Wait for loader to disappear
-  await page.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-  // Table should be visible
-  await expect(page.locator('uui-table')).toBeVisible({ timeout: 10_000 });
-}
-
-/**
  * Helper: fill a uui-input web component by targeting its inner native input.
  */
 async function fillUuiInput(locator: any, text: string) {
@@ -38,478 +9,45 @@ async function fillUuiInput(locator: any, text: string) {
   await input.fill(text);
 }
 
-// ---------------------------------------------------------------------------
-// Dashboard Tests
-// ---------------------------------------------------------------------------
+/**
+ * Helper: navigate to a specific document type's Schema.org tab in the Settings section.
+ * Opens Settings > Document Types, expands the tree, clicks the named document type,
+ * then clicks the Schema.org workspace view tab.
+ */
+async function goToDocTypeSchemaTab(umbracoUi: any, docTypeName: string) {
+  // Navigate to Settings section
+  await umbracoUi.page.goto('/umbraco/section/settings');
+  await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-test.describe('SchemeWeaver Dashboard', () => {
-  test('dashboard is visible in Settings section', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
+  // Click on Document Types link in the tree
+  const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
+  await docTypesLink.waitFor({ timeout: 15_000 });
+  await docTypesLink.click();
+  await umbracoUi.page.waitForTimeout(1_000);
 
-    await expect(
-      umbracoUi.page.locator('schemeweaver-schema-mappings-dashboard')
-    ).toBeVisible();
-  });
-
-  test('content types table renders with rows', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const rows = umbracoUi.page.locator('uui-table-row');
-    await expect(rows.first()).toBeVisible({ timeout: 10_000 });
-
-    // Should have at least one content type
-    const count = await rows.count();
-    expect(count).toBeGreaterThan(0);
-
-  });
-
-  test('table has correct column headers', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const expectedHeaders = ['Content Type', 'Schema Type', 'Status', 'Properties', 'Actions'];
-    for (const header of expectedHeaders) {
-      await expect(
-        umbracoUi.page.locator('uui-table-head-cell', { hasText: header })
-      ).toBeVisible();
-    }
-  });
-
-  test('search filters content types', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const rowsBefore = await umbracoUi.page.locator('uui-table-row').count();
-
-    // Type a search term that should narrow results — target inner input of uui-input
-    const searchInput = umbracoUi.page.locator('uui-input').first();
-    await fillUuiInput(searchInput, 'zzz_nonexistent_zzz');
-    await umbracoUi.page.waitForTimeout(500);
-
-    // Should show "no results" or fewer rows
-    const rowsAfter = await umbracoUi.page.locator('uui-table-row').count();
-    expect(rowsAfter).toBeLessThan(rowsBefore);
-  });
-
-  test('refresh button reloads data', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const refreshBtn = umbracoUi.page.locator('uui-button', { hasText: 'Refresh' });
-    await expect(refreshBtn).toBeVisible();
-    await refreshBtn.click();
-
-    // Loader should briefly appear then table should reload
-    await waitForDashboardTable(umbracoUi.page);
-    await expect(umbracoUi.page.locator('uui-table-row').first()).toBeVisible();
-  });
-
-  test('unmapped content type shows Map button', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Find a row with "Map to Schema.org" button (unmapped types have this)
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await expect(mapBtn).toBeVisible();
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Schema Picker Modal Tests
-// ---------------------------------------------------------------------------
-
-test.describe('Schema Picker Modal', () => {
-  test('Map button opens schema picker modal', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Click first "Map" button (skip if all types already mapped)
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-    await mapBtn.click();
-
-    // Schema picker modal should open
-    await expect(
-      umbracoUi.page.locator('schemeweaver-schema-picker-modal')
-    ).toBeVisible({ timeout: 10_000 });
-    await expect(umbracoUi.page.getByText('Select Schema.org Type')).toBeVisible();
-  });
-
-  test('schema picker loads and displays schema types', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-    await mapBtn.click();
-
-    // Wait for types to load (loader disappears)
-    const modal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await modal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-
-    // Schema items should be visible
-    const items = modal.locator('.schema-item');
-    await expect(items.first()).toBeVisible({ timeout: 10_000 });
-
-    const count = await items.count();
-    expect(count).toBeGreaterThan(0);
-
-  });
-
-  test('schema picker search filters types', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-    await mapBtn.click();
-
-    const modal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await modal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-
-    const countBefore = await modal.locator('.schema-item').count();
-
-    // Search for a specific type — target inner input of uui-input
-    const searchInput = modal.locator('uui-input').first();
-    await fillUuiInput(searchInput, 'Article');
+  // Expand the Document Types tree if needed
+  const expandBtn = umbracoUi.page.locator('button[aria-label*="Expand"]').first();
+  if (await expandBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await expandBtn.click();
     await umbracoUi.page.waitForTimeout(1_000);
-
-    const countAfter = await modal.locator('.schema-item').count();
-    expect(countAfter).toBeLessThanOrEqual(countBefore);
-    expect(countAfter).toBeGreaterThan(0);
-  });
-
-  test('selecting a type enables Submit button', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-    await mapBtn.click();
-
-    const modal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await modal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-
-    // Submit button should be disabled initially (uui-button uses disabled attribute)
-    const submitBtn = modal.locator('uui-button[look="primary"]').last();
-    await expect(submitBtn).toHaveAttribute('disabled', '');
-
-    // Click first schema item
-    await modal.locator('.schema-item').first().click();
-
-    // Submit button should now be enabled (disabled attribute removed)
-    await expect(submitBtn).not.toHaveAttribute('disabled', '');
-  });
-
-  test('cancel button closes modal', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-    await mapBtn.click();
-
-    const modal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await expect(modal).toBeVisible({ timeout: 10_000 });
-
-    await modal.locator('uui-button', { hasText: 'Cancel' }).click();
-
-    await expect(modal).not.toBeVisible({ timeout: 5_000 });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Full Mapping Workflow Tests
-// ---------------------------------------------------------------------------
-
-test.describe('Schema Mapping Workflow', () => {
-  test('full map workflow: pick schema → configure properties → save', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Step 1: Click Map on an unmapped content type (skip if all mapped)
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-    await mapBtn.click();
-
-    // Step 2: Schema picker opens — select a type
-    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-    await pickerModal.locator('.schema-item').first().click();
-
-    // Click the Submit button (last primary button in modal actions)
-    await pickerModal.locator('uui-button[look="primary"]').last().click();
-
-    // Step 3: Property mapping modal opens
-    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-    await expect(mappingModal).toBeVisible({ timeout: 10_000 });
-
-    // Should contain the property mapping table
-    await expect(
-      mappingModal.locator('schemeweaver-property-mapping-table')
-    ).toBeVisible({ timeout: 10_000 });
-
-    // Should have Save and Cancel buttons
-    await expect(mappingModal.locator('uui-button[label="Save Mapping"]')).toBeVisible();
-    await expect(mappingModal.locator('uui-button[label="Cancel"]')).toBeVisible();
-
-    // Step 4: Save the mapping
-    await mappingModal.locator('uui-button[label="Save Mapping"]').click();
-
-    // Modal should close after save
-    await expect(mappingModal).not.toBeVisible({ timeout: 10_000 });
-
-    // Step 5: Dashboard should refresh — the content type should now show as Mapped
-    await waitForDashboardTable(umbracoUi.page);
-  });
-
-  test('edit button opens property mapping modal for mapped type', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Find an Edit button (only visible for mapped types)
-    const editBtn = umbracoUi.page.locator('uui-button[label="Edit mapping"]').first();
-    if (await editBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await editBtn.click();
-
-      // Property mapping modal should open
-      const modal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-      await expect(modal).toBeVisible({ timeout: 10_000 });
-
-      // Should show the property mapping table with existing mappings
-      await expect(
-        modal.locator('schemeweaver-property-mapping-table')
-      ).toBeVisible();
-
-      // Close without saving
-      await modal.locator('uui-button[label="Cancel"]').click();
-      await expect(modal).not.toBeVisible({ timeout: 5_000 });
-    }
-  });
-
-  test('delete button removes mapping', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Count rows with Delete mapping button (mapped types)
-    const deleteButtons = umbracoUi.page.locator('uui-button[label="Delete mapping"]');
-    const mappedCountBefore = await deleteButtons.count();
-
-    // Only test delete if there's a mapped type
-    if (mappedCountBefore > 0) {
-      await deleteButtons.first().click();
-
-      // Wait for dashboard to reload
-      await waitForDashboardTable(umbracoUi.page);
-
-      // Should have one fewer mapped type
-      const mappedCountAfter = await umbracoUi.page
-        .locator('uui-button[label="Delete mapping"]')
-        .count();
-      expect(mappedCountAfter).toBeLessThan(mappedCountBefore);
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Property Mapping Table Tests
-// ---------------------------------------------------------------------------
-
-test.describe('Property Mapping Table', () => {
-  test('property mapping table shows schema properties', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Open mapping flow to get to property table
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    await expect(mapBtn).toBeVisible({ timeout: 5_000 });
-    await mapBtn.click();
-
-    // Pick a schema type
-    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-    await pickerModal.locator('.schema-item').first().click();
-    await pickerModal.locator('uui-button[look="primary"]').last().click();
-
-    // Property mapping modal with table
-    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-    const table = mappingModal.locator('schemeweaver-property-mapping-table');
-    await expect(table).toBeVisible({ timeout: 10_000 });
-
-    // Table should have headers
-    await expect(table.locator('uui-table-head-cell', { hasText: 'Schema Property' })).toBeVisible();
-    await expect(table.locator('uui-table-head-cell', { hasText: 'Source' })).toBeVisible();
-    await expect(table.locator('uui-table-head-cell', { hasText: 'Value' })).toBeVisible();
-
-    // Close
-    await mappingModal.locator('uui-button[label="Cancel"]').click();
-  });
-
-  test('source type dropdown has correct options', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    await mapBtn.click();
-
-    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-    await pickerModal.locator('.schema-item').first().click();
-    await pickerModal.locator('uui-button[look="primary"]').last().click();
-
-    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-    const table = mappingModal.locator('schemeweaver-property-mapping-table');
-    await expect(table).toBeVisible({ timeout: 10_000 });
-
-    // Check that the table has rendered (headers visible)
-    await expect(table.locator('uui-table-head-cell').first()).toBeVisible();
-
-    // If auto-map returned rows, check that source selects exist
-    const rows = table.locator('uui-table-row');
-    const rowCount = await rows.count();
-    if (rowCount > 0) {
-      // Source type is now displayed as a chip button instead of a dropdown
-      const sourceChip = table.locator('.source-chip').first();
-      await expect(sourceChip).toBeVisible();
-
-    }
-
-    // Close
-    await mappingModal.locator('uui-button[label="Cancel"]').click();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Complex Mapping Workflow Tests
-// ---------------------------------------------------------------------------
-
-test.describe('Complex Mapping Workflows', () => {
-  test('FAQ auto-map shows blockContent source with Question type for mainEntity', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Find the FAQ Page row and click Map
-    const faqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ' }).first();
-    const mapBtn = faqRow.locator('uui-button[label="Map to Schema.org"]');
-    if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await mapBtn.click();
-
-      // Pick FAQPage schema type
-      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-
-      // Search for FAQPage
-      const searchInput = pickerModal.locator('uui-input');
-      if (await searchInput.isVisible().catch(() => false)) {
-        await fillUuiInput(searchInput, 'FAQ');
-        await umbracoUi.page.waitForTimeout(500);
-      }
-
-      // Select FAQPage
-      const faqItem = pickerModal.locator('.schema-item', { hasText: 'FAQPage' });
-      if (await faqItem.isVisible({ timeout: 5_000 }).catch(() => false)) {
-        await faqItem.click();
-        await pickerModal.locator('uui-button[look="primary"]').last().click();
-
-        // Property mapping modal should show
-        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
-
-        const table = mappingModal.locator('schemeweaver-property-mapping-table');
-        await expect(table).toBeVisible({ timeout: 10_000 });
-
-        // Look for mainEntity row — it should have blockContent source and Question type
-        const mainEntityText = table.locator('uui-table-row', { hasText: 'mainEntity' });
-        await expect(mainEntityText).toBeVisible({ timeout: 5_000 });
-
-        // Close without saving
-        await mappingModal.locator('uui-button[label="Cancel"]').click();
-      }
-    }
-  });
-
-  test('Product auto-map shows review as blockContent with Review type', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Find the Product Page row
-    const productRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Product' }).first();
-    const mapBtn = productRow.locator('uui-button[label="Map to Schema.org"]');
-    if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await mapBtn.click();
-
-      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-
-      const searchInput = pickerModal.locator('uui-input');
-      if (await searchInput.isVisible().catch(() => false)) {
-        await fillUuiInput(searchInput, 'Product');
-        await umbracoUi.page.waitForTimeout(500);
-      }
-
-      const productItem = pickerModal.locator('.schema-item', { hasText: 'Product' }).first();
-      if (await productItem.isVisible({ timeout: 5_000 }).catch(() => false)) {
-        await productItem.click();
-        await pickerModal.locator('uui-button[look="primary"]').last().click();
-
-        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
-
-        const table = mappingModal.locator('schemeweaver-property-mapping-table');
-        await expect(table).toBeVisible({ timeout: 10_000 });
-
-        // Look for review row
-        const reviewRow = table.locator('uui-table-row', { hasText: 'review' });
-        await expect(reviewRow).toBeVisible({ timeout: 5_000 });
-
-        await mappingModal.locator('uui-button[label="Cancel"]').click();
-      }
-    }
-  });
-
-  test('save FAQ mapping and verify it persists on dashboard', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Find an unmapped FAQ page
-    const faqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ' }).first();
-    const mapBtn = faqRow.locator('uui-button[label="Map to Schema.org"]');
-    if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await mapBtn.click();
-
-      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-
-      const searchInput = pickerModal.locator('uui-input');
-      if (await searchInput.isVisible().catch(() => false)) {
-        await fillUuiInput(searchInput, 'FAQ');
-        await umbracoUi.page.waitForTimeout(500);
-      }
-
-      const faqItem = pickerModal.locator('.schema-item', { hasText: 'FAQPage' });
-      if (await faqItem.isVisible({ timeout: 5_000 }).catch(() => false)) {
-        await faqItem.click();
-        await pickerModal.locator('uui-button[look="primary"]').last().click();
-
-        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
-
-        // Save the mapping
-        await mappingModal.locator('uui-button[label="Save Mapping"]').click();
-        await expect(mappingModal).not.toBeVisible({ timeout: 10_000 });
-
-        // Dashboard should update — FAQ row should now show as Mapped
-        await waitForDashboardTable(umbracoUi.page);
-        const updatedFaqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ' }).first();
-        const mappedBadge = updatedFaqRow.locator('uui-tag', { hasText: 'Mapped' });
-        await expect(mappedBadge).toBeVisible({ timeout: 5_000 });
-      }
-    }
-  });
-});
+  }
+
+  // Find and click the specific document type in the tree
+  const treeItem = umbracoUi.page.locator('umb-tree-item umb-tree-item', { hasText: docTypeName }).first();
+  await treeItem.waitFor({ timeout: 10_000 });
+  await treeItem.locator('a').first().click();
+
+  // Wait for workspace to load
+  await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+
+  // Click the Schema.org tab
+  const schemaTab = umbracoUi.page.getByRole('tab', { name: /Schema\.org/i });
+  await schemaTab.waitFor({ timeout: 15_000 });
+  await schemaTab.click();
+
+  // Wait for the schema mapping view to load
+  await umbracoUi.page.locator('schemeweaver-schema-mapping-view').waitFor({ timeout: 15_000 });
+}
 
 // ---------------------------------------------------------------------------
 // JSON-LD Output Verification Tests (require content to be published)
@@ -791,79 +329,6 @@ test.describe('Delivery API JSON-LD', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Mapping Persistence & JSON-LD Output', () => {
-  test('saved mapping persists after re-opening', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Find an existing mapped type — look for "Edit mapping" button
-    const editBtn = umbracoUi.page.locator('uui-button[label="Edit mapping"]').first();
-    await expect(editBtn).toBeVisible({ timeout: 5_000 });
-
-    // Note the schema type shown in the row before editing
-    const mappedRow = umbracoUi.page.locator('uui-table-row').filter({
-      has: umbracoUi.page.locator('uui-button[label="Edit mapping"]'),
-    }).first();
-    const schemaTypeCell = mappedRow.locator('uui-table-cell').nth(1);
-    const schemaTypeName = await schemaTypeCell.textContent();
-    expect(schemaTypeName?.trim()).toBeTruthy();
-
-    // Open the edit modal
-    await editBtn.click();
-    const modal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-    await expect(modal).toBeVisible({ timeout: 10_000 });
-
-    // Verify the modal shows the property mapping table
-    await expect(modal.locator('schemeweaver-property-mapping-table')).toBeVisible({ timeout: 10_000 });
-
-    // Verify we have mapping rows (persisted data)
-    const table = modal.locator('schemeweaver-property-mapping-table');
-    await expect(table.locator('uui-table-row').first()).toBeVisible({ timeout: 10_000 });
-
-    // Close modal
-    await modal.locator('uui-button[label="Cancel"]').click();
-    await expect(modal).not.toBeVisible({ timeout: 5_000 });
-  });
-
-  test('mapping save persists and shows on dashboard', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
-
-    // Find an unmapped type and map it (skip if all are already mapped)
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-    await mapBtn.click();
-
-    // Pick a schema type in the picker modal
-    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-
-    // Search for "ContactPage" to pick a specific type
-    const searchInput = pickerModal.locator('uui-input').first();
-    await fillUuiInput(searchInput, 'ContactPage');
-    await umbracoUi.page.waitForTimeout(1_000);
-
-    // Select the first matching item
-    await pickerModal.locator('.schema-item').first().click();
-    await pickerModal.locator('uui-button[look="primary"]').last().click();
-
-    // Property mapping modal opens — just save
-    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-    await expect(mappingModal).toBeVisible({ timeout: 10_000 });
-    await mappingModal.locator('uui-button[label="Save Mapping"]').click();
-    await expect(mappingModal).not.toBeVisible({ timeout: 10_000 });
-
-    // Dashboard reloads — verify the type now shows as mapped
-    await waitForDashboardTable(umbracoUi.page);
-
-    // All content types should now be mapped (no more "Map to Schema.org" buttons)
-    // or at least fewer unmapped types
-    const remainingMapButtons = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]');
-    const unmappedCount = await remainingMapButtons.count();
-    // We had 2 unmapped (blogArticle + contactPage), mapped one, so at most 1 left
-    expect(unmappedCount).toBeLessThanOrEqual(1);
-
-  });
-
   test('JSON-LD renders on published page', async ({ umbracoUi }) => {
     const baseUrl = process.env.UMBRACO_URL || 'https://localhost:44308';
 
@@ -980,184 +445,152 @@ test.describe('Document Type Workspace View', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Complex Mapping Workflow Tests
+// Complex Mapping Workflows Tests (via Document Type Workspace View)
 // ---------------------------------------------------------------------------
 
 test.describe('Complex Mapping Workflows', () => {
-  /**
-   * Helper: open schema picker, search and select a schema type, then proceed to property mapping.
-   */
-  async function mapContentTypeToSchema(umbracoUi: any, schemaTypeName: string) {
-    // Click Map on first unmapped content type
-    const mapBtn = umbracoUi.page.locator('uui-button[label="Map to Schema.org"]').first();
-    await expect(mapBtn).toBeVisible({ timeout: 5_000 });
-    await mapBtn.click();
-
-    // Schema picker
-    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-
-    // Search for specific schema type
-    const searchInput = pickerModal.locator('uui-input').first();
-    await fillUuiInput(searchInput, schemaTypeName);
-    await umbracoUi.page.waitForTimeout(1_000);
-
-    // Select and submit
-    await pickerModal.locator('.schema-item').first().click();
-    await pickerModal.locator('uui-button[look="primary"]').last().click();
-
-    // Wait for property mapping modal
-    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-    await expect(mappingModal).toBeVisible({ timeout: 10_000 });
-    return mappingModal;
-  }
-
   test('FAQPage auto-map shows blockContent suggestion for mainEntity', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
+    await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
 
-    // Navigate to FAQ Page mapping
-    const faqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ Page' });
-    if (await faqRow.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      const mapBtn = faqRow.locator('uui-button[label="Map to Schema.org"]');
-      if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await mapBtn.click();
+    // The Schema.org workspace view should show the mapping UI
+    const schemaView = umbracoUi.page.locator('schemeweaver-schema-mapping-view');
+    await expect(schemaView).toBeVisible({ timeout: 10_000 });
 
-        // Pick FAQPage schema type
-        const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-        await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-        await fillUuiInput(pickerModal.locator('uui-input').first(), 'FAQPage');
-        await umbracoUi.page.waitForTimeout(1_000);
-        await pickerModal.locator('.schema-item').first().click();
-        await pickerModal.locator('uui-button[look="primary"]').last().click();
+    // If not yet mapped, click the Map to Schema.org button on the workspace view
+    const mapBtn = schemaView.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
+    if (await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await mapBtn.click();
 
-        // Property mapping modal should show blockContent suggestion
-        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+      // Pick FAQPage schema type
+      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+      await fillUuiInput(pickerModal.locator('uui-input').first(), 'FAQPage');
+      await umbracoUi.page.waitForTimeout(1_000);
+      await pickerModal.locator('.schema-item').first().click();
+      await pickerModal.locator('uui-button[look="primary"]').last().click();
 
-        const table = mappingModal.locator('schemeweaver-property-mapping-table');
-        await expect(table).toBeVisible({ timeout: 10_000 });
+      // Property mapping modal should show blockContent suggestion
+      const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+      await expect(mappingModal).toBeVisible({ timeout: 10_000 });
 
-        // Should have a configure nested mapping button (from blockContent suggestion)
-        const configButton = table.locator('uui-button', { hasText: /Configure Block Mapping/i });
-        const hasConfigButton = await configButton.isVisible({ timeout: 5_000 }).catch(() => false);
+      const table = mappingModal.locator('schemeweaver-property-mapping-table');
+      await expect(table).toBeVisible({ timeout: 10_000 });
 
-        // If config button exists, test the wizard flow
-        if (hasConfigButton) {
-          await configButton.first().click();
+      // Should have a configure nested mapping button (from blockContent suggestion)
+      const configButton = table.locator('uui-button', { hasText: /Configure Block Mapping/i });
+      const hasConfigButton = await configButton.isVisible({ timeout: 5_000 }).catch(() => false);
 
-          // Nested mapping wizard should open
-          const nestedModal = umbracoUi.page.locator('schemeweaver-nested-mapping-modal');
-          await expect(nestedModal).toBeVisible({ timeout: 10_000 });
+      // If config button exists, test the wizard flow
+      if (hasConfigButton) {
+        await configButton.first().click();
 
-          // Should show wizard step indicators
-          const stepIndicators = nestedModal.locator('.step-indicator');
-          const stepCount = await stepIndicators.count();
-          expect(stepCount).toBe(3);
+        // Nested mapping wizard should open
+        const nestedModal = umbracoUi.page.locator('schemeweaver-nested-mapping-modal');
+        await expect(nestedModal).toBeVisible({ timeout: 10_000 });
 
-          // Close wizard
-          const cancelBtn = nestedModal.locator('uui-button[label="Cancel"]');
-          if (await cancelBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-            await cancelBtn.click();
-          } else {
-            const backBtn = nestedModal.locator('uui-button[label="Back"]');
-            if (await backBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-              await backBtn.click();
-            }
+        // Should show wizard step indicators
+        const stepIndicators = nestedModal.locator('.step-indicator');
+        const stepCount = await stepIndicators.count();
+        expect(stepCount).toBe(3);
+
+        // Close wizard
+        const cancelBtn = nestedModal.locator('uui-button[label="Cancel"]');
+        if (await cancelBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+          await cancelBtn.click();
+        } else {
+          const backBtn = nestedModal.locator('uui-button[label="Back"]');
+          if (await backBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+            await backBtn.click();
           }
         }
-
-        // Close mapping modal
-        await mappingModal.locator('uui-button[label="Cancel"]').click();
       }
+
+      // Close mapping modal
+      await mappingModal.locator('uui-button[label="Cancel"]').click();
     }
   });
 
   test('Product mapping shows complex type suggestions for offers and brand', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
+    await goToDocTypeSchemaTab(umbracoUi, 'Product Page');
 
-    const productRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Product Page' });
-    if (await productRow.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      const mapBtn = productRow.locator('uui-button[label="Map to Schema.org"]');
-      if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await mapBtn.click();
+    const schemaView = umbracoUi.page.locator('schemeweaver-schema-mapping-view');
+    await expect(schemaView).toBeVisible({ timeout: 10_000 });
 
-        const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-        await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-        await fillUuiInput(pickerModal.locator('uui-input').first(), 'Product');
-        await umbracoUi.page.waitForTimeout(1_000);
-        await pickerModal.locator('.schema-item').first().click();
-        await pickerModal.locator('uui-button[look="primary"]').last().click();
+    const mapBtn = schemaView.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
+    if (await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await mapBtn.click();
 
-        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+      await fillUuiInput(pickerModal.locator('uui-input').first(), 'Product');
+      await umbracoUi.page.waitForTimeout(1_000);
+      await pickerModal.locator('.schema-item').first().click();
+      await pickerModal.locator('uui-button[look="primary"]').last().click();
 
-        await mappingModal.locator('uui-button[label="Cancel"]').click();
-      }
+      const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+      await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+      await mappingModal.locator('uui-button[label="Cancel"]').click();
     }
   });
 
   test('Recipe mapping shows blockContent suggestion for recipeInstructions', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
+    await goToDocTypeSchemaTab(umbracoUi, 'Recipe Page');
 
-    const recipeRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Recipe Page' });
-    if (await recipeRow.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      const mapBtn = recipeRow.locator('uui-button[label="Map to Schema.org"]');
-      if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await mapBtn.click();
+    const schemaView = umbracoUi.page.locator('schemeweaver-schema-mapping-view');
+    await expect(schemaView).toBeVisible({ timeout: 10_000 });
 
-        const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-        await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-        await fillUuiInput(pickerModal.locator('uui-input').first(), 'Recipe');
-        await umbracoUi.page.waitForTimeout(1_000);
-        await pickerModal.locator('.schema-item').first().click();
-        await pickerModal.locator('uui-button[look="primary"]').last().click();
+    const mapBtn = schemaView.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
+    if (await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await mapBtn.click();
 
-        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+      await fillUuiInput(pickerModal.locator('uui-input').first(), 'Recipe');
+      await umbracoUi.page.waitForTimeout(1_000);
+      await pickerModal.locator('.schema-item').first().click();
+      await pickerModal.locator('uui-button[look="primary"]').last().click();
 
-        await mappingModal.locator('uui-button[label="Cancel"]').click();
-      }
+      const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+      await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+      await mappingModal.locator('uui-button[label="Cancel"]').click();
     }
   });
 
   test('Event mapping shows complex type suggestions for location and organizer', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
+    await goToDocTypeSchemaTab(umbracoUi, 'Event Page');
 
-    const eventRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Event Page' });
-    if (await eventRow.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      const mapBtn = eventRow.locator('uui-button[label="Map to Schema.org"]');
-      if (await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await mapBtn.click();
+    const schemaView = umbracoUi.page.locator('schemeweaver-schema-mapping-view');
+    await expect(schemaView).toBeVisible({ timeout: 10_000 });
 
-        const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-        await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-        await fillUuiInput(pickerModal.locator('uui-input').first(), 'Event');
-        await umbracoUi.page.waitForTimeout(1_000);
-        await pickerModal.locator('.schema-item').first().click();
-        await pickerModal.locator('uui-button[look="primary"]').last().click();
+    const mapBtn = schemaView.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
+    if (await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await mapBtn.click();
 
-        const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-        await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
+      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+      await fillUuiInput(pickerModal.locator('uui-input').first(), 'Event');
+      await umbracoUi.page.waitForTimeout(1_000);
+      await pickerModal.locator('.schema-item').first().click();
+      await pickerModal.locator('uui-button[look="primary"]').last().click();
 
-        await mappingModal.locator('uui-button[label="Cancel"]').click();
-      }
+      const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
+      await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+
+      await mappingModal.locator('uui-button[label="Cancel"]').click();
     }
   });
 
   test('nested mapping wizard completes full 3-step flow', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
+    await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
+
+    const schemaView = umbracoUi.page.locator('schemeweaver-schema-mapping-view');
+    await expect(schemaView).toBeVisible({ timeout: 10_000 });
 
     // Map FAQ Page to FAQPage schema
-    const faqRow = umbracoUi.page.locator('uui-table-row', { hasText: 'FAQ Page' });
-    if (!await faqRow.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-
-    const mapBtn = faqRow.locator('uui-button[label="Map to Schema.org"]');
-    if (!await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) return;
+    const mapBtn = schemaView.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
+    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
 
     await mapBtn.click();
 
@@ -1215,15 +648,14 @@ test.describe('Complex Mapping Workflows', () => {
   });
 
   test('complex type modal shows Configure button for nested complex sub-properties', async ({ umbracoUi }) => {
-    await goToSchemeWeaverDashboard(umbracoUi);
-    await waitForDashboardTable(umbracoUi.page);
+    await goToDocTypeSchemaTab(umbracoUi, 'Product Page');
+
+    const schemaView = umbracoUi.page.locator('schemeweaver-schema-mapping-view');
+    await expect(schemaView).toBeVisible({ timeout: 10_000 });
 
     // Map Product Page to Product schema
-    const productRow = umbracoUi.page.locator('uui-table-row', { hasText: 'Product Page' });
-    if (!await productRow.isVisible({ timeout: 5_000 }).catch(() => false)) return;
-
-    const mapBtn = productRow.locator('uui-button[label="Map to Schema.org"]');
-    if (!await mapBtn.isVisible({ timeout: 3_000 }).catch(() => false)) return;
+    const mapBtn = schemaView.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
+    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
 
     await mapBtn.click();
 

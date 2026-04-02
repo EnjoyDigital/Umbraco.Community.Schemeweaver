@@ -49,9 +49,9 @@ In your master layout (e.g. `_Layout.cshtml`):
 
 ### 2. Map your content types
 
-1. Go to **Settings > Schema.org Mappings** in the backoffice
-2. Click **Map** on any content type
-3. Select a Schema.org type (e.g. Product, Article, Event)
+1. Open any document type in **Settings > Document Types**
+2. Click the **Schema.org** tab
+3. Click **Map to Schema.org** and select a type (e.g. Product, Article, Event)
 4. Review the auto-suggested property mappings and save
 5. Publish content -- JSON-LD appears in the page source
 
@@ -68,7 +68,6 @@ const jsonLd = data.properties.schemaOrg;
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) -- installation, tag helper, first mapping
-- [Dashboard](docs/dashboard.md) -- dashboard overview and navigation
 - [Mapping Content Types](docs/mapping-content-types.md) -- full mapping workflow
 - [Property Mappings](docs/property-mappings.md) -- source types, transforms, confidence tiers
 - [Block Content](docs/block-content.md) -- BlockList/BlockGrid mapping, nested types, wrapInType

@@ -44,7 +44,7 @@ When the application starts for the first time after installation, SchemeWeaver 
 
 3. **Scans Schema.org types** -- the `SchemaTypeRegistry` singleton scans the Schema.NET assembly at startup and discovers all 657 Schema.org types with their properties, parent types, and descriptions.
 
-4. **Registers the backoffice UI** -- the package's static web assets (built Lit web components) are served from `App_Plugins/SchemeWeaver`, adding a dashboard to the Settings section and workspace views to the document type editor.
+4. **Registers the backoffice UI** -- the package's static web assets (built Lit web components) are served from `App_Plugins/SchemeWeaver`, adding a Schema.org workspace view tab to the document type editor and entity actions to the document type context menu.
 
 No configuration in `appsettings.json` is needed. There are no feature flags to enable.
 
@@ -89,15 +89,13 @@ const jsonLd = data.properties.schemaOrg;
 
 ## Your first mapping
 
-### Step 1: Open the dashboard
+### Step 1: Open a document type
 
-Navigate to **Settings** in the Umbraco backoffice. You will see a new **Schema.org Mappings** tab. This dashboard lists every content type in your Umbraco instance alongside its current mapping status.
-
-![Dashboard overview](../screenshots/01-dashboard-overview.png)
+Navigate to **Settings > Document Types** in the Umbraco backoffice. Open the document type you want to map (for example, "Blog Post" or "Product Page") and click the **Schema.org** tab.
 
 ### Step 2: Pick a Schema.org type
 
-Find the content type you want to map (for example, "Blog Post" or "Product Page") and click the **Map** button in its row. This opens the Schema.org type picker modal.
+Click **Map to Schema.org** to open the Schema.org type picker modal.
 
 Use the search field to find your target type. Types are grouped by their parent type in the Schema.org hierarchy, so `Article`, `BlogPosting`, and `NewsArticle` all appear under the `CreativeWork` group. Each type shows its description and property count to help you choose.
 
@@ -158,7 +156,6 @@ Once JSON-LD is rendering on your pages, validate it using these tools:
 
 ## Next steps
 
-- **[Dashboard](dashboard.md)** -- learn about the Settings section dashboard, searching, and bulk management.
 - **[Mapping Content Types](mapping-content-types.md)** -- detailed guide to the schema picker, property mapping table, inherited schemas, and deleting mappings.
 - **Property Mappings** (property-mappings.md) -- deep dive into source types, transforms, block content mapping, and complex nested types.
 - **Block Content** (block-content.md) -- working with Block List and Block Grid editors in your schema mappings.
