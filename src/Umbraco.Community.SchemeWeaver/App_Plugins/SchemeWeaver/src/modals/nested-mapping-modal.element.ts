@@ -93,6 +93,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       // Parse existing config if present
       if (this.data?.existingConfig) {
         this._loadExistingConfig();
+        this._ensureSingleTypeWrapping();
       }
 
       // If we have an existing config with a block alias, skip to mappings step
@@ -150,6 +151,25 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     }
   }
 
+  /**
+   * Ensure wrapInType is set for complex properties with only one accepted type.
+   * Called after data loading to avoid state mutation during render.
+   */
+  private _ensureSingleTypeWrapping() {
+    let changed = false;
+    const updated = [...this._nestedMappings];
+    for (let i = 0; i < updated.length; i++) {
+      const m = updated[i];
+      if (m.isComplexType && m.contentProperty && !m.wrapInType && m.acceptedTypes.length === 1) {
+        updated[i] = { ...m, wrapInType: m.acceptedTypes[0] };
+        changed = true;
+      }
+    }
+    if (changed) {
+      this._nestedMappings = updated;
+    }
+  }
+
   private async _selectBlockType(blockType: BlockElementTypeInfo) {
     this._selectedBlockType = blockType;
 
@@ -165,6 +185,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         isComplexType: prop.isComplexType,
       }));
       await this._autoMapMappings();
+      this._ensureSingleTypeWrapping();
     }
 
     this._currentStep = 'mappings';
@@ -356,11 +377,17 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       if (partial) return { wrapInType: wrapType, wrapInProperty: partial.name };
     }
 
-    // Fallback: use the first accepted type with a "Text" property or first property
-    const fallbackType = acceptedTypes[0];
-    const fallbackProps = await this._getTypeProperties(fallbackType);
-    const textProp = fallbackProps.find((sp) => sp.name.toLowerCase() === 'text');
-    return { wrapInType: fallbackType, wrapInProperty: textProp?.name || fallbackProps[0]?.name || 'Text' };
+    // Fallback: only auto-wrap if there is exactly one accepted type (unambiguous)
+    if (acceptedTypes.length === 1) {
+      const fallbackType = acceptedTypes[0];
+      const fallbackProps = await this._getTypeProperties(fallbackType);
+      if (fallbackProps.length > 0) {
+        const textProp = fallbackProps.find((sp) => sp.name.toLowerCase() === 'text');
+        return { wrapInType: fallbackType, wrapInProperty: textProp?.name || fallbackProps[0]?.name || 'Text' };
+      }
+    }
+
+    return null;
   }
 
   /** Fetch and cache schema type properties */
@@ -631,7 +658,22 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       return html`<span class="type-label">--</span>`;
     }
 
-    // Show override dropdown if user clicked edit
+    // If only one accepted type, wrapping is required — show as badge (no None option).
+    // The wrapInType is set when the content property changes (_handleContentPropertyChange)
+    // or when existing config is loaded (_ensureSingleTypeWrapping).
+    if (mapping.acceptedTypes.length === 1) {
+      const singleType = mapping.acceptedTypes[0];
+      if (mapping.contentProperty) {
+        return html`
+          <uui-tag color="positive" look="secondary" class="wrap-tag">
+            ${singleType}${mapping.wrapInProperty ? `.${mapping.wrapInProperty}` : ''}
+          </uui-tag>
+        `;
+      }
+      return html`<span class="type-label">--</span>`;
+    }
+
+    // Show override dropdown if user clicked edit (multiple accepted types — show None option)
     if (this._wrapOverrideRows.has(index)) {
       return html`
         <div class="wrap-override-row">

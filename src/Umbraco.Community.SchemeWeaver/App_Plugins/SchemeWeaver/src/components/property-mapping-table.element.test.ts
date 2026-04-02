@@ -70,14 +70,15 @@ describe('PropertyMappingTableElement', () => {
     expect(input).to.exist;
   });
 
-  it('renders content type tag for ancestor source type with alias set', async () => {
+  it('renders dynamic root picker for ancestor source type', async () => {
     const ancestorMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'ancestor', contentTypePropertyAlias: '', sourceContentTypeAlias: 'blogRoot', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: ['title', 'name'] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${ancestorMapping} .availableProperties=${['title', 'name']}></schemeweaver-property-mapping-table>`);
-    const tag = el.shadowRoot!.querySelector('.source-content-type-row uui-tag');
-    expect(tag).to.exist;
-    expect(tag!.textContent?.trim()).to.equal('blogRoot');
+    // The ancestor source type renders Umbraco's dynamic root picker and document type picker
+    // In test environment these custom elements may not be defined, but the value-inputs container should exist
+    const valueInputs = el.shadowRoot!.querySelector('.value-inputs');
+    expect(valueInputs).to.exist;
   });
 
   it('renders pick content type button for ancestor source type without alias', async () => {
@@ -238,38 +239,43 @@ describe('PropertyMappingTableElement', () => {
     expect(eventDetail.editorAlias).to.equal('Umbraco.BlockList');
   });
 
-  it('shows expand chevron when complexType source is selected', async () => {
+  it('shows configure button when complexType source is selected', async () => {
     const complexMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${[]}></schemeweaver-property-mapping-table>`);
-    const chevron = el.shadowRoot!.querySelector('.expand-chevron');
-    expect(chevron).to.exist;
+    const configButton = el.shadowRoot!.querySelector('.block-actions uui-button');
+    expect(configButton).to.exist;
   });
 
-  it('renders type picker in expanded section', async () => {
+  it('dispatches configure-complex-type-mapping event when configure button clicked', async () => {
     const complexMapping: PropertyMappingRow[] = [
-      { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: 'Person', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: true, subMappings: [
-        { schemaProperty: 'name', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: '', staticValue: '' },
-      ], selectedSubType: 'Person', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: 'Person', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: 'Person', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${['authorName']}></schemeweaver-property-mapping-table>`);
-    const expandedRow = el.shadowRoot!.querySelector('.expanded-section-row');
-    expect(expandedRow).to.exist;
-    const subTypePicker = el.shadowRoot!.querySelector('.sub-type-picker uui-select');
-    expect(subTypePicker).to.exist;
+
+    let eventFired = false;
+    let eventDetail: any = null;
+    el.addEventListener('configure-complex-type-mapping', (e: Event) => {
+      eventFired = true;
+      eventDetail = (e as CustomEvent).detail;
+    });
+
+    const configButton = el.shadowRoot!.querySelector('.block-actions uui-button') as HTMLElement;
+    configButton?.click();
+    expect(eventFired).to.be.true;
+    expect(eventDetail.schemaPropertyName).to.equal('author');
+    expect(eventDetail.acceptedTypes).to.deep.equal(['Organization', 'Person']);
   });
 
-  it('renders sub-property rows in expanded section', async () => {
+  it('shows configured checkmark for complexType with resolverConfig', async () => {
+    const config = JSON.stringify({ selectedSubType: 'Person', complexTypeMappings: [{ schemaProperty: 'name', sourceType: 'property', contentTypePropertyAlias: 'authorName' }] });
     const complexMapping: PropertyMappingRow[] = [
-      { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: 'Person', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: true, subMappings: [
-        { schemaProperty: 'name', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'authorName', staticValue: '' },
-        { schemaProperty: 'email', schemaPropertyType: 'Text', sourceType: 'static', contentTypePropertyAlias: '', staticValue: 'test@test.com' },
-      ], selectedSubType: 'Person', sourceContentTypeProperties: [] },
+      { schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: 'Person', resolverConfig: config, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: 'Person', sourceContentTypeProperties: [] },
     ];
-    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${['authorName', 'authorEmail']}></schemeweaver-property-mapping-table>`);
-    const subRows = el.shadowRoot!.querySelectorAll('.sub-mapping-row');
-    expect(subRows.length).to.equal(2);
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${complexMapping} .availableProperties=${['authorName']}></schemeweaver-property-mapping-table>`);
+    const check = el.shadowRoot!.querySelector('.configured-check');
+    expect(check).to.exist;
   });
 
   it('renders dropdown instead of free text for nestedSchemaTypeName when acceptedTypes available', async () => {
@@ -368,14 +374,14 @@ describe('PropertyMappingTableElement', () => {
     expect(configButtons.length).to.equal(2);
   });
 
-  it('renders Event auto-mapped rows with complex type location', async () => {
+  it('renders Event auto-mapped rows with complex type configure button', async () => {
     const eventMappings: PropertyMappingRow[] = [
       { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'property', contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: 80, editorAlias: 'Umbraco.TextBox', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['String'], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
       { schemaPropertyName: 'location', schemaPropertyType: 'Place', sourceType: 'complexType', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: 60, editorAlias: '', nestedSchemaTypeName: 'Place', resolverConfig: null, acceptedTypes: ['Place'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${eventMappings} .availableProperties=${['title', 'locationName', 'locationAddress']}></schemeweaver-property-mapping-table>`);
-    // Complex type row should show expand chevron
-    const chevron = el.shadowRoot!.querySelector('.expand-chevron');
-    expect(chevron).to.exist;
+    // Complex type row should show configure button instead of expand chevron
+    const configButton = el.shadowRoot!.querySelector('.block-actions uui-button');
+    expect(configButton).to.exist;
   });
 });

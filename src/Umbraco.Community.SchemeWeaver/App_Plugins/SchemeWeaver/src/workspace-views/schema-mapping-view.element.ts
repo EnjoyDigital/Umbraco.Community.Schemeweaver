@@ -10,13 +10,12 @@ import '../components/property-mapping-table.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
-import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from '../modals/content-type-picker-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from '../modals/source-origin-picker-modal.token.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from '../modals/nested-mapping-modal.token.js';
+import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from '../modals/complex-type-mapping-modal.token.js';
 import type { SchemaMappingDto, ContentTypeProperty, SchemaPropertyInfo } from '../api/types.js';
-import type { PropertyMappingTableElement } from '../components/property-mapping-table.element.js';
 
-import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange } from '../utils/mapping-converters.js';
+import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange, filterRelevantSchemaProperties } from '../utils/mapping-converters.js';
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
@@ -142,29 +141,37 @@ export class SchemaMappingViewElement extends UmbLitElement {
           }
           return row;
         });
-        // Add unmapped schema properties so "Show more" toggle works
+        // Add only relevant unmapped schema properties (popular + complex types)
+        // to avoid overwhelming the "Show more" section with 100+ empty rows
         const existingNames = new Set(this._rows.map(r => r.schemaPropertyName.toLowerCase()));
-        for (const sp of schemaProps) {
-          if (!existingNames.has(sp.name.toLowerCase())) {
-            this._rows.push({
-              schemaPropertyName: sp.name,
-              schemaPropertyType: sp.propertyType || '',
-              sourceType: 'property',
-              contentTypePropertyAlias: '',
-              sourceContentTypeAlias: '',
-              staticValue: '',
-              confidence: null,
-              editorAlias: '',
-              nestedSchemaTypeName: '',
-              resolverConfig: null,
-              acceptedTypes: sp.acceptedTypes || [],
-              isComplexType: sp.isComplexType || false,
-              expanded: false,
-              subMappings: [],
-              selectedSubType: '',
-              sourceContentTypeProperties: [],
-            });
-          }
+        const relevantProps = filterRelevantSchemaProperties(
+          schemaProps.map(sp => ({
+            name: sp.name,
+            propertyType: sp.propertyType || '',
+            acceptedTypes: sp.acceptedTypes || [],
+            isComplexType: sp.isComplexType || false,
+          })),
+          existingNames,
+        );
+        for (const sp of relevantProps) {
+          this._rows.push({
+            schemaPropertyName: sp.name,
+            schemaPropertyType: sp.propertyType,
+            sourceType: 'property',
+            contentTypePropertyAlias: '',
+            sourceContentTypeAlias: '',
+            staticValue: '',
+            confidence: null,
+            editorAlias: '',
+            nestedSchemaTypeName: '',
+            resolverConfig: null,
+            acceptedTypes: sp.acceptedTypes,
+            isComplexType: sp.isComplexType,
+            expanded: false,
+            subMappings: [],
+            selectedSubType: '',
+            sourceContentTypeProperties: [],
+          });
         }
         this._rows = sortMappingRows(this._rows);
       }
@@ -321,25 +328,26 @@ export class SchemaMappingViewElement extends UmbLitElement {
     };
   }
 
-  private async _handlePickSourceContentType(e: CustomEvent) {
-    const { index, currentAlias } = e.detail;
-    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
-    if (!modalManager) return;
+  private async _handleResolveDocumentType(e: CustomEvent) {
+    const { index, documentTypeUnique } = e.detail;
+    if (!documentTypeUnique) return;
 
-    const result = await modalManager
-      .open(this, SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL, {
-        data: { currentAlias },
-      })
-      .onSubmit()
-      .catch(() => null);
+    // Look up the content type by its unique key to get the alias
+    const contentTypes = await this.#repository.requestContentTypes();
+    const match = contentTypes?.find((ct) => ct.key === documentTypeUnique);
+    if (!match) return;
 
-    if (!result?.contentTypeAlias) return;
-
-    const props = await this.#repository.requestContentTypeProperties(result.contentTypeAlias);
+    const props = await this.#repository.requestContentTypeProperties(match.alias);
     const propertyAliases = props?.map((p) => p.alias) || [];
 
-    const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as PropertyMappingTableElement | null;
-    table?.setSourceContentType(index, result.contentTypeAlias, propertyAliases);
+    const updated = [...this._rows];
+    updated[index] = {
+      ...updated[index],
+      sourceContentTypeAlias: match.alias,
+      sourceContentTypeProperties: propertyAliases,
+      contentTypePropertyAlias: '',
+    };
+    this._rows = updated;
   }
 
   private async _handlePickSourceOrigin(e: CustomEvent) {
@@ -359,15 +367,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
     const updated = [...this._rows];
     updated[index] = applySourceTypeChange(updated[index], result.sourceType);
     this._rows = updated;
-  }
-
-  private async _handleLoadSubTypeProperties(e: CustomEvent) {
-    const { index, typeName } = e.detail;
-    const props = await this.#repository.requestSchemaTypeProperties(typeName);
-    if (props) {
-      const table = this.shadowRoot?.querySelector('schemeweaver-property-mapping-table') as PropertyMappingTableElement | null;
-      table?.setSubTypeProperties(index, props.map((p: SchemaPropertyInfo) => ({ name: p.name, propertyType: p.propertyType })));
-    }
   }
 
   private async _handleConfigureNestedMapping(e: CustomEvent) {
@@ -409,6 +408,39 @@ export class SchemaMappingViewElement extends UmbLitElement {
       }
     } catch {
       // Modal was rejected / closed — do nothing
+    }
+  }
+
+  private async _handleConfigureComplexTypeMapping(e: CustomEvent) {
+    const { index, schemaPropertyName, acceptedTypes, selectedSubType, resolverConfig } = e.detail;
+    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
+
+    const modalHandler = modalManager.open(this, SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL, {
+      data: {
+        schemaPropertyName,
+        acceptedTypes: acceptedTypes || [],
+        selectedSubType: selectedSubType || '',
+        contentTypeAlias: this._contentTypeAlias,
+        availableProperties: this._availableProperties,
+        existingConfig: resolverConfig,
+      },
+    });
+
+    try {
+      const result = await modalHandler.onSubmit();
+      if (result?.resolverConfig) {
+        const updated = [...this._rows];
+        updated[index] = {
+          ...updated[index],
+          resolverConfig: result.resolverConfig,
+          selectedSubType: result.selectedSubType,
+          nestedSchemaTypeName: result.selectedSubType,
+        };
+        this._rows = updated;
+      }
+    } catch {
+      // Modal was rejected / closed
     }
   }
 
@@ -467,16 +499,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
               <uui-icon name="icon-wand"></uui-icon>
               ${this.localize.term('schemeWeaver_autoMap')}
             </uui-button>
-            <uui-button
-              look="primary"
-              compact
-              @click=${this._handleSave}
-              ?disabled=${this._saving}
-              .state=${this._saving ? 'waiting' : undefined}
-              label=${this.localize.term('schemeWeaver_save')}
-            >
-              ${this.localize.term('schemeWeaver_save')}
-            </uui-button>
           </div>
 
           <schemeweaver-property-mapping-table
@@ -484,9 +506,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
             .availableProperties=${this._availableProperties}
             @mappings-changed=${this._handleMappingsChanged}
             @pick-source-origin=${this._handlePickSourceOrigin}
-            @pick-source-content-type=${this._handlePickSourceContentType}
-            @load-sub-type-properties=${this._handleLoadSubTypeProperties}
+            @resolve-document-type=${this._handleResolveDocumentType}
             @configure-nested-mapping=${this._handleConfigureNestedMapping}
+            @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
           ></schemeweaver-property-mapping-table>
         </uui-box>
 

@@ -25,12 +25,6 @@ export const manifests = [
   },
   {
     type: 'modal',
-    alias: 'schemeweaver-content-type-picker-modal',
-    name: 'Content Type Picker Modal',
-    element: () => import('./content-type-picker-modal.element.js'),
-  },
-  {
-    type: 'modal',
     alias: 'schemeweaver-property-picker-modal',
     name: 'Property Picker Modal',
     element: () => import('./property-picker-modal.element.js'),
@@ -40,5 +34,11 @@ export const manifests = [
     alias: 'schemeweaver-source-origin-picker-modal',
     name: 'Source Origin Picker Modal',
     element: () => import('./source-origin-picker-modal.element.js'),
+  },
+  {
+    type: 'modal',
+    alias: 'schemeweaver-complex-type-mapping-modal',
+    name: 'Complex Type Mapping Modal',
+    element: () => import('./complex-type-mapping-modal.element.js'),
   },
 ];

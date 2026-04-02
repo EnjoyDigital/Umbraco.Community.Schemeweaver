@@ -150,5 +150,9 @@ export default {
     change: 'Change',
     set: 'Set',
     none: '-- None --',
+    configureComplexType: 'Configure Schema.org Type',
+    complexTypeMappings: 'Type Property Mappings',
+    selectSchemaSubType: 'Select Schema.org Sub-Type',
+    complexTypeConfigured: 'Type mapping configured',
   },
 };

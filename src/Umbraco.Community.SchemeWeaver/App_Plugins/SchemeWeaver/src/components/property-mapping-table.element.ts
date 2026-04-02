@@ -2,11 +2,18 @@ import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import './property-combobox.element.js';
 
-/** Sub-property mapping for complex Schema.org types */
+/** Local type matching UmbContentPickerDynamicRoot to avoid hard import dependency */
+interface DynamicRootConfig {
+  originAlias: string;
+  originKey?: string;
+  querySteps?: Array<{ unique: string; alias: string; anyOfDocTypeKeys?: Array<string> }>;
+}
+
+/** Sub-property mapping within a complex type configuration */
 export interface SubPropertyMapping {
   schemaProperty: string;
   schemaPropertyType: string;
-  sourceType: string;        // "property" or "static"
+  sourceType: string;
   contentTypePropertyAlias: string;
   staticValue: string;
 }
@@ -32,9 +39,9 @@ export interface PropertyMappingRow {
   subMappings: SubPropertyMapping[];
   selectedSubType: string;
   sourceContentTypeProperties: string[];
+  dynamicRootConfig?: DynamicRootConfig;
+  sourceDocumentTypeUnique?: string;
 }
-
-import { BLOCK_EDITOR_ALIASES } from '../constants.js';
 
 /** Map of complex editor aliases to their display badge labels */
 const EDITOR_BADGE_MAP: Record<string, string> = {
@@ -47,6 +54,15 @@ const EDITOR_BADGE_MAP: Record<string, string> = {
 
 @customElement('schemeweaver-property-mapping-table')
 export class PropertyMappingTableElement extends UmbLitElement {
+  connectedCallback() {
+    super.connectedCallback();
+    // Dynamically import Umbraco picker components to register custom elements.
+    // These are side-effect imports that register <umb-input-content-picker-document-root>
+    // and <umb-input-document-type>. Dynamic import avoids breaking test environments.
+    import('@umbraco-cms/backoffice/content-picker').catch(() => {});
+    import('@umbraco-cms/backoffice/document-type').catch(() => {});
+  }
+
   @property({ type: Array })
   mappings: PropertyMappingRow[] = [];
 
@@ -62,8 +78,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
   @state()
   private _showMore = false;
 
-  @state()
-  private _loadingSubProperties: Record<number, boolean> = {};
 
   /** Source type icon mapping */
   private _getSourceIcon(sourceType: string): string {
@@ -110,31 +124,9 @@ export class PropertyMappingTableElement extends UmbLitElement {
   }
 
   private _dispatchChange() {
-    // Serialise sub-mappings to resolverConfig for complexType rows
-    const mappings = this.mappings.map(m => {
-      if (m.sourceType === 'complexType' && m.subMappings.length > 0) {
-        const config = {
-          complexTypeMappings: m.subMappings
-            .filter(s => s.contentTypePropertyAlias || s.staticValue)
-            .map(s => ({
-              schemaProperty: s.schemaProperty,
-              sourceType: s.sourceType,
-              contentTypePropertyAlias: s.contentTypePropertyAlias || undefined,
-              staticValue: s.staticValue || undefined,
-            })),
-        };
-        return {
-          ...m,
-          nestedSchemaTypeName: m.selectedSubType,
-          resolverConfig: config.complexTypeMappings.length > 0 ? JSON.stringify(config) : null,
-        };
-      }
-      return m;
-    });
-
     this.dispatchEvent(
       new CustomEvent('mappings-changed', {
-        detail: { mappings },
+        detail: { mappings: this.mappings },
         bubbles: true,
         composed: true,
       })
@@ -155,39 +147,41 @@ export class PropertyMappingTableElement extends UmbLitElement {
     this._dispatchChange();
   }
 
-  private _handleSourceContentTypeAliasChange(index: number, value: string) {
-    const updated = [...this.mappings];
-    updated[index] = { ...updated[index], sourceContentTypeAlias: value };
-    this.mappings = updated;
-    this._dispatchChange();
-  }
-
-  /** Whether this source type requires picking a content type */
+  /** Whether this source type uses the dynamic root + document type picker */
   private _needsSourceContentType(sourceType: string): boolean {
     return sourceType === 'parent' || sourceType === 'ancestor' || sourceType === 'sibling';
   }
 
-  private _handlePickSourceContentType(index: number) {
-    this.dispatchEvent(
-      new CustomEvent('pick-source-content-type', {
-        detail: { index, currentAlias: this.mappings[index].sourceContentTypeAlias },
-        bubbles: true,
-        composed: true,
-      })
-    );
+  private _handleDynamicRootChange(index: number, e: Event) {
+    const target = e.target as HTMLElement & { data?: DynamicRootConfig };
+    const updated = [...this.mappings];
+    updated[index] = { ...updated[index], dynamicRootConfig: target.data };
+    this.mappings = updated;
+    this._dispatchChange();
   }
 
-  /** Called by parent after content type picker modal completes */
-  public setSourceContentType(index: number, alias: string, properties: string[]) {
+  private _handleDocumentTypeChange(index: number, e: Event) {
+    const target = e.target as HTMLElement & { selection: string[] };
+    const selection = target.selection;
     const updated = [...this.mappings];
     updated[index] = {
       ...updated[index],
-      sourceContentTypeAlias: alias,
-      sourceContentTypeProperties: properties,
+      sourceDocumentTypeUnique: selection.length > 0 ? selection[0] : undefined,
       contentTypePropertyAlias: '',
     };
     this.mappings = updated;
     this._dispatchChange();
+
+    // Dispatch event so parent can resolve the unique to an alias and load properties
+    if (selection.length > 0) {
+      this.dispatchEvent(
+        new CustomEvent('resolve-document-type', {
+          detail: { index, documentTypeUnique: selection[0] },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
   }
 
   private _handleNestedSchemaTypeChange(index: number, value: string) {
@@ -214,96 +208,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
     );
   }
 
-  private _handleToggleExpand(index: number) {
-    const updated = [...this.mappings];
-    const mapping = updated[index];
-    updated[index] = { ...mapping, expanded: !mapping.expanded };
-
-    // If expanding and no sub-type selected yet, auto-select first accepted type
-    if (!mapping.expanded && !mapping.selectedSubType && mapping.acceptedTypes.length > 0) {
-      updated[index] = { ...updated[index], selectedSubType: mapping.acceptedTypes[0] };
-      this.mappings = updated;
-      this._dispatchChange();
-      this._loadSubTypeProperties(index, mapping.acceptedTypes[0]);
-    } else {
-      this.mappings = updated;
-      this._dispatchChange();
-    }
-  }
-
-  private _handleSubTypeChange(index: number, typeName: string) {
-    const updated = [...this.mappings];
-    updated[index] = { ...updated[index], selectedSubType: typeName, subMappings: [] };
-    this.mappings = updated;
-    this._dispatchChange();
-    this._loadSubTypeProperties(index, typeName);
-  }
-
-  private _loadSubTypeProperties(index: number, typeName: string) {
-    this._loadingSubProperties = { ...this._loadingSubProperties, [index]: true };
-    this.dispatchEvent(
-      new CustomEvent('load-sub-type-properties', {
-        detail: { index, typeName },
-        bubbles: true,
-        composed: true,
-      })
-    );
-  }
-
-  public setSubTypeProperties(index: number, properties: Array<{name: string; propertyType: string}>) {
-    const updated = [...this.mappings];
-    const mapping = updated[index];
-    const existingSubs = mapping.subMappings;
-
-    updated[index] = {
-      ...mapping,
-      subMappings: properties.map(p => {
-        // Preserve existing mapping values if we already had a sub-mapping for this property
-        const existing = existingSubs.find(
-          s => s.schemaProperty.toLowerCase() === p.name.toLowerCase()
-        );
-        return existing
-          ? { ...existing, schemaPropertyType: p.propertyType }
-          : {
-              schemaProperty: p.name,
-              schemaPropertyType: p.propertyType,
-              sourceType: 'property',
-              contentTypePropertyAlias: '',
-              staticValue: '',
-            };
-      }),
-    };
-    this.mappings = updated;
-    this._loadingSubProperties = { ...this._loadingSubProperties, [index]: false };
-    this._dispatchChange();
-  }
-
-  private _handleSubMappingSourceChange(parentIndex: number, subIndex: number, value: string) {
-    const updated = [...this.mappings];
-    const subMappings = [...updated[parentIndex].subMappings];
-    subMappings[subIndex] = { ...subMappings[subIndex], sourceType: value, contentTypePropertyAlias: '', staticValue: '' };
-    updated[parentIndex] = { ...updated[parentIndex], subMappings };
-    this.mappings = updated;
-    this._dispatchChange();
-  }
-
-  private _handleSubMappingPropertyChange(parentIndex: number, subIndex: number, value: string) {
-    const updated = [...this.mappings];
-    const subMappings = [...updated[parentIndex].subMappings];
-    subMappings[subIndex] = { ...subMappings[subIndex], contentTypePropertyAlias: value };
-    updated[parentIndex] = { ...updated[parentIndex], subMappings };
-    this.mappings = updated;
-    this._dispatchChange();
-  }
-
-  private _handleSubMappingStaticValueChange(parentIndex: number, subIndex: number, value: string) {
-    const updated = [...this.mappings];
-    const subMappings = [...updated[parentIndex].subMappings];
-    subMappings[subIndex] = { ...subMappings[subIndex], staticValue: value };
-    updated[parentIndex] = { ...updated[parentIndex], subMappings };
-    this.mappings = updated;
-    this._dispatchChange();
-  }
 
   /** Confidence is an integer 0-100 from C# auto-mapper */
   private _renderConfidenceTag(mapping: PropertyMappingRow) {
@@ -329,24 +233,28 @@ export class PropertyMappingTableElement extends UmbLitElement {
     return html`<uui-tag look="secondary" class="editor-badge">${this.localize.term(termKey)}</uui-tag>`;
   }
 
-  private _renderRow(mapping: PropertyMappingRow, index: number, dimmed = false) {
-    const isExpandable = mapping.isComplexType && mapping.sourceType === 'complexType';
+  private _handleConfigureComplexType(index: number) {
+    const mapping = this.mappings[index];
+    this.dispatchEvent(
+      new CustomEvent('configure-complex-type-mapping', {
+        detail: {
+          index,
+          schemaPropertyName: mapping.schemaPropertyName,
+          acceptedTypes: mapping.acceptedTypes,
+          selectedSubType: mapping.selectedSubType,
+          resolverConfig: mapping.resolverConfig,
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
 
+  private _renderRow(mapping: PropertyMappingRow, index: number, dimmed = false) {
     return html`
       <uui-table-row class=${dimmed ? 'unmapped-row' : ''}>
         <uui-table-cell>
           <div class="property-name-cell">
-            ${isExpandable && !this.readonly
-              ? html`<uui-button
-                  compact
-                  look="default"
-                  class="expand-chevron"
-                  label=${mapping.expanded ? this.localize.term('schemeWeaver_collapse') : this.localize.term('schemeWeaver_expand')}
-                  @click=${() => this._handleToggleExpand(index)}
-                >
-                  <uui-icon name=${mapping.expanded ? 'icon-navigation-down' : 'icon-navigation-right'}></uui-icon>
-                </uui-button>`
-              : nothing}
             <div>
               <strong>${mapping.schemaPropertyName}</strong>
               <small class="type-label">${mapping.schemaPropertyType}</small>
@@ -378,7 +286,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
           </div>
         </uui-table-cell>
       </uui-table-row>
-      ${isExpandable && mapping.expanded ? this._renderExpandedSection(mapping, index) : nothing}
     `;
   }
 
@@ -442,78 +349,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
     `;
   }
 
-  private _renderExpandedSection(mapping: PropertyMappingRow, index: number) {
-    const isLoading = this._loadingSubProperties[index];
-
-    return html`
-      <uui-table-row class="expanded-section-row">
-        <uui-table-cell colspan="3">
-          <uui-box class="complex-type-box">
-            <div class="sub-type-picker">
-              <uui-label for="sub-type-${index}">${this.localize.term('schemeWeaver_type')}:</uui-label>
-              <uui-select
-                id="sub-type-${index}"
-                label=${this.localize.term('schemeWeaver_selectSubType')}
-                .options=${mapping.acceptedTypes.map(t => ({
-                  name: t,
-                  value: t,
-                  selected: mapping.selectedSubType === t,
-                }))}
-                @change=${(e: Event) => this._handleSubTypeChange(index, (e.target as HTMLSelectElement).value)}
-              ></uui-select>
-            </div>
-
-            ${isLoading
-              ? html`<uui-loader-bar></uui-loader-bar>`
-              : mapping.subMappings.length > 0
-                ? html`
-                    <div class="sub-mappings-list">
-                      ${mapping.subMappings.map((sub, subIndex) =>
-                        this._renderSubMappingRow(sub, index, subIndex)
-                      )}
-                    </div>
-                  `
-                : nothing}
-          </uui-box>
-        </uui-table-cell>
-      </uui-table-row>
-    `;
-  }
-
-  private _renderSubMappingRow(sub: SubPropertyMapping, parentIndex: number, subIndex: number) {
-    return html`
-      <div class="sub-mapping-row">
-        <div class="sub-property-name">
-          <strong>${sub.schemaProperty}</strong>
-          <small class="type-label">${sub.schemaPropertyType}</small>
-        </div>
-        <uui-select
-          label=${this.localize.term('schemeWeaver_source')}
-          .options=${[
-            { name: this.localize.term('schemeWeaver_sourceCurrentNode'), value: 'property', selected: sub.sourceType === 'property' },
-            { name: this.localize.term('schemeWeaver_sourceStaticValue'), value: 'static', selected: sub.sourceType === 'static' },
-          ]}
-          @change=${(e: Event) => this._handleSubMappingSourceChange(parentIndex, subIndex, (e.target as HTMLSelectElement).value)}
-        ></uui-select>
-        <div class="sub-value-input">
-          ${sub.sourceType === 'static'
-            ? html`<uui-input
-                .value=${sub.staticValue}
-                @input=${(e: Event) => this._handleSubMappingStaticValueChange(parentIndex, subIndex, (e.target as HTMLInputElement).value)}
-                placeholder=${this.localize.term('schemeWeaver_enterStaticValue')}
-                label=${this.localize.term('schemeWeaver_staticValueLabel')}
-              ></uui-input>`
-            : html`<schemeweaver-property-combobox
-                .properties=${this.availableProperties}
-                .value=${sub.contentTypePropertyAlias}
-                label=${this.localize.term('schemeWeaver_propertyLabel')}
-                placeholder=${this.localize.term('schemeWeaver_selectProperty')}
-                @change=${(e: CustomEvent) => this._handleSubMappingPropertyChange(parentIndex, subIndex, e.detail.value)}
-              ></schemeweaver-property-combobox>`}
-        </div>
-      </div>
-    `;
-  }
 
   private _renderValueInput(mapping: PropertyMappingRow, index: number) {
     if (mapping.sourceType === 'static') {
@@ -528,7 +363,22 @@ export class PropertyMappingTableElement extends UmbLitElement {
     }
 
     if (mapping.sourceType === 'complexType') {
-      return html`<small class="complex-type-hint">${this.localize.term('schemeWeaver_configureSubType')}</small>`;
+      return html`
+        <div class="block-actions">
+          <uui-button
+            look="secondary"
+            compact
+            label=${this.localize.term('schemeWeaver_configureComplexType')}
+            @click=${() => this._handleConfigureComplexType(index)}
+          >
+            <uui-icon name="icon-brackets"></uui-icon>
+            ${this.localize.term('schemeWeaver_configureComplexType')}
+          </uui-button>
+          ${mapping.resolverConfig
+            ? html`<uui-icon name="icon-check" class="configured-check"></uui-icon>`
+            : nothing}
+        </div>
+      `;
     }
 
     if (mapping.sourceType === 'blockContent') {
@@ -561,39 +411,29 @@ export class PropertyMappingTableElement extends UmbLitElement {
   private _renderSourceContentTypeInput(mapping: PropertyMappingRow, index: number) {
     return html`
       <div class="value-inputs">
-        ${mapping.sourceContentTypeAlias
+        <umb-input-content-picker-document-root
+          .data=${mapping.dynamicRootConfig}
+          @change=${(e: Event) => this._handleDynamicRootChange(index, e)}
+        ></umb-input-content-picker-document-root>
+
+        <umb-input-document-type
+          .documentTypesOnly=${true}
+          .max=${1}
+          .selection=${mapping.sourceDocumentTypeUnique ? [mapping.sourceDocumentTypeUnique] : []}
+          @change=${(e: Event) => this._handleDocumentTypeChange(index, e)}
+        ></umb-input-document-type>
+
+        ${mapping.sourceContentTypeProperties?.length
           ? html`
-              <div class="source-content-type-row">
-                <uui-tag look="secondary">${mapping.sourceContentTypeAlias}</uui-tag>
-                <uui-button
-                  compact
-                  look="outline"
-                  label=${this.localize.term('schemeWeaver_changeContentType')}
-                  @click=${() => this._handlePickSourceContentType(index)}
-                >
-                  <uui-icon name="icon-edit"></uui-icon>
-                </uui-button>
-              </div>
-              <div class="property-select-row">
-                <schemeweaver-property-combobox
-                  .properties=${mapping.sourceContentTypeProperties || []}
-                  .value=${mapping.contentTypePropertyAlias}
-                  label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
-                  placeholder=${this.localize.term('schemeWeaver_selectProperty')}
-                  @change=${(e: CustomEvent) => this._handlePropertyChange(index, e.detail.value)}
-                ></schemeweaver-property-combobox>
-              </div>
+              <schemeweaver-property-combobox
+                .properties=${mapping.sourceContentTypeProperties}
+                .value=${mapping.contentTypePropertyAlias}
+                label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaPropertyName}
+                placeholder=${this.localize.term('schemeWeaver_selectProperty')}
+                @change=${(e: CustomEvent) => this._handlePropertyChange(index, e.detail.value)}
+              ></schemeweaver-property-combobox>
             `
-          : html`
-              <uui-button
-                look="placeholder"
-                label=${this.localize.term('schemeWeaver_pickContentType')}
-                @click=${() => this._handlePickSourceContentType(index)}
-              >
-                <uui-icon name="icon-document"></uui-icon>
-                ${this.localize.term('schemeWeaver_pickContentType')}
-              </uui-button>
-            `}
+          : nothing}
       </div>
     `;
   }
@@ -758,64 +598,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
         display: flex;
         align-items: center;
         gap: var(--uui-size-space-2);
-      }
-
-      .expand-chevron {
-        font-size: 0.8rem;
-        flex-shrink: 0;
-      }
-
-      .expanded-section-row {
-        background: var(--uui-color-surface-alt);
-      }
-
-      .complex-type-box {
-        margin: var(--uui-size-space-2) var(--uui-size-space-4);
-      }
-
-      .sub-type-picker {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-3);
-        margin-bottom: var(--uui-size-space-3);
-      }
-
-      .sub-type-picker label {
-        font-weight: 600;
-        white-space: nowrap;
-      }
-
-      .sub-mappings-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-2);
-      }
-
-      .sub-mapping-row {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        align-items: center;
-        gap: var(--uui-size-space-3);
-        padding: var(--uui-size-space-2) 0;
-        border-bottom: 1px solid var(--uui-color-border);
-      }
-
-      .sub-mapping-row:last-child {
-        border-bottom: none;
-      }
-
-      .sub-property-name {
-        display: flex;
-        flex-direction: column;
-      }
-
-      .sub-value-input {
-        min-width: 150px;
-      }
-
-      .complex-type-hint {
-        color: var(--uui-color-text-alt);
-        font-style: italic;
       }
 
       .source-chip {

@@ -1,4 +1,4 @@
-import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, state, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { ContentTypeInfo } from '../api/types.js';
@@ -17,14 +17,8 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
   @state()
   private _contentTypes: ContentTypeInfo[] = [];
 
-  @state()
-  private _selectedAlias = '';
-
   async connectedCallback() {
     super.connectedCallback();
-    if (this.data?.currentAlias) {
-      this._selectedAlias = this.data.currentAlias;
-    }
     await this._fetchContentTypes();
   }
 
@@ -57,16 +51,10 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
     );
   }
 
-  private _handleSelect(alias: string) {
-    this._selectedAlias = alias;
-  }
-
-  private _handleSubmit() {
-    if (!this._selectedAlias) return;
-    const ct = this._contentTypes.find((t) => t.alias === this._selectedAlias);
+  private _handleSelect(ct: ContentTypeInfo) {
     this.modalContext?.setValue({
-      contentTypeAlias: this._selectedAlias,
-      contentTypeName: ct?.name || this._selectedAlias,
+      contentTypeAlias: ct.alias,
+      contentTypeName: ct.name,
     });
     this.modalContext?.submit();
   }
@@ -97,44 +85,28 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
                 </div>
               `
             : html`
-                <div class="content-type-list" role="listbox" aria-label="Content types">
+                <uui-ref-list>
                   ${this._filteredTypes.length > 0
-                    ? this._filteredTypes.map(
+                    ? repeat(
+                        this._filteredTypes,
+                        (ct) => ct.alias,
                         (ct) => html`
-                          <div
-                            class="content-type-item ${this._selectedAlias === ct.alias ? 'selected' : ''}"
-                            role="option"
-                            tabindex="0"
-                            aria-selected="${this._selectedAlias === ct.alias}"
-                            @click=${() => this._handleSelect(ct.alias)}
-                            @keydown=${(e: KeyboardEvent) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                this._handleSelect(ct.alias);
-                              }
-                            }}
-                          >
-                            <div class="content-type-item-header">
-                              <strong>${ct.name}</strong>
-                              <small class="alias-label">${ct.alias}</small>
-                            </div>
-                            ${ct.propertyCount > 0
-                              ? html`<small class="property-count">${ct.propertyCount} ${this.localize.term('schemeWeaver_properties')}</small>`
-                              : ''}
-                          </div>
-                        `
+                          <umb-ref-item
+                            name=${ct.name}
+                            detail="${ct.alias}${ct.propertyCount > 0 ? ` · ${ct.propertyCount} ${this.localize.term('schemeWeaver_properties')}` : ''}"
+                            icon="icon-document"
+                            @open=${() => this._handleSelect(ct)}
+                          ></umb-ref-item>
+                        `,
                       )
                     : html`<p class="no-results">${this.localize.term('schemeWeaver_noContentTypes')}</p>`}
-                </div>
+                </uui-ref-list>
               `}
         </uui-box>
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
-            ${this.localize.term('schemeWeaver_cancel')}
-          </uui-button>
-          <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedAlias} label=${this.localize.term('general_select')}>
-            ${this.localize.term('general_select')}
+          <uui-button look="default" @click=${this._handleClose} label=${this.localize.term('general_close')}>
+            ${this.localize.term('general_close')}
           </uui-button>
         </div>
       </umb-body-layout>
@@ -158,44 +130,6 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
         align-items: center;
         gap: var(--uui-size-space-3);
         padding: var(--uui-size-space-6);
-      }
-
-      .content-type-list {
-        max-height: 500px;
-        overflow-y: auto;
-      }
-
-      .content-type-item {
-        padding: var(--uui-size-space-3) var(--uui-size-space-4);
-        border-radius: var(--uui-border-radius);
-        cursor: pointer;
-        transition: background-color 0.15s ease;
-        border: 2px solid transparent;
-      }
-
-      .content-type-item:hover {
-        background-color: var(--uui-color-surface-alt);
-      }
-
-      .content-type-item.selected {
-        background-color: var(--uui-color-selected);
-        border-color: var(--uui-color-focus);
-      }
-
-      .content-type-item-header {
-        display: flex;
-        align-items: baseline;
-        gap: var(--uui-size-space-3);
-      }
-
-      .alias-label {
-        color: var(--uui-color-text-alt);
-        font-family: monospace;
-        font-size: 0.85rem;
-      }
-
-      .property-count {
-        color: var(--uui-color-text-alt);
       }
 
       .no-results {

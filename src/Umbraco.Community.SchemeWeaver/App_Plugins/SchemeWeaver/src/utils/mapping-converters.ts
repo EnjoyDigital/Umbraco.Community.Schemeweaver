@@ -2,7 +2,7 @@ import type { PropertyMappingDto, PropertyMappingSuggestion } from '../api/types
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 
 /** Popular Schema.org properties shown first in sorted order */
-const POPULAR_PROPERTIES = [
+export const POPULAR_PROPERTIES = [
   'name', 'headline', 'description', 'image', 'url',
   'author', 'datePublished', 'dateModified', 'sku', 'price',
 ];
@@ -26,6 +26,8 @@ export function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
     subMappings: [],
     selectedSubType: '',
     sourceContentTypeProperties: [],
+    dynamicRootConfig: undefined,
+    sourceDocumentTypeUnique: undefined,
   };
 }
 
@@ -48,6 +50,8 @@ export function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRo
     subMappings: [],
     selectedSubType: '',
     sourceContentTypeProperties: [],
+    dynamicRootConfig: undefined,
+    sourceDocumentTypeUnique: undefined,
   };
 }
 
@@ -74,8 +78,11 @@ export function mergeAutoMapSuggestions(
     rowMap.set(row.schemaPropertyName.toLowerCase(), { ...row });
   }
 
+  const suggestionKeys = new Set<string>();
+
   for (const suggestion of suggestions) {
     const key = suggestion.schemaPropertyName.toLowerCase();
+    suggestionKeys.add(key);
     const existing = rowMap.get(key);
 
     if (existing && rowHasUserData(existing)) {
@@ -86,6 +93,16 @@ export function mergeAutoMapSuggestions(
       // (user-configurable). Skip zero-confidence properties with no match to
       // avoid cluttering the table with empty rows.
       rowMap.set(key, suggestionToRow(suggestion));
+    }
+  }
+
+  // Remove stale placeholder rows that weren't in auto-map suggestions,
+  // have no user data, and aren't popular or complex type properties.
+  const popularSet = new Set(POPULAR_PROPERTIES.map(p => p.toLowerCase()));
+  for (const [key, row] of rowMap) {
+    if (!rowHasUserData(row) && !suggestionKeys.has(key) && row.confidence === null
+        && !row.isComplexType && !popularSet.has(key)) {
+      rowMap.delete(key);
     }
   }
 
@@ -103,13 +120,16 @@ export function mergeAutoMapSuggestions(
  * Shared between property-mapping-table, schema-mapping-view, and property-mapping-modal.
  */
 export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: string): PropertyMappingRow {
+  const needsRelated = newSourceType === 'parent' || newSourceType === 'ancestor' || newSourceType === 'sibling';
   return {
     ...row,
     sourceType: newSourceType,
     contentTypePropertyAlias: '',
     staticValue: '',
-    sourceContentTypeAlias: '',
-    sourceContentTypeProperties: [],
+    sourceContentTypeAlias: needsRelated ? row.sourceContentTypeAlias : '',
+    sourceContentTypeProperties: needsRelated ? row.sourceContentTypeProperties : [],
+    dynamicRootConfig: needsRelated ? row.dynamicRootConfig : undefined,
+    sourceDocumentTypeUnique: needsRelated ? row.sourceDocumentTypeUnique : undefined,
     nestedSchemaTypeName: (newSourceType === 'blockContent' || newSourceType === 'complexType')
       ? row.nestedSchemaTypeName : '',
     resolverConfig: (newSourceType === 'blockContent' || newSourceType === 'complexType')
@@ -118,6 +138,22 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: st
     subMappings: newSourceType === 'complexType' ? row.subMappings : [],
     selectedSubType: newSourceType === 'complexType' ? row.selectedSubType : '',
   };
+}
+
+/**
+ * Filter schema properties to only include relevant ones as placeholder rows.
+ * Only adds unmapped properties that are complex types or popular properties.
+ * This prevents the "Show more" section from being overwhelmed with 100+ irrelevant properties.
+ */
+export function filterRelevantSchemaProperties(
+  schemaProperties: Array<{ name: string; propertyType: string; acceptedTypes: string[]; isComplexType: boolean }>,
+  existingNames: Set<string>,
+): Array<{ name: string; propertyType: string; acceptedTypes: string[]; isComplexType: boolean }> {
+  const popularSet = new Set(POPULAR_PROPERTIES.map(p => p.toLowerCase()));
+  return schemaProperties.filter(sp => {
+    if (existingNames.has(sp.name.toLowerCase())) return false;
+    return sp.isComplexType || popularSet.has(sp.name.toLowerCase());
+  });
 }
 
 export function sortMappingRows(rows: PropertyMappingRow[]): PropertyMappingRow[] {
