@@ -1,77 +1,75 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@using Umbraco.Cms.Core.Models.Blocks
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<RecipePage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("authorName"))
+@if (!string.IsNullOrEmpty(Model.AuthorName))
 {
-    <p>By <strong>@Model.Value("authorName")</strong></p>
+    <p>By <strong>@Model.AuthorName</strong></p>
 }
 
-@if (Model.HasValue("recipeImage"))
+@if (!string.IsNullOrEmpty(Model.RecipeImage))
 {
-    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("recipeImage")?.MediaUrl();
+    var imageUrl = Model.RecipeImage?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
     {
-        <img src="@imageUrl" alt="@Model.Value("title")" />
+        <img src="@imageUrl" alt="@Model.Title" />
     }
 }
 
 <div class="card">
     <h2>Details</h2>
     <dl>
-        @if (Model.HasValue("prepTime"))
+        @if (!string.IsNullOrEmpty(Model.PrepTime))
         {
             <dt>Prep Time</dt>
-            <dd>@Model.Value("prepTime")</dd>
+            <dd>@Model.PrepTime</dd>
         }
-        @if (Model.HasValue("cookTime"))
+        @if (!string.IsNullOrEmpty(Model.CookTime))
         {
             <dt>Cook Time</dt>
-            <dd>@Model.Value("cookTime")</dd>
+            <dd>@Model.CookTime</dd>
         }
-        @if (Model.HasValue("totalTime"))
+        @if (!string.IsNullOrEmpty(Model.TotalTime))
         {
             <dt>Total Time</dt>
-            <dd>@Model.Value("totalTime")</dd>
+            <dd>@Model.TotalTime</dd>
         }
-        @if (Model.HasValue("recipeYield"))
+        @if (!string.IsNullOrEmpty(Model.RecipeYield))
         {
             <dt>Yield</dt>
-            <dd>@Model.Value("recipeYield")</dd>
+            <dd>@Model.RecipeYield</dd>
         }
-        @if (Model.HasValue("calories"))
+        @if (!string.IsNullOrEmpty(Model.Calories))
         {
             <dt>Calories</dt>
-            <dd>@Model.Value("calories")</dd>
+            <dd>@Model.Calories</dd>
         }
-        @if (Model.HasValue("recipeCategory"))
+        @if (!string.IsNullOrEmpty(Model.RecipeCategory))
         {
             <dt>Category</dt>
-            <dd>@Model.Value("recipeCategory")</dd>
+            <dd>@Model.RecipeCategory</dd>
         }
-        @if (Model.HasValue("recipeCuisine"))
+        @if (!string.IsNullOrEmpty(Model.RecipeCuisine))
         {
             <dt>Cuisine</dt>
-            <dd>@Model.Value("recipeCuisine")</dd>
+            <dd>@Model.RecipeCuisine</dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("ingredients"))
+@if (!string.IsNullOrEmpty(Model.Ingredients))
 {
     <div class="card">
         <h2>Ingredients</h2>
         <ul class="ingredient-list">
-            @foreach (var block in Model.Value<BlockListModel>("ingredients"))
+            @foreach (var block in Model.Ingredients)
             {
                 <li>@block.Content.Value("ingredient")</li>
             }
@@ -79,12 +77,12 @@
     </div>
 }
 
-@if (Model.HasValue("instructions"))
+@if (!string.IsNullOrEmpty(Model.Instructions))
 {
     <div class="card">
         <h2>Instructions</h2>
         <ol class="instruction-list">
-            @foreach (var block in Model.Value<BlockListModel>("instructions"))
+            @foreach (var block in Model.Instructions)
             {
                 <li>
                     @if (block.Content.HasValue("stepName"))
@@ -98,10 +96,10 @@
     </div>
 }
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
         <h2>Notes</h2>
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }

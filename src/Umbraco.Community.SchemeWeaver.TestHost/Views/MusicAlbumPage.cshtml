@@ -1,32 +1,31 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MusicAlbumPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Album Details</h2>
     <dl>
-        @if (Model.HasValue("byArtist"))
+        @if (!string.IsNullOrEmpty(Model.ByArtist))
         {
             <dt>Artist</dt>
-            <dd>@Model.Value("byArtist")</dd>
+            <dd>@Model.ByArtist</dd>
         }
-        @if (Model.HasValue("numTracks"))
+        @if (!string.IsNullOrEmpty(Model.NumTracks))
         {
             <dt>Tracks</dt>
-            <dd>@Model.Value("numTracks")</dd>
+            <dd>@Model.NumTracks</dd>
         }
-        @if (Model.HasValue("datePublished"))
+        @if (!string.IsNullOrEmpty(Model.DatePublished))
         {
             <dt>Released</dt>
-            <dd>@(((DateTime)Model.Value("datePublished")).ToString("d MMMM yyyy"))</dd>
+            <dd>@(((DateTime)Model.DatePublished).ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>

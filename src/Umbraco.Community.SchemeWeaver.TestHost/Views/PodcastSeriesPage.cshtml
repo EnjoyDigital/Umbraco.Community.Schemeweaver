@@ -1,27 +1,26 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<PodcastSeriesPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("authorName"))
+@if (!string.IsNullOrEmpty(Model.AuthorName))
 {
-    <p class="article-meta">By @Model.Value("authorName")</p>
+    <p class="article-meta">By @Model.AuthorName</p>
 }
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("webFeed"))
+@if (!string.IsNullOrEmpty(Model.WebFeed))
 {
     <div class="card">
         <h2>Subscribe</h2>
         <dl>
             <dt>RSS Feed</dt>
-            <dd><a href="@Model.Value("webFeed")">@Model.Value("webFeed")</a></dd>
+            <dd><a href="@Model.WebFeed">@Model.WebFeed</a></dd>
         </dl>
     </div>
 }

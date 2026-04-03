@@ -1,76 +1,74 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@using Umbraco.Cms.Core.Models.Blocks
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<SoftwarePage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("softwareImage"))
+@if (!string.IsNullOrEmpty(Model.SoftwareImage))
 {
-    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("softwareImage")?.MediaUrl();
+    var imageUrl = Model.SoftwareImage?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
     {
-        <img src="@imageUrl" alt="@Model.Value("title")" />
+        <img src="@imageUrl" alt="@Model.Title" />
     }
 }
 
 <div class="card">
     <h2>Software Details</h2>
     <dl>
-        @if (Model.HasValue("applicationCategory"))
+        @if (!string.IsNullOrEmpty(Model.ApplicationCategory))
         {
             <dt>Category</dt>
-            <dd>@Model.Value("applicationCategory")</dd>
+            <dd>@Model.ApplicationCategory</dd>
         }
-        @if (Model.HasValue("operatingSystem"))
+        @if (!string.IsNullOrEmpty(Model.OperatingSystem))
         {
             <dt>Operating System</dt>
-            <dd>@Model.Value("operatingSystem")</dd>
+            <dd>@Model.OperatingSystem</dd>
         }
-        @if (Model.HasValue("softwareVersion"))
+        @if (!string.IsNullOrEmpty(Model.SoftwareVersion))
         {
             <dt>Version</dt>
-            <dd>@Model.Value("softwareVersion")</dd>
+            <dd>@Model.SoftwareVersion</dd>
         }
-        @if (Model.HasValue("downloadUrl"))
+        @if (!string.IsNullOrEmpty(Model.DownloadUrl))
         {
             <dt>Download</dt>
-            <dd><a href="@Model.Value("downloadUrl")" class="btn">Download</a></dd>
+            <dd><a href="@Model.DownloadUrl" class="btn">Download</a></dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("price") || Model.HasValue("currency"))
+@if (!string.IsNullOrEmpty(Model.Price) || !string.IsNullOrEmpty(Model.Currency))
 {
     <div class="card">
         <h2>Pricing</h2>
         <p class="price">
-            @if (Model.HasValue("currency"))
+            @if (!string.IsNullOrEmpty(Model.Currency))
             {
-                @Model.Value("currency")
+                @Model.Currency
             }
-            @Model.Value("price")
+            @Model.Price
         </p>
     </div>
 }
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }
 
-@if (Model.HasValue("reviews"))
+@if (!string.IsNullOrEmpty(Model.Reviews))
 {
     <h2>Reviews</h2>
-    @foreach (var block in Model.Value<BlockListModel>("reviews"))
+    @foreach (var block in Model.Reviews)
     {
         <div class="card review-card">
             <strong>@block.Content.Value("reviewAuthor")</strong>

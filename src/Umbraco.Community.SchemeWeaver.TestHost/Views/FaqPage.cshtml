@@ -1,19 +1,17 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@using Umbraco.Cms.Core.Models.Blocks
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FaqPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
-@if (Model.HasValue("description"))
+<h1>@Model.Title</h1>
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("faqItems"))
+@if (Model.FaqItems != null && Model.FaqItems.Any())
 {
     <div class="faq-list">
-        @foreach (var block in Model.Value<BlockListModel>("faqItems"))
+        @foreach (var block in Model.FaqItems)
         {
             <div class="card faq-item">
                 <h3 class="faq-question">@block.Content.Value("question")</h3>
@@ -23,9 +21,9 @@
     </div>
 }
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }

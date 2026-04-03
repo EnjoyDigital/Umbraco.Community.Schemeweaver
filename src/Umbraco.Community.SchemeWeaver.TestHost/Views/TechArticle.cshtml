@@ -1,62 +1,61 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<TechArticle>
 @{
     Layout = "Master.cshtml";
 }
 <article>
-    <h1>@Model.Value("title")</h1>
+    <h1>@Model.Title</h1>
     <div class="article-meta">
-        @if (Model.HasValue("authorName"))
+        @if (!string.IsNullOrEmpty(Model.AuthorName))
         {
-            <span>By @Model.Value("authorName")</span>
+            <span>By @Model.AuthorName</span>
         }
-        @if (Model.HasValue("publishDate"))
+        @if (!string.IsNullOrEmpty(Model.PublishDate))
         {
-            <span> &middot; @(((DateTime)Model.Value("publishDate")).ToString("d MMMM yyyy"))</span>
+            <span> &middot; @(((DateTime)Model.PublishDate).ToString("d MMMM yyyy"))</span>
         }
     </div>
 
-    @if (Model.HasValue("proficiencyLevel") || Model.HasValue("dependencies"))
+    @if (!string.IsNullOrEmpty(Model.ProficiencyLevel) || !string.IsNullOrEmpty(Model.Dependencies))
     {
         <div class="card">
             <h2>Technical Details</h2>
             <dl>
-                @if (Model.HasValue("proficiencyLevel"))
+                @if (!string.IsNullOrEmpty(Model.ProficiencyLevel))
                 {
                     <dt>Proficiency Level</dt>
-                    <dd>@Model.Value("proficiencyLevel")</dd>
+                    <dd>@Model.ProficiencyLevel</dd>
                 }
-                @if (Model.HasValue("dependencies"))
+                @if (!string.IsNullOrEmpty(Model.Dependencies))
                 {
                     <dt>Dependencies</dt>
-                    <dd>@Model.Value("dependencies")</dd>
+                    <dd>@Model.Dependencies</dd>
                 }
             </dl>
         </div>
     }
 
-    @if (Model.HasValue("featuredImage"))
+    @if (!string.IsNullOrEmpty(Model.FeaturedImage))
     {
-        var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("featuredImage")?.MediaUrl();
+        var imageUrl = Model.FeaturedImage?.MediaUrl();
         if (!string.IsNullOrEmpty(imageUrl))
         {
-            <img src="@imageUrl" alt="@Model.Value("title")" class="featured-image" />
+            <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
         }
     }
-    @if (Model.HasValue("description"))
+    @if (!string.IsNullOrEmpty(Model.Description))
     {
-        <p class="lead">@Model.Value("description")</p>
+        <p class="lead">@Model.Description</p>
     }
-    @if (Model.HasValue("bodyText"))
+    @if (!string.IsNullOrEmpty(Model.BodyText))
     {
         <div class="card">
-            @Model.Value("bodyText")
+            @Model.BodyText
         </div>
     }
-    @if (Model.HasValue("keywords"))
+    @if (!string.IsNullOrEmpty(Model.Keywords))
     {
         <div class="tag-list">
-            @foreach (var keyword in Model.Value("keywords").ToString().Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries))
+            @foreach (var keyword in Model.Keywords.ToString().Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries))
             {
                 <span class="tag">@keyword</span>
             }

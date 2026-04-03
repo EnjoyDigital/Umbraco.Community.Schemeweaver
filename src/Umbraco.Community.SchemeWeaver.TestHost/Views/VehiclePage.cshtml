@@ -1,59 +1,58 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<VehiclePage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Vehicle Details</h2>
     <dl>
-        @if (Model.HasValue("brand"))
+        @if (!string.IsNullOrEmpty(Model.Brand))
         {
             <dt>Brand</dt>
-            <dd>@Model.Value("brand")</dd>
+            <dd>@Model.Brand</dd>
         }
-        @if (Model.HasValue("model"))
+        @if (!string.IsNullOrEmpty(Model.Model))
         {
             <dt>Model</dt>
-            <dd>@Model.Value("model")</dd>
+            <dd>@Model.Model</dd>
         }
-        @if (Model.HasValue("fuelType"))
+        @if (!string.IsNullOrEmpty(Model.FuelType))
         {
             <dt>Fuel Type</dt>
-            <dd>@Model.Value("fuelType")</dd>
+            <dd>@Model.FuelType</dd>
         }
-        @if (Model.HasValue("mileageFromOdometer"))
+        @if (!string.IsNullOrEmpty(Model.MileageFromOdometer))
         {
             <dt>Mileage</dt>
-            <dd>@Model.Value("mileageFromOdometer")</dd>
+            <dd>@Model.MileageFromOdometer</dd>
         }
-        @if (Model.HasValue("vehicleEngine"))
+        @if (!string.IsNullOrEmpty(Model.VehicleEngine))
         {
             <dt>Engine</dt>
-            <dd>@Model.Value("vehicleEngine")</dd>
+            <dd>@Model.VehicleEngine</dd>
         }
-        @if (Model.HasValue("color"))
+        @if (!string.IsNullOrEmpty(Model.Color))
         {
             <dt>Colour</dt>
-            <dd>@Model.Value("color")</dd>
+            <dd>@Model.Color</dd>
         }
-        @if (Model.HasValue("numberOfDoors"))
+        @if (!string.IsNullOrEmpty(Model.NumberOfDoors))
         {
             <dt>Doors</dt>
-            <dd>@Model.Value("numberOfDoors")</dd>
+            <dd>@Model.NumberOfDoors</dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }

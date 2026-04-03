@@ -1,27 +1,26 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<DatasetPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Dataset Details</h2>
     <dl>
-        @if (Model.HasValue("distribution"))
+        @if (!string.IsNullOrEmpty(Model.Distribution))
         {
             <dt>Distribution</dt>
-            <dd><a href="@Model.Value("distribution")">@Model.Value("distribution")</a></dd>
+            <dd><a href="@Model.Distribution">@Model.Distribution</a></dd>
         }
-        @if (Model.HasValue("license"))
+        @if (!string.IsNullOrEmpty(Model.License))
         {
             <dt>Licence</dt>
-            <dd>@Model.Value("license")</dd>
+            <dd>@Model.License</dd>
         }
     </dl>
 </div>

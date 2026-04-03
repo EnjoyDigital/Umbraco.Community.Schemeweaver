@@ -1,27 +1,26 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<DrugPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Drug Details</h2>
     <dl>
-        @if (Model.HasValue("activeIngredient"))
+        @if (!string.IsNullOrEmpty(Model.ActiveIngredient))
         {
             <dt>Active Ingredient</dt>
-            <dd>@Model.Value("activeIngredient")</dd>
+            <dd>@Model.ActiveIngredient</dd>
         }
-        @if (Model.HasValue("dosageForm"))
+        @if (!string.IsNullOrEmpty(Model.DosageForm))
         {
             <dt>Dosage Form</dt>
-            <dd>@Model.Value("dosageForm")</dd>
+            <dd>@Model.DosageForm</dd>
         }
     </dl>
 </div>

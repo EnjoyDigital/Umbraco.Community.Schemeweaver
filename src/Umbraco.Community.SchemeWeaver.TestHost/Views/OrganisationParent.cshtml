@@ -1,29 +1,28 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<OrganisationParent>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("telephone") || Model.HasValue("email"))
+@if (!string.IsNullOrEmpty(Model.Telephone) || !string.IsNullOrEmpty(Model.Email))
 {
     <div class="card">
         <h2>Contact</h2>
         <dl>
-            @if (Model.HasValue("telephone"))
+            @if (!string.IsNullOrEmpty(Model.Telephone))
             {
                 <dt>Telephone</dt>
-                <dd>@Model.Value("telephone")</dd>
+                <dd>@Model.Telephone</dd>
             }
-            @if (Model.HasValue("email"))
+            @if (!string.IsNullOrEmpty(Model.Email))
             {
                 <dt>Email</dt>
-                <dd><a href="mailto:@Model.Value("email")">@Model.Value("email")</a></dd>
+                <dd><a href="mailto:@Model.Email">@Model.Email</a></dd>
             }
         </dl>
     </div>
@@ -32,25 +31,25 @@
 <div class="card">
     <h2>Address</h2>
     <dl>
-        @if (Model.HasValue("streetAddress"))
+        @if (!string.IsNullOrEmpty(Model.StreetAddress))
         {
             <dt>Street</dt>
-            <dd>@Model.Value("streetAddress")</dd>
+            <dd>@Model.StreetAddress</dd>
         }
-        @if (Model.HasValue("addressLocality"))
+        @if (!string.IsNullOrEmpty(Model.AddressLocality))
         {
             <dt>Locality</dt>
-            <dd>@Model.Value("addressLocality")</dd>
+            <dd>@Model.AddressLocality</dd>
         }
-        @if (Model.HasValue("postalCode"))
+        @if (!string.IsNullOrEmpty(Model.PostalCode))
         {
             <dt>Post Code</dt>
-            <dd>@Model.Value("postalCode")</dd>
+            <dd>@Model.PostalCode</dd>
         }
-        @if (Model.HasValue("addressCountry"))
+        @if (!string.IsNullOrEmpty(Model.AddressCountry))
         {
             <dt>Country</dt>
-            <dd>@Model.Value("addressCountry")</dd>
+            <dd>@Model.AddressCountry</dd>
         }
     </dl>
 </div>

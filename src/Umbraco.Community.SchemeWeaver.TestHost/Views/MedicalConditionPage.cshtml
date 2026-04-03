@@ -1,32 +1,31 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MedicalConditionPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Condition Details</h2>
     <dl>
-        @if (Model.HasValue("possibleTreatment"))
+        @if (!string.IsNullOrEmpty(Model.PossibleTreatment))
         {
             <dt>Possible Treatment</dt>
-            <dd>@Model.Value("possibleTreatment")</dd>
+            <dd>@Model.PossibleTreatment</dd>
         }
-        @if (Model.HasValue("riskFactor"))
+        @if (!string.IsNullOrEmpty(Model.RiskFactor))
         {
             <dt>Risk Factor</dt>
-            <dd>@Model.Value("riskFactor")</dd>
+            <dd>@Model.RiskFactor</dd>
         }
-        @if (Model.HasValue("signOrSymptom"))
+        @if (!string.IsNullOrEmpty(Model.SignOrSymptom))
         {
             <dt>Signs &amp; Symptoms</dt>
-            <dd>@Model.Value("signOrSymptom")</dd>
+            <dd>@Model.SignOrSymptom</dd>
         }
     </dl>
 </div>

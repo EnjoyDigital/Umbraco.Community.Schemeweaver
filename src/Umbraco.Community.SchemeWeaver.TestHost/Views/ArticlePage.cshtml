@@ -1,51 +1,50 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ArticlePage>
 @{
     Layout = "Master.cshtml";
 }
 <article>
-    <h1>@Model.Value("title")</h1>
+    <h1>@Model.Title</h1>
 
-    @if (Model.HasValue("authorName") || Model.HasValue("datePublished"))
+    @if (!string.IsNullOrEmpty(Model.AuthorName) || !string.IsNullOrEmpty(Model.DatePublished))
     {
         <p class="article-meta">
-            @if (Model.HasValue("authorName"))
+            @if (!string.IsNullOrEmpty(Model.AuthorName))
             {
-                <span>By @Model.Value("authorName")</span>
+                <span>By @Model.AuthorName</span>
             }
-            @if (Model.HasValue("datePublished"))
+            @if (!string.IsNullOrEmpty(Model.DatePublished))
             {
-                <span> &mdash; @Model.Value("datePublished")</span>
+                <span> &mdash; @Model.DatePublished</span>
             }
         </p>
     }
 
-    @if (Model.HasValue("description"))
+    @if (!string.IsNullOrEmpty(Model.Description))
     {
-        <p class="lead">@Model.Value("description")</p>
+        <p class="lead">@Model.Description</p>
     }
 
-    @if (Model.HasValue("bodyText"))
+    @if (!string.IsNullOrEmpty(Model.BodyText))
     {
         <div class="card">
-            @Html.Raw(Model.Value("bodyText"))
+            @Html.Raw(Model.BodyText)
         </div>
     }
 
-    @if (Model.HasValue("articleSection") || Model.HasValue("wordCount"))
+    @if (!string.IsNullOrEmpty(Model.ArticleSection) || !string.IsNullOrEmpty(Model.WordCount))
     {
         <div class="card">
             <h2>Article Details</h2>
             <dl>
-                @if (Model.HasValue("articleSection"))
+                @if (!string.IsNullOrEmpty(Model.ArticleSection))
                 {
                     <dt>Section</dt>
-                    <dd>@Model.Value("articleSection")</dd>
+                    <dd>@Model.ArticleSection</dd>
                 }
-                @if (Model.HasValue("wordCount"))
+                @if (!string.IsNullOrEmpty(Model.WordCount))
                 {
                     <dt>Word Count</dt>
-                    <dd>@Model.Value("wordCount")</dd>
+                    <dd>@Model.WordCount</dd>
                 }
             </dl>
         </div>

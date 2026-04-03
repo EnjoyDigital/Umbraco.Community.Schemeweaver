@@ -1,47 +1,46 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<VideoPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("embedUrl"))
+@if (!string.IsNullOrEmpty(Model.EmbedUrl))
 {
     <div class="video-embed">
-        <iframe src="@Model.Value("embedUrl")" allowfullscreen></iframe>
+        <iframe src="@Model.EmbedUrl" allowfullscreen></iframe>
     </div>
 }
-else if (Model.HasValue("thumbnailUrl"))
+else if (!string.IsNullOrEmpty(Model.ThumbnailUrl))
 {
-    var thumbUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("thumbnailUrl")?.MediaUrl();
+    var thumbUrl = Model.ThumbnailUrl?.MediaUrl();
     if (!string.IsNullOrEmpty(thumbUrl))
     {
-        <img src="@thumbUrl" alt="@Model.Value("title")" class="featured-image" />
+        <img src="@thumbUrl" alt="@Model.Title" class="featured-image" />
     }
 }
 
 <div class="card">
     <h2>Video Details</h2>
     <dl>
-        @if (Model.HasValue("uploadDate"))
+        @if (!string.IsNullOrEmpty(Model.UploadDate))
         {
             <dt>Upload Date</dt>
-            <dd>@(((DateTime)Model.Value("uploadDate")).ToString("d MMMM yyyy"))</dd>
+            <dd>@(((DateTime)Model.UploadDate).ToString("d MMMM yyyy"))</dd>
         }
-        @if (Model.HasValue("duration"))
+        @if (!string.IsNullOrEmpty(Model.Duration))
         {
             <dt>Duration</dt>
-            <dd>@Model.Value("duration")</dd>
+            <dd>@Model.Duration</dd>
         }
-        @if (Model.HasValue("contentUrl"))
+        @if (!string.IsNullOrEmpty(Model.ContentUrl))
         {
             <dt>Video URL</dt>
-            <dd><a href="@Model.Value("contentUrl")">@Model.Value("contentUrl")</a></dd>
+            <dd><a href="@Model.ContentUrl">@Model.ContentUrl</a></dd>
         }
     </dl>
 </div>

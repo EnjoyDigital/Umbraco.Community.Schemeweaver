@@ -1,67 +1,66 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<CoursePage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("courseImage"))
+@if (Model.CourseImage != null)
 {
-    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("courseImage")?.MediaUrl();
+    var imageUrl = Model.CourseImage?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
     {
-        <img src="@imageUrl" alt="@Model.Value("title")" />
+        <img src="@imageUrl" alt="@Model.Title" />
     }
 }
 
 <div class="card">
     <h2>Course Details</h2>
     <dl>
-        @if (Model.HasValue("courseCode"))
+        @if (!string.IsNullOrEmpty(Model.CourseCode))
         {
             <dt>Course Code</dt>
-            <dd>@Model.Value("courseCode")</dd>
+            <dd>@Model.CourseCode</dd>
         }
-        @if (Model.HasValue("provider"))
+        @if (!string.IsNullOrEmpty(Model.Provider))
         {
             <dt>Provider</dt>
-            <dd>@Model.Value("provider")</dd>
+            <dd>@Model.Provider</dd>
         }
-        @if (Model.HasValue("duration"))
+        @if (!string.IsNullOrEmpty(Model.Duration))
         {
             <dt>Duration</dt>
-            <dd>@Model.Value("duration")</dd>
+            <dd>@Model.Duration</dd>
         }
-        @if (Model.HasValue("startDate"))
+        @if (Model.StartDate != default)
         {
             <dt>Start Date</dt>
-            <dd>@(((DateTime)Model.Value("startDate")).ToString("d MMMM yyyy"))</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("price"))
+@if (!string.IsNullOrEmpty(Model.Price))
 {
     <div class="card">
         <p class="price">
-            @if (Model.HasValue("currency"))
+            @if (!string.IsNullOrEmpty(Model.Currency))
             {
-                @Model.Value("currency")
+                @Model.Currency
             }
-            @Model.Value("price")
+            @Model.Price
         </p>
         <a href="#enrol" class="btn">Enrol Now</a>
     </div>
 }
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }

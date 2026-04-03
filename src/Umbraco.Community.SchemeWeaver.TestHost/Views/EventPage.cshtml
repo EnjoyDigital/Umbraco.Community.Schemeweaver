@@ -1,46 +1,45 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<EventPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("eventImage"))
+@if (Model.EventImage != null)
 {
-    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("eventImage")?.MediaUrl();
+    var imageUrl = Model.EventImage?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
     {
-        <img src="@imageUrl" alt="@Model.Value("title")" />
+        <img src="@imageUrl" alt="@Model.Title" />
     }
 }
 
 <div class="card">
     <h2>Event Details</h2>
     <dl>
-        @if (Model.HasValue("startDate"))
+        @if (Model.StartDate != default)
         {
             <dt>Start Date</dt>
-            <dd>@(((DateTime)Model.Value("startDate")).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
-        @if (Model.HasValue("endDate"))
+        @if (Model.EndDate != default)
         {
             <dt>End Date</dt>
-            <dd>@(((DateTime)Model.Value("endDate")).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(Model.EndDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
-        @if (Model.HasValue("eventStatus"))
+        @if (!string.IsNullOrEmpty(Model.EventStatus))
         {
             <dt>Status</dt>
-            <dd>@Model.Value("eventStatus")</dd>
+            <dd>@Model.EventStatus</dd>
         }
-        @if (Model.HasValue("eventAttendanceMode"))
+        @if (!string.IsNullOrEmpty(Model.EventAttendanceMode))
         {
             <dt>Attendance Mode</dt>
-            <dd>@Model.Value("eventAttendanceMode")</dd>
+            <dd>@Model.EventAttendanceMode</dd>
         }
     </dl>
 </div>
@@ -48,50 +47,50 @@
 <div class="card">
     <h2>Venue</h2>
     <dl>
-        @if (Model.HasValue("locationName"))
+        @if (!string.IsNullOrEmpty(Model.LocationName))
         {
             <dt>Location</dt>
-            <dd>@Model.Value("locationName")</dd>
+            <dd>@Model.LocationName</dd>
         }
-        @if (Model.HasValue("locationAddress"))
+        @if (!string.IsNullOrEmpty(Model.LocationAddress))
         {
             <dt>Address</dt>
-            <dd>@Model.Value("locationAddress")</dd>
+            <dd>@Model.LocationAddress</dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("organiserName"))
+@if (!string.IsNullOrEmpty(Model.OrganiserName))
 {
     <div class="card">
         <h2>Organiser</h2>
         <dl>
             <dt>Organised by</dt>
-            <dd>@Model.Value("organiserName")</dd>
+            <dd>@Model.OrganiserName</dd>
         </dl>
     </div>
 }
 
-@if (Model.HasValue("ticketPrice") || Model.HasValue("ticketCurrency") || Model.HasValue("ticketUrl"))
+@if (!string.IsNullOrEmpty(Model.TicketPrice) || !string.IsNullOrEmpty(Model.TicketCurrency) || !string.IsNullOrEmpty(Model.TicketUrl))
 {
     <div class="card">
         <h2>Tickets</h2>
         <dl>
-            @if (Model.HasValue("ticketPrice"))
+            @if (!string.IsNullOrEmpty(Model.TicketPrice))
             {
                 <dt>Price</dt>
                 <dd>
-                    @if (Model.HasValue("ticketCurrency"))
+                    @if (!string.IsNullOrEmpty(Model.TicketCurrency))
                     {
-                        @Model.Value("ticketCurrency")
+                        @Model.TicketCurrency
                     }
-                    @Model.Value("ticketPrice")
+                    @Model.TicketPrice
                 </dd>
             }
-            @if (Model.HasValue("ticketUrl"))
+            @if (!string.IsNullOrEmpty(Model.TicketUrl))
             {
                 <dt>Book Tickets</dt>
-                <dd><a href="@Model.Value("ticketUrl")" class="btn">Buy tickets</a></dd>
+                <dd><a href="@Model.TicketUrl" class="btn">Buy tickets</a></dd>
             }
         </dl>
     </div>

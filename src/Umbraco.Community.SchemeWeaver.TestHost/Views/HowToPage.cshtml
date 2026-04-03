@@ -1,51 +1,49 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@using Umbraco.Cms.Core.Models.Blocks
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<HowToPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("heroImage"))
+@if (Model.HeroImage != null)
 {
-    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage")?.MediaUrl();
+    var imageUrl = Model.HeroImage?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
     {
-        <img src="@imageUrl" alt="@Model.Value("title")" class="featured-image" />
+        <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
     }
 }
 
-@if (Model.HasValue("totalTime") || Model.HasValue("estimatedCost"))
+@if (!string.IsNullOrEmpty(Model.TotalTime) || !string.IsNullOrEmpty(Model.EstimatedCost))
 {
     <div class="meta-grid">
-        @if (Model.HasValue("totalTime"))
+        @if (!string.IsNullOrEmpty(Model.TotalTime))
         {
             <div class="meta-item">
                 <div class="label">Total Time</div>
-                <div class="value">@Model.Value("totalTime")</div>
+                <div class="value">@Model.TotalTime</div>
             </div>
         }
-        @if (Model.HasValue("estimatedCost"))
+        @if (!string.IsNullOrEmpty(Model.EstimatedCost))
         {
             <div class="meta-item">
                 <div class="label">Estimated Cost</div>
-                <div class="value">@Model.Value("estimatedCost")</div>
+                <div class="value">@Model.EstimatedCost</div>
             </div>
         }
     </div>
 }
 
-@if (Model.HasValue("steps"))
+@if (Model.Steps != null && Model.Steps.Any())
 {
     <div class="card">
         <h2>Steps</h2>
         <ol class="instruction-list">
-            @foreach (var block in Model.Value<BlockListModel>("steps"))
+            @foreach (var block in Model.Steps)
             {
                 <li>
                     @if (block.Content.HasValue("stepName"))
@@ -62,12 +60,12 @@
     </div>
 }
 
-@if (Model.HasValue("tools"))
+@if (Model.Tools != null && Model.Tools.Any())
 {
     <div class="card">
         <h2>Tools Required</h2>
         <ul class="ingredient-list">
-            @foreach (var block in Model.Value<BlockListModel>("tools"))
+            @foreach (var block in Model.Tools)
             {
                 <li>@block.Content.Value("toolName")</li>
             }

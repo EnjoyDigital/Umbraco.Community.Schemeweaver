@@ -1,65 +1,64 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<JobPostingPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Job Details</h2>
     <dl>
-        @if (Model.HasValue("employmentType"))
+        @if (!string.IsNullOrEmpty(Model.EmploymentType))
         {
             <dt>Employment Type</dt>
-            <dd>@Model.Value("employmentType")</dd>
+            <dd>@Model.EmploymentType</dd>
         }
-        @if (Model.HasValue("baseSalary"))
+        @if (!string.IsNullOrEmpty(Model.BaseSalary))
         {
             <dt>Salary</dt>
-            <dd>@Model.Value("baseSalary")</dd>
+            <dd>@Model.BaseSalary</dd>
         }
-        @if (Model.HasValue("jobLocation"))
+        @if (!string.IsNullOrEmpty(Model.JobLocation))
         {
             <dt>Location</dt>
-            <dd>@Model.Value("jobLocation")</dd>
+            <dd>@Model.JobLocation</dd>
         }
-        @if (Model.HasValue("hiringOrganisation"))
+        @if (!string.IsNullOrEmpty(Model.HiringOrganisation))
         {
             <dt>Organisation</dt>
-            <dd>@Model.Value("hiringOrganisation")</dd>
+            <dd>@Model.HiringOrganisation</dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("datePosted") || Model.HasValue("validThrough"))
+@if (!string.IsNullOrEmpty(Model.DatePosted) || !string.IsNullOrEmpty(Model.ValidThrough))
 {
     <div class="card">
         <dl>
-            @if (Model.HasValue("datePosted"))
+            @if (!string.IsNullOrEmpty(Model.DatePosted))
             {
                 <dt>Date Posted</dt>
-                <dd>@(((DateTime)Model.Value("datePosted")).ToString("d MMMM yyyy"))</dd>
+                <dd>@(((DateTime)Model.DatePosted).ToString("d MMMM yyyy"))</dd>
             }
-            @if (Model.HasValue("validThrough"))
+            @if (!string.IsNullOrEmpty(Model.ValidThrough))
             {
                 <dt>Closing Date</dt>
-                <dd>@(((DateTime)Model.Value("validThrough")).ToString("d MMMM yyyy"))</dd>
+                <dd>@(((DateTime)Model.ValidThrough).ToString("d MMMM yyyy"))</dd>
             }
         </dl>
     </div>
 }
 
-@if (Model.HasValue("qualifications"))
+@if (!string.IsNullOrEmpty(Model.Qualifications))
 {
     <div class="card">
         <h2>Qualifications</h2>
         <ul class="ingredient-list">
-            @foreach (var qual in Model.Value("qualifications").ToString().Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries))
+            @foreach (var qual in Model.Qualifications.ToString().Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries))
             {
                 <li>@qual</li>
             }
@@ -67,14 +66,14 @@
     </div>
 }
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }
 
-@if (Model.HasValue("applicationUrl"))
+@if (!string.IsNullOrEmpty(Model.ApplicationUrl))
 {
-    <a href="@Model.Value("applicationUrl")" class="btn">Apply Now</a>
+    <a href="@Model.ApplicationUrl" class="btn">Apply Now</a>
 }

@@ -1,34 +1,33 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContactPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
 <div class="card">
     <dl>
-        @if (Model.HasValue("telephone"))
+        @if (!string.IsNullOrEmpty(Model.Telephone))
         {
             <dt>Telephone</dt>
-            <dd>@Model.Value("telephone")</dd>
+            <dd>@Model.Telephone</dd>
         }
-        @if (Model.HasValue("email"))
+        @if (!string.IsNullOrEmpty(Model.Email))
         {
             <dt>Email</dt>
-            <dd><a href="mailto:@Model.Value("email")">@Model.Value("email")</a></dd>
+            <dd><a href="mailto:@Model.Email">@Model.Email</a></dd>
         }
-        @if (Model.HasValue("streetAddress"))
+        @if (!string.IsNullOrEmpty(Model.StreetAddress))
         {
             <dt>Address</dt>
             <dd>
-                @Model.Value("streetAddress")<br />
-                @Model.Value("addressLocality") @Model.Value("postalCode")
+                @Model.StreetAddress<br />
+                @Model.AddressLocality @Model.PostalCode
             </dd>
         }
-        @if (Model.HasValue("openingHours"))
+        @if (!string.IsNullOrEmpty(Model.OpeningHours))
         {
             <dt>Opening Hours</dt>
-            <dd>@Model.Value("openingHours")</dd>
+            <dd>@Model.OpeningHours</dd>
         }
     </dl>
 </div>

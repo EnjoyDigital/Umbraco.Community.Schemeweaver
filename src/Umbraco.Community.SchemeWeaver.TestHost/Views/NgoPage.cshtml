@@ -1,27 +1,26 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<NgoPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Organisation Details</h2>
     <dl>
-        @if (Model.HasValue("foundingDate"))
+        @if (!string.IsNullOrEmpty(Model.FoundingDate))
         {
             <dt>Founded</dt>
-            <dd>@Model.Value("foundingDate")</dd>
+            <dd>@Model.FoundingDate</dd>
         }
-        @if (Model.HasValue("areaServed"))
+        @if (!string.IsNullOrEmpty(Model.AreaServed))
         {
             <dt>Area Served</dt>
-            <dd>@Model.Value("areaServed")</dd>
+            <dd>@Model.AreaServed</dd>
         }
     </dl>
 </div>

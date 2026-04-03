@@ -1,37 +1,36 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MoviePage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Film Details</h2>
     <dl>
-        @if (Model.HasValue("director"))
+        @if (!string.IsNullOrEmpty(Model.Director))
         {
             <dt>Director</dt>
-            <dd>@Model.Value("director")</dd>
+            <dd>@Model.Director</dd>
         }
-        @if (Model.HasValue("actor"))
+        @if (!string.IsNullOrEmpty(Model.Actor))
         {
             <dt>Cast</dt>
-            <dd>@Model.Value("actor")</dd>
+            <dd>@Model.Actor</dd>
         }
-        @if (Model.HasValue("duration"))
+        @if (!string.IsNullOrEmpty(Model.Duration))
         {
             <dt>Duration</dt>
-            <dd>@Model.Value("duration")</dd>
+            <dd>@Model.Duration</dd>
         }
-        @if (Model.HasValue("dateCreated"))
+        @if (!string.IsNullOrEmpty(Model.DateCreated))
         {
             <dt>Released</dt>
-            <dd>@(((DateTime)Model.Value("dateCreated")).ToString("d MMMM yyyy"))</dd>
+            <dd>@(((DateTime)Model.DateCreated).ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>

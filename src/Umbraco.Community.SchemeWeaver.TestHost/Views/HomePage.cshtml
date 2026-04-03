@@ -1,34 +1,33 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<HomePage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("siteName")</h1>
+<h1>@Model.SiteName</h1>
 
-@if (Model.HasValue("siteDescription"))
+@if (!string.IsNullOrEmpty(Model.SiteDescription))
 {
-    <p class="lead">@Model.Value("siteDescription")</p>
+    <p class="lead">@Model.SiteDescription</p>
 }
 
-@if (Model.HasValue("organisationName") || Model.HasValue("organisationEmail") || Model.HasValue("organisationTelephone"))
+@if (!string.IsNullOrEmpty(Model.OrganisationName) || !string.IsNullOrEmpty(Model.OrganisationEmail) || !string.IsNullOrEmpty(Model.OrganisationTelephone))
 {
     <div class="card">
         <h2>Organisation</h2>
         <dl>
-            @if (Model.HasValue("organisationName"))
+            @if (!string.IsNullOrEmpty(Model.OrganisationName))
             {
                 <dt>Name</dt>
-                <dd>@Model.Value("organisationName")</dd>
+                <dd>@Model.OrganisationName</dd>
             }
-            @if (Model.HasValue("organisationEmail"))
+            @if (!string.IsNullOrEmpty(Model.OrganisationEmail))
             {
                 <dt>Email</dt>
-                <dd><a href="mailto:@Model.Value("organisationEmail")">@Model.Value("organisationEmail")</a></dd>
+                <dd><a href="mailto:@Model.OrganisationEmail">@Model.OrganisationEmail</a></dd>
             }
-            @if (Model.HasValue("organisationTelephone"))
+            @if (!string.IsNullOrEmpty(Model.OrganisationTelephone))
             {
                 <dt>Telephone</dt>
-                <dd>@Model.Value("organisationTelephone")</dd>
+                <dd>@Model.OrganisationTelephone</dd>
             }
         </dl>
     </div>

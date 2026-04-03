@@ -1,42 +1,41 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MusicEventPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Event Details</h2>
     <dl>
-        @if (Model.HasValue("performer"))
+        @if (!string.IsNullOrEmpty(Model.Performer))
         {
             <dt>Performer</dt>
-            <dd>@Model.Value("performer")</dd>
+            <dd>@Model.Performer</dd>
         }
-        @if (Model.HasValue("startDate"))
+        @if (!string.IsNullOrEmpty(Model.StartDate))
         {
             <dt>Start Date</dt>
-            <dd>@(((DateTime)Model.Value("startDate")).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(((DateTime)Model.StartDate).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
-        @if (Model.HasValue("endDate"))
+        @if (!string.IsNullOrEmpty(Model.EndDate))
         {
             <dt>End Date</dt>
-            <dd>@(((DateTime)Model.Value("endDate")).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(((DateTime)Model.EndDate).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
-        @if (Model.HasValue("locationName"))
+        @if (!string.IsNullOrEmpty(Model.LocationName))
         {
             <dt>Venue</dt>
-            <dd>@Model.Value("locationName")</dd>
+            <dd>@Model.LocationName</dd>
         }
-        @if (Model.HasValue("locationAddress"))
+        @if (!string.IsNullOrEmpty(Model.LocationAddress))
         {
             <dt>Address</dt>
-            <dd>@Model.Value("locationAddress")</dd>
+            <dd>@Model.LocationAddress</dd>
         }
     </dl>
 </div>

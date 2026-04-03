@@ -1,59 +1,58 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<OfferPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("price") || Model.HasValue("priceCurrency") || Model.HasValue("availability"))
+@if (!string.IsNullOrEmpty(Model.Price) || !string.IsNullOrEmpty(Model.PriceCurrency) || !string.IsNullOrEmpty(Model.Availability))
 {
     <div class="card">
         <h2>Offer Details</h2>
         <dl>
-            @if (Model.HasValue("price"))
+            @if (!string.IsNullOrEmpty(Model.Price))
             {
                 <dt>Price</dt>
                 <dd>
-                    @Model.Value("price")
-                    @if (Model.HasValue("priceCurrency"))
+                    @Model.Price
+                    @if (!string.IsNullOrEmpty(Model.PriceCurrency))
                     {
-                        <span>@Model.Value("priceCurrency")</span>
+                        <span>@Model.PriceCurrency</span>
                     }
                 </dd>
             }
-            @if (Model.HasValue("availability"))
+            @if (!string.IsNullOrEmpty(Model.Availability))
             {
                 <dt>Availability</dt>
-                <dd>@Model.Value("availability")</dd>
+                <dd>@Model.Availability</dd>
             }
-            @if (Model.HasValue("itemOffered"))
+            @if (!string.IsNullOrEmpty(Model.ItemOffered))
             {
                 <dt>Item Offered</dt>
-                <dd>@Model.Value("itemOffered")</dd>
+                <dd>@Model.ItemOffered</dd>
             }
         </dl>
     </div>
 }
 
-@if (Model.HasValue("validFrom") || Model.HasValue("validThrough"))
+@if (!string.IsNullOrEmpty(Model.ValidFrom) || !string.IsNullOrEmpty(Model.ValidThrough))
 {
     <div class="card">
         <h2>Validity</h2>
         <dl>
-            @if (Model.HasValue("validFrom"))
+            @if (!string.IsNullOrEmpty(Model.ValidFrom))
             {
                 <dt>Valid From</dt>
-                <dd>@Model.Value("validFrom")</dd>
+                <dd>@Model.ValidFrom</dd>
             }
-            @if (Model.HasValue("validThrough"))
+            @if (!string.IsNullOrEmpty(Model.ValidThrough))
             {
                 <dt>Valid Through</dt>
-                <dd>@Model.Value("validThrough")</dd>
+                <dd>@Model.ValidThrough</dd>
             }
         </dl>
     </div>

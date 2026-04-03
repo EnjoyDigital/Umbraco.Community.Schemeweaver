@@ -1,43 +1,42 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ServicePage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
-@if (Model.HasValue("serviceType") || Model.HasValue("provider") || Model.HasValue("areaServed"))
+@if (!string.IsNullOrEmpty(Model.ServiceType) || !string.IsNullOrEmpty(Model.Provider) || !string.IsNullOrEmpty(Model.AreaServed))
 {
     <div class="card">
         <h2>Service Details</h2>
         <dl>
-            @if (Model.HasValue("serviceType"))
+            @if (!string.IsNullOrEmpty(Model.ServiceType))
             {
                 <dt>Service Type</dt>
-                <dd>@Model.Value("serviceType")</dd>
+                <dd>@Model.ServiceType</dd>
             }
-            @if (Model.HasValue("provider"))
+            @if (!string.IsNullOrEmpty(Model.Provider))
             {
                 <dt>Provider</dt>
-                <dd>@Model.Value("provider")</dd>
+                <dd>@Model.Provider</dd>
             }
-            @if (Model.HasValue("areaServed"))
+            @if (!string.IsNullOrEmpty(Model.AreaServed))
             {
                 <dt>Area Served</dt>
-                <dd>@Model.Value("areaServed")</dd>
+                <dd>@Model.AreaServed</dd>
             }
         </dl>
     </div>
 }
 
-@if (Model.HasValue("price"))
+@if (!string.IsNullOrEmpty(Model.Price))
 {
     <div class="card">
         <h2>Pricing</h2>
-        <p class="price-range">@Model.Value("price")</p>
+        <p class="price-range">@Model.Price</p>
     </div>
 }

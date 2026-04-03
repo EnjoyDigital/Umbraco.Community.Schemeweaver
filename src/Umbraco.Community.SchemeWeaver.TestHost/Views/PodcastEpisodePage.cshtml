@@ -1,27 +1,26 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<PodcastEpisodePage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Episode Details</h2>
     <dl>
-        @if (Model.HasValue("duration"))
+        @if (!string.IsNullOrEmpty(Model.Duration))
         {
             <dt>Duration</dt>
-            <dd>@Model.Value("duration")</dd>
+            <dd>@Model.Duration</dd>
         }
-        @if (Model.HasValue("datePublished"))
+        @if (!string.IsNullOrEmpty(Model.DatePublished))
         {
             <dt>Published</dt>
-            <dd>@(((DateTime)Model.Value("datePublished")).ToString("d MMMM yyyy"))</dd>
+            <dd>@(((DateTime)Model.DatePublished).ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>

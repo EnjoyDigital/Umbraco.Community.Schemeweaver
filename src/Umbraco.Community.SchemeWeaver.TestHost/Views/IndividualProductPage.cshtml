@@ -1,44 +1,43 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<IndividualProductPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Product Details</h2>
     <dl>
-        @if (Model.HasValue("serialNumber"))
+        @if (!string.IsNullOrEmpty(Model.SerialNumber))
         {
             <dt>Serial Number</dt>
-            <dd>@Model.Value("serialNumber")</dd>
+            <dd>@Model.SerialNumber</dd>
         }
-        @if (Model.HasValue("sku"))
+        @if (!string.IsNullOrEmpty(Model.Sku))
         {
             <dt>SKU</dt>
-            <dd>@Model.Value("sku")</dd>
+            <dd>@Model.Sku</dd>
         }
-        @if (Model.HasValue("color"))
+        @if (!string.IsNullOrEmpty(Model.Color))
         {
             <dt>Colour</dt>
-            <dd>@Model.Value("color")</dd>
+            <dd>@Model.Color</dd>
         }
-        @if (Model.HasValue("weight"))
+        @if (!string.IsNullOrEmpty(Model.Weight))
         {
             <dt>Weight</dt>
-            <dd>@Model.Value("weight")</dd>
+            <dd>@Model.Weight</dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }

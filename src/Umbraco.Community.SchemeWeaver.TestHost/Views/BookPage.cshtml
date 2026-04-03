@@ -1,77 +1,76 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BookPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("bookImage"))
+@if (Model.BookImage != null)
 {
-    var imageUrl = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("bookImage")?.MediaUrl();
+    var imageUrl = Model.BookImage?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
     {
-        <img src="@imageUrl" alt="@Model.Value("title")" class="constrained-image" />
+        <img src="@imageUrl" alt="@Model.Title" class="constrained-image" />
     }
 }
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Book Details</h2>
     <dl>
-        @if (Model.HasValue("authorName"))
+        @if (!string.IsNullOrEmpty(Model.AuthorName))
         {
             <dt>Author</dt>
-            <dd>@Model.Value("authorName")</dd>
+            <dd>@Model.AuthorName</dd>
         }
-        @if (Model.HasValue("isbn"))
+        @if (!string.IsNullOrEmpty(Model.Isbn))
         {
             <dt>ISBN</dt>
-            <dd>@Model.Value("isbn")</dd>
+            <dd>@Model.Isbn</dd>
         }
-        @if (Model.HasValue("bookFormat"))
+        @if (!string.IsNullOrEmpty(Model.BookFormat))
         {
             <dt>Format</dt>
-            <dd>@Model.Value("bookFormat")</dd>
+            <dd>@Model.BookFormat</dd>
         }
-        @if (Model.HasValue("numberOfPages"))
+        @if (!string.IsNullOrEmpty(Model.NumberOfPages))
         {
             <dt>Pages</dt>
-            <dd>@Model.Value("numberOfPages")</dd>
+            <dd>@Model.NumberOfPages</dd>
         }
-        @if (Model.HasValue("publisher"))
+        @if (!string.IsNullOrEmpty(Model.Publisher))
         {
             <dt>Publisher</dt>
-            <dd>@Model.Value("publisher")</dd>
+            <dd>@Model.Publisher</dd>
         }
-        @if (Model.HasValue("datePublished"))
+        @if (Model.DatePublished != default)
         {
             <dt>Published</dt>
-            <dd>@(((DateTime)Model.Value("datePublished")).ToString("d MMMM yyyy"))</dd>
+            <dd>@(Model.DatePublished.ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("price"))
+@if (!string.IsNullOrEmpty(Model.Price))
 {
     <div class="card">
         <h2>Price</h2>
         <p class="price">
-            @if (Model.HasValue("currency"))
+            @if (!string.IsNullOrEmpty(Model.Currency))
             {
-                @Model.Value("currency")
+                @Model.Currency
             }
-            @Model.Value("price")
+            @Model.Price
         </p>
     </div>
 }
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }

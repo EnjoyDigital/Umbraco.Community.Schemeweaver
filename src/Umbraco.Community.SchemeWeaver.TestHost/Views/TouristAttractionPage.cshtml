@@ -1,22 +1,21 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<TouristAttractionPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
+<h1>@Model.Title</h1>
 
-@if (Model.HasValue("description"))
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 <div class="card">
     <h2>Attraction Details</h2>
     <dl>
-        @if (Model.HasValue("telephone"))
+        @if (!string.IsNullOrEmpty(Model.Telephone))
         {
             <dt>Telephone</dt>
-            <dd>@Model.Value("telephone")</dd>
+            <dd>@Model.Telephone</dd>
         }
     </dl>
 </div>
@@ -24,15 +23,15 @@
 <div class="card">
     <h2>Address</h2>
     <dl>
-        @if (Model.HasValue("streetAddress"))
+        @if (!string.IsNullOrEmpty(Model.StreetAddress))
         {
             <dt>Street</dt>
-            <dd>@Model.Value("streetAddress")</dd>
+            <dd>@Model.StreetAddress</dd>
         }
-        @if (Model.HasValue("addressLocality"))
+        @if (!string.IsNullOrEmpty(Model.AddressLocality))
         {
             <dt>Locality</dt>
-            <dd>@Model.Value("addressLocality")</dd>
+            <dd>@Model.AddressLocality</dd>
         }
     </dl>
 </div>

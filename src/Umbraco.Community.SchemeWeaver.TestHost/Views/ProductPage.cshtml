@@ -1,59 +1,57 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels
-@using Umbraco.Cms.Core.Models.Blocks
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ProductPage>
 @{
     Layout = "Master.cshtml";
 }
-<h1>@Model.Value("title")</h1>
-@if (Model.HasValue("description"))
+<h1>@Model.Title</h1>
+@if (!string.IsNullOrEmpty(Model.Description))
 {
-    <p class="lead">@Model.Value("description")</p>
+    <p class="lead">@Model.Description</p>
 }
 
 @{
-    var productImage = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("productImage");
+    var productImage = Model.ProductImage;
 }
 @if (productImage != null)
 {
-    <img src="@productImage.MediaUrl()" alt="@Model.Value("title")" />
+    <img src="@productImage.MediaUrl()" alt="@Model.Title" />
 }
 
 <div class="card">
     <dl>
-        @if (Model.HasValue("price"))
+        @if (!string.IsNullOrEmpty(Model.Price))
         {
             <dt>Price</dt>
-            <dd>@Model.Value("price") @Model.Value("currency")</dd>
+            <dd>@Model.Price @Model.Currency</dd>
         }
-        @if (Model.HasValue("sku"))
+        @if (!string.IsNullOrEmpty(Model.Sku))
         {
             <dt>SKU</dt>
-            <dd>@Model.Value("sku")</dd>
+            <dd>@Model.Sku</dd>
         }
-        @if (Model.HasValue("brand"))
+        @if (!string.IsNullOrEmpty(Model.Brand))
         {
             <dt>Brand</dt>
-            <dd>@Model.Value("brand")</dd>
+            <dd>@Model.Brand</dd>
         }
-        @if (Model.HasValue("availability"))
+        @if (!string.IsNullOrEmpty(Model.Availability))
         {
             <dt>Availability</dt>
-            <dd>@Model.Value("availability")</dd>
+            <dd>@Model.Availability</dd>
         }
     </dl>
 </div>
 
-@if (Model.HasValue("bodyText"))
+@if (!string.IsNullOrEmpty(Model.BodyText))
 {
     <div class="card">
-        @Model.Value("bodyText")
+        @Model.BodyText
     </div>
 }
 
-@if (Model.HasValue("reviews"))
+@if (!string.IsNullOrEmpty(Model.Reviews))
 {
     <h2>Customer Reviews</h2>
-    @foreach (var block in Model.Value<BlockListModel>("reviews"))
+    @foreach (var block in Model.Reviews)
     {
         <div class="card review-card">
             <strong>@block.Content.Value("author")</strong>
