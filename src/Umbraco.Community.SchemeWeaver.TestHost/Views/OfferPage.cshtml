@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<OfferPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<OfferPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -39,20 +39,20 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.ValidFrom) || !string.IsNullOrEmpty(Model.ValidThrough))
+@if (Model.ValidFrom != default(DateTime) || Model.ValidThrough != default(DateTime))
 {
     <div class="card">
         <h2>Validity</h2>
         <dl>
-            @if (!string.IsNullOrEmpty(Model.ValidFrom))
+            @if (Model.ValidFrom != default(DateTime))
             {
                 <dt>Valid From</dt>
-                <dd>@Model.ValidFrom</dd>
+                <dd>@(Model.ValidFrom.ToString("d MMMM yyyy"))</dd>
             }
-            @if (!string.IsNullOrEmpty(Model.ValidThrough))
+            @if (Model.ValidThrough != default(DateTime))
             {
                 <dt>Valid Through</dt>
-                <dd>@Model.ValidThrough</dd>
+                <dd>@(Model.ValidThrough.ToString("d MMMM yyyy"))</dd>
             }
         </dl>
     </div>

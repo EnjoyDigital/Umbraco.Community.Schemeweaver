@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MotorcyclePage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MotorcyclePage>
 @{
     Layout = "Master.cshtml";
 }
@@ -36,11 +36,6 @@
         {
             <dt>Colour</dt>
             <dd>@Model.Color</dd>
-        }
-        @if (!string.IsNullOrEmpty(Model.VehicleTransmission))
-        {
-            <dt>Transmission</dt>
-            <dd>@Model.VehicleTransmission</dd>
         }
     </dl>
 </div>

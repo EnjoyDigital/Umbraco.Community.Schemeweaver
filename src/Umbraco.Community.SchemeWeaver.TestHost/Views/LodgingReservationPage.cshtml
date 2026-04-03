@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<LodgingReservationPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<LodgingReservationPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,15 +17,15 @@
             <dt>Reservation ID</dt>
             <dd>@Model.ReservationId</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.CheckinTime))
+        @if (Model.CheckinTime != default(DateTime))
         {
             <dt>Check-in</dt>
-            <dd>@Model.CheckinTime</dd>
+            <dd>@(Model.CheckinTime.ToString("d MMMM yyyy HH:mm"))</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.CheckoutTime))
+        @if (Model.CheckoutTime != default(DateTime))
         {
             <dt>Check-out</dt>
-            <dd>@Model.CheckoutTime</dd>
+            <dd>@(Model.CheckoutTime.ToString("d MMMM yyyy HH:mm"))</dd>
         }
     </dl>
 </div>

@@ -9,15 +9,6 @@
     <p class="lead">@Model.Description</p>
 }
 
-@if (!string.IsNullOrEmpty(Model.SoftwareImage))
-{
-    var imageUrl = Model.SoftwareImage?.MediaUrl();
-    if (!string.IsNullOrEmpty(imageUrl))
-    {
-        <img src="@imageUrl" alt="@Model.Title" />
-    }
-}
-
 <div class="card">
     <h2>Software Details</h2>
     <dl>
@@ -58,26 +49,10 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.BodyText))
+@if (Model.BodyText != null)
 {
     <div class="card">
         @Model.BodyText
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.Reviews))
-{
-    <h2>Reviews</h2>
-    @foreach (var block in Model.Reviews)
-    {
-        <div class="card review-card">
-            <strong>@block.Content.Value("reviewAuthor")</strong>
-            <span> &middot; Rating: @block.Content.Value("ratingValue")/5</span>
-            @if (block.Content.HasValue("reviewDate"))
-            {
-                <span> &middot; @(((DateTime)block.Content.Value("reviewDate")).ToString("d MMMM yyyy"))</span>
-            }
-            <p>@block.Content.Value("reviewBody")</p>
-        </div>
-    }
-}

@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<RealEstateListingPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<RealEstateListingPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -9,7 +9,7 @@
     <p class="lead">@Model.Description</p>
 }
 
-@if (!string.IsNullOrEmpty(Model.Price) || !string.IsNullOrEmpty(Model.PriceCurrency) || !string.IsNullOrEmpty(Model.DatePosted))
+@if (!string.IsNullOrEmpty(Model.Price) || !string.IsNullOrEmpty(Model.PriceCurrency) || Model.DatePosted != default(DateTime))
 {
     <div class="card">
         <h2>Listing Details</h2>
@@ -25,10 +25,10 @@
                     }
                 </dd>
             }
-            @if (!string.IsNullOrEmpty(Model.DatePosted))
+            @if (Model.DatePosted != default(DateTime))
             {
                 <dt>Date Posted</dt>
-                <dd>@Model.DatePosted</dd>
+                <dd>@(Model.DatePosted.ToString("d MMMM yyyy"))</dd>
             }
         </dl>
     </div>

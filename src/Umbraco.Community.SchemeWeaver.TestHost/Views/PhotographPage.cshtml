@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<PhotographPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<PhotographPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,10 +17,10 @@
             <dt>Photographer</dt>
             <dd>@Model.Creator</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.DateCreated))
+        @if (Model.DateCreated != default(DateTime))
         {
             <dt>Date Taken</dt>
-            <dd>@(((DateTime)Model.DateCreated).ToString("d MMMM yyyy"))</dd>
+            <dd>@(Model.DateCreated.ToString("d MMMM yyyy"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.ContentUrl))
         {

@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<LocationPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<LocationPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -7,15 +7,6 @@
 @if (!string.IsNullOrEmpty(Model.Description))
 {
     <p class="lead">@Model.Description</p>
-}
-
-@if (Model.LocationImage != null)
-{
-    var imageUrl = Model.LocationImage?.MediaUrl();
-    if (!string.IsNullOrEmpty(imageUrl))
-    {
-        <img src="@imageUrl" alt="@Model.Title" />
-    }
 }
 
 @if (!string.IsNullOrEmpty(Model.Telephone) || !string.IsNullOrEmpty(Model.Email))

@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BlogArticle>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BlogArticle>
 @{
     Layout = "Master.cshtml";
 }
@@ -14,12 +14,9 @@
             <span> &middot; @(Model.PublishDate.ToString("d MMMM yyyy"))</span>
         }
     </div>
-    @{
-        var featuredImage = Model.FeaturedImage;
-    }
-    @if (featuredImage != null)
+    @if (Model.FeaturedImage != null)
     {
-        <img src="@featuredImage.MediaUrl()" alt="@Model.Title" class="featured-image" />
+        <img src="@Model.FeaturedImage.MediaUrl()" alt="@Model.Title" class="featured-image" />
     }
     @if (!string.IsNullOrEmpty(Model.Description))
     {

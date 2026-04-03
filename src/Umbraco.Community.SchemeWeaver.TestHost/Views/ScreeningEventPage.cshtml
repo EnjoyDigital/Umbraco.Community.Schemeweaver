@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ScreeningEventPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ScreeningEventPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -12,15 +12,10 @@
 <div class="card">
     <h2>Screening Details</h2>
     <dl>
-        @if (!string.IsNullOrEmpty(Model.Performer))
-        {
-            <dt>Performer</dt>
-            <dd>@Model.Performer</dd>
-        }
-        @if (!string.IsNullOrEmpty(Model.StartDate))
+        @if (Model.StartDate != default(DateTime))
         {
             <dt>Start Date</dt>
-            <dd>@Model.StartDate</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.LocationName))
         {

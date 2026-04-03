@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MoviePage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MoviePage>
 @{
     Layout = "Master.cshtml";
 }
@@ -27,10 +27,10 @@
             <dt>Duration</dt>
             <dd>@Model.Duration</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.DateCreated))
+        @if (Model.DateCreated != default(DateTime))
         {
             <dt>Released</dt>
-            <dd>@(((DateTime)Model.DateCreated).ToString("d MMMM yyyy"))</dd>
+            <dd>@(Model.DateCreated.ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>

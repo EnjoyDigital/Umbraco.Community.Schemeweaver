@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<GymPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<GymPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,7 +17,7 @@
             <dt>Telephone</dt>
             <dd>@Model.Telephone</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.OpeningHours))
+        @if (Model.OpeningHours?.Any() == true)
         {
             <dt>Opening Hours</dt>
             <dd>@Model.OpeningHours</dd>

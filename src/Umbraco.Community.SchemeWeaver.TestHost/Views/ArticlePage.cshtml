@@ -1,20 +1,20 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ArticlePage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ArticlePage>
 @{
     Layout = "Master.cshtml";
 }
 <article>
     <h1>@Model.Title</h1>
 
-    @if (!string.IsNullOrEmpty(Model.AuthorName) || !string.IsNullOrEmpty(Model.DatePublished))
+    @if (!string.IsNullOrEmpty(Model.AuthorName) || Model.DatePublished != default(DateTime))
     {
         <p class="article-meta">
             @if (!string.IsNullOrEmpty(Model.AuthorName))
             {
                 <span>By @Model.AuthorName</span>
             }
-            @if (!string.IsNullOrEmpty(Model.DatePublished))
+            @if (Model.DatePublished != default(DateTime))
             {
-                <span> &mdash; @Model.DatePublished</span>
+                <span> &mdash; @(Model.DatePublished.ToString("d MMMM yyyy"))</span>
             }
         </p>
     }
@@ -24,7 +24,7 @@
         <p class="lead">@Model.Description</p>
     }
 
-    @if (!string.IsNullOrEmpty(Model.BodyText))
+    @if (Model.BodyText != null)
     {
         <div class="card">
             @Html.Raw(Model.BodyText)

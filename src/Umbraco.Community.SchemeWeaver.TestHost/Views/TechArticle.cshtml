@@ -9,9 +9,9 @@
         {
             <span>By @Model.AuthorName</span>
         }
-        @if (!string.IsNullOrEmpty(Model.PublishDate))
+        @if (Model.PublishDate != default(DateTime))
         {
-            <span> &middot; @(((DateTime)Model.PublishDate).ToString("d MMMM yyyy"))</span>
+            <span> &middot; @(Model.PublishDate.ToString("d MMMM yyyy"))</span>
         }
     </div>
 
@@ -34,31 +34,14 @@
         </div>
     }
 
-    @if (!string.IsNullOrEmpty(Model.FeaturedImage))
-    {
-        var imageUrl = Model.FeaturedImage?.MediaUrl();
-        if (!string.IsNullOrEmpty(imageUrl))
-        {
-            <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
-        }
-    }
     @if (!string.IsNullOrEmpty(Model.Description))
     {
         <p class="lead">@Model.Description</p>
     }
-    @if (!string.IsNullOrEmpty(Model.BodyText))
+    @if (Model.BodyText != null)
     {
         <div class="card">
             @Model.BodyText
-        </div>
-    }
-    @if (!string.IsNullOrEmpty(Model.Keywords))
-    {
-        <div class="tag-list">
-            @foreach (var keyword in Model.Keywords.ToString().Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries))
-            {
-                <span class="tag">@keyword</span>
-            }
         </div>
     }
 </article>

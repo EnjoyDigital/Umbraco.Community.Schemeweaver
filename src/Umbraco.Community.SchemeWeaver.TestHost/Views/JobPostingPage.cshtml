@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<JobPostingPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<JobPostingPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,15 +17,15 @@
             <dt>Employment Type</dt>
             <dd>@Model.EmploymentType</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.BaseSalary))
+        @if (!string.IsNullOrEmpty(Model.Salary))
         {
             <dt>Salary</dt>
-            <dd>@Model.BaseSalary</dd>
+            <dd>@Model.Salary</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.JobLocation))
+        @if (!string.IsNullOrEmpty(Model.JobLocationName))
         {
             <dt>Location</dt>
-            <dd>@Model.JobLocation</dd>
+            <dd>@Model.JobLocationName</dd>
         }
         @if (!string.IsNullOrEmpty(Model.HiringOrganisation))
         {
@@ -35,19 +35,19 @@
     </dl>
 </div>
 
-@if (!string.IsNullOrEmpty(Model.DatePosted) || !string.IsNullOrEmpty(Model.ValidThrough))
+@if (Model.DatePosted != default(DateTime) || Model.ValidThrough != default(DateTime))
 {
     <div class="card">
         <dl>
-            @if (!string.IsNullOrEmpty(Model.DatePosted))
+            @if (Model.DatePosted != default(DateTime))
             {
                 <dt>Date Posted</dt>
-                <dd>@(((DateTime)Model.DatePosted).ToString("d MMMM yyyy"))</dd>
+                <dd>@(Model.DatePosted.ToString("d MMMM yyyy"))</dd>
             }
-            @if (!string.IsNullOrEmpty(Model.ValidThrough))
+            @if (Model.ValidThrough != default(DateTime))
             {
                 <dt>Closing Date</dt>
-                <dd>@(((DateTime)Model.ValidThrough).ToString("d MMMM yyyy"))</dd>
+                <dd>@(Model.ValidThrough.ToString("d MMMM yyyy"))</dd>
             }
         </dl>
     </div>
@@ -66,14 +66,10 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.BodyText))
+@if (Model.BodyText != null)
 {
     <div class="card">
         @Model.BodyText
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.ApplicationUrl))
-{
-    <a href="@Model.ApplicationUrl" class="btn">Apply Now</a>
-}

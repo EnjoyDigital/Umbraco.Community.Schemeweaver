@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MusicAlbumPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MusicAlbumPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -22,10 +22,10 @@
             <dt>Tracks</dt>
             <dd>@Model.NumTracks</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.DatePublished))
+        @if (Model.DatePublished != default(DateTime))
         {
             <dt>Released</dt>
-            <dd>@(((DateTime)Model.DatePublished).ToString("d MMMM yyyy"))</dd>
+            <dd>@(Model.DatePublished.ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>

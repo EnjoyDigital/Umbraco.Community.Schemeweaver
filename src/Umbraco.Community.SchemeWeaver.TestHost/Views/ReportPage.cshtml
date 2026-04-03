@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ReportPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ReportPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,10 +17,10 @@
             <dt>Author</dt>
             <dd>@Model.AuthorName</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.PublishDate))
+        @if (Model.PublishDate != default(DateTime))
         {
             <dt>Published</dt>
-            <dd>@(((DateTime)Model.PublishDate).ToString("d MMMM yyyy"))</dd>
+            <dd>@(Model.PublishDate.ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>

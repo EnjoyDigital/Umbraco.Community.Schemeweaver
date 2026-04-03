@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<SportsEventPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<SportsEventPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -22,10 +22,10 @@
             <dt>Sport</dt>
             <dd>@Model.Sport</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.StartDate))
+        @if (Model.StartDate != default(DateTime))
         {
             <dt>Kick-off</dt>
-            <dd>@(((DateTime)Model.StartDate).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.LocationName))
         {

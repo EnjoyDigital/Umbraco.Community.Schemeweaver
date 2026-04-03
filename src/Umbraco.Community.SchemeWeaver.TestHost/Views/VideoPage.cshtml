@@ -17,20 +17,16 @@
 }
 else if (!string.IsNullOrEmpty(Model.ThumbnailUrl))
 {
-    var thumbUrl = Model.ThumbnailUrl?.MediaUrl();
-    if (!string.IsNullOrEmpty(thumbUrl))
-    {
-        <img src="@thumbUrl" alt="@Model.Title" class="featured-image" />
-    }
+    <img src="@Model.ThumbnailUrl" alt="@Model.Title" class="featured-image" />
 }
 
 <div class="card">
     <h2>Video Details</h2>
     <dl>
-        @if (!string.IsNullOrEmpty(Model.UploadDate))
+        @if (Model.UploadDate != default(DateTime))
         {
             <dt>Upload Date</dt>
-            <dd>@(((DateTime)Model.UploadDate).ToString("d MMMM yyyy"))</dd>
+            <dd>@(Model.UploadDate.ToString("d MMMM yyyy"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.Duration))
         {

@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<CoursePage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<CoursePage>
 @{
     Layout = "Master.cshtml";
 }
@@ -9,15 +9,6 @@
     <p class="lead">@Model.Description</p>
 }
 
-@if (Model.CourseImage != null)
-{
-    var imageUrl = Model.CourseImage?.MediaUrl();
-    if (!string.IsNullOrEmpty(imageUrl))
-    {
-        <img src="@imageUrl" alt="@Model.Title" />
-    }
-}
-
 <div class="card">
     <h2>Course Details</h2>
     <dl>
@@ -26,10 +17,10 @@
             <dt>Course Code</dt>
             <dd>@Model.CourseCode</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.Provider))
+        @if (!string.IsNullOrEmpty(Model.ProviderName))
         {
             <dt>Provider</dt>
-            <dd>@Model.Provider</dd>
+            <dd>@Model.ProviderName</dd>
         }
         @if (!string.IsNullOrEmpty(Model.Duration))
         {
@@ -58,7 +49,7 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.BodyText))
+@if (Model.BodyText != null)
 {
     <div class="card">
         @Model.BodyText

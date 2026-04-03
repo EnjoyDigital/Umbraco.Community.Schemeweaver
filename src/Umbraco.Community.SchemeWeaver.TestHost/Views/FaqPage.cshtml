@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FaqPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FaqPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -18,12 +18,5 @@
                 <div class="faq-answer">@block.Content.Value("answer")</div>
             </div>
         }
-    </div>
-}
-
-@if (!string.IsNullOrEmpty(Model.BodyText))
-{
-    <div class="card">
-        @Model.BodyText
     </div>
 }

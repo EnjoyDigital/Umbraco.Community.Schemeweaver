@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BedAndBreakfastPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BedAndBreakfastPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -12,16 +12,6 @@
 <div class="card">
     <h2>B&amp;B Details</h2>
     <dl>
-        @if (!string.IsNullOrEmpty(Model.CheckinTime))
-        {
-            <dt>Check-in</dt>
-            <dd>@Model.CheckinTime</dd>
-        }
-        @if (!string.IsNullOrEmpty(Model.CheckoutTime))
-        {
-            <dt>Check-out</dt>
-            <dd>@Model.CheckoutTime</dd>
-        }
         @if (!string.IsNullOrEmpty(Model.Telephone))
         {
             <dt>Telephone</dt>

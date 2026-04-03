@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FoodEventPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FoodEventPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -12,10 +12,10 @@
 <div class="card">
     <h2>Event Details</h2>
     <dl>
-        @if (!string.IsNullOrEmpty(Model.StartDate))
+        @if (Model.StartDate != default(DateTime))
         {
             <dt>Date</dt>
-            <dd>@(((DateTime)Model.StartDate).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.LocationName))
         {

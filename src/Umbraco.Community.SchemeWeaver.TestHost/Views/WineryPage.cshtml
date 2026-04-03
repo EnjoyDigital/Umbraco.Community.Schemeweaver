@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<WineryPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<WineryPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -16,11 +16,6 @@
         {
             <dt>Telephone</dt>
             <dd>@Model.Telephone</dd>
-        }
-        @if (!string.IsNullOrEmpty(Model.ServesCuisine))
-        {
-            <dt>Cuisine</dt>
-            <dd>@Model.ServesCuisine</dd>
         }
     </dl>
 </div>

@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FastFoodPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FastFoodPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -32,11 +32,6 @@
         {
             <dt>Street</dt>
             <dd>@Model.StreetAddress</dd>
-        }
-        @if (!string.IsNullOrEmpty(Model.AddressLocality))
-        {
-            <dt>Locality</dt>
-            <dd>@Model.AddressLocality</dd>
         }
     </dl>
 </div>

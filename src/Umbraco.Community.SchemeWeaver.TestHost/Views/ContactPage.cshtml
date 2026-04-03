@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContactPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContactPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -24,7 +24,7 @@
                 @Model.AddressLocality @Model.PostalCode
             </dd>
         }
-        @if (!string.IsNullOrEmpty(Model.OpeningHours))
+        @if (Model.OpeningHours?.Any() == true)
         {
             <dt>Opening Hours</dt>
             <dd>@Model.OpeningHours</dd>

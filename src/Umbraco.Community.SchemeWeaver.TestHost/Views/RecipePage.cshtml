@@ -14,7 +14,7 @@
     <p>By <strong>@Model.AuthorName</strong></p>
 }
 
-@if (!string.IsNullOrEmpty(Model.RecipeImage))
+@if (Model.RecipeImage != null)
 {
     var imageUrl = Model.RecipeImage?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
@@ -64,7 +64,7 @@
     </dl>
 </div>
 
-@if (!string.IsNullOrEmpty(Model.Ingredients))
+@if (Model.Ingredients?.Any() == true)
 {
     <div class="card">
         <h2>Ingredients</h2>
@@ -77,7 +77,7 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.Instructions))
+@if (Model.Instructions?.Any() == true)
 {
     <div class="card">
         <h2>Instructions</h2>
@@ -96,10 +96,3 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.BodyText))
-{
-    <div class="card">
-        <h2>Notes</h2>
-        @Model.BodyText
-    </div>
-}

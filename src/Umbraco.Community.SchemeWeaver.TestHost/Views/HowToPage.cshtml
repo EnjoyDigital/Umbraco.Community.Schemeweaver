@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<HowToPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<HowToPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -7,15 +7,6 @@
 @if (!string.IsNullOrEmpty(Model.Description))
 {
     <p class="lead">@Model.Description</p>
-}
-
-@if (Model.HeroImage != null)
-{
-    var imageUrl = Model.HeroImage?.MediaUrl();
-    if (!string.IsNullOrEmpty(imageUrl))
-    {
-        <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
-    }
 }
 
 @if (!string.IsNullOrEmpty(Model.TotalTime) || !string.IsNullOrEmpty(Model.EstimatedCost))
@@ -38,12 +29,12 @@
     </div>
 }
 
-@if (Model.Steps != null && Model.Steps.Any())
+@if (Model.HowToSteps != null && Model.HowToSteps.Any())
 {
     <div class="card">
         <h2>Steps</h2>
         <ol class="instruction-list">
-            @foreach (var block in Model.Steps)
+            @foreach (var block in Model.HowToSteps)
             {
                 <li>
                     @if (block.Content.HasValue("stepName"))
@@ -60,12 +51,12 @@
     </div>
 }
 
-@if (Model.Tools != null && Model.Tools.Any())
+@if (Model.HowToTools != null && Model.HowToTools.Any())
 {
     <div class="card">
         <h2>Tools Required</h2>
         <ul class="ingredient-list">
-            @foreach (var block in Model.Tools)
+            @foreach (var block in Model.HowToTools)
             {
                 <li>@block.Content.Value("toolName")</li>
             }

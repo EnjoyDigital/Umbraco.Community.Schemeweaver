@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<EventReservationPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<EventReservationPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,15 +17,10 @@
             <dt>Reservation ID</dt>
             <dd>@Model.ReservationId</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.StartDate))
+        @if (!string.IsNullOrEmpty(Model.ReservationFor))
         {
-            <dt>Event Date</dt>
-            <dd>@Model.StartDate</dd>
-        }
-        @if (!string.IsNullOrEmpty(Model.LocationName))
-        {
-            <dt>Venue</dt>
-            <dd>@Model.LocationName</dd>
+            <dt>Reservation For</dt>
+            <dd>@Model.ReservationFor</dd>
         }
     </dl>
 </div>

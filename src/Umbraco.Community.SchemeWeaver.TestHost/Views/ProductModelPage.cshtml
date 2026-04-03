@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ProductModelPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ProductModelPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -9,7 +9,7 @@
     <p class="lead">@Model.Description</p>
 }
 
-@if (!string.IsNullOrEmpty(Model.BodyText))
+@if (Model.BodyText != null)
 {
     <div class="card">
         @Model.BodyText

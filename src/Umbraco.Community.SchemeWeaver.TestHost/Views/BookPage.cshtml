@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BookPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BookPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -68,7 +68,7 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.BodyText))
+@if (Model.BodyText != null)
 {
     <div class="card">
         @Model.BodyText

@@ -1,25 +1,16 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<AboutPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<AboutPage>
 @{
     Layout = "Master.cshtml";
 }
 <article>
     <h1>@Model.Title</h1>
 
-    @if (Model.HeroImage != null)
-    {
-        var imageUrl = Model.HeroImage?.MediaUrl();
-        if (!string.IsNullOrEmpty(imageUrl))
-        {
-            <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
-        }
-    }
-
     @if (!string.IsNullOrEmpty(Model.Description))
     {
         <p class="lead">@Model.Description</p>
     }
 
-    @if (!string.IsNullOrEmpty(Model.BodyText))
+    @if (Model.BodyText != null)
     {
         <div class="card">
             @Model.BodyText

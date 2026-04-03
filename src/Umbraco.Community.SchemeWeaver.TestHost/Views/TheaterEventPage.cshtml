@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<TheaterEventPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<TheaterEventPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,10 +17,10 @@
             <dt>Performer</dt>
             <dd>@Model.Performer</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.StartDate))
+        @if (Model.StartDate != default(DateTime))
         {
             <dt>Start Date</dt>
-            <dd>@Model.StartDate</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.LocationName))
         {

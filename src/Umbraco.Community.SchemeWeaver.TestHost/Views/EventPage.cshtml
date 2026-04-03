@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<EventPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<EventPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -31,16 +31,6 @@
             <dt>End Date</dt>
             <dd>@(Model.EndDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.EventStatus))
-        {
-            <dt>Status</dt>
-            <dd>@Model.EventStatus</dd>
-        }
-        @if (!string.IsNullOrEmpty(Model.EventAttendanceMode))
-        {
-            <dt>Attendance Mode</dt>
-            <dd>@Model.EventAttendanceMode</dd>
-        }
     </dl>
 </div>
 
@@ -71,7 +61,7 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.TicketPrice) || !string.IsNullOrEmpty(Model.TicketCurrency) || !string.IsNullOrEmpty(Model.TicketUrl))
+@if (!string.IsNullOrEmpty(Model.TicketPrice) || !string.IsNullOrEmpty(Model.TicketUrl))
 {
     <div class="card">
         <h2>Tickets</h2>
@@ -79,13 +69,7 @@
             @if (!string.IsNullOrEmpty(Model.TicketPrice))
             {
                 <dt>Price</dt>
-                <dd>
-                    @if (!string.IsNullOrEmpty(Model.TicketCurrency))
-                    {
-                        @Model.TicketCurrency
-                    }
-                    @Model.TicketPrice
-                </dd>
+                <dd>@Model.TicketPrice</dd>
             }
             @if (!string.IsNullOrEmpty(Model.TicketUrl))
             {

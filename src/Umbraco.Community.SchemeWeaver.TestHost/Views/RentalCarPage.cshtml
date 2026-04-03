@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<RentalCarPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<RentalCarPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -22,10 +22,10 @@
             <dt>Pick-up Location</dt>
             <dd>@Model.PickupLocation</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.PickupTime))
+        @if (Model.PickupTime != default(DateTime))
         {
             <dt>Pick-up Time</dt>
-            <dd>@Model.PickupTime</dd>
+            <dd>@(Model.PickupTime.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
     </dl>
 </div>

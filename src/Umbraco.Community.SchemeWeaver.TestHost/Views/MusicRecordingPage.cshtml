@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MusicRecordingPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MusicRecordingPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -9,7 +9,7 @@
     <p class="lead">@Model.Description</p>
 }
 
-@if (!string.IsNullOrEmpty(Model.ByArtist) || !string.IsNullOrEmpty(Model.InAlbum) || !string.IsNullOrEmpty(Model.Duration) || !string.IsNullOrEmpty(Model.DatePublished))
+@if (!string.IsNullOrEmpty(Model.ByArtist) || !string.IsNullOrEmpty(Model.InAlbum) || !string.IsNullOrEmpty(Model.Duration) || Model.DatePublished != default(DateTime))
 {
     <div class="card">
         <h2>Recording Details</h2>
@@ -29,10 +29,10 @@
                 <dt>Duration</dt>
                 <dd>@Model.Duration</dd>
             }
-            @if (!string.IsNullOrEmpty(Model.DatePublished))
+            @if (Model.DatePublished != default(DateTime))
             {
                 <dt>Date Published</dt>
-                <dd>@Model.DatePublished</dd>
+                <dd>@(Model.DatePublished.ToString("d MMMM yyyy"))</dd>
             }
         </dl>
     </div>

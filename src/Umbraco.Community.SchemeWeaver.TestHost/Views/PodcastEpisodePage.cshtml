@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<PodcastEpisodePage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<PodcastEpisodePage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,10 +17,10 @@
             <dt>Duration</dt>
             <dd>@Model.Duration</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.DatePublished))
+        @if (Model.DatePublished != default(DateTime))
         {
             <dt>Published</dt>
-            <dd>@(((DateTime)Model.DatePublished).ToString("d MMMM yyyy"))</dd>
+            <dd>@(Model.DatePublished.ToString("d MMMM yyyy"))</dd>
         }
     </dl>
 </div>

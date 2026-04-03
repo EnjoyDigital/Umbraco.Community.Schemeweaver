@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<DentistPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<DentistPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -12,11 +12,6 @@
 <div class="card">
     <h2>Dentist Details</h2>
     <dl>
-        @if (!string.IsNullOrEmpty(Model.MedicalSpecialty))
-        {
-            <dt>Specialty</dt>
-            <dd>@Model.MedicalSpecialty</dd>
-        }
         @if (!string.IsNullOrEmpty(Model.Telephone))
         {
             <dt>Telephone</dt>

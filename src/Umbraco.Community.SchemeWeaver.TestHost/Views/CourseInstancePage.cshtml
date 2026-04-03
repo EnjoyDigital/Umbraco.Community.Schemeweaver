@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<CourseInstancePage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<CourseInstancePage>
 @{
     Layout = "Master.cshtml";
 }
@@ -12,15 +12,15 @@
 <div class="card">
     <h2>Course Instance Details</h2>
     <dl>
-        @if (!string.IsNullOrEmpty(Model.StartDate))
+        @if (Model.StartDate != default(DateTime))
         {
             <dt>Start Date</dt>
-            <dd>@Model.StartDate</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy"))</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.EndDate))
+        @if (Model.EndDate != default(DateTime))
         {
             <dt>End Date</dt>
-            <dd>@Model.EndDate</dd>
+            <dd>@(Model.EndDate.ToString("d MMMM yyyy"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.Instructor))
         {

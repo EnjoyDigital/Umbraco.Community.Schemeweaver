@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FestivalPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<FestivalPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -12,15 +12,15 @@
 <div class="card">
     <h2>Festival Details</h2>
     <dl>
-        @if (!string.IsNullOrEmpty(Model.StartDate))
+        @if (Model.StartDate != default(DateTime))
         {
             <dt>Start Date</dt>
-            <dd>@(((DateTime)Model.StartDate).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.EndDate))
+        @if (Model.EndDate != default(DateTime))
         {
             <dt>End Date</dt>
-            <dd>@(((DateTime)Model.EndDate).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(Model.EndDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.LocationName))
         {

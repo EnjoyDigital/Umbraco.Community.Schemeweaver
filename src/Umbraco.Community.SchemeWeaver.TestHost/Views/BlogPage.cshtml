@@ -1,27 +1,11 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BlogPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<BlogPage>
 @{
     Layout = "Master.cshtml";
 }
 <article>
     <h1>@Model.Title</h1>
-    <div class="article-meta">
-        @if (!string.IsNullOrEmpty(Model.AuthorName))
-        {
-            <span>By @Model.AuthorName</span>
-        }
-        @if (Model.PublishDate != default)
-        {
-            <span> &middot; @(Model.PublishDate.ToString("d MMMM yyyy"))</span>
-        }
-    </div>
     @if (!string.IsNullOrEmpty(Model.Description))
     {
         <p class="lead">@Model.Description</p>
-    }
-    @if (!string.IsNullOrEmpty(Model.BodyText))
-    {
-        <div class="card">
-            @Model.BodyText
-        </div>
     }
 </article>

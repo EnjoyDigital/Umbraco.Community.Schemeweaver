@@ -13,24 +13,16 @@
         {
             <span> &middot; By @Model.AuthorName</span>
         }
-        @if (!string.IsNullOrEmpty(Model.PublishDate))
+        @if (Model.PublishDate != default(DateTime))
         {
-            <span> &middot; @(((DateTime)Model.PublishDate).ToString("d MMMM yyyy"))</span>
+            <span> &middot; @(Model.PublishDate.ToString("d MMMM yyyy"))</span>
         }
     </div>
-    @if (!string.IsNullOrEmpty(Model.FeaturedImage))
-    {
-        var imageUrl = Model.FeaturedImage?.MediaUrl();
-        if (!string.IsNullOrEmpty(imageUrl))
-        {
-            <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
-        }
-    }
     @if (!string.IsNullOrEmpty(Model.Description))
     {
         <p class="lead">@Model.Description</p>
     }
-    @if (!string.IsNullOrEmpty(Model.BodyText))
+    @if (Model.BodyText != null)
     {
         <div class="card">
             @Model.BodyText

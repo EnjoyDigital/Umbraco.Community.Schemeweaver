@@ -1,4 +1,4 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MusicEventPage>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<MusicEventPage>
 @{
     Layout = "Master.cshtml";
 }
@@ -17,15 +17,15 @@
             <dt>Performer</dt>
             <dd>@Model.Performer</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.StartDate))
+        @if (Model.StartDate != default(DateTime))
         {
             <dt>Start Date</dt>
-            <dd>@(((DateTime)Model.StartDate).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(Model.StartDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.EndDate))
+        @if (Model.EndDate != default(DateTime))
         {
             <dt>End Date</dt>
-            <dd>@(((DateTime)Model.EndDate).ToString("d MMMM yyyy 'at' HH:mm"))</dd>
+            <dd>@(Model.EndDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
         @if (!string.IsNullOrEmpty(Model.LocationName))
         {

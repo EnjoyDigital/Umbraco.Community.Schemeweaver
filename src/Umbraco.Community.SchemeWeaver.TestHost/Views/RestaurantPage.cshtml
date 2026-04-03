@@ -9,16 +9,7 @@
     <p class="lead">@Model.Description</p>
 }
 
-@if (!string.IsNullOrEmpty(Model.LocationImage))
-{
-    var imageUrl = Model.LocationImage?.MediaUrl();
-    if (!string.IsNullOrEmpty(imageUrl))
-    {
-        <img src="@imageUrl" alt="@Model.Title" />
-    }
-}
-
-@if (!string.IsNullOrEmpty(Model.ServesCuisine) || !string.IsNullOrEmpty(Model.MenuUrl) || !string.IsNullOrEmpty(Model.AcceptsReservations))
+@if (!string.IsNullOrEmpty(Model.ServesCuisine) || !string.IsNullOrEmpty(Model.Menu) || !string.IsNullOrEmpty(Model.AcceptsReservations))
 {
     <div class="card">
         <h2>Restaurant Details</h2>
@@ -28,10 +19,10 @@
                 <dt>Cuisine</dt>
                 <dd>@Model.ServesCuisine</dd>
             }
-            @if (!string.IsNullOrEmpty(Model.MenuUrl))
+            @if (!string.IsNullOrEmpty(Model.Menu))
             {
                 <dt>Menu</dt>
-                <dd><a href="@Model.MenuUrl">View Menu</a></dd>
+                <dd><a href="@Model.Menu">View Menu</a></dd>
             }
             @if (!string.IsNullOrEmpty(Model.AcceptsReservations))
             {
@@ -74,11 +65,6 @@
             <dt>Locality</dt>
             <dd>@Model.AddressLocality</dd>
         }
-        @if (!string.IsNullOrEmpty(Model.AddressRegion))
-        {
-            <dt>Region</dt>
-            <dd>@Model.AddressRegion</dd>
-        }
         @if (!string.IsNullOrEmpty(Model.PostalCode))
         {
             <dt>Post Code</dt>
@@ -111,7 +97,7 @@
     </div>
 }
 
-@if (!string.IsNullOrEmpty(Model.OpeningHours))
+@if (Model.OpeningHours?.Any() == true)
 {
     <div class="card">
         <h2>Opening Hours</h2>
