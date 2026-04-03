@@ -45,15 +45,14 @@ E2E tests require `.env` with `UMBRACO_URL`, `UMBRACO_USER_LOGIN`, `UMBRACO_USER
 - **api/types.ts** — TypeScript interfaces matching C# DTOs (camelCase)
 - **repository/** — `SchemeWeaverServerDataSource` (fetch wrapper) → `SchemeWeaverRepository` (facade)
 - **context/** — `SchemeWeaverContext` with Umbraco observables
-- **dashboard/** — Settings section dashboard showing all content types with mapping status
 - **modals/** — Schema picker, property mapping, generate doctype (each has `.element.ts` + `.token.ts`)
 - **components/** — `property-mapping-table` (editable rows), `jsonld-preview` (formatted JSON-LD with validation)
-- **entity-actions/** — "Map to Schema.org" and "Generate from Schema.org" on document type context menu
-- **workspace-views/** — Schema.org tab on document type editor
+- **entity-actions/** — "Map to Schema.org", "Delete Schema.org Mapping", and "Generate from Schema.org" on the document type context menu
+- **workspace-views/** — Schema.org tab on the document type editor and JSON-LD preview tab on content items
 - **mocks/** — MSW handlers + in-memory mock DB for component tests
 
 ### Key Patterns
-- Dashboard and entity actions both use `UMB_MODAL_MANAGER_CONTEXT` to open modals
+- Workspace views and entity actions use `UMB_MODAL_MANAGER_CONTEXT` to open modals
 - Auto-map endpoint returns flat `PropertyMappingSuggestion[]` array (not wrapped)
 - `PropertyMappingRow` is a UI-only type combining DTO fields with display-only fields (schemaPropertyType, confidence)
 - Source type values are lowercase strings matching C#: `property`, `static`, `parent`, `ancestor`, `sibling`
@@ -88,6 +87,6 @@ All under `/umbraco/management/api/v1/schemeweaver`, backoffice-authenticated:
 - C# uses standard Umbraco patterns: `IComposer`, management API controllers, NPoco migrations
 
 ## Workflow
-- Use **Umbraco backoffice skills** for UI/extension work (dashboards, modals, property editors, etc.)
+- Use **Umbraco backoffice skills** for UI/extension work (workspace views, modals, property editors, etc.)
 - Run the **review agent** (`umbraco-extension-reviewer`) when finished with UI changes
 - Run **E2E tests** (`npm run test:e2e`) to close the loop on UI changes before considering work complete

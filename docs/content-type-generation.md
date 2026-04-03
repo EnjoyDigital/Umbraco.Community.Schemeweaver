@@ -162,10 +162,11 @@ If you have shared property groups (e.g., SEO fields, metadata), consider moving
 
 The generated document type does **not** have a schema mapping created automatically. To start generating JSON-LD:
 
-1. Navigate to the SchemeWeaver dashboard in the Settings section
-2. Find your new document type in the list
-3. Click to create a mapping, selecting the Schema.org type you generated from
+1. Open the generated document type in **Settings > Document Types**
+2. Switch to the **Schema.org** tab
+3. Click **Map to Schema.org** and select the same Schema.org type you generated from
 4. Use the auto-mapper to quickly match the generated properties to their Schema.org counterparts -- since the properties were named after Schema.org properties, the exact-match tier (confidence 100) should match most of them automatically
+5. Save the document type to persist the mapping
 
 ### 5. Create Content
 

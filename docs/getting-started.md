@@ -105,7 +105,7 @@ Select a type and click **Select** to proceed.
 
 ### Step 3: Review auto-mapped properties
 
-After selecting a Schema.org type, the property mapping modal opens. SchemeWeaver's auto-mapper analyses your content type's properties and suggests mappings using three confidence tiers:
+After selecting a Schema.org type, the Schema.org tab loads the property mapping interface in the document type editor. SchemeWeaver's auto-mapper analyses your content type's properties and suggests mappings using three confidence tiers:
 
 | Confidence | Score | How it matches |
 |---|---|---|
@@ -117,7 +117,7 @@ The property table uses smart ordering: popular Schema.org properties (`name`, `
 
 ![Basic property mapping](../screenshots/03-basic-mapping.png)
 
-### Step 4: Save the mapping
+### Step 4: Save the document type
 
 Review the suggested mappings and adjust any that need changing. You can:
 
@@ -125,7 +125,7 @@ Review the suggested mappings and adjust any that need changing. You can:
 - Pick a different **content type property** from the dropdown
 - Enter a **static value** for properties that should always output the same text
 
-Click **Save Mapping** when you are satisfied. The mapping is stored in the database and takes effect immediately.
+When you are satisfied, save the document type. SchemeWeaver persists the mapping alongside the document type save and the mapping takes effect immediately.
 
 ### Step 5: Publish content and verify
 

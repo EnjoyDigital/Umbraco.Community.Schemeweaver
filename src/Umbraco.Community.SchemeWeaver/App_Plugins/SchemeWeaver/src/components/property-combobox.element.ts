@@ -1,42 +1,31 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
-import { css, html, customElement, property, state, repeat, nothing } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, property, state } from '@umbraco-cms/backoffice/external/lit';
 import type { UUIComboboxElement, UUIComboboxEvent } from '@umbraco-cms/backoffice/external/uui';
 
-/** Built-in property alias display names (camelCase to match custom properties) */
+/** Built-in property alias display name map */
 const BUILT_IN_DISPLAY_NAMES: Record<string, string> = {
-  '__url': 'url',
-  '__name': 'name',
-  '__createDate': 'createDate',
-  '__updateDate': 'updateDate',
+  '__url': 'URL (Built-in)',
+  '__name': 'Name (Built-in)',
+  '__createDate': 'Create Date (Built-in)',
+  '__updateDate': 'Update Date (Built-in)',
 };
 
-/** Sorts properties so built-in (__-prefixed) appear first, preserving relative order within each group */
-function sortBuiltInFirst(properties: string[]): string[] {
-  return [...properties].sort((a, b) => {
-    const aBuiltIn = a.startsWith('__');
-    const bBuiltIn = b.startsWith('__');
-    if (aBuiltIn && !bBuiltIn) return -1;
-    if (!aBuiltIn && bBuiltIn) return 1;
-    return 0;
-  });
-}
-
-/** Returns a display-friendly name for a property alias */
-export function formatPropertyDisplayName(alias: string): string {
+/** Returns a display-friendly name for a property alias, with built-in indicator */
+export function formatPropertyName(alias: string): string {
   return BUILT_IN_DISPLAY_NAMES[alias] ?? alias;
 }
 
+/**
+ * Searchable property combobox component.
+ * Replaces uui-select for property dropdowns with a filterable uui-combobox.
+ *
+ * @element schemeweaver-property-combobox
+ * @fires change - Dispatched when the selected value changes
+ */
 @customElement('schemeweaver-property-combobox')
 export class PropertyComboboxElement extends UmbLitElement {
   @property({ type: Array })
-  public set properties(value: string[]) {
-    this.#properties = sortBuiltInFirst(value);
-    this._filteredProperties = this.#properties;
-  }
-  public get properties(): string[] {
-    return this.#properties;
-  }
-  #properties: string[] = [];
+  properties: string[] = [];
 
   @property({ type: String })
   value = '';
@@ -50,21 +39,35 @@ export class PropertyComboboxElement extends UmbLitElement {
   @state()
   private _filteredProperties: string[] = [];
 
-  private _onSearch(event: UUIComboboxEvent) {
-    const searchTerm = (event.currentTarget as UUIComboboxElement)?.search ?? '';
-    if (!searchTerm) {
-      this._filteredProperties = this.properties;
-      return;
+  override connectedCallback() {
+    super.connectedCallback();
+    this._filteredProperties = this.properties;
+  }
+
+  override updated(changedProperties: Map<string, unknown>) {
+    super.updated(changedProperties);
+    if (changedProperties.has('properties')) {
+      this._filteredProperties = this._filterList(this._lastSearch);
     }
-    const pattern = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    this._filteredProperties = sortBuiltInFirst(
-      this.properties.filter(
-        (p) => pattern.test(p) || pattern.test(formatPropertyDisplayName(p)),
-      ),
+  }
+
+  private _lastSearch = '';
+
+  #onSearch(event: UUIComboboxEvent) {
+    const searchTerm = (event.currentTarget as UUIComboboxElement)?.search ?? '';
+    this._lastSearch = searchTerm;
+    this._filteredProperties = this._filterList(searchTerm);
+  }
+
+  private _filterList(searchTerm: string): string[] {
+    if (!searchTerm) return this.properties;
+    const regex = new RegExp(searchTerm, 'i');
+    return this.properties.filter(
+      (alias) => regex.test(alias) || regex.test(formatPropertyName(alias)),
     );
   }
 
-  private _onChange(event: UUIComboboxEvent) {
+  #onChange(event: UUIComboboxEvent) {
     const newValue = ((event.currentTarget as UUIComboboxElement)?.value as string) ?? '';
     this.value = newValue;
     this.dispatchEvent(
@@ -76,32 +79,27 @@ export class PropertyComboboxElement extends UmbLitElement {
     );
   }
 
-  render() {
+  override render() {
     return html`
       <uui-combobox
         .value=${this.value}
-        label=${this.label || this.placeholder}
-        @search=${this._onSearch}
-        @change=${this._onChange}
-      >
+        label=${this.label || this.localize.term('schemeWeaver_selectProperty')}
+        @search=${this.#onSearch}
+        @change=${this.#onChange}>
         <uui-combobox-list>
-          ${this._filteredProperties.length === 0
-            ? html`<div class="no-results">${this.localize.term('schemeWeaver_noProperties')}</div>`
-            : repeat(
-                this._filteredProperties,
-                (p) => p,
-                (p) => html`
-                  <uui-combobox-list-option .value=${p} .displayValue=${formatPropertyDisplayName(p)}>
-                    ${formatPropertyDisplayName(p)}
-                  </uui-combobox-list-option>
-                `,
-              )}
+          ${this._filteredProperties.map(
+            (alias) => html`
+              <uui-combobox-list-option .value=${alias} .displayValue=${formatPropertyName(alias)}>
+                ${formatPropertyName(alias)}
+              </uui-combobox-list-option>
+            `,
+          )}
         </uui-combobox-list>
       </uui-combobox>
     `;
   }
 
-  static styles = [
+  static override styles = [
     css`
       :host {
         display: block;
@@ -109,13 +107,7 @@ export class PropertyComboboxElement extends UmbLitElement {
 
       uui-combobox {
         width: 100%;
-      }
-
-      .no-results {
-        padding: var(--uui-size-space-3);
-        color: var(--uui-color-text-alt);
-        font-style: italic;
-        text-align: center;
+        min-width: 150px;
       }
     `,
   ];

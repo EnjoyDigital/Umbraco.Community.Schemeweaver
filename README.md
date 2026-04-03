@@ -1,6 +1,6 @@
 # Umbraco.Community.SchemeWeaver
 
-Map Umbraco Content Types to [Schema.org](https://schema.org) types and automatically generate [JSON-LD](https://json-ld.org/) structured data for your pages. SchemeWeaver provides a backoffice UI for configuring mappings, an auto-mapper that suggests property assignments, and runtime JSON-LD generation that works with both server-rendered templates and the headless Delivery API.
+Map Umbraco Content Types to [Schema.org](https://schema.org) types and automatically generate [JSON-LD](https://json-ld.org/) structured data for your pages. SchemeWeaver provides a document type editor UI for configuring mappings, an auto-mapper that suggests property assignments, and runtime JSON-LD generation that works with both server-rendered templates and the headless Delivery API.
 
 ## Why structured data?
 
@@ -52,7 +52,7 @@ In your master layout (e.g. `_Layout.cshtml`):
 1. Open any document type in **Settings > Document Types**
 2. Click the **Schema.org** tab
 3. Click **Map to Schema.org** and select a type (e.g. Product, Article, Event)
-4. Review the auto-suggested property mappings and save
+4. Review the auto-suggested property mappings in the document type editor and save the document type
 5. Publish content -- JSON-LD appears in the page source
 
 ### 3. Headless / Delivery API

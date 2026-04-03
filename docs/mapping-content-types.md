@@ -6,12 +6,7 @@ This guide covers the full process of mapping an Umbraco Content Type to a Schem
 
 Each mapping connects exactly **one Umbraco Content Type** to **one Schema.org type**. Within that mapping, individual property mappings define where each schema property gets its value -- from the current content node, a static string, a related node, block content, or a complex sub-type.
 
-Mappings can be created from two places in the backoffice:
-
-1. **Settings > Schema.org Mappings dashboard** -- click the **Map** button on any unmapped content type.
-2. **Document type editor > Schema.org tab** -- click **Map to Schema.org** on the workspace view for any document type.
-
-Both routes follow the same steps described below.
+Mappings are created and maintained from the **Schema.org** tab in the document type editor. Open a document type under **Settings > Document Types**, switch to the Schema.org tab, and use **Map to Schema.org** to start a new mapping.
 
 ## Step 1: Choose a Schema.org type
 
@@ -42,7 +37,7 @@ Click a type to highlight it. The selected type is visually distinguished with a
 
 ## Step 2: Review auto-mapped properties
 
-After selecting a Schema.org type, the property mapping view loads. If you came from the dashboard, a separate property mapping modal opens. If you are on the document type editor's Schema.org tab, the mapping view is displayed inline on the workspace view.
+After selecting a Schema.org type, the property mapping view loads in the document type editor's Schema.org tab.
 
 SchemeWeaver's auto-mapper runs automatically, analysing your content type's properties and suggesting mappings to the schema's properties. The suggestions use three confidence tiers:
 
@@ -108,25 +103,15 @@ For Static Value, type the fixed string directly into the text input.
 
 Block Content and Schema.org Type sources have additional configuration. These are covered in detail in the property mappings and block content guides.
 
-## Step 4: Save the mapping
+## Step 4: Save the document type
 
-### From the workspace view (document type editor)
-
-Click the **Save Mapping** button in the Property Mappings box header. A success notification ("Mapping saved successfully") confirms the save. The mapping also **auto-saves when you save the document type** -- SchemeWeaver listens for the document type's save event and persists the schema mapping at the same time.
-
-### From the dashboard modal
-
-Click **Save Mapping** in the modal. After saving, the modal closes and the dashboard refreshes to reflect the new mapping.
+Save the document type after creating or editing mappings. SchemeWeaver persists the schema mapping when the document type save event fires and shows a success notification when the mapping has been stored.
 
 Only property rows that have data are saved -- rows where no content type property, static value, or resolver config has been set are excluded from the saved mapping.
 
 ## Editing existing mappings
 
-There are two ways to edit an existing mapping:
-
-1. **Dashboard** -- click the **Edit** button (pencil icon) on any mapped content type row. This opens the property mapping modal pre-loaded with the existing mapping data.
-
-2. **Document type editor** -- navigate to any document type, switch to the **Schema.org** tab. If a mapping exists, it is displayed inline with the schema type name shown as a tag and all property mappings listed in the table. Edit properties directly and click **Save Mapping**.
+To edit an existing mapping, navigate to the document type, switch to the **Schema.org** tab, and update the inline mapping UI. If a mapping exists, the schema type name is shown as a tag and all property mappings are listed in the table. Save the document type when you are done.
 
 On the workspace view, you can also click **Auto-map** to re-run the auto-mapper. This merges new suggestions with your existing mappings: if a property already has user-provided data (a content type property alias, static value, or resolver config), the user's choices are preserved and only the confidence score is updated. New schema properties from the suggestions are added as new rows.
 
@@ -140,15 +125,12 @@ When enabled:
 
 - The JSON-LD for this mapping is output not only on pages of this content type, but also on every descendant page in the content tree, regardless of the descendant's own content type.
 - Inherited schemas are rendered in root-first order, before the page's own schema and before the BreadcrumbList.
-- On the dashboard, inherited mappings show an additional "Inherited" tag beside the "Mapped" badge.
 
 This is useful for organisation-level schemas. For example, you might map your "Site Settings" content type to `Organization` and mark it as inherited, so every page on the site includes the organisation's structured data.
 
 ## Deleting mappings
 
-To delete a mapping, click the **Delete** button (trash icon) on the dashboard. The mapping and all its property mappings are removed from the database immediately. A success notification ("Mapping deleted successfully") confirms the action, and the table refreshes to show the content type as unmapped.
-
-There is no delete action on the workspace view. To remove a mapping from the document type editor, use the dashboard.
+To delete a mapping, open the document type's context menu in **Settings > Document Types** and click **Delete Schema.org Mapping**. The mapping and all its property mappings are removed from the database immediately. A success notification ("Mapping deleted successfully") confirms the action, and the Schema.org tab refreshes to show the content type as unmapped.
 
 Deleting a mapping means published pages of that content type will no longer output JSON-LD for that schema type on their next render. Already-cached pages may still show the old output until they are re-rendered or the cache expires.
 
@@ -156,5 +138,4 @@ Deleting a mapping means published pages of that content type will no longer out
 
 - **Property Mappings** (property-mappings.md) -- detailed guide to each source type, transforms, confidence scoring, and the property value resolver architecture.
 - **Block Content** (block-content.md) -- mapping Block List and Block Grid editors to Schema.org types, including nested type configuration and the nested mapping modal.
-- **[Dashboard](dashboard.md)** -- navigating and using the Settings section dashboard.
 - **[Getting Started](getting-started.md)** -- installation, tag helper setup, and your first mapping walkthrough.
