@@ -1,0 +1,27 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("authorName"))
+{
+    <p class="article-meta">By @Model.Value("authorName")</p>
+}
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("webFeed"))
+{
+    <div class="card">
+        <h2>Subscribe</h2>
+        <dl>
+            <dt>RSS Feed</dt>
+            <dd><a href="@Model.Value("webFeed")">@Model.Value("webFeed")</a></dd>
+        </dl>
+    </div>
+}

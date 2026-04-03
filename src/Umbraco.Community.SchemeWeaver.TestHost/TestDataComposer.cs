@@ -1104,6 +1104,296 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("skills", "Skills", textboxDataType),
         }, cancellationToken);
 
+        // 3c. New expanded content types — Business/Services
+        var servicePageCt = await CreateContentType("servicePage", "Service Page", "icon-wrench", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("serviceType", "Service Type", textboxDataType),
+            ("provider", "Provider", textboxDataType),
+            ("areaServed", "Area Served", textboxDataType),
+            ("price", "Price", textboxDataType),
+        }, cancellationToken);
+
+        var professionalServicePageCt = await CreateContentType("professionalServicePage", "Professional Service Page", "icon-certificate", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("email", "Email", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+            ("priceRange", "Price Range", textboxDataType),
+        }, cancellationToken);
+
+        var legalServicePageCt = await CreateContentType("legalServicePage", "Legal Service Page", "icon-gavel", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("email", "Email", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var financialServicePageCt = await CreateContentType("financialServicePage", "Financial Service Page", "icon-coins-alt", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("email", "Email", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var governmentOrgPageCt = await CreateContentType("governmentOrgPage", "Government Organisation Page", "icon-globe", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("email", "Email", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+            ("areaServed", "Area Served", textboxDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Places
+        var libraryPageCt = await CreateContentType("libraryPage", "Library Page", "icon-book-alt", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var movieTheaterPageCt = await CreateContentType("movieTheaterPage", "Movie Theater Page", "icon-movie", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("screenCount", "Screen Count", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var nightClubPageCt = await CreateContentType("nightClubPage", "Night Club Page", "icon-music", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var stadiumPageCt = await CreateContentType("stadiumPage", "Stadium Page", "icon-trophy", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("maximumAttendeeCapacity", "Maximum Attendee Capacity", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var skiResortPageCt = await CreateContentType("skiResortPage", "Ski Resort Page", "icon-cloud", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var golfCoursePageCt = await CreateContentType("golfCoursePage", "Golf Course Page", "icon-tree", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Accommodation
+        var apartmentPageCt = await CreateContentType("apartmentPage", "Apartment Page", "icon-umb-members", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("numberOfRooms", "Number of Rooms", textboxDataType),
+            ("floorSize", "Floor Size", textboxDataType),
+            ("petsAllowed", "Pets Allowed", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var housePageCt = await CreateContentType("housePage", "House Page", "icon-home", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("numberOfRooms", "Number of Rooms", textboxDataType),
+            ("floorSize", "Floor Size", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var lodgingBusinessPageCt = await CreateContentType("lodgingBusinessPage", "Lodging Business Page", "icon-hotel", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("starRating", "Star Rating", textboxDataType),
+            ("checkinTime", "Check-in Time", textboxDataType),
+            ("checkoutTime", "Check-out Time", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Creative
+        var articlePageCt = await CreateContentType("articlePage", "Article Page", "icon-document", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("bodyText", "Body Text", bodyDataType),
+            ("authorName", "Author Name", textboxDataType),
+            ("datePublished", "Date Published", dateTimeDataType ?? textboxDataType),
+            ("articleSection", "Article Section", textboxDataType),
+            ("wordCount", "Word Count", textboxDataType),
+        }, cancellationToken);
+
+        var podcastSeriesPageCt = await CreateContentType("podcastSeriesPage", "Podcast Series Page", "icon-microphone", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("webFeed", "Web Feed", textboxDataType),
+            ("authorName", "Author Name", textboxDataType),
+        }, cancellationToken);
+
+        var musicRecordingPageCt = await CreateContentType("musicRecordingPage", "Music Recording Page", "icon-music", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("duration", "Duration", textboxDataType),
+            ("byArtist", "By Artist", textboxDataType),
+            ("inAlbum", "In Album", textboxDataType),
+            ("datePublished", "Date Published", dateTimeDataType ?? textboxDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Commerce
+        var offerPageCt = await CreateContentType("offerPage", "Offer Page", "icon-tag", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("price", "Price", textboxDataType),
+            ("priceCurrency", "Price Currency", textboxDataType),
+            ("availability", "Availability", textboxDataType),
+            ("validFrom", "Valid From", dateTimeDataType ?? textboxDataType),
+            ("validThrough", "Valid Through", dateTimeDataType ?? textboxDataType),
+            ("itemOffered", "Item Offered", textboxDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Health
+        var diagnosticLabPageCt = await CreateContentType("diagnosticLabPage", "Diagnostic Lab Page", "icon-science", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Education
+        var educationalOrgPageCt = await CreateContentType("educationalOrgPage", "Educational Organisation Page", "icon-school", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Structural
+        var webPageCt = await CreateContentType("webPage", "Web Page", "icon-browser-window", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("bodyText", "Body Text", bodyDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Real Estate
+        var realEstateListingPageCt = await CreateContentType("realEstateListingPage", "Real Estate Listing Page", "icon-home", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("price", "Price", textboxDataType),
+            ("priceCurrency", "Price Currency", textboxDataType),
+            ("datePosted", "Date Posted", dateTimeDataType ?? textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        // 3c. New expanded content types — Hierarchy (parent/ancestor/sibling testing)
+        var organisationParentCt = await CreateContentType("organisationParent", "Organisation Parent", "icon-users", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("email", "Email", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var localBusinessChildCt = await CreateContentType("localBusinessChild", "Local Business Child", "icon-store", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("priceRange", "Price Range", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var departmentPageCt = await CreateContentType("departmentPage", "Department Page", "icon-users-alt", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+        }, cancellationToken);
+
         // 3b. Create master template and assign templates to content types
         if (await _templateService.GetAsync("master") is null)
         {
@@ -1149,6 +1439,17 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             reportPageCt, videoGamePageCt, sourceCodePageCt,
             // New subtypes — Standalone
             occupationPageCt,
+            // New expanded types
+            servicePageCt, professionalServicePageCt, legalServicePageCt, financialServicePageCt, governmentOrgPageCt,
+            libraryPageCt, movieTheaterPageCt, nightClubPageCt, stadiumPageCt, skiResortPageCt, golfCoursePageCt,
+            apartmentPageCt, housePageCt, lodgingBusinessPageCt,
+            articlePageCt, podcastSeriesPageCt, musicRecordingPageCt,
+            offerPageCt,
+            diagnosticLabPageCt,
+            educationalOrgPageCt,
+            webPageCt,
+            realEstateListingPageCt,
+            organisationParentCt, localBusinessChildCt, departmentPageCt,
         };
 
         foreach (var ct in allContentTypes)
@@ -1188,7 +1489,17 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             educationListingCt, universityPageCt, schoolPageCt, courseInstancePageCt,
             blogPageCt, liveBlogPageCt,
             reportPageCt, videoGamePageCt, sourceCodePageCt,
-            occupationPageCt);
+            occupationPageCt,
+            servicePageCt, professionalServicePageCt, legalServicePageCt, financialServicePageCt, governmentOrgPageCt,
+            libraryPageCt, movieTheaterPageCt, nightClubPageCt, stadiumPageCt, skiResortPageCt, golfCoursePageCt,
+            apartmentPageCt, housePageCt, lodgingBusinessPageCt,
+            articlePageCt, podcastSeriesPageCt, musicRecordingPageCt,
+            offerPageCt,
+            diagnosticLabPageCt,
+            educationalOrgPageCt,
+            webPageCt,
+            realEstateListingPageCt,
+            organisationParentCt, localBusinessChildCt, departmentPageCt);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -1763,7 +2074,76 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         // Standalone under home
         await CreateOccupationPage(home.Id, cancellationToken);
 
-        _logger.LogInformation("TestDataSeeder: created and published {Count} sample content nodes", 111);
+        // New expanded types — Web Page (standalone under home)
+        await CreateWebPageContent(home.Id, cancellationToken);
+
+        // New expanded types — Services under Services listing
+        await CreateServicePageContent(await servicesListing, cancellationToken);
+        await CreateProfessionalServicePageContent(await servicesListing, cancellationToken);
+        await CreateLegalServicePageContent(await servicesListing, cancellationToken);
+        await CreateFinancialServicePageContent(await servicesListing, cancellationToken);
+
+        // New expanded types — Government Org under Organisations listing
+        await CreateGovernmentOrgPageContent(await organisationListing, cancellationToken);
+
+        // New expanded types — Places under Places listing
+        await CreateLibraryPageContent(await placesListing, cancellationToken);
+        await CreateMovieTheaterPageContent(await placesListing, cancellationToken);
+        await CreateNightClubPageContent(await placesListing, cancellationToken);
+        await CreateStadiumPageContent(await placesListing, cancellationToken);
+        await CreateSkiResortPageContent(await placesListing, cancellationToken);
+        await CreateGolfCoursePageContent(await placesListing, cancellationToken);
+        await CreateApartmentPageContent(await placesListing, cancellationToken);
+        await CreateHousePageContent(await placesListing, cancellationToken);
+        await CreateLodgingBusinessPageContent(await placesListing, cancellationToken);
+
+        // New expanded types — Creative under Creative listing
+        await CreateArticlePageContent(await creativeListing, cancellationToken);
+        await CreatePodcastSeriesPageContent(await creativeListing, cancellationToken);
+        await CreateMusicRecordingPageContent(await creativeListing, cancellationToken);
+
+        // New expanded types — Commerce under Products listing
+        await CreateOfferPageContent(await productListing, cancellationToken);
+        await CreateRealEstateListingPageContent(await productListing, cancellationToken);
+
+        // New expanded types — Healthcare under Healthcare listing
+        await CreateDiagnosticLabPageContent(await healthcareListing, cancellationToken);
+
+        // New expanded types — Education under Education listing
+        await CreateEducationalOrgPageContent(await educationListing, cancellationToken);
+
+        // Acme Corp hierarchy (parent/ancestor/sibling testing)
+        var acmeCorp = _contentService.Create("Acme Corporation", home.Id, "organisationParent");
+        acmeCorp.SetValue("title", "Acme Corporation");
+        acmeCorp.SetValue("description", "A multinational conglomerate headquartered in Leeds.");
+        acmeCorp.SetValue("telephone", "+44 113 496 0000");
+        acmeCorp.SetValue("email", "info@acme-corp.example.com");
+        acmeCorp.SetValue("streetAddress", "100 Acme Way");
+        acmeCorp.SetValue("addressLocality", "Leeds");
+        acmeCorp.SetValue("postalCode", "LS1 1AA");
+        acmeCorp.SetValue("addressCountry", "GB");
+        _contentService.Save(acmeCorp);
+        await PublishContent(acmeCorp, cancellationToken);
+
+        var acmeOffice = _contentService.Create("Acme Leeds Office", acmeCorp.Id, "localBusinessChild");
+        acmeOffice.SetValue("title", "Acme Leeds Office");
+        acmeOffice.SetValue("description", "The Leeds branch office of Acme Corporation.");
+        acmeOffice.SetValue("telephone", "+44 113 496 0001");
+        acmeOffice.SetValue("priceRange", "$$");
+        acmeOffice.SetValue("streetAddress", "101 Acme Way");
+        acmeOffice.SetValue("addressLocality", "Leeds");
+        acmeOffice.SetValue("postalCode", "LS1 1AB");
+        acmeOffice.SetValue("addressCountry", "GB");
+        _contentService.Save(acmeOffice);
+        await PublishContent(acmeOffice, cancellationToken);
+
+        var acmeMarketing = _contentService.Create("Acme Marketing Department", acmeCorp.Id, "departmentPage");
+        acmeMarketing.SetValue("title", "Acme Marketing Department");
+        acmeMarketing.SetValue("description", "The marketing division of Acme Corporation.");
+        _contentService.Save(acmeMarketing);
+        await PublishContent(acmeMarketing, cancellationToken);
+
+        _logger.LogInformation("TestDataSeeder: created and published {Count} sample content nodes", 140);
     }
 
     private async Task<int> CreateAndPublishSimple(string name, int parentId, string contentTypeAlias, string title, string description, CancellationToken cancellationToken)
@@ -3064,6 +3444,300 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await SaveAndPublishAsync(content);
     }
 
+    private async Task CreateWebPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("About This Site", parentId, "webPage");
+        content.SetValue("title", "About This Site");
+        content.SetValue("description", "Information about the SchemeWeaver demo site and its structured data capabilities.");
+        content.SetValue("bodyText", "This site demonstrates how Umbraco content types can be mapped to Schema.org types to produce JSON-LD structured data automatically.");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateServicePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Web Design Services", parentId, "servicePage");
+        content.SetValue("title", "Web Design Services");
+        content.SetValue("description", "Bespoke web design and development services for businesses in Leeds and across Yorkshire.");
+        content.SetValue("serviceType", "Web Design");
+        content.SetValue("provider", "Enjoy Digital");
+        content.SetValue("areaServed", "Leeds, Yorkshire, United Kingdom");
+        content.SetValue("price", "From £2,500");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateProfessionalServicePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Leeds Consulting Group", parentId, "professionalServicePage");
+        content.SetValue("title", "Leeds Consulting Group");
+        content.SetValue("description", "Management consultancy firm providing strategic advisory services to businesses across the North of England.");
+        content.SetValue("telephone", "+44 113 245 6789");
+        content.SetValue("email", "enquiries@leedsconsulting.example.com");
+        content.SetValue("streetAddress", "45 Park Row");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 5JL");
+        content.SetValue("addressCountry", "GB");
+        content.SetValue("priceRange", "$$$");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateLegalServicePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Whitehall Legal Partners", parentId, "legalServicePage");
+        content.SetValue("title", "Whitehall Legal Partners");
+        content.SetValue("description", "Full-service law firm specialising in commercial, employment, and property law.");
+        content.SetValue("telephone", "+44 113 246 0101");
+        content.SetValue("email", "info@whitehall-legal.example.com");
+        content.SetValue("streetAddress", "12 Whitehall Road");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 4AW");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateFinancialServicePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Northern Finance Advisors", parentId, "financialServicePage");
+        content.SetValue("title", "Northern Finance Advisors");
+        content.SetValue("description", "Independent financial advisors offering mortgage, pension, and investment guidance.");
+        content.SetValue("telephone", "+44 113 247 3300");
+        content.SetValue("email", "advice@northernfinance.example.com");
+        content.SetValue("streetAddress", "8 Wellington Street");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 4LT");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateGovernmentOrgPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Leeds City Council", parentId, "governmentOrgPage");
+        content.SetValue("title", "Leeds City Council");
+        content.SetValue("description", "The metropolitan borough council governing the city of Leeds in West Yorkshire, England.");
+        content.SetValue("telephone", "+44 113 222 4444");
+        content.SetValue("email", "contact@leeds.gov.example.com");
+        content.SetValue("streetAddress", "Civic Hall, Calverley Street");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 1UR");
+        content.SetValue("addressCountry", "GB");
+        content.SetValue("areaServed", "Leeds, West Yorkshire");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateLibraryPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Leeds Central Library", parentId, "libraryPage");
+        content.SetValue("title", "Leeds Central Library");
+        content.SetValue("description", "Grade II listed library in the heart of Leeds offering over 300,000 volumes, public computers, and community events.");
+        content.SetValue("telephone", "+44 113 247 8911");
+        content.SetValue("streetAddress", "Calverley Street");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 3AB");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateMovieTheaterPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Everyman Cinema Leeds", parentId, "movieTheaterPage");
+        content.SetValue("title", "Everyman Cinema Leeds");
+        content.SetValue("description", "Boutique cinema experience with luxury seating, in-screen dining, and a curated film programme in Trinity Leeds.");
+        content.SetValue("telephone", "+44 113 318 0009");
+        content.SetValue("screenCount", "4");
+        content.SetValue("streetAddress", "Trinity Leeds, Albion Street");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 5AT");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateNightClubPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Mint Warehouse", parentId, "nightClubPage");
+        content.SetValue("title", "Mint Warehouse");
+        content.SetValue("description", "One of Leeds' premier nightclub venues hosting electronic music events and club nights.");
+        content.SetValue("telephone", "+44 113 244 0900");
+        content.SetValue("streetAddress", "2 Whitehall Road");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 4AW");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateStadiumPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Elland Road", parentId, "stadiumPage");
+        content.SetValue("title", "Elland Road");
+        content.SetValue("description", "Home ground of Leeds United Football Club since 1919, with a capacity of over 37,000.");
+        content.SetValue("telephone", "+44 113 367 6000");
+        content.SetValue("maximumAttendeeCapacity", "37890");
+        content.SetValue("streetAddress", "Elland Road");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS11 0ES");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateSkiResortPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Xscape Yorkshire Ski Slope", parentId, "skiResortPage");
+        content.SetValue("title", "Xscape Yorkshire Ski Slope");
+        content.SetValue("description", "Indoor real snow ski slope near Leeds offering skiing, snowboarding, and lessons for all abilities.");
+        content.SetValue("telephone", "+44 1onal 832 700");
+        content.SetValue("streetAddress", "Colorado Way, Glasshoughton");
+        content.SetValue("addressLocality", "Castleford");
+        content.SetValue("postalCode", "WF10 4TA");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateGolfCoursePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Moortown Golf Club", parentId, "golfCoursePage");
+        content.SetValue("title", "Moortown Golf Club");
+        content.SetValue("description", "Historic golf club in North Leeds, venue for the first Ryder Cup on British soil in 1929.");
+        content.SetValue("telephone", "+44 113 268 6521");
+        content.SetValue("streetAddress", "Harrogate Road, Alwoodley");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS17 7DB");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateApartmentPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Waterfront Apartment", parentId, "apartmentPage");
+        content.SetValue("title", "Waterfront Apartment");
+        content.SetValue("description", "Modern two-bedroom apartment overlooking the Leeds-Liverpool canal with open-plan living.");
+        content.SetValue("numberOfRooms", "4");
+        content.SetValue("floorSize", "75 sqm");
+        content.SetValue("petsAllowed", "No");
+        content.SetValue("streetAddress", "Granary Wharf");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 4BR");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateHousePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Victorian Terrace Headingley", parentId, "housePage");
+        content.SetValue("title", "Victorian Terrace Headingley");
+        content.SetValue("description", "Beautifully restored four-bedroom Victorian terrace house in the heart of Headingley.");
+        content.SetValue("numberOfRooms", "7");
+        content.SetValue("floorSize", "140 sqm");
+        content.SetValue("streetAddress", "28 St Michael's Lane");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS6 3AW");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateLodgingBusinessPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("The Calls Boutique Hotel", parentId, "lodgingBusinessPage");
+        content.SetValue("title", "The Calls Boutique Hotel");
+        content.SetValue("description", "Boutique hotel in a converted 19th-century corn mill on the banks of the River Aire.");
+        content.SetValue("telephone", "+44 113 244 0099");
+        content.SetValue("starRating", "4");
+        content.SetValue("checkinTime", "15:00");
+        content.SetValue("checkoutTime", "11:00");
+        content.SetValue("streetAddress", "42 The Calls");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS2 7EW");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateArticlePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("The Future of Structured Data", parentId, "articlePage");
+        content.SetValue("title", "The Future of Structured Data");
+        content.SetValue("description", "An in-depth look at how Schema.org structured data is evolving and what it means for web developers.");
+        content.SetValue("bodyText", "Structured data has become an essential part of modern web development. Search engines rely on it to understand page content and deliver rich results. In this article we explore the latest developments in the Schema.org vocabulary and how tools like SchemeWeaver make adoption easier than ever.");
+        content.SetValue("authorName", "Oliver Sheridan");
+        content.SetValue("datePublished", "2026-03-15");
+        content.SetValue("articleSection", "Technology");
+        content.SetValue("wordCount", "1250");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreatePodcastSeriesPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Schema Matters Podcast", parentId, "podcastSeriesPage");
+        content.SetValue("title", "Schema Matters Podcast");
+        content.SetValue("description", "Weekly podcast exploring structured data, SEO, and the semantic web with industry experts.");
+        content.SetValue("webFeed", "https://schemamatters.example.com/feed.xml");
+        content.SetValue("authorName", "Emma Richardson");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateMusicRecordingPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Northern Lights", parentId, "musicRecordingPage");
+        content.SetValue("title", "Northern Lights");
+        content.SetValue("description", "Lead single from the album 'Yorkshire Skies' by The Aire Valley Band.");
+        content.SetValue("duration", "PT4M32S");
+        content.SetValue("byArtist", "The Aire Valley Band");
+        content.SetValue("inAlbum", "Yorkshire Skies");
+        content.SetValue("datePublished", "2025-11-01");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateOfferPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Spring Sale — 25% Off", parentId, "offerPage");
+        content.SetValue("title", "Spring Sale — 25% Off");
+        content.SetValue("description", "Save 25% on all SchemeWeaver licences this spring. Limited time offer.");
+        content.SetValue("price", "37.50");
+        content.SetValue("priceCurrency", "GBP");
+        content.SetValue("availability", "InStock");
+        content.SetValue("validFrom", "2026-03-01");
+        content.SetValue("validThrough", "2026-05-31");
+        content.SetValue("itemOffered", "SchemeWeaver Professional Licence");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateRealEstateListingPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("3 Bed Semi-Detached, Roundhay", parentId, "realEstateListingPage");
+        content.SetValue("title", "3 Bed Semi-Detached, Roundhay");
+        content.SetValue("description", "Spacious three-bedroom semi-detached house with south-facing garden close to Roundhay Park.");
+        content.SetValue("price", "325000");
+        content.SetValue("priceCurrency", "GBP");
+        content.SetValue("datePosted", "2026-02-20");
+        content.SetValue("streetAddress", "14 Oakwood Lane");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS8 2PJ");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateDiagnosticLabPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Leeds PathLab Diagnostics", parentId, "diagnosticLabPage");
+        content.SetValue("title", "Leeds PathLab Diagnostics");
+        content.SetValue("description", "NHS-accredited diagnostic laboratory providing blood tests, pathology services, and rapid COVID testing.");
+        content.SetValue("telephone", "+44 113 392 5500");
+        content.SetValue("streetAddress", "St James's University Hospital, Beckett Street");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS9 7TF");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateEducationalOrgPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Leeds Arts University", parentId, "educationalOrgPage");
+        content.SetValue("title", "Leeds Arts University");
+        content.SetValue("description", "Specialist arts university offering undergraduate and postgraduate degrees in art, design, and creative disciplines.");
+        content.SetValue("telephone", "+44 113 202 8000");
+        content.SetValue("streetAddress", "Blenheim Walk");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS2 9AQ");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
     private async Task PublishContent(IContent content, CancellationToken cancellationToken)
     {
         try
@@ -3181,7 +3855,17 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType educationListingCt, IContentType universityPageCt, IContentType schoolPageCt, IContentType courseInstancePageCt,
         IContentType blogPageCt, IContentType liveBlogPageCt,
         IContentType reportPageCt, IContentType videoGamePageCt, IContentType sourceCodePageCt,
-        IContentType occupationPageCt)
+        IContentType occupationPageCt,
+        IContentType servicePageCt, IContentType professionalServicePageCt, IContentType legalServicePageCt, IContentType financialServicePageCt, IContentType governmentOrgPageCt,
+        IContentType libraryPageCt, IContentType movieTheaterPageCt, IContentType nightClubPageCt, IContentType stadiumPageCt, IContentType skiResortPageCt, IContentType golfCoursePageCt,
+        IContentType apartmentPageCt, IContentType housePageCt, IContentType lodgingBusinessPageCt,
+        IContentType articlePageCt, IContentType podcastSeriesPageCt, IContentType musicRecordingPageCt,
+        IContentType offerPageCt,
+        IContentType diagnosticLabPageCt,
+        IContentType educationalOrgPageCt,
+        IContentType webPageCt,
+        IContentType realEstateListingPageCt,
+        IContentType organisationParentCt, IContentType localBusinessChildCt, IContentType departmentPageCt)
     {
         using var scope = _scopeFactory.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
@@ -3347,7 +4031,36 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         // New standalone mapping
         SeedSimpleMapping(repo, occupationPageCt, "Occupation", ("Name", "title"), ("Description", "description"), ("OccupationalCategory", "occupationalCategory"), ("EstimatedSalary", "estimatedSalary"), ("Skills", "skills"), ("Url", "__url"));
 
-        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 109);
+        // New expanded schema types
+        SeedSimpleMapping(repo, webPageCt, "WebPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
+        SeedSimpleMapping(repo, servicePageCt, "Service", ("Name", "title"), ("Description", "description"), ("ServiceType", "serviceType"), ("Provider", "provider"), ("AreaServed", "areaServed"), ("Url", "__url"));
+        SeedSimpleMapping(repo, offerPageCt, "Offer", ("Name", "title"), ("Description", "description"), ("Price", "price"), ("PriceCurrency", "priceCurrency"), ("Availability", "availability"), ("Url", "__url"));
+        SeedSimpleMapping(repo, professionalServicePageCt, "ProfessionalService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("PriceRange", "priceRange"), ("Url", "__url"));
+        SeedSimpleMapping(repo, legalServicePageCt, "LegalService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
+        SeedSimpleMapping(repo, financialServicePageCt, "FinancialService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
+        SeedSimpleMapping(repo, governmentOrgPageCt, "GovernmentOrganization", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("AreaServed", "areaServed"), ("Url", "__url"));
+        SeedSimpleMapping(repo, libraryPageCt, "Library", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
+        SeedSimpleMapping(repo, movieTheaterPageCt, "MovieTheater", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("ScreenCount", "screenCount"), ("Url", "__url"));
+        SeedSimpleMapping(repo, nightClubPageCt, "NightClub", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
+        SeedSimpleMapping(repo, stadiumPageCt, "StadiumOrArena", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("MaximumAttendeeCapacity", "maximumAttendeeCapacity"), ("Url", "__url"));
+        SeedSimpleMapping(repo, skiResortPageCt, "SkiResort", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
+        SeedSimpleMapping(repo, golfCoursePageCt, "GolfCourse", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
+        SeedSimpleMapping(repo, apartmentPageCt, "Apartment", ("Name", "title"), ("Description", "description"), ("NumberOfRooms", "numberOfRooms"), ("FloorSize", "floorSize"), ("PetsAllowed", "petsAllowed"), ("Url", "__url"));
+        SeedSimpleMapping(repo, housePageCt, "House", ("Name", "title"), ("Description", "description"), ("NumberOfRooms", "numberOfRooms"), ("FloorSize", "floorSize"), ("Url", "__url"));
+        SeedSimpleMapping(repo, lodgingBusinessPageCt, "LodgingBusiness", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("StarRating", "starRating"), ("CheckinTime", "checkinTime"), ("CheckoutTime", "checkoutTime"), ("Url", "__url"));
+        SeedSimpleMapping(repo, articlePageCt, "Article", ("Headline", "title"), ("Description", "description"), ("ArticleBody", "bodyText"), ("Author", "authorName"), ("DatePublished", "datePublished"), ("ArticleSection", "articleSection"), ("Url", "__url"));
+        SeedSimpleMapping(repo, podcastSeriesPageCt, "PodcastSeries", ("Name", "title"), ("Description", "description"), ("WebFeed", "webFeed"), ("Author", "authorName"), ("Url", "__url"));
+        SeedSimpleMapping(repo, musicRecordingPageCt, "MusicRecording", ("Name", "title"), ("Description", "description"), ("Duration", "duration"), ("ByArtist", "byArtist"), ("InAlbum", "inAlbum"), ("DatePublished", "datePublished"), ("Url", "__url"));
+        SeedSimpleMapping(repo, diagnosticLabPageCt, "DiagnosticLab", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
+        SeedSimpleMapping(repo, educationalOrgPageCt, "EducationalOrganization", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
+        SeedSimpleMapping(repo, realEstateListingPageCt, "RealEstateListing", ("Name", "title"), ("Description", "description"), ("Price", "price"), ("PriceCurrency", "priceCurrency"), ("DatePosted", "datePosted"), ("Url", "__url"));
+        SeedSimpleMapping(repo, organisationParentCt, "Organization", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
+
+        // Hierarchy mappings (parent/ancestor/sibling)
+        SeedLocalBusinessChildMapping(localBusinessChildCt, repo);
+        SeedDepartmentPageMapping(departmentPageCt, repo);
+
+        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 134);
     }
 
     private void SeedHowToMapping(IContentType ct, ISchemaMappingRepository repo)
@@ -3669,6 +4382,64 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
                         new { schemaProperty = "Name", sourceType = "property", contentTypePropertyAlias = "authorName" },
                     }
                 }),
+            },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Publisher",
+                SourceType = "ancestor",
+                ContentTypePropertyAlias = "organisationName",
+                SourceContentTypeAlias = "homePage",
+            },
+        });
+    }
+
+    private void SeedLocalBusinessChildMapping(IContentType ct, ISchemaMappingRepository repo)
+    {
+        var mapping = repo.Save(new SchemaMapping
+        {
+            ContentTypeAlias = ct.Alias,
+            ContentTypeKey = ct.Key,
+            SchemaTypeName = "LocalBusiness",
+            IsEnabled = true,
+        });
+
+        repo.SavePropertyMappings(mapping.Id, new[]
+        {
+            new PropertyMapping { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "title" },
+            new PropertyMapping { SchemaPropertyName = "Description", SourceType = "property", ContentTypePropertyAlias = "description" },
+            new PropertyMapping { SchemaPropertyName = "Telephone", SourceType = "property", ContentTypePropertyAlias = "telephone" },
+            new PropertyMapping { SchemaPropertyName = "PriceRange", SourceType = "property", ContentTypePropertyAlias = "priceRange" },
+            new PropertyMapping { SchemaPropertyName = "Url", SourceType = "property", ContentTypePropertyAlias = "__url" },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "ParentOrganization",
+                SourceType = "parent",
+                ContentTypePropertyAlias = "title",
+            },
+        });
+    }
+
+    private void SeedDepartmentPageMapping(IContentType ct, ISchemaMappingRepository repo)
+    {
+        var mapping = repo.Save(new SchemaMapping
+        {
+            ContentTypeAlias = ct.Alias,
+            ContentTypeKey = ct.Key,
+            SchemaTypeName = "Organization",
+            IsEnabled = true,
+        });
+
+        repo.SavePropertyMappings(mapping.Id, new[]
+        {
+            new PropertyMapping { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "title" },
+            new PropertyMapping { SchemaPropertyName = "Description", SourceType = "property", ContentTypePropertyAlias = "description" },
+            new PropertyMapping { SchemaPropertyName = "Url", SourceType = "property", ContentTypePropertyAlias = "__url" },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Location",
+                SourceType = "sibling",
+                ContentTypePropertyAlias = "streetAddress",
+                SourceContentTypeAlias = "localBusinessChild",
             },
         });
     }

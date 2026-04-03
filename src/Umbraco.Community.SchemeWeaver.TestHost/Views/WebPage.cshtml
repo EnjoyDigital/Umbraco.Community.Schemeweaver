@@ -1,0 +1,18 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("bodyText"))
+{
+    <div class="card">
+        @Html.Raw(Model.Value("bodyText"))
+    </div>
+}

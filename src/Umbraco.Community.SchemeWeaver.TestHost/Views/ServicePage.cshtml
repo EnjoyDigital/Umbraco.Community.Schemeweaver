@@ -1,0 +1,43 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("serviceType") || Model.HasValue("provider") || Model.HasValue("areaServed"))
+{
+    <div class="card">
+        <h2>Service Details</h2>
+        <dl>
+            @if (Model.HasValue("serviceType"))
+            {
+                <dt>Service Type</dt>
+                <dd>@Model.Value("serviceType")</dd>
+            }
+            @if (Model.HasValue("provider"))
+            {
+                <dt>Provider</dt>
+                <dd>@Model.Value("provider")</dd>
+            }
+            @if (Model.HasValue("areaServed"))
+            {
+                <dt>Area Served</dt>
+                <dd>@Model.Value("areaServed")</dd>
+            }
+        </dl>
+    </div>
+}
+
+@if (Model.HasValue("price"))
+{
+    <div class="card">
+        <h2>Pricing</h2>
+        <p class="price-range">@Model.Value("price")</p>
+    </div>
+}

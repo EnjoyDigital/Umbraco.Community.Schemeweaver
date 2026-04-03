@@ -1,0 +1,40 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("byArtist") || Model.HasValue("inAlbum") || Model.HasValue("duration") || Model.HasValue("datePublished"))
+{
+    <div class="card">
+        <h2>Recording Details</h2>
+        <dl>
+            @if (Model.HasValue("byArtist"))
+            {
+                <dt>Artist</dt>
+                <dd>@Model.Value("byArtist")</dd>
+            }
+            @if (Model.HasValue("inAlbum"))
+            {
+                <dt>Album</dt>
+                <dd>@Model.Value("inAlbum")</dd>
+            }
+            @if (Model.HasValue("duration"))
+            {
+                <dt>Duration</dt>
+                <dd>@Model.Value("duration")</dd>
+            }
+            @if (Model.HasValue("datePublished"))
+            {
+                <dt>Date Published</dt>
+                <dd>@Model.Value("datePublished")</dd>
+            }
+        </dl>
+    </div>
+}

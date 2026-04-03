@@ -1,0 +1,60 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("price") || Model.HasValue("priceCurrency") || Model.HasValue("availability"))
+{
+    <div class="card">
+        <h2>Offer Details</h2>
+        <dl>
+            @if (Model.HasValue("price"))
+            {
+                <dt>Price</dt>
+                <dd>
+                    @Model.Value("price")
+                    @if (Model.HasValue("priceCurrency"))
+                    {
+                        <span>@Model.Value("priceCurrency")</span>
+                    }
+                </dd>
+            }
+            @if (Model.HasValue("availability"))
+            {
+                <dt>Availability</dt>
+                <dd>@Model.Value("availability")</dd>
+            }
+            @if (Model.HasValue("itemOffered"))
+            {
+                <dt>Item Offered</dt>
+                <dd>@Model.Value("itemOffered")</dd>
+            }
+        </dl>
+    </div>
+}
+
+@if (Model.HasValue("validFrom") || Model.HasValue("validThrough"))
+{
+    <div class="card">
+        <h2>Validity</h2>
+        <dl>
+            @if (Model.HasValue("validFrom"))
+            {
+                <dt>Valid From</dt>
+                <dd>@Model.Value("validFrom")</dd>
+            }
+            @if (Model.HasValue("validThrough"))
+            {
+                <dt>Valid Through</dt>
+                <dd>@Model.Value("validThrough")</dd>
+            }
+        </dl>
+    </div>
+}

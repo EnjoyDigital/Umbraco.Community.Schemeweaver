@@ -1,0 +1,62 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Value("title")</h1>
+
+@if (Model.HasValue("description"))
+{
+    <p class="lead">@Model.Value("description")</p>
+}
+
+@if (Model.HasValue("price") || Model.HasValue("priceCurrency") || Model.HasValue("datePosted"))
+{
+    <div class="card">
+        <h2>Listing Details</h2>
+        <dl>
+            @if (Model.HasValue("price"))
+            {
+                <dt>Price</dt>
+                <dd>
+                    @Model.Value("price")
+                    @if (Model.HasValue("priceCurrency"))
+                    {
+                        <span>@Model.Value("priceCurrency")</span>
+                    }
+                </dd>
+            }
+            @if (Model.HasValue("datePosted"))
+            {
+                <dt>Date Posted</dt>
+                <dd>@Model.Value("datePosted")</dd>
+            }
+        </dl>
+    </div>
+}
+
+<div class="card">
+    <h2>Address</h2>
+    <dl>
+        @if (Model.HasValue("streetAddress"))
+        {
+            <dt>Street</dt>
+            <dd>@Model.Value("streetAddress")</dd>
+        }
+        @if (Model.HasValue("addressLocality"))
+        {
+            <dt>Locality</dt>
+            <dd>@Model.Value("addressLocality")</dd>
+        }
+        @if (Model.HasValue("postalCode"))
+        {
+            <dt>Post Code</dt>
+            <dd>@Model.Value("postalCode")</dd>
+        }
+        @if (Model.HasValue("addressCountry"))
+        {
+            <dt>Country</dt>
+            <dd>@Model.Value("addressCountry")</dd>
+        }
+    </dl>
+</div>
