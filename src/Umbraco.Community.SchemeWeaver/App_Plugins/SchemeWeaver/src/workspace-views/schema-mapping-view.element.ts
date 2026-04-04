@@ -7,7 +7,7 @@ import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { UmbRequestReloadStructureForEntityEvent } from '@umbraco-cms/backoffice/entity-action';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import { SchemeWeaverContext } from '../context/schemeweaver.context.js';
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from '../modals/source-origin-picker-modal.token.js';
@@ -19,7 +19,7 @@ import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChan
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
-  #repository = new SchemeWeaverRepository(this);
+  #context = new SchemeWeaverContext(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
@@ -95,7 +95,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
     this._loading = true;
 
     try {
-      const mapping = await this.#repository.requestMapping(this._contentTypeAlias);
+      const mapping = await this.#context.requestMapping(this._contentTypeAlias);
 
       if (!mapping) {
         this._mapping = null;
@@ -108,7 +108,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       this._rows = sortMappingRows(mapping.propertyMappings.map(dtoToRow));
 
       // Enrich rows with schema property info (acceptedTypes, isComplexType)
-      const schemaProps = await this.#repository.requestSchemaTypeProperties(mapping.schemaTypeName);
+      const schemaProps = await this.#context.requestSchemaTypeProperties(mapping.schemaTypeName);
       if (schemaProps) {
         this._rows = this._rows.map(row => {
           const schemaProp = schemaProps.find(
@@ -176,7 +176,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
         this._rows = sortMappingRows(this._rows);
       }
 
-      const props = await this.#repository.requestContentTypeProperties(this._contentTypeAlias);
+      const props = await this.#context.requestContentTypeProperties(this._contentTypeAlias);
       if (props) {
         this._availableProperties = props.map((p: ContentTypeProperty) => p.alias);
       }
@@ -192,7 +192,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
         const sourcePropsMap = new Map<string, string[]>();
         await Promise.all(
           sourceAliases.map(async (alias) => {
-            const sourceProps = await this.#repository.requestContentTypeProperties(alias);
+            const sourceProps = await this.#context.requestContentTypeProperties(alias);
             if (sourceProps) {
               sourcePropsMap.set(alias, sourceProps.map((p) => p.alias));
             }
@@ -252,7 +252,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
     this._loading = true;
     try {
-      const suggestions = await this.#repository.requestAutoMap(
+      const suggestions = await this.#context.requestAutoMap(
         this._contentTypeAlias,
         this._mapping.schemaTypeName
       );
@@ -299,7 +299,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
             resolverConfig: row.resolverConfig,
           })),
       };
-      await this.#repository.saveMapping(dto);
+      await this.#context.saveMapping(dto);
       this.#notificationContext?.peek('positive', {
         data: { message: this.localize.term('schemeWeaver_mappingSaved') },
       });
@@ -333,11 +333,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
     if (!documentTypeUnique) return;
 
     // Look up the content type by its unique key to get the alias
-    const contentTypes = await this.#repository.requestContentTypes();
+    const contentTypes = await this.#context.requestContentTypes();
     const match = contentTypes?.find((ct) => ct.key === documentTypeUnique);
     if (!match) return;
 
-    const props = await this.#repository.requestContentTypeProperties(match.alias);
+    const props = await this.#context.requestContentTypeProperties(match.alias);
     const propertyAliases = props?.map((p) => p.alias) || [];
 
     const updated = [...this._rows];

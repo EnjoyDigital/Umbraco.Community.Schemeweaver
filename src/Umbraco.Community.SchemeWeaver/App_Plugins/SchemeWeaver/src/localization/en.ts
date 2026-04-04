@@ -155,5 +155,7 @@ export default {
     complexTypeMappings: 'Type Property Mappings',
     selectSchemaSubType: 'Select Schema.org Sub-Type',
     complexTypeConfigured: 'Type mapping configured',
+    propertyMappingsConfigured: 'property mappings configured for',
+    failedToResolveContentType: 'Failed to resolve content type',
   },
 };

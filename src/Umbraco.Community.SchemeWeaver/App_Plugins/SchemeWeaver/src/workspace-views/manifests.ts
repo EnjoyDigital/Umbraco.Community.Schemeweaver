@@ -1,3 +1,5 @@
+import { UMB_WORKSPACE_CONDITION_ALIAS } from '@umbraco-cms/backoffice/workspace';
+
 export const manifests = [
   {
     type: 'workspaceView',
@@ -12,7 +14,7 @@ export const manifests = [
     },
     conditions: [
       {
-        alias: 'Umb.Condition.WorkspaceAlias',
+        alias: UMB_WORKSPACE_CONDITION_ALIAS,
         match: 'Umb.Workspace.DocumentType',
       },
     ],
@@ -30,7 +32,7 @@ export const manifests = [
     },
     conditions: [
       {
-        alias: 'Umb.Condition.WorkspaceAlias',
+        alias: UMB_WORKSPACE_CONDITION_ALIAS,
         match: 'Umb.Workspace.Document',
       },
     ],

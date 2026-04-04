@@ -102,4 +102,29 @@ export class SchemeWeaverContext extends UmbControllerBase {
   async generateContentType(request: ContentTypeGenerationRequest) {
     return this.#repository.generateContentType(request);
   }
+
+  // Pass-through methods for workspace views that need direct results
+  async requestMapping(contentTypeAlias: string) {
+    return this.#repository.requestMapping(contentTypeAlias);
+  }
+
+  async requestSchemaTypeProperties(typeName: string) {
+    return this.#repository.requestSchemaTypeProperties(typeName);
+  }
+
+  async requestContentTypeProperties(contentTypeAlias: string) {
+    return this.#repository.requestContentTypeProperties(contentTypeAlias);
+  }
+
+  async requestContentTypes() {
+    return this.#repository.requestContentTypes();
+  }
+
+  async resolveContentTypeAlias(unique: string) {
+    return this.#repository.resolveContentTypeAlias(unique);
+  }
+
+  async requestBlockElementTypes(contentTypeAlias: string, propertyAlias: string) {
+    return this.#repository.requestBlockElementTypes(contentTypeAlias, propertyAlias);
+  }
 }

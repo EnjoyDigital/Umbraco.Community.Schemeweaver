@@ -45,7 +45,7 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
     }
   }
 
-  private async _handleSearch(e: Event) {
+  private _handleSearch(e: Event) {
     this._searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
   }
 

@@ -1,0 +1,26 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<PropertyListing>
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Title</h1>
+
+@if (!string.IsNullOrEmpty(Model.Description))
+{
+    <p class="lead">@Model.Description</p>
+}
+
+@if (Model.Children != null && Model.Children.Any())
+{
+    <div class="card-grid">
+        @foreach (var child in Model.Children)
+        {
+            <div class="card">
+                <h3><a href="@child.Url()">@child.Name</a></h3>
+                @if (child.HasValue("description"))
+                {
+                    <p>@child.Value("description")</p>
+                }
+            </div>
+        }
+    </div>
+}

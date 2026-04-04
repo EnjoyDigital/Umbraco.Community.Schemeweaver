@@ -3,12 +3,12 @@ import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffic
 import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import '../components/jsonld-preview.element.js';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import { SchemeWeaverContext } from '../context/schemeweaver.context.js';
 import type { JsonLdPreviewResponse } from '../api/types.js';
 
 @customElement('schemeweaver-jsonld-content-view')
 export class JsonLdContentViewElement extends UmbLitElement {
-  #repository = new SchemeWeaverRepository(this);
+  #context = new SchemeWeaverContext(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
@@ -53,7 +53,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
           workspaceContext.contentTypeUnique,
           async (contentTypeId: string | null) => {
             if (contentTypeId) {
-              const alias = await this.#repository.resolveContentTypeAlias(contentTypeId);
+              const alias = await this.#context.resolveContentTypeAlias(contentTypeId);
               if (alias) {
                 this._contentTypeAlias = alias;
                 await this._checkMapping();
@@ -79,7 +79,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
 
   private async _checkMapping() {
     if (this._contentTypeAlias) {
-      const mapping = await this.#repository.requestMapping(this._contentTypeAlias);
+      const mapping = await this.#context.requestMapping(this._contentTypeAlias);
       this._hasMapping = !!mapping;
       if (this._hasMapping) {
         await this._generatePreview();
@@ -98,7 +98,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
     this._generating = true;
     this._unpublished = false;
     try {
-      const result = await this.#repository.requestPreview(this._contentTypeAlias, this._contentKey);
+      const result = await this.#context.requestPreview(this._contentTypeAlias, this._contentKey);
       if (result) {
         this._preview = result;
       } else {

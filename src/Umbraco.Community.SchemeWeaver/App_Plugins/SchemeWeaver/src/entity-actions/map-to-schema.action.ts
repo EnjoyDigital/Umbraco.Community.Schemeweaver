@@ -1,17 +1,33 @@
 import { UmbEntityActionBase } from '@umbraco-cms/backoffice/entity-action';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
+import { UmbLocalizationController } from '@umbraco-cms/backoffice/localization-api';
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 
 export class MapToSchemaAction extends UmbEntityActionBase<never> {
   async execute() {
+    const localize = new UmbLocalizationController(this);
     const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
     if (!modalManager) return;
 
+    const notificationContext = await this.getContext(UMB_NOTIFICATION_CONTEXT);
+
     // Resolve GUID to alias — entity actions receive unique (GUID), but the API expects alias
-    const repository = new SchemeWeaverRepository(this);
-    const contentTypeAlias = await repository.resolveContentTypeAlias(this.args.unique ?? '') ?? this.args.unique ?? '';
+    let contentTypeAlias: string;
+    try {
+      const repository = new SchemeWeaverRepository(this);
+      contentTypeAlias = await repository.resolveContentTypeAlias(this.args.unique ?? '') ?? this.args.unique ?? '';
+    } catch {
+      notificationContext?.peek('danger', {
+        data: {
+          headline: localize.term('schemeWeaver_mapToSchema'),
+          message: localize.term('schemeWeaver_failedToResolveContentType'),
+        },
+      });
+      return;
+    }
 
     // First open schema picker
     const pickerResult = await modalManager

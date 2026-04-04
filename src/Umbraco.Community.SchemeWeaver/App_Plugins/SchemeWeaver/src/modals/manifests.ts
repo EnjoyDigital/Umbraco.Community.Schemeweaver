@@ -41,4 +41,10 @@ export const manifests = [
     name: 'Complex Type Mapping Modal',
     element: () => import('./complex-type-mapping-modal.element.js'),
   },
+  {
+    type: 'modal',
+    alias: 'schemeweaver-content-type-picker-modal',
+    name: 'Content Type Picker Modal',
+    element: () => import('./content-type-picker-modal.element.js'),
+  },
 ];

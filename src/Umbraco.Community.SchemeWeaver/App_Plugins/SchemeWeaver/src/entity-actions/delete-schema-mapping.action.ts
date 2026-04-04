@@ -2,9 +2,12 @@ import { UmbEntityActionBase, UmbRequestReloadStructureForEntityEvent } from '@u
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
+import { UmbLocalizationController } from '@umbraco-cms/backoffice/localization-api';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 
 export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
+  #localize = new UmbLocalizationController(this);
+
   async execute() {
     const repository = new SchemeWeaverRepository(this);
     const notificationContext = await this.getContext(UMB_NOTIFICATION_CONTEXT);
@@ -14,7 +17,7 @@ export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
     const mapping = await repository.requestMapping(contentTypeAlias);
     if (!mapping) {
       notificationContext?.peek('warning', {
-        data: { message: 'No mapping exists for this content type' },
+        data: { message: this.#localize.term('schemeWeaver_noMappingExists') },
       });
       return;
     }
@@ -27,10 +30,10 @@ export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
       await modalManager
         .open(this, UMB_CONFIRM_MODAL, {
           data: {
-            headline: 'Delete Schema.org Mapping',
-            content: `Are you sure you want to delete the Schema.org mapping for "${contentTypeAlias}"?`,
+            headline: this.#localize.term('schemeWeaver_deleteMapping'),
+            content: this.#localize.term('schemeWeaver_deleteMappingConfirm'),
             color: 'danger',
-            confirmLabel: 'Delete',
+            confirmLabel: this.#localize.term('general_delete'),
           },
         })
         .onSubmit();
@@ -44,7 +47,7 @@ export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
       await repository.deleteMapping(contentTypeAlias);
 
       notificationContext?.peek('positive', {
-        data: { message: 'Mapping deleted successfully' },
+        data: { message: this.#localize.term('schemeWeaver_mappingDeleted') },
       });
 
       // Dispatch reload event so workspace view refreshes
@@ -58,7 +61,7 @@ export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
       }
     } catch {
       notificationContext?.peek('danger', {
-        data: { message: 'Failed to delete mapping' },
+        data: { message: this.#localize.term('schemeWeaver_failedToDeleteMapping') },
       });
     }
   }

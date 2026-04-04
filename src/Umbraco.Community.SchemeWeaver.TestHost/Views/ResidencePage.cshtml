@@ -1,0 +1,55 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ResidencePage>
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Title</h1>
+
+@if (!string.IsNullOrEmpty(Model.Description))
+{
+    <p class="lead">@Model.Description</p>
+}
+
+@if (!string.IsNullOrEmpty(Model.NumberOfRooms) || !string.IsNullOrEmpty(Model.FloorSize))
+{
+    <div class="card">
+        <h2>Property Details</h2>
+        <dl>
+            @if (!string.IsNullOrEmpty(Model.NumberOfRooms))
+            {
+                <dt>Number of Rooms</dt>
+                <dd>@Model.NumberOfRooms</dd>
+            }
+            @if (!string.IsNullOrEmpty(Model.FloorSize))
+            {
+                <dt>Floor Size</dt>
+                <dd>@Model.FloorSize</dd>
+            }
+        </dl>
+    </div>
+}
+
+<div class="card">
+    <h2>Address</h2>
+    <dl>
+        @if (!string.IsNullOrEmpty(Model.StreetAddress))
+        {
+            <dt>Street</dt>
+            <dd>@Model.StreetAddress</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.AddressLocality))
+        {
+            <dt>Locality</dt>
+            <dd>@Model.AddressLocality</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.PostalCode))
+        {
+            <dt>Post Code</dt>
+            <dd>@Model.PostalCode</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.AddressCountry))
+        {
+            <dt>Country</dt>
+            <dd>@Model.AddressCountry</dd>
+        }
+    </dl>
+</div>

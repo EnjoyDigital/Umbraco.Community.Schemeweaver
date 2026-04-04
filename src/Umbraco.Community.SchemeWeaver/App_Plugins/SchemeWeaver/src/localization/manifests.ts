@@ -1,14 +1,4 @@
-// ManifestLocalization is not exported from this path in all Umbraco versions
-// Use a compatible type definition instead
-interface ManifestLocalization {
-  type: 'localization';
-  alias: string;
-  name: string;
-  meta: {
-    culture: string;
-  };
-  js: () => Promise<unknown>;
-}
+import type { ManifestLocalization } from '@umbraco-cms/backoffice/localization-api';
 
 export const manifests: ManifestLocalization[] = [
   {

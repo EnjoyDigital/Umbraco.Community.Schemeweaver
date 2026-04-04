@@ -2,7 +2,7 @@ export const manifests = [
   {
     type: 'entityAction',
     kind: 'default',
-    alias: 'SchemeWeaver.MapToSchema',
+    alias: 'Umbraco.Community.SchemeWeaver.MapToSchema',
     name: 'Map to Schema.org',
     weight: 100,
     api: () => import('./map-to-schema.action.js'),
@@ -15,7 +15,7 @@ export const manifests = [
   {
     type: 'entityAction',
     kind: 'default',
-    alias: 'SchemeWeaver.DeleteSchemaMapping',
+    alias: 'Umbraco.Community.SchemeWeaver.DeleteSchemaMapping',
     name: 'Delete Schema.org Mapping',
     weight: 99,
     api: () => import('./delete-schema-mapping.action.js'),
@@ -28,7 +28,7 @@ export const manifests = [
   {
     type: 'entityAction',
     kind: 'default',
-    alias: 'SchemeWeaver.GenerateFromSchema',
+    alias: 'Umbraco.Community.SchemeWeaver.GenerateFromSchema',
     name: 'Generate from Schema.org',
     weight: 101,
     api: () => import('./generate-from-schema.action.js'),

@@ -199,7 +199,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
               </div>
             `
           : html`
-              <div class="schema-list">
+              <div class="schema-list" role="listbox" aria-label="Schema.org types">
                 ${this._schemaTypes.map(
                   (type) => html`
                     <div class="schema-item" role="option" tabindex="0" @click=${() => this._handleSelectSchemaType(type)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._handleSelectSchemaType(type); } }}>
@@ -221,6 +221,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
           <uui-form-layout-item>
             <uui-label slot="label">${this.localize.term('schemeWeaver_contentTypeName')}</uui-label>
             <uui-input
+              label=${this.localize.term('schemeWeaver_contentTypeName')}
               .value=${this._documentTypeName}
               @input=${(e: Event) => (this._documentTypeName = (e.target as HTMLInputElement).value)}
             ></uui-input>
@@ -228,6 +229,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
           <uui-form-layout-item>
             <uui-label slot="label">${this.localize.term('schemeWeaver_contentTypeAlias')}</uui-label>
             <uui-input
+              label=${this.localize.term('schemeWeaver_contentTypeAlias')}
               .value=${this._documentTypeAlias}
               @input=${(e: Event) => (this._documentTypeAlias = (e.target as HTMLInputElement).value)}
             ></uui-input>

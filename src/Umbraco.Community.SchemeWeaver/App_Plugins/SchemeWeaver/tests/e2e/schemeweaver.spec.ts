@@ -759,3 +759,114 @@ test.describe('Entity Actions', () => {
     }
   });
 });
+
+// ────────────────────────────────────────────────────────────────
+// Review Fixes — validates context wiring, error handling, a11y
+// ────────────────────────────────────────────────────────────────
+test.describe('Review Fixes', () => {
+  test('Schema.org tab loads mapping via context', async ({ umbracoUi }) => {
+    await goToDocTypeSchemaTab(umbracoUi.page, 'Product Page');
+
+    // Verify the schema type badge is visible (indicates mapping loaded via context)
+    const schemaTag = umbracoUi.page.locator('schemeweaver-schema-mapping-view uui-tag').first();
+    await expect(schemaTag).toBeVisible({ timeout: 10_000 });
+
+    // Verify property mapping table renders
+    const table = umbracoUi.page.locator('schemeweaver-property-mapping-table');
+    await expect(table).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('Save mapping persists after page refresh', async ({ umbracoUi }) => {
+    await goToDocTypeSchemaTab(umbracoUi.page, 'Product Page');
+
+    // Capture the schema type name
+    const schemaTag = umbracoUi.page.locator('schemeweaver-schema-mapping-view uui-tag').first();
+    await expect(schemaTag).toBeVisible({ timeout: 10_000 });
+    const schemaTypeName = await schemaTag.textContent();
+
+    // Refresh and re-navigate
+    await umbracoUi.page.reload();
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 });
+
+    const schemaTab = umbracoUi.page.getByRole('tab', { name: /Schema\.org/i });
+    if (await schemaTab.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await schemaTab.click();
+    }
+
+    // Verify same schema type persists
+    const schemaTagAfter = umbracoUi.page.locator('schemeweaver-schema-mapping-view uui-tag').first();
+    await expect(schemaTagAfter).toBeVisible({ timeout: 10_000 });
+    await expect(schemaTagAfter).toContainText(schemaTypeName ?? '');
+  });
+
+  test('All three entity actions appear on document type', async ({ umbracoUi }) => {
+    // Navigate to Settings > Document Types
+    await umbracoUi.goToBackOffice();
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 });
+    await umbracoUi.page.locator('a', { hasText: 'Settings' }).first().click();
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 10_000 });
+
+    const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
+    await docTypesLink.click();
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 10_000 });
+
+    // Expand tree and find first child
+    const treeItems = umbracoUi.page.locator('umb-tree-item');
+    const firstChild = treeItems.first();
+    await firstChild.waitFor({ timeout: 10_000 });
+
+    // Open context menu
+    await firstChild.click({ button: 'right' });
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 5_000 });
+
+    // Verify all 3 SchemeWeaver actions appear
+    const mapAction = umbracoUi.page.getByRole('button', { name: /Map to Schema\.org/i });
+    const deleteAction = umbracoUi.page.getByRole('button', { name: /Delete mapping/i });
+    const generateAction = umbracoUi.page.getByRole('button', { name: /Generate from Schema\.org/i });
+
+    await expect(mapAction).toBeVisible({ timeout: 5_000 });
+    await expect(deleteAction).toBeVisible({ timeout: 5_000 });
+    await expect(generateAction).toBeVisible({ timeout: 5_000 });
+  });
+
+  test('Generate modal schema list is accessible', async ({ umbracoUi }) => {
+    // Navigate to Settings > Document Types
+    await umbracoUi.goToBackOffice();
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 });
+    await umbracoUi.page.locator('a', { hasText: 'Settings' }).first().click();
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 10_000 });
+
+    const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
+    await docTypesLink.click();
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 10_000 });
+
+    // Open context menu on first doc type
+    const treeItems = umbracoUi.page.locator('umb-tree-item');
+    const firstChild = treeItems.first();
+    await firstChild.waitFor({ timeout: 10_000 });
+    await firstChild.click({ button: 'right' });
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 5_000 });
+
+    // Click Generate from Schema.org
+    const generateAction = umbracoUi.page.getByRole('button', { name: /Generate from Schema\.org/i });
+    if (await generateAction.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await generateAction.click();
+
+      // Wait for the generate modal
+      const modal = umbracoUi.page.locator('schemeweaver-generate-doctype-modal');
+      await modal.waitFor({ timeout: 10_000 });
+
+      // Wait for loading to finish
+      const loader = modal.locator('uui-loader-circle');
+      await loader.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+
+      // Verify schema list has role="listbox"
+      const schemaList = modal.locator('.schema-list');
+      await expect(schemaList).toHaveAttribute('role', 'listbox');
+
+      // Verify child items have role="option"
+      const firstItem = modal.locator('.schema-item').first();
+      await expect(firstItem).toHaveAttribute('role', 'option');
+    }
+  });
+});

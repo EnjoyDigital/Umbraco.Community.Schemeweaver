@@ -1015,6 +1015,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("addressLocality", "Address Locality", textboxDataType),
         }, cancellationToken);
 
+        // 3c. New subtype content types — Property (Real Estate)
+        var propertyListingCt = await CreateContentType("propertyListing", "Property Listing", "icon-thumbnails-small", listingProps, cancellationToken);
+
         // 3c. New subtype content types — Education
         var educationListingCt = await CreateContentType("educationListing", "Education Listing", "icon-thumbnails-small", listingProps, cancellationToken);
 
@@ -1363,6 +1366,85 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("addressCountry", "Address Country", textboxDataType),
         }, cancellationToken);
 
+        var singleFamilyResidencePageCt = await CreateContentType("singleFamilyResidencePage", "Single Family Residence Page", "icon-home", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("numberOfRooms", "Number of Rooms", textboxDataType),
+            ("floorSize", "Floor Size", textboxDataType),
+            ("numberOfBathroomsTotal", "Number of Bathrooms", textboxDataType),
+            ("yearBuilt", "Year Built", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var apartmentComplexPageCt = await CreateContentType("apartmentComplexPage", "Apartment Complex Page", "icon-umb-members", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("numberOfAccommodationUnits", "Number of Units", textboxDataType),
+            ("petsAllowed", "Pets Allowed", textboxDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var residencePageCt = await CreateContentType("residencePage", "Residence Page", "icon-home", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("numberOfRooms", "Number of Rooms", textboxDataType),
+            ("floorSize", "Floor Size", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var suitePageCt = await CreateContentType("suitePage", "Suite Page", "icon-hotel", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("numberOfRooms", "Number of Rooms", textboxDataType),
+            ("floorSize", "Floor Size", textboxDataType),
+            ("bedType", "Bed Type", textboxDataType),
+            ("occupancy", "Occupancy", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var gatedResidenceCommunityPageCt = await CreateContentType("gatedResidenceCommunityPage", "Gated Residence Community Page", "icon-fence", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("numberOfAccommodationUnits", "Number of Units", textboxDataType),
+            ("petsAllowed", "Pets Allowed", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var accommodationPageCt = await CreateContentType("accommodationPage", "Accommodation Page", "icon-hotel", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("numberOfRooms", "Number of Rooms", textboxDataType),
+            ("floorSize", "Floor Size", textboxDataType),
+            ("petsAllowed", "Pets Allowed", textboxDataType),
+            ("tourBookingPage", "Tour Booking Page", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
         // 3c. New expanded content types — Hierarchy (parent/ancestor/sibling testing)
         var organisationParentCt = await CreateContentType("organisationParent", "Organisation Parent", "icon-users", new[]
         {
@@ -1449,6 +1531,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             educationalOrgPageCt,
             webPageCt,
             realEstateListingPageCt,
+            // New subtypes — Property (Real Estate)
+            propertyListingCt, singleFamilyResidencePageCt, apartmentComplexPageCt, residencePageCt, suitePageCt, gatedResidenceCommunityPageCt, accommodationPageCt,
             organisationParentCt, localBusinessChildCt, departmentPageCt,
         };
 
@@ -1499,6 +1583,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             educationalOrgPageCt,
             webPageCt,
             realEstateListingPageCt,
+            propertyListingCt, singleFamilyResidencePageCt, apartmentComplexPageCt, residencePageCt, suitePageCt, gatedResidenceCommunityPageCt, accommodationPageCt,
             organisationParentCt, localBusinessChildCt, departmentPageCt);
     }
 
@@ -2093,9 +2178,6 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreateStadiumPageContent(await placesListing, cancellationToken);
         await CreateSkiResortPageContent(await placesListing, cancellationToken);
         await CreateGolfCoursePageContent(await placesListing, cancellationToken);
-        await CreateApartmentPageContent(await placesListing, cancellationToken);
-        await CreateHousePageContent(await placesListing, cancellationToken);
-        await CreateLodgingBusinessPageContent(await placesListing, cancellationToken);
 
         // New expanded types — Creative under Creative listing
         await CreateArticlePageContent(await creativeListing, cancellationToken);
@@ -2104,7 +2186,19 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         // New expanded types — Commerce under Products listing
         await CreateOfferPageContent(await productListing, cancellationToken);
-        await CreateRealEstateListingPageContent(await productListing, cancellationToken);
+
+        // Property (Real Estate) listing + children
+        var propertyListing = CreateAndPublishSimple("Property", home.Id, "propertyListing", "Property", "Residential and commercial property listings across Leeds and Yorkshire.", cancellationToken);
+        await CreateApartmentPageContent(await propertyListing, cancellationToken);
+        await CreateHousePageContent(await propertyListing, cancellationToken);
+        await CreateLodgingBusinessPageContent(await propertyListing, cancellationToken);
+        await CreateRealEstateListingPageContent(await propertyListing, cancellationToken);
+        await CreateSingleFamilyResidencePageContent(await propertyListing, cancellationToken);
+        await CreateApartmentComplexPageContent(await propertyListing, cancellationToken);
+        await CreateResidencePageContent(await propertyListing, cancellationToken);
+        await CreateSuitePageContent(await propertyListing, cancellationToken);
+        await CreateGatedResidenceCommunityPageContent(await propertyListing, cancellationToken);
+        await CreateAccommodationPageContent(await propertyListing, cancellationToken);
 
         // New expanded types — Healthcare under Healthcare listing
         await CreateDiagnosticLabPageContent(await healthcareListing, cancellationToken);
@@ -2143,7 +2237,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         _contentService.Save(acmeMarketing);
         await PublishContent(acmeMarketing, cancellationToken);
 
-        _logger.LogInformation("TestDataSeeder: created and published {Count} sample content nodes", 140);
+        _logger.LogInformation("TestDataSeeder: created and published {Count} sample content nodes", 147);
     }
 
     private async Task<int> CreateAndPublishSimple(string name, int parentId, string contentTypeAlias, string title, string description, CancellationToken cancellationToken)
@@ -3712,6 +3806,97 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await SaveAndPublishAsync(content);
     }
 
+    private async Task CreateSingleFamilyResidencePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Detached Family Home, Alwoodley", parentId, "singleFamilyResidencePage");
+        content.SetValue("title", "Detached Family Home, Alwoodley");
+        content.SetValue("description", "Stunning four-bedroom detached family home with double garage, landscaped gardens, and views over Eccup Reservoir.");
+        content.SetValue("numberOfRooms", "8");
+        content.SetValue("floorSize", "220 sqm");
+        content.SetValue("numberOfBathroomsTotal", "3");
+        content.SetValue("yearBuilt", "1998");
+        content.SetValue("streetAddress", "42 Wigton Lane");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS17 8SA");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateApartmentComplexPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Clarence Dock Apartments", parentId, "apartmentComplexPage");
+        content.SetValue("title", "Clarence Dock Apartments");
+        content.SetValue("description", "Modern waterside apartment complex with 200 units, residents' gym, concierge, and underground parking beside the Royal Armouries.");
+        content.SetValue("numberOfAccommodationUnits", "200");
+        content.SetValue("petsAllowed", "Yes — small dogs and cats");
+        content.SetValue("telephone", "+44 113 245 8800");
+        content.SetValue("streetAddress", "Clarence Dock");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS10 1JR");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateResidencePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Chapel Allerton Townhouse", parentId, "residencePage");
+        content.SetValue("title", "Chapel Allerton Townhouse");
+        content.SetValue("description", "Elegant three-storey townhouse in the heart of Chapel Allerton with period features and a private courtyard garden.");
+        content.SetValue("numberOfRooms", "6");
+        content.SetValue("floorSize", "165 sqm");
+        content.SetValue("streetAddress", "19 Stainbeck Lane");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS7 3QR");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateSuitePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Queens Hotel Penthouse Suite", parentId, "suitePage");
+        content.SetValue("title", "Queens Hotel Penthouse Suite");
+        content.SetValue("description", "Luxury penthouse suite overlooking City Square with king-size bed, marble bathroom, and private balcony.");
+        content.SetValue("numberOfRooms", "3");
+        content.SetValue("floorSize", "85 sqm");
+        content.SetValue("bedType", "King");
+        content.SetValue("occupancy", "2 adults");
+        content.SetValue("streetAddress", "City Square");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 1PJ");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateGatedResidenceCommunityPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Bramham Park Gated Community", parentId, "gatedResidenceCommunityPage");
+        content.SetValue("title", "Bramham Park Gated Community");
+        content.SetValue("description", "Exclusive gated development of 12 luxury homes set within the Bramham Park estate with 24-hour security and communal grounds.");
+        content.SetValue("numberOfAccommodationUnits", "12");
+        content.SetValue("petsAllowed", "Yes");
+        content.SetValue("streetAddress", "Bramham Park Estate");
+        content.SetValue("addressLocality", "Wetherby");
+        content.SetValue("postalCode", "LS23 6ND");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateAccommodationPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Kirkstall Student Accommodation", parentId, "accommodationPage");
+        content.SetValue("title", "Kirkstall Student Accommodation");
+        content.SetValue("description", "Purpose-built student accommodation with en-suite rooms, shared kitchens, study spaces, and on-site laundry.");
+        content.SetValue("numberOfRooms", "150");
+        content.SetValue("floorSize", "18 sqm");
+        content.SetValue("petsAllowed", "No");
+        content.SetValue("tourBookingPage", "https://kirkstall-halls.example.com/book-tour");
+        content.SetValue("streetAddress", "Abbey Road");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS5 3EH");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
     private async Task CreateDiagnosticLabPageContent(int parentId, CancellationToken ct)
     {
         var content = _contentService.Create("Leeds PathLab Diagnostics", parentId, "diagnosticLabPage");
@@ -3865,6 +4050,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType educationalOrgPageCt,
         IContentType webPageCt,
         IContentType realEstateListingPageCt,
+        IContentType propertyListingCt, IContentType singleFamilyResidencePageCt, IContentType apartmentComplexPageCt, IContentType residencePageCt, IContentType suitePageCt, IContentType gatedResidenceCommunityPageCt, IContentType accommodationPageCt,
         IContentType organisationParentCt, IContentType localBusinessChildCt, IContentType departmentPageCt)
     {
         using var scope = _scopeFactory.CreateScope();
@@ -4054,13 +4240,23 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, diagnosticLabPageCt, "DiagnosticLab", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
         SeedSimpleMapping(repo, educationalOrgPageCt, "EducationalOrganization", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
         SeedSimpleMapping(repo, realEstateListingPageCt, "RealEstateListing", ("Name", "title"), ("Description", "description"), ("Price", "price"), ("PriceCurrency", "priceCurrency"), ("DatePosted", "datePosted"), ("Url", "__url"));
+
+        // New Property (Real Estate) listing + subtypes
+        SeedSimpleMapping(repo, propertyListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
+        SeedSimpleMapping(repo, singleFamilyResidencePageCt, "SingleFamilyResidence", ("Name", "title"), ("Description", "description"), ("NumberOfRooms", "numberOfRooms"), ("FloorSize", "floorSize"), ("NumberOfBathroomsTotal", "numberOfBathroomsTotal"), ("YearBuilt", "yearBuilt"), ("Url", "__url"));
+        SeedSimpleMapping(repo, apartmentComplexPageCt, "ApartmentComplex", ("Name", "title"), ("Description", "description"), ("NumberOfAccommodationUnits", "numberOfAccommodationUnits"), ("PetsAllowed", "petsAllowed"), ("Telephone", "telephone"), ("Url", "__url"));
+        SeedSimpleMapping(repo, residencePageCt, "Residence", ("Name", "title"), ("Description", "description"), ("NumberOfRooms", "numberOfRooms"), ("FloorSize", "floorSize"), ("Url", "__url"));
+        SeedSimpleMapping(repo, suitePageCt, "Suite", ("Name", "title"), ("Description", "description"), ("NumberOfRooms", "numberOfRooms"), ("FloorSize", "floorSize"), ("Bed", "bedType"), ("Occupancy", "occupancy"), ("Url", "__url"));
+        SeedSimpleMapping(repo, gatedResidenceCommunityPageCt, "GatedResidenceCommunity", ("Name", "title"), ("Description", "description"), ("NumberOfAccommodationUnits", "numberOfAccommodationUnits"), ("PetsAllowed", "petsAllowed"), ("Url", "__url"));
+        SeedSimpleMapping(repo, accommodationPageCt, "Accommodation", ("Name", "title"), ("Description", "description"), ("NumberOfRooms", "numberOfRooms"), ("FloorSize", "floorSize"), ("PetsAllowed", "petsAllowed"), ("TourBookingPage", "tourBookingPage"), ("Url", "__url"));
+
         SeedSimpleMapping(repo, organisationParentCt, "Organization", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
 
         // Hierarchy mappings (parent/ancestor/sibling)
         SeedLocalBusinessChildMapping(localBusinessChildCt, repo);
         SeedDepartmentPageMapping(departmentPageCt, repo);
 
-        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 134);
+        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 142);
     }
 
     private void SeedHowToMapping(IContentType ct, ISchemaMappingRepository repo)

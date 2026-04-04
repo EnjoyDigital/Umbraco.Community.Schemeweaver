@@ -31,8 +31,8 @@
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+		<PackageReference Include="Schema.NET.Pending" Version="13.0.0" />
 		<PackageReference Include="Umbraco.Cms" Version="[17.0.0, 18.0.0)" />
-		<PackageReference Include="Schema.NET" Version="13.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>

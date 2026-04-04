@@ -686,7 +686,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_preview')}>
         <div class="preview-summary">
-          <p><strong>${active.length}</strong> property mappings configured for <strong>${this._selectedSubType}</strong></p>
+          <p><strong>${active.length}</strong> ${this.localize.term('schemeWeaver_propertyMappingsConfigured')} <strong>${this._selectedSubType}</strong></p>
           ${active.map(m => html`
             <div class="preview-mapping-row">
               <uui-icon name="icon-navigation-right"></uui-icon>

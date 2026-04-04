@@ -1,0 +1,65 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<SuitePage>
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Title</h1>
+
+@if (!string.IsNullOrEmpty(Model.Description))
+{
+    <p class="lead">@Model.Description</p>
+}
+
+@if (!string.IsNullOrEmpty(Model.NumberOfRooms) || !string.IsNullOrEmpty(Model.FloorSize) || !string.IsNullOrEmpty(Model.BedType) || !string.IsNullOrEmpty(Model.Occupancy))
+{
+    <div class="card">
+        <h2>Suite Details</h2>
+        <dl>
+            @if (!string.IsNullOrEmpty(Model.NumberOfRooms))
+            {
+                <dt>Number of Rooms</dt>
+                <dd>@Model.NumberOfRooms</dd>
+            }
+            @if (!string.IsNullOrEmpty(Model.FloorSize))
+            {
+                <dt>Floor Size</dt>
+                <dd>@Model.FloorSize</dd>
+            }
+            @if (!string.IsNullOrEmpty(Model.BedType))
+            {
+                <dt>Bed Type</dt>
+                <dd>@Model.BedType</dd>
+            }
+            @if (!string.IsNullOrEmpty(Model.Occupancy))
+            {
+                <dt>Occupancy</dt>
+                <dd>@Model.Occupancy</dd>
+            }
+        </dl>
+    </div>
+}
+
+<div class="card">
+    <h2>Address</h2>
+    <dl>
+        @if (!string.IsNullOrEmpty(Model.StreetAddress))
+        {
+            <dt>Street</dt>
+            <dd>@Model.StreetAddress</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.AddressLocality))
+        {
+            <dt>Locality</dt>
+            <dd>@Model.AddressLocality</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.PostalCode))
+        {
+            <dt>Post Code</dt>
+            <dd>@Model.PostalCode</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.AddressCountry))
+        {
+            <dt>Country</dt>
+            <dd>@Model.AddressCountry</dd>
+        }
+    </dl>
+</div>

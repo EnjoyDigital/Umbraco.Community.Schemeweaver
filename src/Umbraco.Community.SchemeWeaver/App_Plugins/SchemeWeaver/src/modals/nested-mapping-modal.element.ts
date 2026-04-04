@@ -743,7 +743,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_preview')}>
         <div class="preview-summary">
-          <p><strong>${activeMappings.length}</strong> property mappings configured for <strong>${this.data?.nestedSchemaTypeName}</strong></p>
+          <p><strong>${activeMappings.length}</strong> ${this.localize.term('schemeWeaver_propertyMappingsConfigured')} <strong>${this.data?.nestedSchemaTypeName}</strong></p>
           ${activeMappings.map(
             (m) => html`
               <div class="preview-mapping-row">
