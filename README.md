@@ -84,7 +84,8 @@ const jsonLd = data.properties.schemaOrg;
 - [Block Content](docs/block-content.md) -- BlockList/BlockGrid mapping, nested types, wrapInType
 - [Content Type Generation](docs/content-type-generation.md) -- scaffold document types from Schema.org
 - [Delivery API](docs/delivery-api.md) -- headless integration
-- [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, extending, troubleshooting
+- [Extending](docs/extending.md) -- custom property resolvers, replacing core services
+- [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, troubleshooting
 - [API Reference](docs/api-reference.md) -- REST API endpoints
 - [AI Integration](docs/ai-integration.md) -- optional AI-powered schema suggestions, bulk analysis, and Copilot tools
 

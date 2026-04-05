@@ -1,6 +1,6 @@
 # Advanced Topics
 
-This guide covers SchemeWeaver's deeper features: BreadcrumbList generation, JSON-LD output ordering, the workspace views, custom property resolvers, database schema, and troubleshooting.
+This guide covers SchemeWeaver's deeper features: BreadcrumbList generation, JSON-LD output ordering, the workspace views, database schema, and troubleshooting. For extensibility and custom resolvers, see [Extending SchemeWeaver](extending.md).
 
 ## BreadcrumbList Auto-Generation
 
@@ -108,124 +108,16 @@ The preview endpoint (`POST /mappings/{contentTypeAlias}/preview`) supports two 
 5. The preview shows a formatted JSON-LD block with syntax highlighting, a valid/invalid badge, and copy/refresh buttons.
 
 
-## Extending with Custom Property Resolvers
+## Extending SchemeWeaver
 
-SchemeWeaver uses an extensible **two-axis resolution** pattern for extracting property values during JSON-LD generation:
+Every core service in SchemeWeaver is registered against an interface, so you can replace or extend any part of the pipeline. The most common extension point is registering custom **property value resolvers** for unsupported property editors, but you can also replace the auto-mapper, JSON-LD generator, schema type registry, and persistence layer.
 
-- **WHERE axis** -- determines which content node to read from (current page, parent, ancestor, sibling) based on the `SourceType` field.
-- **HOW axis** -- determines how to extract the value from the property based on the Umbraco property editor alias, using `IPropertyValueResolver` implementations.
+See **[Extending SchemeWeaver](extending.md)** for the full extensibility guide, including:
 
-### The IPropertyValueResolver Interface
-
-```csharp
-public interface IPropertyValueResolver
-{
-    /// The Umbraco property editor aliases this resolver handles.
-    /// Return empty to act as a fallback resolver.
-    IEnumerable<string> SupportedEditorAliases { get; }
-
-    /// Priority for resolver selection when multiple resolvers match.
-    /// Higher values take precedence. Default is 0.
-    int Priority => 0;
-
-    /// Resolves the property value to a type suitable for Schema.NET.
-    object? Resolve(PropertyResolverContext context);
-}
-```
-
-### PropertyResolverContext
-
-The context object passed to resolvers contains:
-
-| Property | Type | Description |
-|---|---|---|
-| `Content` | `IPublishedContent` | The content node the property belongs to (already resolved to the correct node by the WHERE axis). |
-| `Mapping` | `PropertyMapping` | The property mapping configuration from the database. |
-| `PropertyAlias` | `string` | The alias of the property to resolve. |
-| `Property` | `IPublishedProperty?` | The raw published property, already located on the correct node. May be null for built-in properties. |
-| `SchemaTypeRegistry` | `ISchemaTypeRegistry` | For looking up nested Schema.org types. |
-| `MappingRepository` | `ISchemaMappingRepository` | For looking up nested schema mappings. |
-| `HttpContextAccessor` | `IHttpContextAccessor` | For resolving absolute URLs from relative paths. |
-| `ResolverFactory` | `IPropertyValueResolverFactory?` | For resolving nested/block element properties through the full resolver pipeline. |
-| `RecursionDepth` | `int` | Current recursion depth for nested resolution (max 3 by default). |
-| `MaxRecursionDepth` | `int` | Maximum allowed recursion depth (default: 3). |
-
-### Writing a Custom Resolver
-
-Here is an example resolver for a hypothetical "Star Rating" property editor:
-
-```csharp
-using Umbraco.Community.SchemeWeaver.Services.Resolvers;
-
-public class StarRatingResolver : IPropertyValueResolver
-{
-    public IEnumerable<string> SupportedEditorAliases =>
-        ["MyPackage.StarRating"];
-
-    public int Priority => 10;
-
-    public object? Resolve(PropertyResolverContext context)
-    {
-        var value = context.Property?.GetValue();
-        if (value is null)
-            return null;
-
-        // Convert the rating to a Schema.org Rating object
-        if (value is int rating)
-        {
-            return new Schema.NET.Rating
-            {
-                RatingValue = rating,
-                BestRating = 5,
-                WorstRating = 1
-            };
-        }
-
-        return value.ToString();
-    }
-}
-```
-
-### Registering via Dependency Injection
-
-Register your resolver in a composer:
-
-```csharp
-using Umbraco.Cms.Core.Composing;
-using Umbraco.Cms.Core.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection;
-
-public class MyResolverComposer : IComposer
-{
-    public void Compose(IUmbracoBuilder builder)
-    {
-        builder.Services.AddScoped<IPropertyValueResolver, StarRatingResolver>();
-    }
-}
-```
-
-The `PropertyValueResolverFactory` collects all registered `IPropertyValueResolver` implementations from DI, sorts them by `Priority` descending, and maps each `SupportedEditorAliases` entry to its resolver. When multiple resolvers claim the same alias, the highest priority wins. Resolvers with no supported aliases (empty collection) act as fallbacks -- the first fallback by priority becomes the default resolver.
-
-### Built-in Resolvers
-
-SchemeWeaver ships with resolvers for all common Umbraco property editors:
-
-| Resolver | Editor Aliases | Behaviour |
-|---|---|---|
-| `MediaPickerResolver` | `Umbraco.MediaPicker3`, `Umbraco.MediaPicker` | Extracts absolute media URL |
-| `RichTextResolver` | `Umbraco.TinyMCE`, `Umbraco.RichText` | Strips HTML or returns raw |
-| `ContentPickerResolver` | `Umbraco.ContentPicker` | Resolves picked content URL |
-| `BlockContentResolver` | `Umbraco.BlockList`, `Umbraco.BlockGrid` | Resolves block element schemas |
-| `BuiltInPropertyResolver` | `SchemeWeaver.BuiltIn` | Handles URL, name, dates |
-| `DateTimeResolver` | `Umbraco.DateTime` | Formats as ISO 8601 |
-| `NumericResolver` | `Umbraco.Integer`, `Umbraco.Decimal` | Returns numeric value |
-| `BooleanResolver` | `Umbraco.TrueFalse` | Returns boolean |
-| `TagsResolver` | `Umbraco.Tags` | Returns comma-separated tags |
-| `MultipleTextStringResolver` | `Umbraco.MultipleTextstring` | Joins multiple strings |
-| `DropdownListResolver` | `Umbraco.DropDown.Flexible` | Returns selected value |
-| `ColorPickerResolver` | `Umbraco.ColorPicker` | Returns colour value |
-| `MultiUrlPickerResolver` | `Umbraco.MultiUrlPicker` | Resolves first URL |
-| `DefaultPropertyValueResolver` | *(fallback)* | Calls `GetValue()?.ToString()` |
+- Custom `IPropertyValueResolver` implementations (add alongside built-in resolvers)
+- Overriding built-in resolvers with higher priority
+- Replacing `ISchemaAutoMapper`, `IJsonLdGenerator`, `ISchemaTypeRegistry`, `ISchemaMappingRepository`, and `IContentTypeGenerator`
+- Registration order with `[ComposeAfter]`
 
 ## Database Schema
 
