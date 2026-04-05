@@ -1541,6 +1541,17 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             await AssignTemplate(ct);
         }
 
+        // 3b-ii. Allow listing types to nest themselves (subcategories)
+        productListingCt.AllowedContentTypes = productListingCt.AllowedContentTypes!
+            .Append(new ContentTypeSort(productListingCt.Key, 0, productListingCt.Alias))
+            .ToList();
+        await _contentTypeService.UpdateAsync(productListingCt, Constants.Security.SuperUserKey);
+
+        eventListingCt.AllowedContentTypes = eventListingCt.AllowedContentTypes!
+            .Append(new ContentTypeSort(eventListingCt.Key, 0, eventListingCt.Alias))
+            .ToList();
+        await _contentTypeService.UpdateAsync(eventListingCt, Constants.Security.SuperUserKey);
+
         // 3c. Seed media from existing images on disk
         await SeedMediaFromDisk(cancellationToken);
 
@@ -2015,17 +2026,29 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         var eventListing = CreateAndPublishSimple("Events", home.Id, "eventListing", "Events", "Upcoming community events and conferences.", cancellationToken);
         var recipeListing = CreateAndPublishSimple("Recipes", home.Id, "recipeListing", "Recipes", "Delicious recipes with structured data.", cancellationToken);
 
+        // Create product subcategory nodes under Products listing
+        var electronicsCategory = CreateAndPublishSimple("Electronics", await productListing, "productListing", "Electronics", "Electronic devices and gadgets", cancellationToken);
+        var softwareCategory = CreateAndPublishSimple("Software", await productListing, "productListing", "Software", "Software products and digital tools", cancellationToken);
+        var automotiveCategory = CreateAndPublishSimple("Automotive", await productListing, "productListing", "Automotive", "Vehicles and automotive products", cancellationToken);
+        var financeCategory = CreateAndPublishSimple("Finance", await productListing, "productListing", "Finance", "Financial products and services", cancellationToken);
+
+        // Create event subcategory nodes under Events listing
+        var musicTheatreCategory = CreateAndPublishSimple("Music & Theatre", await eventListing, "eventListing", "Music & Theatre", "Live music, theatre, and performing arts", cancellationToken);
+        var sportsCategory = CreateAndPublishSimple("Sports", await eventListing, "eventListing", "Sports", "Sporting events and matches", cancellationToken);
+        var conferencesCategory = CreateAndPublishSimple("Conferences", await eventListing, "eventListing", "Conferences", "Tech conferences, summits, and bootcamps", cancellationToken);
+        var foodFestivalsCategory = CreateAndPublishSimple("Food & Festivals", await eventListing, "eventListing", "Food & Festivals", "Food events, festivals, and outdoor celebrations", cancellationToken);
+
         // Create content under listings (existing content, now as children)
         await CreateFaqContent(faqItemType, home.Id, cancellationToken);
-        await CreateProductContent(reviewItemType, await productListing, cancellationToken);
+        await CreateProductContent(reviewItemType, await electronicsCategory, cancellationToken);
         await CreateRecipeContent(recipeIngredientType, recipeStepType, await recipeListing, cancellationToken);
         await CreateBlogContent(await blogListing, cancellationToken);
-        await CreateEventContent(await eventListing, cancellationToken);
+        await CreateEventContent(await conferencesCategory, cancellationToken);
 
         // Create new content types
         await CreateNewsArticle(await blogListing, cancellationToken);
         await CreateTechArticle(await blogListing, cancellationToken);
-        await CreateSoftwarePage(await productListing, cancellationToken);
+        await CreateSoftwarePage(await softwareCategory, cancellationToken);
         await CreateCoursePage(home.Id, cancellationToken);
         await CreateHowToPage(howToStepType, howToToolType, home.Id, cancellationToken);
         await CreateVideoPage(home.Id, cancellationToken);
@@ -2037,19 +2060,19 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreateAboutPage(home.Id, cancellationToken);
         await CreateContactContent(home.Id, cancellationToken);
 
-        // New product subtypes under Products listing
-        await CreateVehiclePage(await productListing, cancellationToken);
-        await CreateFinancialProductPage(await productListing, cancellationToken);
-        await CreateIndividualProductPage(await productListing, cancellationToken);
-        await CreateProductModelPage(await productListing, cancellationToken);
+        // New product subtypes under product subcategories
+        await CreateVehiclePage(await automotiveCategory, cancellationToken);
+        await CreateFinancialProductPage(await financeCategory, cancellationToken);
+        await CreateIndividualProductPage(await electronicsCategory, cancellationToken);
+        await CreateProductModelPage(await electronicsCategory, cancellationToken);
 
-        // New event subtypes under Events listing
-        await CreateMusicEventPage(await eventListing, cancellationToken);
-        await CreateSportsEventPage(await eventListing, cancellationToken);
-        await CreateBusinessEventPage(await eventListing, cancellationToken);
-        await CreateFoodEventPage(await eventListing, cancellationToken);
-        await CreateFestivalPage(await eventListing, cancellationToken);
-        await CreateEducationEventPage(await eventListing, cancellationToken);
+        // New event subtypes under event subcategories
+        await CreateMusicEventPage(await musicTheatreCategory, cancellationToken);
+        await CreateSportsEventPage(await sportsCategory, cancellationToken);
+        await CreateBusinessEventPage(await conferencesCategory, cancellationToken);
+        await CreateFoodEventPage(await foodFestivalsCategory, cancellationToken);
+        await CreateFestivalPage(await foodFestivalsCategory, cancellationToken);
+        await CreateEducationEventPage(await conferencesCategory, cancellationToken);
 
         // New Organisations listing + children
         var organisationListing = CreateAndPublishSimple("Organisations", home.Id, "organisationListing", "Organisations", "Notable organisations and companies.", cancellationToken);
@@ -2122,9 +2145,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreateAutoDealerPage(await automotiveListing, cancellationToken);
         await CreateAutoRepairPage(await automotiveListing, cancellationToken);
 
-        // New event types under Events listing
-        await CreateTheaterEventPage(await eventListing, cancellationToken);
-        await CreateScreeningEventPage(await eventListing, cancellationToken);
+        // New event types under event subcategories
+        await CreateTheaterEventPage(await musicTheatreCategory, cancellationToken);
+        await CreateScreeningEventPage(await musicTheatreCategory, cancellationToken);
 
         // New Entertainment listing + children
         var entertainmentListing = CreateAndPublishSimple("Entertainment", home.Id, "entertainmentListing", "Entertainment", "Music groups, zoos, museums, and amusement parks.", cancellationToken);
@@ -2184,8 +2207,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreatePodcastSeriesPageContent(await creativeListing, cancellationToken);
         await CreateMusicRecordingPageContent(await creativeListing, cancellationToken);
 
-        // New expanded types — Commerce under Products listing
-        await CreateOfferPageContent(await productListing, cancellationToken);
+        // New expanded types — Commerce under Software product subcategory
+        await CreateOfferPageContent(await softwareCategory, cancellationToken);
 
         // Property (Real Estate) listing + children
         var propertyListing = CreateAndPublishSimple("Property", home.Id, "propertyListing", "Property", "Residential and commercial property listings across Leeds and Yorkshire.", cancellationToken);
@@ -4256,6 +4279,26 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedLocalBusinessChildMapping(localBusinessChildCt, repo);
         SeedDepartmentPageMapping(departmentPageCt, repo);
 
+        // Category ancestor mappings for product schemas
+        AddCategoryMapping(repo, "productPage", "productListing");
+        AddCategoryMapping(repo, "softwarePage", "productListing");
+        AddCategoryMapping(repo, "vehiclePage", "productListing");
+        AddCategoryMapping(repo, "financialProductPage", "productListing");
+        AddCategoryMapping(repo, "individualProductPage", "productListing");
+        AddCategoryMapping(repo, "productModelPage", "productListing");
+        AddCategoryMapping(repo, "offerPage", "productListing");
+
+        // Category ancestor mappings for event schemas
+        AddCategoryMapping(repo, "eventPage", "eventListing");
+        AddCategoryMapping(repo, "musicEventPage", "eventListing");
+        AddCategoryMapping(repo, "sportsEventPage", "eventListing");
+        AddCategoryMapping(repo, "businessEventPage", "eventListing");
+        AddCategoryMapping(repo, "foodEventPage", "eventListing");
+        AddCategoryMapping(repo, "festivalPage", "eventListing");
+        AddCategoryMapping(repo, "educationEventPage", "eventListing");
+        AddCategoryMapping(repo, "theaterEventPage", "eventListing");
+        AddCategoryMapping(repo, "screeningEventPage", "eventListing");
+
         _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 142);
     }
 
@@ -4332,6 +4375,23 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             SourceType = "property",
             ContentTypePropertyAlias = m.contentProperty,
         }).ToArray());
+    }
+
+    private void AddCategoryMapping(ISchemaMappingRepository repo, string contentTypeAlias, string ancestorContentTypeAlias)
+    {
+        var mapping = repo.GetByContentTypeAlias(contentTypeAlias);
+        if (mapping != null)
+        {
+            var existingMappings = repo.GetPropertyMappings(mapping.Id).ToList();
+            existingMappings.Add(new PropertyMapping
+            {
+                SchemaPropertyName = "Category",
+                SourceType = "ancestor",
+                ContentTypePropertyAlias = "title",
+                SourceContentTypeAlias = ancestorContentTypeAlias,
+            });
+            repo.SavePropertyMappings(mapping.Id, existingMappings);
+        }
     }
 
     private void SeedFaqPageMapping(IContentType ct, ISchemaMappingRepository _mappingRepository)

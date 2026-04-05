@@ -1,7 +1,26 @@
 ﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<OrganisationListing>
 @{
     Layout = "Master.cshtml";
+    var categories = Model.Children?.Where(c => c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
+    var items = Model.Children?.Where(c => !c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
+    var parentIsListing = Model.Parent?.ContentType.Alias.EndsWith("Listing") == true;
 }
+
+@if (parentIsListing)
+{
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+        @foreach (var ancestor in Model.Ancestors().Reverse())
+        {
+            if (ancestor.ContentType.Alias.EndsWith("Listing"))
+            {
+                <a href="@ancestor.Url()">@ancestor.Name</a>
+                <span class="breadcrumb-sep">&rsaquo;</span>
+            }
+        }
+        <span class="breadcrumb-current">@Model.Name</span>
+    </nav>
+}
+
 <h1>@Model.Title</h1>
 
 @if (!string.IsNullOrEmpty(Model.Description))
@@ -9,10 +28,31 @@
     <p class="lead">@Model.Description</p>
 }
 
-@if (Model.Children != null && Model.Children.Any())
+@if (categories.Any())
 {
+    <h2>Categories</h2>
     <div class="card-grid">
-        @foreach (var child in Model.Children)
+        @foreach (var child in categories)
+        {
+            <div class="card category-card">
+                <h3><a href="@child.Url()">@child.Name</a></h3>
+                @if (child.HasValue("description"))
+                {
+                    <p>@child.Value("description")</p>
+                }
+            </div>
+        }
+    </div>
+}
+
+@if (items.Any())
+{
+    if (categories.Any())
+    {
+        <h2>Items</h2>
+    }
+    <div class="card-grid">
+        @foreach (var child in items)
         {
             <div class="card">
                 <h3><a href="@child.Url()">@child.Name</a></h3>

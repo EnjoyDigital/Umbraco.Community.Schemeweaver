@@ -42,30 +42,50 @@ header {
   border-bottom: 4px solid #6c5eb5;
 }
 
-header nav {
+/* --- Site Navigation Bar --- */
+.site-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 2rem;
+  gap: 0;
   margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  padding: 0;
   border-top: 2px solid #352879;
+  background: #2a1f5e;
 }
 
-header nav a {
+.site-nav a {
+  display: block;
+  padding: 0.5rem 1.25rem;
   color: #58b947;
   text-decoration: none;
+  text-transform: uppercase;
+  font-family: 'VT323', monospace;
   font-size: 1.1rem;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  border-right: 1px solid #352879;
+  transition: background 0.15s, color 0.15s;
 }
 
-header nav a:hover { color: #7fff5e; text-shadow: 0 0 8px rgba(88, 185, 71, 0.6); }
+.site-nav a:last-child { border-right: none; }
 
-.site-title {
-  font-size: 1.25rem;
+.site-nav a:hover {
+  color: #7fff5e;
+  background: #352879;
+  text-shadow: 0 0 8px rgba(88, 185, 71, 0.6);
+}
+
+.site-nav a.active {
+  color: #7fff5e;
+  background: #40318d;
+  text-shadow: 0 0 10px rgba(127, 255, 94, 0.5);
+  border-bottom: 2px solid #7fff5e;
+}
+
+.site-nav a.site-title {
   font-weight: 700;
-  color: #58b947;
-  text-decoration: none;
   letter-spacing: 0.15em;
+  font-size: 1.15rem;
 }
 
 .boot-text {
@@ -196,6 +216,30 @@ img { max-width: 100%; height: auto; border-radius: 0; margin-bottom: 1rem; bord
 
 /* --- Card Grid --- */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+
+/* --- Category Cards --- */
+.category-card { border: 3px solid #58b947; }
+.category-card h3 { font-size: 1.5rem; }
+.category-card h3 a { color: #58b947; }
+.category-card::before { content: '\u2592\u2592 '; color: #58b947; font-size: 1.2rem; }
+
+/* --- Breadcrumb --- */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #1a1a2e;
+  border: 1px solid #352879;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+}
+.breadcrumb a { color: #58b947; text-decoration: none; }
+.breadcrumb a:hover { color: #7fff5e; text-shadow: 0 0 6px rgba(88, 185, 71, 0.5); }
+.breadcrumb-sep { color: #6c5eb5; margin: 0 0.15rem; }
+.breadcrumb-current { color: #a0a0ff; }
 
 /* --- Prices --- */
 .price { font-size: 1.5rem; font-weight: 700; color: #58b947; }

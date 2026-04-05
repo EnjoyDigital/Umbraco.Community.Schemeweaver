@@ -21,8 +21,18 @@
                 <div>64K RAM SYSTEM  38911 BASIC BYTES FREE</div>
                 <div>READY.<span class="cursor">&#9608;</span></div>
             </div>
-            <nav>
-                <a href="/" class="site-title">HOME</a>
+            <nav class="site-nav">
+                <a href="/" class="site-title @(Model.Root()?.Id == Model.Id ? "active" : "")">HOME</a>
+                @{
+                    var rootChildren = Model.Root()?.Children;
+                    if (rootChildren != null)
+                    {
+                        foreach (var child in rootChildren.Take(8))
+                        {
+                            <a href="@child.Url()" class="@(Model.IsAncestorOrSelf(child) ? "active" : "")">@child.Name</a>
+                        }
+                    }
+                }
             </nav>
         </div>
     </header>
