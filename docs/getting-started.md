@@ -99,13 +99,11 @@ Click **Map to Schema.org** to open the Schema.org type picker modal.
 
 Use the search field to find your target type. Types are grouped by their parent type in the Schema.org hierarchy, so `Article`, `BlogPosting`, and `NewsArticle` all appear under the `CreativeWork` group. Each type shows its description and property count to help you choose.
 
-![Schema picker modal](../screenshots/02-schema-picker.png)
-
 Select a type and click **Select** to proceed.
 
 ### Step 3: Review auto-mapped properties
 
-After selecting a Schema.org type, the Schema.org tab loads the property mapping interface in the document type editor. SchemeWeaver's auto-mapper analyses your content type's properties and suggests mappings using three confidence tiers:
+After selecting a Schema.org type, a **property mapping modal** opens. SchemeWeaver's auto-mapper analyses your content type's properties and suggests mappings using three confidence tiers:
 
 | Confidence | Score | How it matches |
 |---|---|---|
@@ -113,19 +111,17 @@ After selecting a Schema.org type, the Schema.org tab loads the property mapping
 | Medium | 80% | Synonym match (e.g. `title` to `name`, `bodyText` to `articleBody`) |
 | Low | 50% | Substring match |
 
-The property table uses smart ordering: popular Schema.org properties (`name`, `headline`, `description`, `image`, `url`, `author`, `datePublished`, `dateModified`, `sku`, `price`) appear first, followed by mapped properties sorted by confidence. To add additional schema properties, use the **Add property** combobox below the table.
+The property table uses smart ordering: popular Schema.org properties (`name`, `headline`, `description`, `image`, `url`, `author`, `datePublished`, `dateModified`, `sku`, `price`) appear first, followed by mapped properties sorted by confidence. To add additional schema properties, use the **Add property** combobox below the table. To remove a property, hover over its name and click the trash icon.
 
-![Basic property mapping](../screenshots/03-basic-mapping.png)
+### Step 4: Save the mapping
 
-### Step 4: Save the document type
-
-Review the suggested mappings and adjust any that need changing. You can:
+Review the suggested mappings in the modal and adjust any that need changing. You can:
 
 - Change the **source type** (Current Node, Static Value, Parent Node, Ancestor Node, Sibling Node, Block Content, or Schema.org Type)
 - Pick a different **content type property** from the dropdown
 - Enter a **static value** for properties that should always output the same text
 
-When you are satisfied, save the document type. SchemeWeaver persists the mapping alongside the document type save and the mapping takes effect immediately.
+When you are satisfied, click **Save** in the modal. SchemeWeaver persists the mapping immediately. The Schema.org tab on the document type editor then shows the saved mapping inline, where you can continue to edit it.
 
 ### Step 5: Publish content and verify
 
@@ -144,15 +140,13 @@ Publish (or re-publish) a piece of content that uses the mapped content type. Vi
 }
 ```
 
-![JSON-LD output in page source](../screenshots/08-jsonld-page-output.png)
-
 ## Verifying your JSON-LD
 
 Once JSON-LD is rendering on your pages, validate it using these tools:
 
 - **[Google Rich Results Test](https://search.google.com/test/rich-results)** -- paste a URL or code snippet to see which rich result types Google can extract from your markup.
 - **[Schema.org Validator](https://validator.schema.org/)** -- validates your JSON-LD against the full Schema.org specification, highlighting any missing required properties or type mismatches.
-- **SchemeWeaver's built-in preview** -- open any mapped content type in the document type editor, switch to the Schema.org tab, and click "Generate Preview" to see the JSON-LD that would be output for a published content item of that type, along with a valid/invalid indicator.
+- **SchemeWeaver's built-in preview** -- open any content item that uses a mapped content type, switch to the **JSON-LD** tab, and view the generated JSON-LD with a valid/invalid indicator, copy button, and refresh button.
 
 ## Next steps
 

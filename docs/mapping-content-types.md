@@ -12,7 +12,6 @@ Mappings are created and maintained from the **Schema.org** tab in the document 
 
 When you begin a new mapping, the **Schema.org type picker modal** opens. This modal presents all available Schema.org types (780) discovered from the Schema.NET.Pending library at startup.
 
-![Schema type picker modal](../screenshots/02-schema-picker.png)
 
 ### Searching
 
@@ -39,7 +38,7 @@ Click a type to highlight it. The selected type is visually distinguished with a
 
 ## Step 2: Review auto-mapped properties
 
-After selecting a Schema.org type, the property mapping view loads in the document type editor's Schema.org tab.
+After selecting a Schema.org type, a **property mapping modal** opens with auto-mapped suggestions.
 
 SchemeWeaver's auto-mapper runs automatically, analysing your content type's properties and suggesting mappings to the schema's properties. The suggestions use three confidence tiers:
 
@@ -74,7 +73,6 @@ The mapping table has three columns:
 | **Source** | An icon and label indicating where the value comes from. Click to change via the source origin picker. |
 | **Value** | A dropdown of available content type properties, a text input for static values, or nested type configuration -- depending on the source type. Confidence tags (High/Medium/Low) appear alongside auto-mapped values. |
 
-![Property mapping view](../screenshots/03-basic-mapping.png)
 
 ## Step 3: Adjust mappings
 
@@ -106,21 +104,20 @@ For Static Value, type the fixed string directly into the text input.
 
 Block Content and Schema.org Type sources have additional configuration. These are covered in detail in the property mappings and block content guides.
 
-## Step 4: Save the document type
+## Step 4: Save the mapping
 
-Save the document type after creating or editing mappings. SchemeWeaver persists the schema mapping when the document type save event fires and shows a success notification when the mapping has been stored.
+Click **Save** in the property mapping modal. SchemeWeaver persists the schema mapping immediately and shows a success notification. The Schema.org tab on the document type editor then shows the saved mapping inline.
 
 Only property rows that have data are saved -- rows where no content type property, static value, or resolver config has been set are excluded from the saved mapping.
 
 ## Editing existing mappings
 
-To edit an existing mapping, navigate to the document type, switch to the **Schema.org** tab, and update the inline mapping UI. If a mapping exists, the schema type name is shown as a tag and all property mappings are listed in the table. Save the document type when you are done.
+To edit an existing mapping, navigate to the document type and switch to the **Schema.org** tab. If a mapping exists, the schema type name is shown as a tag and all property mappings are listed in the table. Edit the mappings inline and save the document type when you are done.
 
 On the workspace view, you can also click **Auto-map** to re-run the auto-mapper. This merges new suggestions with your existing mappings: if a property already has user-provided data (a content type property alias, static value, or resolver config), the user's choices are preserved and only the confidence score is updated. New schema properties from the suggestions are added as new rows.
 
 > **AI Auto-Map:** When the `Umbraco.Community.SchemeWeaver.AI` package is installed, auto-mapping uses AI to semantically match properties, then merges the results with heuristic suggestions. For each property, the higher-confidence suggestion wins. See [AI Integration](ai-integration.md).
 
-![Existing mapping with property assignments](../screenshots/06-mapping-persistence.png)
 
 ## Inherited schemas toggle
 

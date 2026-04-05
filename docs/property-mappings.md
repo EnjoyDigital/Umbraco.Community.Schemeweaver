@@ -4,7 +4,6 @@ Property mappings are the core mechanism in SchemeWeaver for connecting Umbraco 
 
 This reference covers every source type, transform, the auto-mapping algorithm, built-in properties, and the property value resolver system.
 
-![Source type picker](../screenshots/04-source-types.png)
 
 ---
 
@@ -217,7 +216,6 @@ The `PropertyValueResolverFactory` collects all registered `IPropertyValueResolv
 
 Third-party packages can register additional resolvers via dependency injection. Implement `IPropertyValueResolver`, return the editor aliases you handle from `SupportedEditorAliases`, and set `Priority` higher than 10 to override a built-in resolver. Register your implementation as a transient or scoped service of `IPropertyValueResolver` in your composer.
 
-![Property mapping table](../screenshots/05-property-table.png)
 
 ---
 

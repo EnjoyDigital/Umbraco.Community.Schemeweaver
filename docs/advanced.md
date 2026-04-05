@@ -85,7 +85,6 @@ SchemeWeaver adds a **Schema.org** tab to the document type editor in the Umbrac
 
 The workspace view loads the existing mapping on mount by observing the workspace context's `alias` observable, and fetches both the schema properties and the content type properties to populate the dropdowns.
 
-![Auto-mapping an Event content type](../screenshots/14-event-auto-map.png)
 
 ## JSON-LD Content View / Preview
 
@@ -108,7 +107,6 @@ The preview endpoint (`POST /mappings/{contentTypeAlias}/preview`) supports two 
 4. If the content is unpublished (preview returns no data), a warning message is shown indicating that the content must be published first.
 5. The preview shows a formatted JSON-LD block with syntax highlighting, a valid/invalid badge, and copy/refresh buttons.
 
-![JSON-LD preview on a content node](../screenshots/09-jsonld-preview.png)
 
 ## Extending with Custom Property Resolvers
 

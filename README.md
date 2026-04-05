@@ -63,7 +63,7 @@ In your master layout (e.g. `_Layout.cshtml`):
 1. Open any document type in **Settings > Document Types**
 2. Click the **Schema.org** tab
 3. Click **Map to Schema.org** and select a type (e.g. Product, Article, Event)
-4. Review the auto-suggested property mappings in the document type editor and save the document type
+4. Review the auto-suggested property mappings in the modal and click **Save**
 5. Publish content -- JSON-LD appears in the page source
 
 ### 3. Headless / Delivery API

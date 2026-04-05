@@ -76,8 +76,6 @@ If only one block element type is configured, it is auto-selected and the wizard
 
 If no block types can be detected (e.g., when the property configuration cannot be read), you can manually type in a block element alias.
 
-![Nested mapping wizard](../screenshots/11-faqpage-wizard.png)
-
 ### Step 2: Map Properties
 
 A mapping table shows every property of the target Schema.org type in the left column, with dropdown selectors for the corresponding block element property in the centre column. The right column shows the **Wrap In Type** for complex schema properties.
@@ -90,13 +88,9 @@ The wizard includes an **Auto-Map** button that runs a three-tier matching algor
 
 Auto-mapping only fills empty mappings and never overwrites manual selections.
 
-![Wizard step 2 -- property mappings](../screenshots/15-wizard-step2-mappings.png)
-
 ### Step 3: Preview
 
 Shows a summary of all configured mappings and a collapsible JSON preview of the `ResolverConfig` that will be stored. Review the configuration and click **Save** to apply.
-
-![Wizard step 3 -- preview](../screenshots/16-wizard-step3-preview.png)
 
 ---
 
@@ -254,7 +248,6 @@ The auto-mapper includes pre-configured resolver configs for popular Schema.org 
 
 Your BlockList should have a block element type with at least two properties: one for the question text (e.g., `question`) and one for the answer text (e.g., `answer`). The answer is wrapped in an `Answer` type with the value set on the `Text` property.
 
-![FAQ auto-mapping](../screenshots/10-faqpage-auto-map.png)
 
 ### Product Review with Rating
 
@@ -283,7 +276,6 @@ Your BlockList should have a block element type with at least two properties: on
 
 Your review block element should have properties for the reviewer's name, a numeric rating value, and the review text. The rating value is wrapped in a `Rating` type.
 
-![Product auto-mapping](../screenshots/12-product-auto-map.png)
 
 ### Recipe HowToStep
 
@@ -306,7 +298,6 @@ Your review block element should have properties for the reviewer's name, a nume
 
 Each block element represents a single step with a name and description text. The same pattern applies to `HowTo.step`.
 
-![Recipe auto-mapping](../screenshots/13-recipe-auto-map.png)
 
 ### Recipe Ingredients as String List
 

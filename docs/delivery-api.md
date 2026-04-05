@@ -225,9 +225,7 @@ function buildBreadcrumbJsonLd(crumbs: { name: string; url: string }[]) {
 
 ## Example Output
 
-The screenshot below shows the JSON-LD output as it appears on a published page (via the tag helper). The Delivery API returns the same JSON-LD content as raw strings in the `schemaOrg` field.
-
-![JSON-LD page output](../screenshots/08-jsonld-page-output.png)
+The Delivery API returns the same JSON-LD content as raw strings in the `schemaOrg` field.
 
 ## Field Ordering
 
