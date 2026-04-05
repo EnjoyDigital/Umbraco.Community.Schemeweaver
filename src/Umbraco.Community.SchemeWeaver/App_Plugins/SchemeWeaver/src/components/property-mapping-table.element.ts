@@ -397,7 +397,13 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
     return html`
       <div class="add-property-row">
+        <uui-form-layout-item>
+          <uui-label slot="label" for="add-schema-property">
+            ${this.localize.term('schemeWeaver_addSchemaProperty')}
+          </uui-label>
+          <span slot="description">${this.localize.term('schemeWeaver_addSchemaPropertyDescription')}</span>
         <uui-combobox
+          id="add-schema-property"
           .value=${this._addPropertyValue}
           label=${this.localize.term('schemeWeaver_addSchemaProperty')}
           @search=${(e: Event) => {
@@ -446,6 +452,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
             )}
           </uui-combobox-list>
         </uui-combobox>
+        </uui-form-layout-item>
       </div>
     `;
   }
