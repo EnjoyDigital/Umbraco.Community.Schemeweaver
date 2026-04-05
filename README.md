@@ -8,7 +8,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 
 ## Features
 
-- **657 Schema.org types** -- discovers every type in the [Schema.NET](https://github.com/RehanSaeed/Schema.NET) library at startup
+- **780 Schema.org types** -- discovers every type in the [Schema.NET.Pending](https://github.com/RehanSaeed/Schema.NET) library at startup, including pending types like `RealEstateListing`
 - **Auto-mapping with confidence scores** -- suggests property mappings using exact matching, synonym dictionaries, and substring matching
 - **Smart property UI** -- shows the most likely properties first, with a "Show more" toggle for the rest
 - **Seven source types** -- pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, or nested complex types
@@ -18,6 +18,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
+- **AI-powered mapping (optional)** -- install the companion [`Umbraco.Community.SchemeWeaver.AI`](docs/ai-integration.md) package for AI schema type suggestions, bulk analysis across all content types, and Umbraco Copilot integration
 
 ## Requirements
 
@@ -31,6 +32,16 @@ dotnet add package Umbraco.Community.SchemeWeaver
 ```
 
 No additional configuration needed. The package registers all services, creates its database tables on first run, and adds the backoffice UI automatically.
+
+### Optional: AI-Powered Mapping
+
+For AI-assisted schema type suggestions and property mapping, install the companion package:
+
+```bash
+dotnet add package Umbraco.Community.SchemeWeaver.AI --prerelease
+```
+
+Requires [Umbraco.AI.Core](https://marketplace.umbraco.com/package/umbraco.ai.core) 1.7.0 or later and a configured chat provider (e.g. Azure OpenAI, Anthropic). See [AI Integration](docs/ai-integration.md) for details.
 
 ## Quick Start
 
@@ -75,6 +86,7 @@ const jsonLd = data.properties.schemaOrg;
 - [Delivery API](docs/delivery-api.md) -- headless integration
 - [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, extending, troubleshooting
 - [API Reference](docs/api-reference.md) -- REST API endpoints
+- [AI Integration](docs/ai-integration.md) -- optional AI-powered schema suggestions, bulk analysis, and Copilot tools
 
 ## How it works
 
@@ -109,10 +121,11 @@ The generated output:
 }
 ```
 
-## Notes (v1.0.0-beta)
+## Notes
 
 - **Block content nested types** -- complex Schema.org properties (e.g. `acceptedAnswer`, `reviewRating`) require a wrapper type. The auto-mapper pre-configures this for common patterns (FAQ, Product, Recipe). For custom types, see the [`wrapInType` guide](docs/block-content.md#wrapintype-configuration).
 - **Media picker edge cases** -- complex multi-crop scenarios with specific crop aliases may need manual URL configuration. See [Property Mappings](docs/property-mappings.md#property-value-resolvers).
+- **AI package** -- the `Umbraco.Community.SchemeWeaver.AI` companion is optional and requires a configured Umbraco.AI chat provider. Without it, the heuristic auto-mapper handles all suggestions.
 
 ## Contributing
 

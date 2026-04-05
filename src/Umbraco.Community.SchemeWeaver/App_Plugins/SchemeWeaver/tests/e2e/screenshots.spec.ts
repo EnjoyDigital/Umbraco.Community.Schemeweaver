@@ -9,26 +9,42 @@ async function fillUuiInput(locator: any, text: string) {
   await locator.locator('input').fill(text);
 }
 
-async function goToDocTypeSchemaTab(umbracoUi: any, docTypeName: string) {
-  await umbracoUi.goToBackOffice();
-  await umbracoUi.content.goToSection(ConstantHelper.sections.settings);
+async function resolveDocTypeKey(page: any, contentTypeAlias: string): Promise<string> {
+  const response = await page.request.get(`${API_BASE}/content-types`);
+  const data = await response.json();
+  const ct = data.find((t: any) => t.alias === contentTypeAlias);
+  if (!ct) throw new Error(`Content type '${contentTypeAlias}' not found`);
+  return ct.key;
+}
 
-  const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
-  await docTypesLink.waitFor({ timeout: 15_000 });
-  await docTypesLink.click();
-  await umbracoUi.page.waitForTimeout(1_000);
+async function goToDocTypeSchemaTab(umbracoUi: any, docTypeName: string, contentTypeAlias?: string) {
+  if (contentTypeAlias) {
+    // Navigate directly by URL for reliability with deep tree structures
+    const key = await resolveDocTypeKey(umbracoUi.page, contentTypeAlias);
+    await umbracoUi.page.goto(`/umbraco/section/settings/workspace/document-type/edit/${key}`);
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+  } else {
+    // Fall back to tree navigation for simpler doc types
+    await umbracoUi.goToBackOffice();
+    await umbracoUi.content.goToSection(ConstantHelper.sections.settings);
 
-  const expandBtn = umbracoUi.page.locator('button[aria-label*="Expand"]').first();
-  if (await expandBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await expandBtn.click();
+    const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
+    await docTypesLink.waitFor({ timeout: 15_000 });
+    await docTypesLink.click();
     await umbracoUi.page.waitForTimeout(1_000);
+
+    const expandBtn = umbracoUi.page.locator('button[aria-label*="Expand"]').first();
+    if (await expandBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await expandBtn.click();
+      await umbracoUi.page.waitForTimeout(1_000);
+    }
+
+    const treeItem = umbracoUi.page.locator('umb-tree-item umb-tree-item', { hasText: docTypeName }).first();
+    await treeItem.waitFor({ timeout: 15_000 });
+    await treeItem.locator('a').first().click();
+
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
   }
-
-  const treeItem = umbracoUi.page.locator('umb-tree-item umb-tree-item', { hasText: docTypeName }).first();
-  await treeItem.waitFor({ timeout: 15_000 });
-  await treeItem.locator('a').first().click();
-
-  await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
   const schemaTab = umbracoUi.page.getByRole('tab', { name: /Schema\.org/i });
   await schemaTab.waitFor({ timeout: 15_000 });
@@ -218,7 +234,7 @@ test.describe.serial('Documentation Screenshots', () => {
   });
 
   test('12 — Product auto-map', async ({ umbracoUi }) => {
-    await goToDocTypeSchemaTab(umbracoUi, 'Product Page');
+    await goToDocTypeSchemaTab(umbracoUi, 'Product Page', 'productPage');
 
     await umbracoUi.page.screenshot({
       path: join(SCREENSHOTS_DIR, '12-product-auto-map.png'),
@@ -227,7 +243,7 @@ test.describe.serial('Documentation Screenshots', () => {
   });
 
   test('13 — Recipe auto-map', async ({ umbracoUi }) => {
-    await goToDocTypeSchemaTab(umbracoUi, 'Recipe Page');
+    await goToDocTypeSchemaTab(umbracoUi, 'Recipe Page', 'recipePage');
 
     await umbracoUi.page.screenshot({
       path: join(SCREENSHOTS_DIR, '13-recipe-auto-map.png'),
@@ -236,7 +252,7 @@ test.describe.serial('Documentation Screenshots', () => {
   });
 
   test('14 — Event auto-map', async ({ umbracoUi }) => {
-    await goToDocTypeSchemaTab(umbracoUi, 'Event Page');
+    await goToDocTypeSchemaTab(umbracoUi, 'Event Page', 'eventPage');
 
     await umbracoUi.page.screenshot({
       path: join(SCREENSHOTS_DIR, '14-event-auto-map.png'),

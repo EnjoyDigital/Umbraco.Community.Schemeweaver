@@ -128,6 +128,8 @@ When you trigger auto-mapping for a content type, SchemeWeaver's `SchemaAutoMapp
 
 The UI displays confidence as badges: **High** (80 and above), **Medium** (50-79), and unmatched (0).
 
+> **AI-Enhanced Mapping:** If the optional `Umbraco.Community.SchemeWeaver.AI` package is installed, the auto-map can use AI to semantically match properties beyond what the heuristic synonym dictionary covers. AI suggestions are merged with heuristic results -- for each property, the higher-confidence suggestion wins. See [AI Integration](ai-integration.md).
+
 ### Synonym Dictionary
 
 The auto-mapper maintains an extensive synonym dictionary covering common Umbraco property naming patterns across many Schema.org domains. A selection of key entries:

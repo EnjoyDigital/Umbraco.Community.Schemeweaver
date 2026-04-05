@@ -8,7 +8,7 @@ This guide walks you through installing SchemeWeaver, creating your first Schema
 |---|---|
 | Umbraco CMS | 17.0.0 or later (up to, but not including, 18.0.0) |
 | .NET | 10 |
-| Schema.NET | 13.0.0 (installed automatically as a dependency) |
+| Schema.NET.Pending | 13.0.0 (installed automatically as a dependency) |
 
 SchemeWeaver targets `net10.0` and uses the `Microsoft.NET.Sdk.Razor` SDK. No additional runtime dependencies are required beyond what Umbraco 17 already provides.
 
@@ -42,7 +42,7 @@ When the application starts for the first time after installation, SchemeWeaver 
    - `SchemeWeaverSchemaMapping` -- stores the link between an Umbraco content type alias and a Schema.org type name, along with flags like `isInherited`.
    - `SchemeWeaverPropertyMapping` -- stores individual property mappings (schema property name, source type, content type property alias, static values, nested type configuration, and resolver config).
 
-3. **Scans Schema.org types** -- the `SchemaTypeRegistry` singleton scans the Schema.NET assembly at startup and discovers all 657 Schema.org types with their properties, parent types, and descriptions.
+3. **Scans Schema.org types** -- the `SchemaTypeRegistry` singleton scans the Schema.NET.Pending assembly at startup and discovers all available Schema.org types (780) with their properties, parent types, and descriptions.
 
 4. **Registers the backoffice UI** -- the package's static web assets (built Lit web components) are served from `App_Plugins/SchemeWeaver`, adding a Schema.org workspace view tab to the document type editor and entity actions to the document type context menu.
 
@@ -159,3 +159,4 @@ Once JSON-LD is rendering on your pages, validate it using these tools:
 - **[Mapping Content Types](mapping-content-types.md)** -- detailed guide to the schema picker, property mapping table, inherited schemas, and deleting mappings.
 - **Property Mappings** (property-mappings.md) -- deep dive into source types, transforms, block content mapping, and complex nested types.
 - **Block Content** (block-content.md) -- working with Block List and Block Grid editors in your schema mappings.
+- **[AI Integration](ai-integration.md)** -- optional AI-powered schema suggestions, bulk analysis, and Copilot tools.

@@ -33,7 +33,7 @@ This opens the generation modal. The entity action resolves the document type's 
 
 ### Step 1: Select a Schema.org Type
 
-The modal opens with a searchable list of all available Schema.org types (loaded from the Schema.NET assembly via `SchemaTypeRegistry`). Each entry shows the type name and description.
+The modal opens with a searchable list of all available Schema.org types (loaded from the Schema.NET.Pending assembly via `SchemaTypeRegistry`). Each entry shows the type name and description.
 
 Use the search input to filter the list. The search is debounced (300ms delay) and queries the server for matching types.
 
