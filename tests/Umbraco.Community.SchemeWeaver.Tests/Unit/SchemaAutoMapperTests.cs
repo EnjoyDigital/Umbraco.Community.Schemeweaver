@@ -1358,4 +1358,88 @@ public class SchemaAutoMapperTests
     #endregion
 
     #endregion
+
+    #region Type Intelligence Edge Cases
+
+    [Fact]
+    public void PrimitiveTypeAcceptedTypes_SuggestedNestedSchemaTypeName_IsNull()
+    {
+        // A schema property with only primitive accepted types (e.g. "Text")
+        // should NOT be treated as complex and should have no nested schema type
+        var contentType = CreateContentTypeWithProperties("headline");
+        _contentTypeService.Get("article").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Article").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "headline",
+                PropertyType = "Text",
+                IsComplexType = false,
+                AcceptedTypes = ["Text"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("article", "Article").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("headline");
+        result[0].Confidence.Should().Be(100);
+        result[0].SuggestedSourceType.Should().Be("property");
+        result[0].SuggestedNestedSchemaTypeName.Should().BeNull();
+        result[0].IsComplexType.Should().BeFalse();
+    }
+
+    [Fact]
+    public void BlockEditorDetection_BlockListAlias_SuggestsBlockContent()
+    {
+        // A complex schema property matched by a BlockList content property (no popular default)
+        // should be detected as blockContent purely based on editor alias
+        var contentType = CreateContentTypeWithEditors(
+            ("customItems", "Umbraco.BlockList"));
+        _contentTypeService.Get("custom").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("CustomType").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "customItems",
+                PropertyType = "CustomItem",
+                IsComplexType = true,
+                AcceptedTypes = ["CustomItem"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("custom", "CustomType").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedSourceType.Should().Be("blockContent");
+        result[0].SuggestedNestedSchemaTypeName.Should().Be("CustomItem");
+        result[0].EditorAlias.Should().Be("Umbraco.BlockList");
+        result[0].Confidence.Should().Be(70); // exact name match + block editor → blockContent at 70
+        result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SuggestMappings_MultiplePartialMatches_BestMatchWins()
+    {
+        // Two content properties partially match a schema property name;
+        // the auto-mapper should pick one (the first found) and return exactly one suggestion
+        var contentType = CreateContentTypeWithProperties("blogHeadline", "headlineText");
+        _contentTypeService.Get("article").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Article").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "headline", PropertyType = "Text" }
+        });
+
+        var result = _sut.SuggestMappings("article", "Article").ToList();
+
+        // Should produce exactly one suggestion per schema property (not two)
+        result.Should().ContainSingle();
+        result[0].SchemaPropertyName.Should().Be("headline");
+        result[0].Confidence.Should().Be(50); // partial match
+        result[0].IsAutoMapped.Should().BeTrue();
+        // Either partial match is acceptable, but only one should be selected
+        result[0].SuggestedContentTypePropertyAlias.Should().BeOneOf("blogHeadline", "headlineText");
+    }
+
+    #endregion
 }

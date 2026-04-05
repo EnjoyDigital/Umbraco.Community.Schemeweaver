@@ -120,7 +120,18 @@ export class JsonLdContentViewElement extends UmbLitElement {
   private _handleCopy(): void {
     const previewEl = this.shadowRoot?.querySelector('schemeweaver-jsonld-preview') as any;
     const text = previewEl?.formattedJson ?? '';
-    navigator.clipboard.writeText(text).catch(() => {});
+    navigator.clipboard.writeText(text).then(
+      () => {
+        this.#notificationContext?.peek('positive', {
+          data: { message: this.localize.term('schemeWeaver_copiedToClipboard') },
+        });
+      },
+      () => {
+        this.#notificationContext?.peek('warning', {
+          data: { message: this.localize.term('schemeWeaver_copyFailed') },
+        });
+      },
+    );
   }
 
   render() {

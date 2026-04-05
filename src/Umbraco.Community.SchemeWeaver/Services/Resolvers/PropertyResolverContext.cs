@@ -61,4 +61,10 @@ public class PropertyResolverContext
     /// Maximum allowed recursion depth. Default is 3.
     /// </summary>
     public int MaxRecursionDepth { get; init; } = 3;
+
+    /// <summary>
+    /// Content keys already in the current resolution chain.
+    /// Used to detect circular references (e.g., content A picks content B which picks content A).
+    /// </summary>
+    public HashSet<Guid> VisitedContentKeys { get; init; } = [];
 }

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using Umbraco.Cms.Core.Models;
@@ -14,7 +15,7 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit.Resolvers;
 
 public class MediaPickerResolverTests
 {
-    private readonly MediaPickerResolver _sut = new();
+    private readonly MediaPickerResolver _sut = new(NullLogger<MediaPickerResolver>.Instance);
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     public MediaPickerResolverTests()
@@ -213,6 +214,49 @@ public class MediaPickerResolverTests
 
         var property = Substitute.For<IPublishedProperty>();
         property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(items);
+
+        var context = CreateContext(property);
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Resolve_MultipleMediaWithCrops_FirstItemDeletedMedia_ReturnsNull()
+    {
+        // When the first item in a multi-value picker has a deleted/broken media item
+        // (umbracoFile property missing), the resolver should return null gracefully
+        var deletedMedia = Substitute.For<IPublishedContent>();
+        deletedMedia.GetProperty("umbracoFile").Returns((IPublishedProperty?)null);
+
+        var publishedValueFallback = Substitute.For<IPublishedValueFallback>();
+        var localCrops = new ImageCropperValue();
+        var mediaWithCrops = new MediaWithCrops(deletedMedia, publishedValueFallback, localCrops);
+
+        var items = new List<MediaWithCrops> { mediaWithCrops };
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(items);
+
+        var context = CreateContext(property);
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Resolve_UmbracoFilePropertyValueIsNull_ReturnsNull()
+    {
+        // When umbracoFile property exists on the media but its value is null
+        // (e.g., media item exists but the file has been removed from disk)
+        var umbracoFileProperty = Substitute.For<IPublishedProperty>();
+        umbracoFileProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(null);
+
+        var media = Substitute.For<IPublishedContent>();
+        media.GetProperty("umbracoFile").Returns(umbracoFileProperty);
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(media);
 
         var context = CreateContext(property);
         var result = _sut.Resolve(context);

@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using NSubstitute;
 using Umbraco.Cms.Core.Models.Blocks;
@@ -394,7 +395,7 @@ public class JsonLdGeneratorTests
     private JsonLdGenerator CreateBlockAwareGenerator()
     {
         var blockResolverFactory = new PropertyValueResolverFactory([
-            new BlockContentResolver(),
+            new BlockContentResolver(NullLogger<BlockContentResolver>.Instance),
             new DefaultPropertyValueResolver()
         ]);
         return new JsonLdGenerator(
@@ -1360,6 +1361,191 @@ public class JsonLdGeneratorTests
 
         // With no depth limit, the deepest "DeepLeaf" Person should be fully resolved
         jsonLd.Should().Contain("DeepLeaf");
+    }
+
+    #endregion
+
+    #region Source Type Resolution Tests
+
+    [Fact]
+    public void GenerateJsonLd_ParentSourceType_ResolvesParentPropertyValue()
+    {
+        // Verify the parent's property value actually flows through to JSON-LD output
+        var parentContent = CreateContent("homepage", new Dictionary<string, object?>
+        {
+            ["siteName"] = "My Site"
+        });
+
+        var content = CreateContent("article");
+        var contentKey = content.Key;
+        var parentKey = parentContent.Key;
+
+        // Mock Parent<T> resolution: TryGetParentKey → FilterAvailable
+        _navigationQueryService.TryGetParentKey(contentKey, out Arg.Any<Guid?>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = (Guid?)parentKey;
+                return true;
+            });
+        _publishedStatusFilteringService
+            .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(parentKey)), Arg.Any<string?>())
+            .Returns(new[] { parentContent });
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "parent", ContentTypePropertyAlias = "siteName" }
+        });
+
+        var result = _sut.GenerateJsonLdString(content);
+
+        result.Should().NotBeNullOrEmpty();
+        result.Should().Contain("My Site");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_AncestorSourceType_ResolvesFromMatchingAncestor()
+    {
+        // Build a 3-level hierarchy: grandparent (settings) → parent (section) → child (article)
+        var grandparent = CreateContent("settings", new Dictionary<string, object?>
+        {
+            ["siteName"] = "Corporate Site"
+        });
+        var parent = CreateContent("section");
+        var child = CreateContent("article");
+
+        var childKey = child.Key;
+        var parentKey = parent.Key;
+        var grandparentKey = grandparent.Key;
+
+        // Mock Ancestors() resolution: TryGetAncestorsKeys → FilterAvailable
+        _navigationQueryService.TryGetAncestorsKeys(childKey, out Arg.Any<IEnumerable<Guid>>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = new[] { parentKey, grandparentKey };
+                return true;
+            });
+        _publishedStatusFilteringService
+            .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(grandparentKey) && keys.Contains(parentKey)), Arg.Any<string?>())
+            .Returns(new[] { parent, grandparent });
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Name",
+                SourceType = "ancestor",
+                SourceContentTypeAlias = "settings",
+                ContentTypePropertyAlias = "siteName"
+            }
+        });
+
+        var result = _sut.GenerateJsonLdString(child);
+
+        result.Should().NotBeNullOrEmpty();
+        result.Should().Contain("Corporate Site");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_SiblingSourceType_ResolvesFromSiblingNode()
+    {
+        // Build parent with two children: content (article) and sibling (sidebarContent)
+        var parentNode = CreateContent("homepage");
+        var parentNodeKey = parentNode.Key;
+
+        var content = CreateContent("article");
+        var contentKey = content.Key;
+        content.Id.Returns(100);
+
+        var sibling = CreateContent("sidebarContent", new Dictionary<string, object?>
+        {
+            ["promoText"] = "Special Offer"
+        });
+        var siblingKey = sibling.Key;
+        sibling.Id.Returns(200);
+
+        // Mock Parent<T> resolution for the content node
+        _navigationQueryService.TryGetParentKey(contentKey, out Arg.Any<Guid?>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = (Guid?)parentNodeKey;
+                return true;
+            });
+        _publishedStatusFilteringService
+            .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(parentNodeKey)), Arg.Any<string?>())
+            .Returns(new[] { parentNode });
+
+        // Mock Children() on the parent: TryGetChildrenKeys → FilterAvailable
+        _navigationQueryService.TryGetChildrenKeys(parentNodeKey, out Arg.Any<IEnumerable<Guid>>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = new[] { contentKey, siblingKey };
+                return true;
+            });
+        _publishedStatusFilteringService
+            .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(contentKey) && keys.Contains(siblingKey)), Arg.Any<string?>())
+            .Returns(new[] { content, sibling });
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Name",
+                SourceType = "sibling",
+                SourceContentTypeAlias = "sidebarContent",
+                ContentTypePropertyAlias = "promoText"
+            }
+        });
+
+        var result = _sut.GenerateJsonLdString(content);
+
+        result.Should().NotBeNullOrEmpty();
+        result.Should().Contain("Special Offer");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_NullPropertyValue_HandledGracefully()
+    {
+        // Content has a property that returns null — should not throw
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = null
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+
+        var act = () => _sut.GenerateJsonLd(content);
+
+        act.Should().NotThrow();
+        var result = act();
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Article>();
+    }
+
+    [Fact]
+    public void GenerateJsonLd_NoPropertyMappings_ReturnsThingWithTypeOnly()
+    {
+        var content = CreateContent("article");
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>());
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Article>();
+
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Article");
     }
 
     #endregion

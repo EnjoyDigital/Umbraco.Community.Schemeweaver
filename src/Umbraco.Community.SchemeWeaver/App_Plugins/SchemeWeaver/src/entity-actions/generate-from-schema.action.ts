@@ -28,7 +28,7 @@ export class GenerateFromSchemaAction extends UmbEntityActionBase<never> {
       return;
     }
 
-    await modalManager
+    const result = await modalManager
       .open(this, SCHEMEWEAVER_GENERATE_DOCTYPE_MODAL, {
         data: {
           contentTypeAlias,
@@ -36,6 +36,12 @@ export class GenerateFromSchemaAction extends UmbEntityActionBase<never> {
       })
       .onSubmit()
       .catch(() => null);
+
+    if (result !== null) {
+      notificationContext?.peek('positive', {
+        data: { message: localize.term('schemeWeaver_contentTypeGenerated') },
+      });
+    }
   }
 }
 

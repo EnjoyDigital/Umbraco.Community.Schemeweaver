@@ -42,7 +42,7 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
     if (!pickerResult?.schemaType) return;
 
     // Then open property mapping modal
-    await modalManager
+    const mappingResult = await modalManager
       .open(this, SCHEMEWEAVER_PROPERTY_MAPPING_MODAL, {
         data: {
           contentTypeAlias,
@@ -52,6 +52,12 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
       })
       .onSubmit()
       .catch(() => null);
+
+    if (mappingResult !== null) {
+      notificationContext?.peek('positive', {
+        data: { message: localize.term('schemeWeaver_mappingSaved') },
+      });
+    }
   }
 }
 

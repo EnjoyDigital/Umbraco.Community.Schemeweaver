@@ -1,4 +1,4 @@
-import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
@@ -172,6 +172,9 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
                 >
                   ${this._generating ? this.localize.term('schemeWeaver_generating') : this.localize.term('schemeWeaver_generate')}
                 </uui-button>
+                ${!this._generating && this._selectedProperties.size === 0
+                  ? html`<small class="disabled-hint">${this.localize.term('schemeWeaver_selectAtLeastOneProperty')}</small>`
+                  : nothing}
               `
             : ''}
         </div>
@@ -337,6 +340,13 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
       .property-type {
         color: var(--uui-color-text-alt);
         font-family: monospace;
+      }
+
+      .disabled-hint {
+        display: block;
+        color: var(--uui-color-text-alt);
+        font-size: 0.8rem;
+        margin-top: var(--uui-size-space-2);
       }
     `,
   ];

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PropertyEditors.ValueConverters;
@@ -12,6 +13,13 @@ namespace Umbraco.Community.SchemeWeaver.Services.Resolvers;
 /// </summary>
 public class MediaPickerResolver : IPropertyValueResolver
 {
+    private readonly ILogger<MediaPickerResolver> _logger;
+
+    public MediaPickerResolver(ILogger<MediaPickerResolver> logger)
+    {
+        _logger = logger;
+    }
+
     public IEnumerable<string> SupportedEditorAliases =>
         ["Umbraco.MediaPicker3", "Umbraco.MediaPicker"];
 
@@ -34,7 +42,12 @@ public class MediaPickerResolver : IPropertyValueResolver
         };
 
         if (mediaContent is null)
+        {
+            _logger.LogWarning(
+                "Media picker property '{PropertyAlias}' on content '{ContentName}' resolved to null media item — the media may have been deleted",
+                context.PropertyAlias, context.Content.Name);
             return null;
+        }
 
         var relativeUrl = GetMediaUrl(mediaContent);
         if (string.IsNullOrEmpty(relativeUrl))
@@ -47,11 +60,16 @@ public class MediaPickerResolver : IPropertyValueResolver
     /// Extracts the media URL from the umbracoFile property.
     /// The value can be a plain string path, or an ImageCropperValue with a Src property.
     /// </summary>
-    private static string? GetMediaUrl(IPublishedContent mediaContent)
+    private string? GetMediaUrl(IPublishedContent mediaContent)
     {
         var umbracoFile = mediaContent.GetProperty("umbracoFile");
         if (umbracoFile is null)
+        {
+            _logger.LogWarning(
+                "Media item '{MediaName}' has no umbracoFile property — the media file may be missing",
+                mediaContent.Name);
             return null;
+        }
 
         var fileValue = umbracoFile.GetValue();
         if (fileValue is null)

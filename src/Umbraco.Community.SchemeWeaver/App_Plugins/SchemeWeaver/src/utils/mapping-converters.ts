@@ -88,10 +88,13 @@ export function mergeAutoMapSuggestions(
     if (existing && rowHasUserData(existing)) {
       // Preserve user data, only update confidence
       rowMap.set(key, { ...existing, confidence: suggestion.confidence });
-    } else if (suggestion.suggestedContentTypePropertyAlias || suggestion.isComplexType) {
-      // Only add suggestions that have an actual match or are complex types
-      // (user-configurable). Skip zero-confidence properties with no match to
-      // avoid cluttering the table with empty rows.
+    } else if (
+      suggestion.suggestedContentTypePropertyAlias ||
+      (suggestion.isComplexType && suggestion.suggestedNestedSchemaTypeName)
+    ) {
+      // Only add suggestions that have an actual property match or are complex
+      // types with a real nested schema type. Skip zero-confidence properties
+      // with no match to avoid cluttering the table with empty rows.
       rowMap.set(key, suggestionToRow(suggestion));
     }
   }

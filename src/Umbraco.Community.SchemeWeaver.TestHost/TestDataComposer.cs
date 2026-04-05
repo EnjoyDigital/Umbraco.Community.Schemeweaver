@@ -4068,7 +4068,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, aboutPageCt, "AboutPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"), ("DateModified", "__updateDate"));
         SeedSimpleMapping(repo, newsArticleCt, "NewsArticle", ("Headline", "title"), ("Description", "description"), ("ArticleBody", "bodyText"), ("DatePublished", "publishDate"), ("Keywords", "keywords"), ("Dateline", "dateline"), ("Url", "__url"));
         SeedSimpleMapping(repo, techArticleCt, "TechArticle", ("Headline", "title"), ("Description", "description"), ("ArticleBody", "bodyText"), ("DatePublished", "publishDate"), ("ProficiencyLevel", "proficiencyLevel"), ("Url", "__url"));
-        SeedSimpleMapping(repo, softwarePageCt, "SoftwareApplication", ("Name", "title"), ("Description", "description"), ("ApplicationCategory", "applicationCategory"), ("OperatingSystem", "operatingSystem"), ("SoftwareVersion", "softwareVersion"), ("DownloadUrl", "downloadUrl"), ("Url", "__url"));
+        SeedSimpleMapping(repo, softwarePageCt, "SoftwareApplication", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("ApplicationCategory", "applicationCategory"), ("OperatingSystem", "operatingSystem"), ("SoftwareVersion", "softwareVersion"), ("DownloadUrl", "downloadUrl"), ("Url", "__url"));
         SeedSimpleMapping(repo, coursePageCt, "Course", ("Name", "title"), ("Description", "description"), ("CourseCode", "courseCode"), ("Url", "__url"));
         SeedSimpleMapping(repo, videoPageCt, "VideoObject", ("Name", "title"), ("Description", "description"), ("ThumbnailUrl", "thumbnailUrl"), ("UploadDate", "uploadDate"), ("Duration", "duration"), ("ContentUrl", "contentUrl"), ("EmbedUrl", "embedUrl"), ("Url", "__url"));
         SeedSimpleMapping(repo, jobPostingPageCt, "JobPosting", ("Title", "title"), ("Description", "description"), ("DatePosted", "datePosted"), ("ValidThrough", "validThrough"), ("EmploymentType", "employmentType"), ("BaseSalary", "salary"), ("Url", "__url"));
@@ -4096,18 +4096,18 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, recipeListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
 
         // New product subtype mappings
-        SeedSimpleMapping(repo, vehiclePageCt, "Vehicle", ("Name", "title"), ("Description", "description"), ("Brand", "brand"), ("Model", "model"), ("FuelType", "fuelType"), ("MileageFromOdometer", "mileageFromOdometer"), ("VehicleEngine", "vehicleEngine"), ("Color", "color"), ("NumberOfDoors", "numberOfDoors"), ("Url", "__url"));
-        SeedSimpleMapping(repo, financialProductPageCt, "FinancialProduct", ("Name", "title"), ("Description", "description"), ("FeesAndCommissionsSpecification", "feesAndCommissionsSpecification"), ("InterestRate", "interestRate"), ("AnnualPercentageRate", "annualPercentageRate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, individualProductPageCt, "IndividualProduct", ("Name", "title"), ("Description", "description"), ("SerialNumber", "serialNumber"), ("Sku", "sku"), ("Color", "color"), ("Weight", "weight"), ("Url", "__url"));
-        SeedSimpleMapping(repo, productModelPageCt, "ProductModel", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
+        SeedSimpleMapping(repo, vehiclePageCt, "Vehicle", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("Brand", "brand"), ("Model", "model"), ("FuelType", "fuelType"), ("MileageFromOdometer", "mileageFromOdometer"), ("VehicleEngine", "vehicleEngine"), ("Color", "color"), ("NumberOfDoors", "numberOfDoors"), ("Url", "__url"));
+        SeedSimpleMapping(repo, financialProductPageCt, "FinancialProduct", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("FeesAndCommissionsSpecification", "feesAndCommissionsSpecification"), ("InterestRate", "interestRate"), ("AnnualPercentageRate", "annualPercentageRate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, individualProductPageCt, "IndividualProduct", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("SerialNumber", "serialNumber"), ("Sku", "sku"), ("Color", "color"), ("Weight", "weight"), ("Url", "__url"));
+        SeedSimpleMapping(repo, productModelPageCt, "ProductModel", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("Url", "__url"));
 
         // New event subtype mappings
-        SeedSimpleMapping(repo, musicEventPageCt, "MusicEvent", ("Name", "title"), ("Description", "description"), ("Performer", "performer"), ("StartDate", "startDate"), ("EndDate", "endDate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, sportsEventPageCt, "SportsEvent", ("Name", "title"), ("Description", "description"), ("Competitor", "competitor"), ("StartDate", "startDate"), ("Sport", "sport"), ("Url", "__url"));
-        SeedSimpleMapping(repo, businessEventPageCt, "BusinessEvent", ("Name", "title"), ("Description", "description"), ("StartDate", "startDate"), ("Sponsor", "sponsor"), ("Url", "__url"));
-        SeedSimpleMapping(repo, foodEventPageCt, "FoodEvent", ("Name", "title"), ("Description", "description"), ("StartDate", "startDate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, festivalPageCt, "Festival", ("Name", "title"), ("Description", "description"), ("StartDate", "startDate"), ("EndDate", "endDate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, educationEventPageCt, "EducationEvent", ("Name", "title"), ("Description", "description"), ("StartDate", "startDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, musicEventPageCt, "MusicEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("Performer", "performer"), ("StartDate", "startDate"), ("EndDate", "endDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, sportsEventPageCt, "SportsEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("Competitor", "competitor"), ("StartDate", "startDate"), ("Sport", "sport"), ("Url", "__url"));
+        SeedSimpleMapping(repo, businessEventPageCt, "BusinessEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("Sponsor", "sponsor"), ("Url", "__url"));
+        SeedSimpleMapping(repo, foodEventPageCt, "FoodEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, festivalPageCt, "Festival", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("EndDate", "endDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, educationEventPageCt, "EducationEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("Url", "__url"));
 
         // New organisation subtype mappings
         SeedSimpleMapping(repo, organisationListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
@@ -4181,8 +4181,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, autoRepairPageCt, "AutoRepair", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
 
         // New event subtype mappings (additional)
-        SeedSimpleMapping(repo, theaterEventPageCt, "TheaterEvent", ("Name", "title"), ("Description", "description"), ("Performer", "performer"), ("StartDate", "startDate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, screeningEventPageCt, "ScreeningEvent", ("Name", "title"), ("Description", "description"), ("StartDate", "startDate"), ("WorkPresented", "workPresented"), ("Url", "__url"));
+        SeedSimpleMapping(repo, theaterEventPageCt, "TheaterEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("Performer", "performer"), ("StartDate", "startDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, screeningEventPageCt, "ScreeningEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("WorkPresented", "workPresented"), ("Url", "__url"));
 
         // New entertainment subtype mappings
         SeedSimpleMapping(repo, entertainmentListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
@@ -4220,7 +4220,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         // New expanded schema types
         SeedSimpleMapping(repo, webPageCt, "WebPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
         SeedSimpleMapping(repo, servicePageCt, "Service", ("Name", "title"), ("Description", "description"), ("ServiceType", "serviceType"), ("Provider", "provider"), ("AreaServed", "areaServed"), ("Url", "__url"));
-        SeedSimpleMapping(repo, offerPageCt, "Offer", ("Name", "title"), ("Description", "description"), ("Price", "price"), ("PriceCurrency", "priceCurrency"), ("Availability", "availability"), ("Url", "__url"));
+        SeedSimpleMapping(repo, offerPageCt, "Offer", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("Price", "price"), ("PriceCurrency", "priceCurrency"), ("Availability", "availability"), ("Url", "__url"));
         SeedSimpleMapping(repo, professionalServicePageCt, "ProfessionalService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("PriceRange", "priceRange"), ("Url", "__url"));
         SeedSimpleMapping(repo, legalServicePageCt, "LegalService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
         SeedSimpleMapping(repo, financialServicePageCt, "FinancialService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
@@ -4414,6 +4414,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             },
             new PropertyMapping
             {
+                SchemaPropertyName = "Image",
+                SourceType = "property",
+                ContentTypePropertyAlias = "productImage",
+            },
+            new PropertyMapping
+            {
                 SchemaPropertyName = "Review",
                 SourceType = "blockContent",
                 ContentTypePropertyAlias = "reviews",
@@ -4455,6 +4461,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
                 SchemaPropertyName = "Description",
                 SourceType = "property",
                 ContentTypePropertyAlias = "description",
+            },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Image",
+                SourceType = "property",
+                ContentTypePropertyAlias = "recipeImage",
             },
             new PropertyMapping
             {
@@ -4586,6 +4598,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
                 ContentTypePropertyAlias = "organisationName",
                 SourceContentTypeAlias = "homePage",
             },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Image",
+                SourceType = "property",
+                ContentTypePropertyAlias = "featuredImage",
+            },
         });
     }
 
@@ -4663,6 +4681,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
                 SchemaPropertyName = "Description",
                 SourceType = "property",
                 ContentTypePropertyAlias = "description",
+            },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Image",
+                SourceType = "property",
+                ContentTypePropertyAlias = "eventImage",
             },
             new PropertyMapping
             {

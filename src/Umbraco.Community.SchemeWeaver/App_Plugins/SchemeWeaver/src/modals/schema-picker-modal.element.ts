@@ -1,5 +1,6 @@
-import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { SchemaTypeInfo } from '../api/types.js';
 import type { SchemaPickerModalData, SchemaPickerModalValue } from './schema-picker-modal.token.js';
@@ -13,6 +14,14 @@ interface SchemaTypeGroup {
 export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerModalData, SchemaPickerModalValue> {
   #repository = new SchemeWeaverRepository(this);
   #searchTimer?: ReturnType<typeof setTimeout>;
+  #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => {
+      this.#notificationContext = ctx;
+    });
+  }
 
   @state()
   private _loading = true;
@@ -40,6 +49,9 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
       }
     } catch (error) {
       console.error('SchemeWeaver: Error fetching schema types:', error);
+      this.#notificationContext?.peek('danger', {
+        data: { message: this.localize.term('schemeWeaver_failedToLoadSchemaTypes') },
+      });
     } finally {
       this._loading = false;
     }
@@ -59,6 +71,9 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
       }
     } catch (error) {
       console.error('SchemeWeaver: Search error:', error);
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_searchFailed') },
+      });
     }
   }
 
@@ -161,6 +176,9 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
           <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedType} label=${this.localize.term('general_select')}>
             ${this.localize.term('general_select')}
           </uui-button>
+          ${!this._selectedType
+            ? html`<small class="disabled-hint">${this.localize.term('schemeWeaver_selectASchemaType')}</small>`
+            : nothing}
         </div>
       </umb-body-layout>
     `;
@@ -247,6 +265,13 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
         text-align: center;
         color: var(--uui-color-text-alt);
         padding: var(--uui-size-space-6);
+      }
+
+      .disabled-hint {
+        display: block;
+        color: var(--uui-color-text-alt);
+        font-size: 0.8rem;
+        margin-top: var(--uui-size-space-2);
       }
     `,
   ];

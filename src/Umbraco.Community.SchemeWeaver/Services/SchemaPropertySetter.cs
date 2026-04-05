@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Schema.NET;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -18,13 +19,18 @@ public static class SchemaPropertySetter
     /// Sets a property value on a Schema.NET Thing instance.
     /// Accepts string, Uri, Thing, or IEnumerable&lt;Thing&gt; values.
     /// </summary>
-    public static void SetPropertyValue(Thing instance, string propertyName, object value)
+    public static void SetPropertyValue(Thing instance, string propertyName, object value, ILogger? logger = null)
     {
         var property = instance.GetType().GetProperty(propertyName,
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
 
         if (property is not { CanWrite: true })
+        {
+            logger?.LogWarning(
+                "Schema property '{PropertyName}' not found or not writable on {SchemaType}",
+                propertyName, instance.GetType().Name);
             return;
+        }
 
         var targetType = property.PropertyType;
 

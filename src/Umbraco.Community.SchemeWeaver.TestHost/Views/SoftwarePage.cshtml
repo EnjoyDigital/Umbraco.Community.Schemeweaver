@@ -9,6 +9,18 @@
     <p class="lead">@Model.Description</p>
 }
 
+@{
+    var productImage = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("productImage");
+    if (productImage != null)
+    {
+        var imageUrl = productImage.MediaUrl();
+        if (!string.IsNullOrEmpty(imageUrl))
+        {
+            <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
+        }
+    }
+}
+
 <div class="card">
     <h2>Software Details</h2>
     <dl>

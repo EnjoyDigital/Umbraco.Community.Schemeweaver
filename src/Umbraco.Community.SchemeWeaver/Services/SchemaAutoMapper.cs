@@ -354,11 +354,22 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             }
             else if (schemaProp.IsComplexType)
             {
-                // No popular default and no property match — keep suggestion data but don't auto-map
-                suggestion.SuggestedSourceType = "complexType";
-                suggestion.SuggestedNestedSchemaTypeName = GetFirstNonPrimitiveAcceptedType(schemaProp.AcceptedTypes);
-                suggestion.Confidence = 0;
-                suggestion.IsAutoMapped = false;
+                var nestedType = GetFirstNonPrimitiveAcceptedType(schemaProp.AcceptedTypes);
+                if (nestedType is not null)
+                {
+                    // Has a real complex type — keep as complex but don't auto-map
+                    suggestion.SuggestedSourceType = "complexType";
+                    suggestion.SuggestedNestedSchemaTypeName = nestedType;
+                    suggestion.Confidence = 0;
+                    suggestion.IsAutoMapped = false;
+                }
+                else
+                {
+                    // All accepted types are primitive (e.g. String) — treat as simple unmatched
+                    suggestion.IsComplexType = false;
+                    suggestion.Confidence = 0;
+                    suggestion.IsAutoMapped = false;
+                }
             }
             else
             {

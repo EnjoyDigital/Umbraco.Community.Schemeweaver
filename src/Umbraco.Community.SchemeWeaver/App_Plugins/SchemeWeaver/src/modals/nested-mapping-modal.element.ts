@@ -538,6 +538,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       return html`
         <uui-box headline=${this.localize.term('schemeWeaver_blockElementType')}>
           <p class="no-block-types-hint">${this.localize.term('schemeWeaver_noBlockTypesHint')}</p>
+          <p class="no-block-types-hint">${this.localize.term('schemeWeaver_noBlockTypesConfigureHint')}</p>
           <uui-input
             .value=${this._selectedBlockType?.alias || ''}
             @input=${(e: Event) => {

@@ -1,5 +1,6 @@
 import { css, html, customElement, state, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { ContentTypeInfo } from '../api/types.js';
 import type { ContentTypePickerModalData, ContentTypePickerModalValue } from './content-type-picker-modal.token.js';
@@ -7,6 +8,14 @@ import type { ContentTypePickerModalData, ContentTypePickerModalValue } from './
 @customElement('schemeweaver-content-type-picker-modal')
 export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTypePickerModalData, ContentTypePickerModalValue> {
   #repository = new SchemeWeaverRepository(this);
+  #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => {
+      this.#notificationContext = ctx;
+    });
+  }
 
   @state()
   private _loading = true;
@@ -31,6 +40,9 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
       }
     } catch (error) {
       console.error('SchemeWeaver: Error fetching content types:', error);
+      this.#notificationContext?.peek('danger', {
+        data: { message: this.localize.term('schemeWeaver_failedToLoadContentTypes') },
+      });
     } finally {
       this._loading = false;
     }

@@ -14,7 +14,7 @@
     var imageUrl = Model.EventImage?.MediaUrl();
     if (!string.IsNullOrEmpty(imageUrl))
     {
-        <img src="@imageUrl" alt="@Model.Title" />
+        <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
     }
 }
 

@@ -9,6 +9,18 @@
     <p class="lead">@Model.Description</p>
 }
 
+@{
+    var eventImage = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("eventImage");
+    if (eventImage != null)
+    {
+        var imageUrl = eventImage.MediaUrl();
+        if (!string.IsNullOrEmpty(imageUrl))
+        {
+            <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
+        }
+    }
+}
+
 <div class="card">
     <h2>Festival Details</h2>
     <dl>

@@ -252,7 +252,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
     this._loading = true;
     try {
-      const suggestions = await this.#context.requestAutoMap(
+      const suggestions = await this.#context.autoMap(
         this._contentTypeAlias,
         this._mapping.schemaTypeName
       );

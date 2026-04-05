@@ -79,10 +79,12 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 {
                     if (string.IsNullOrWhiteSpace(stringValue))
                         continue;
-                    var transformed = ApplyTransform(stringValue, propMapping.TransformType);
-                    if (string.IsNullOrWhiteSpace(transformed)) continue;
-                    value = transformed;
+                    value = ApplyTransform(stringValue, propMapping.TransformType);
                 }
+
+                // Guard against null after transform (ApplyTransform can return null)
+                if (value is null or string { Length: 0 })
+                    continue;
 
                 SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
             }
@@ -351,7 +353,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         return resolver.Resolve(context);
     }
 
-    private static ComplexTypeConfigModel? ParseComplexTypeConfig(string? json)
+    private ComplexTypeConfigModel? ParseComplexTypeConfig(string? json)
     {
         if (string.IsNullOrEmpty(json))
             return null;
@@ -361,8 +363,9 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             return JsonSerializer.Deserialize<ComplexTypeConfigModel>(json,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            _logger.LogWarning(ex, "Failed to parse complex type ResolverConfig JSON: {Json}", json);
             return null;
         }
     }
@@ -606,10 +609,12 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 {
                     if (string.IsNullOrWhiteSpace(stringValue))
                         continue;
-                    var transformed = ApplyTransform(stringValue, propMapping.TransformType);
-                    if (string.IsNullOrWhiteSpace(transformed)) continue;
-                    value = transformed;
+                    value = ApplyTransform(stringValue, propMapping.TransformType);
                 }
+
+                // Guard against null after transform (ApplyTransform can return null)
+                if (value is null or string { Length: 0 })
+                    continue;
 
                 SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
             }

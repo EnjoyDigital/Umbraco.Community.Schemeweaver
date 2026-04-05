@@ -556,39 +556,43 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
           </uui-button>
         </div>
 
-        <uui-table aria-label=${this.localize.term('schemeWeaver_complexTypeMappings')}>
-          <uui-table-head>
-            <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
-            <uui-table-head-cell>${this.localize.term('schemeWeaver_source')}</uui-table-head-cell>
-            <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
-          </uui-table-head>
+        ${this._subMappings.length === 0
+          ? html`<p class="primitive-type-hint">${this.localize.term('schemeWeaver_primitiveTypeHint')}</p>`
+          : html`
+              <uui-table aria-label=${this.localize.term('schemeWeaver_complexTypeMappings')}>
+                <uui-table-head>
+                  <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
+                  <uui-table-head-cell>${this.localize.term('schemeWeaver_source')}</uui-table-head-cell>
+                  <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
+                </uui-table-head>
 
-          ${this._subMappings.map((mapping, index) => html`
-            <uui-table-row>
-              <uui-table-cell>
-                <div>
-                  <strong>${mapping.schemaProperty}</strong>
-                  <small class="type-label">${mapping.schemaPropertyType}</small>
-                </div>
-              </uui-table-cell>
-              <uui-table-cell>
-                <uui-button
-                  compact
-                  look="outline"
-                  class="source-chip"
-                  label=${this.localize.term(this._getSourceLabelKey(mapping.sourceType))}
-                  @click=${() => this._handlePickSourceOrigin(index)}
-                >
-                  <uui-icon name=${this._getSourceIcon(mapping.sourceType)}></uui-icon>
-                  ${this.localize.term(this._getSourceLabelKey(mapping.sourceType))}
-                </uui-button>
-              </uui-table-cell>
-              <uui-table-cell>
-                ${this._renderSubMappingValue(mapping, index)}
-              </uui-table-cell>
-            </uui-table-row>
-          `)}
-        </uui-table>
+                ${this._subMappings.map((mapping, index) => html`
+                  <uui-table-row>
+                    <uui-table-cell>
+                      <div>
+                        <strong>${mapping.schemaProperty}</strong>
+                        <small class="type-label">${mapping.schemaPropertyType}</small>
+                      </div>
+                    </uui-table-cell>
+                    <uui-table-cell>
+                      <uui-button
+                        compact
+                        look="outline"
+                        class="source-chip"
+                        label=${this.localize.term(this._getSourceLabelKey(mapping.sourceType))}
+                        @click=${() => this._handlePickSourceOrigin(index)}
+                      >
+                        <uui-icon name=${this._getSourceIcon(mapping.sourceType)}></uui-icon>
+                        ${this.localize.term(this._getSourceLabelKey(mapping.sourceType))}
+                      </uui-button>
+                    </uui-table-cell>
+                    <uui-table-cell>
+                      ${this._renderSubMappingValue(mapping, index)}
+                    </uui-table-cell>
+                  </uui-table-row>
+                `)}
+              </uui-table>
+            `}
       </uui-box>
     `;
   }
@@ -836,6 +840,13 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         font-size: 0.8rem;
         overflow-x: auto;
         white-space: pre;
+      }
+
+      .primitive-type-hint {
+        color: var(--uui-color-text-alt);
+        font-style: italic;
+        text-align: center;
+        padding: var(--uui-size-space-6);
       }
     `,
   ];

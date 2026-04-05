@@ -318,9 +318,11 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
         ${likely.map(({ mapping, index }) => this._renderRow(mapping, index))}
 
-        ${this._showMore
-          ? other.map(({ mapping, index }) => this._renderRow(mapping, index, true))
-          : nothing}
+        <div id="unmapped-properties">
+          ${this._showMore
+            ? other.map(({ mapping, index }) => this._renderRow(mapping, index, true))
+            : nothing}
+        </div>
       </uui-table>
 
       ${other.length > 0
@@ -329,6 +331,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
               <uui-button
                 look="placeholder"
                 aria-expanded=${this._showMore}
+                aria-controls="unmapped-properties"
                 @click=${() => { this._showMore = !this._showMore; }}
                 label=${this._showMore
                   ? this.localize.term('schemeWeaver_showFewerProperties')

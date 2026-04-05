@@ -42,3 +42,5 @@ export class UmbModalToken {
     this.config = config;
   }
 }
+
+export const UMB_CONFIRM_MODAL = new UmbModalToken('umb-confirm-modal', {});

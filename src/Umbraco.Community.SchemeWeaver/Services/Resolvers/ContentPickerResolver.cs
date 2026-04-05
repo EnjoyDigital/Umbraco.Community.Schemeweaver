@@ -20,9 +20,11 @@ public class ContentPickerResolver : IPropertyValueResolver
         if (value is not IPublishedContent pickedContent)
             return null;
 
-        // If a nested schema type is configured and recursion allows, generate a nested Thing
+        // If a nested schema type is configured, recursion depth permits, and we haven't
+        // already visited this content node (circular reference guard), generate a nested Thing
         if (!string.IsNullOrEmpty(context.Mapping.NestedSchemaTypeName)
-            && context.RecursionDepth < context.MaxRecursionDepth)
+            && context.RecursionDepth < context.MaxRecursionDepth
+            && !context.VisitedContentKeys.Contains(pickedContent.Key))
         {
             var nestedThing = GenerateNestedThing(pickedContent, context);
             if (nestedThing is not null)
@@ -48,6 +50,9 @@ public class ContentPickerResolver : IPropertyValueResolver
         if (nestedMapping is null)
             return null;
 
+        // Build the visited set for child resolution: current chain + the content node we're resolving from
+        var childVisitedKeys = new HashSet<Guid>(context.VisitedContentKeys) { context.Content.Key };
+
         var propertyMappings = context.MappingRepository.GetPropertyMappings(nestedMapping.Id);
 
         foreach (var propMapping in propertyMappings)
@@ -55,12 +60,45 @@ public class ContentPickerResolver : IPropertyValueResolver
             if (string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
                 continue;
 
-            var resolvedValue = SchemaPropertySetter.ResolveElementPropertyValue(
-                content, propMapping.ContentTypePropertyAlias, context.HttpContextAccessor);
-            if (resolvedValue is null)
-                continue;
+            // Use the resolver pipeline when available so nested content pickers,
+            // media pickers, etc. are resolved correctly with depth/cycle tracking
+            if (context.ResolverFactory is not null)
+            {
+                var publishedProperty = content.GetProperty(propMapping.ContentTypePropertyAlias);
+                var editorAlias = publishedProperty?.PropertyType?.EditorAlias;
+                var resolver = context.ResolverFactory.GetResolver(editorAlias);
 
-            SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, resolvedValue);
+                var childContext = new PropertyResolverContext
+                {
+                    Content = content,
+                    Mapping = propMapping,
+                    PropertyAlias = propMapping.ContentTypePropertyAlias,
+                    SchemaTypeRegistry = context.SchemaTypeRegistry,
+                    MappingRepository = context.MappingRepository,
+                    HttpContextAccessor = context.HttpContextAccessor,
+                    ResolverFactory = context.ResolverFactory,
+                    Property = publishedProperty,
+                    RecursionDepth = context.RecursionDepth + 1,
+                    MaxRecursionDepth = context.MaxRecursionDepth,
+                    VisitedContentKeys = childVisitedKeys
+                };
+
+                var resolvedValue = resolver.Resolve(childContext);
+                if (resolvedValue is null)
+                    continue;
+
+                SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, resolvedValue);
+            }
+            else
+            {
+                // Fallback: simple value extraction without the resolver pipeline
+                var resolvedValue = SchemaPropertySetter.ResolveElementPropertyValue(
+                    content, propMapping.ContentTypePropertyAlias, context.HttpContextAccessor);
+                if (resolvedValue is null)
+                    continue;
+
+                SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, resolvedValue);
+            }
         }
 
         return instance;

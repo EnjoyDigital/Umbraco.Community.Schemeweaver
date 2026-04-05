@@ -218,6 +218,97 @@ public class ContentPickerResolverTests
         result.Should().Be("John");
     }
 
+    [Fact]
+    public void Resolve_SelfReferencingContent_WithNestedMapping_ResolvesNestedThing()
+    {
+        // Content picker pointing to the same content node (self-reference).
+        // At depth 0 the resolver should still produce a nested Thing.
+        var selfContentType = Substitute.For<IPublishedContentType>();
+        selfContentType.Alias.Returns("article");
+
+        var nameProperty = Substitute.For<IPublishedProperty>();
+        nameProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("Self Article");
+
+        var selfContent = Substitute.For<IPublishedContent>();
+        selfContent.ContentType.Returns(selfContentType);
+        selfContent.GetProperty("headline").Returns(nameProperty);
+        selfContent.Name.Returns("Self Article");
+
+        // The property on the content returns itself
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(selfContent);
+
+        var nestedMapping = new SchemaMapping
+        {
+            Id = 5,
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true
+        };
+        _repository.GetByContentTypeAlias("article").Returns(nestedMapping);
+        _repository.GetPropertyMappings(5).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", ContentTypePropertyAlias = "headline" }
+        });
+
+        var mapping = new PropertyMapping
+        {
+            SchemaPropertyName = "RelatedArticle",
+            NestedSchemaTypeName = "Article"
+        };
+
+        var context = new PropertyResolverContext
+        {
+            Content = selfContent, // same content node
+            Mapping = mapping,
+            PropertyAlias = "relatedArticle",
+            SchemaTypeRegistry = _registry,
+            MappingRepository = _repository,
+            HttpContextAccessor = _httpContextAccessor,
+            Property = property,
+            RecursionDepth = 0,
+            MaxRecursionDepth = 3
+        };
+
+        var result = _sut.Resolve(context);
+
+        result.Should().BeOfType<Schema.NET.Article>();
+    }
+
+    [Fact]
+    public void Resolve_RecursionDepthExceedsMax_ReturnsName()
+    {
+        // When recursion depth exceeds max (not just equals), should still fall back to name
+        var pickedContent = Substitute.For<IPublishedContent>();
+        pickedContent.Name.Returns("Deep Content");
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(pickedContent);
+
+        var mapping = new PropertyMapping
+        {
+            SchemaPropertyName = "Author",
+            NestedSchemaTypeName = "Person"
+        };
+
+        var context = new PropertyResolverContext
+        {
+            Content = Substitute.For<IPublishedContent>(),
+            Mapping = mapping,
+            PropertyAlias = "author",
+            SchemaTypeRegistry = _registry,
+            MappingRepository = _repository,
+            HttpContextAccessor = _httpContextAccessor,
+            Property = property,
+            RecursionDepth = 5,
+            MaxRecursionDepth = 3
+        };
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Deep Content");
+    }
+
     private PropertyResolverContext CreateContext(IPublishedProperty? property)
     {
         return new PropertyResolverContext

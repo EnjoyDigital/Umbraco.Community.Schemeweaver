@@ -4,6 +4,14 @@ export class UmbEntityActionBase {
     this.args = args || {};
   }
 
+  getHostElement() {
+    return document.createElement('div');
+  }
+
+  addUmbController() {}
+
+  removeUmbController() {}
+
   async getContext(token) {
     return {};
   }

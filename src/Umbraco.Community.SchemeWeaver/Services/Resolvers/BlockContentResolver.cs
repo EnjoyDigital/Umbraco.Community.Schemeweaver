@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -12,6 +13,13 @@ namespace Umbraco.Community.SchemeWeaver.Services.Resolvers;
 /// </summary>
 public class BlockContentResolver : IPropertyValueResolver
 {
+    private readonly ILogger<BlockContentResolver> _logger;
+
+    public BlockContentResolver(ILogger<BlockContentResolver> logger)
+    {
+        _logger = logger;
+    }
+
     public IEnumerable<string> SupportedEditorAliases =>
         ["Umbraco.BlockList", "Umbraco.BlockGrid"];
 
@@ -49,7 +57,12 @@ public class BlockContentResolver : IPropertyValueResolver
 
         var nestedSchemaTypeName = context.Mapping.NestedSchemaTypeName;
         if (string.IsNullOrEmpty(nestedSchemaTypeName))
+        {
+            _logger.LogWarning(
+                "Block content resolver for property '{PropertyAlias}' on content '{ContentName}' has no NestedSchemaTypeName configured — block items cannot be mapped to Schema.org types",
+                context.PropertyAlias, context.Content.Name);
             return null;
+        }
 
         var things = new List<Thing>();
 
@@ -209,7 +222,7 @@ public class BlockContentResolver : IPropertyValueResolver
         }
     }
 
-    private static ResolverConfigModel? ParseResolverConfig(string? json)
+    private ResolverConfigModel? ParseResolverConfig(string? json)
     {
         if (string.IsNullOrEmpty(json))
             return null;
@@ -221,8 +234,9 @@ public class BlockContentResolver : IPropertyValueResolver
                 PropertyNameCaseInsensitive = true
             });
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            _logger.LogWarning(ex, "Failed to parse block content ResolverConfig JSON: {Json}", json);
             return null;
         }
     }

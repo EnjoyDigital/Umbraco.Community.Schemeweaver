@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
@@ -42,7 +43,7 @@ public class PropertyValueResolverFactoryTests
         var resolvers = new IPropertyValueResolver[]
         {
             new DefaultPropertyValueResolver(),
-            new MediaPickerResolver()
+            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance)
         };
         var factory = new PropertyValueResolverFactory(resolvers);
 
@@ -117,7 +118,7 @@ public class PropertyValueResolverFactoryTests
         var resolvers = new IPropertyValueResolver[]
         {
             new DefaultPropertyValueResolver(),
-            new BlockContentResolver()
+            new BlockContentResolver(NullLogger<BlockContentResolver>.Instance)
         };
         var factory = new PropertyValueResolverFactory(resolvers);
 
@@ -132,7 +133,7 @@ public class PropertyValueResolverFactoryTests
         var resolvers = new IPropertyValueResolver[]
         {
             new DefaultPropertyValueResolver(),
-            new BlockContentResolver()
+            new BlockContentResolver(NullLogger<BlockContentResolver>.Instance)
         };
         var factory = new PropertyValueResolverFactory(resolvers);
 
@@ -147,7 +148,7 @@ public class PropertyValueResolverFactoryTests
         var resolvers = new IPropertyValueResolver[]
         {
             new DefaultPropertyValueResolver(),
-            new MediaPickerResolver()
+            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance)
         };
         var factory = new PropertyValueResolverFactory(resolvers);
 
@@ -162,7 +163,7 @@ public class PropertyValueResolverFactoryTests
         var resolvers = new IPropertyValueResolver[]
         {
             new DefaultPropertyValueResolver(),
-            new MediaPickerResolver()
+            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance)
         };
         var factory = new PropertyValueResolverFactory(resolvers);
 
@@ -197,6 +198,51 @@ public class PropertyValueResolverFactoryTests
         var resolver = factory.GetResolver("Umbraco.Anything");
 
         resolver.Should().BeOfType<DefaultPropertyValueResolver>();
+    }
+
+    [Fact]
+    public void GetResolver_MultiUrlPickerAlias_ReturnsMultiUrlPickerResolver()
+    {
+        var resolvers = new IPropertyValueResolver[]
+        {
+            new DefaultPropertyValueResolver(),
+            new MultiUrlPickerResolver()
+        };
+        var factory = new PropertyValueResolverFactory(resolvers);
+
+        var resolver = factory.GetResolver("Umbraco.MultiUrlPicker");
+
+        resolver.Should().BeOfType<MultiUrlPickerResolver>();
+    }
+
+    [Fact]
+    public void GetResolver_TrueFalseAlias_ReturnsBooleanResolver()
+    {
+        var resolvers = new IPropertyValueResolver[]
+        {
+            new DefaultPropertyValueResolver(),
+            new BooleanResolver()
+        };
+        var factory = new PropertyValueResolverFactory(resolvers);
+
+        var resolver = factory.GetResolver("Umbraco.TrueFalse");
+
+        resolver.Should().BeOfType<BooleanResolver>();
+    }
+
+    [Fact]
+    public void GetResolver_IntegerAlias_ReturnsNumericResolver()
+    {
+        var resolvers = new IPropertyValueResolver[]
+        {
+            new DefaultPropertyValueResolver(),
+            new NumericResolver()
+        };
+        var factory = new PropertyValueResolverFactory(resolvers);
+
+        var resolver = factory.GetResolver("Umbraco.Integer");
+
+        resolver.Should().BeOfType<NumericResolver>();
     }
 
     private class TestResolverLow : IPropertyValueResolver

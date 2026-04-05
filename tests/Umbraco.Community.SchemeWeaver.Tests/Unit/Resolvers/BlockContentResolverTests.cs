@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using Umbraco.Cms.Core.Models.Blocks;
@@ -14,7 +15,7 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit.Resolvers;
 
 public class BlockContentResolverTests
 {
-    private readonly BlockContentResolver _sut = new();
+    private readonly BlockContentResolver _sut = new(NullLogger<BlockContentResolver>.Instance);
     private readonly ISchemaTypeRegistry _registry = new SchemaTypeRegistry();
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
@@ -654,6 +655,68 @@ public class BlockContentResolverTests
         jsonLd.Should().NotContain("\"author\"");
     }
 
+    [Fact]
+    public void Resolve_NullResolverConfig_UsesAutoMap()
+    {
+        // When resolverConfig is explicitly null, the resolver should fall back to auto-mapping
+        // by matching block element property names to schema property names.
+        // Auto-mapping uses PascalCase schema property names (from reflection), so the
+        // block element property must match that casing for NSubstitute's GetProperty mock.
+        var blockElement = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["Name"] = "Auto-mapped question"
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        // Explicitly pass null resolverConfig
+        var context = CreateContext(property, nestedSchemaTypeName: "Question", resolverConfig: null);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IEnumerable<Schema.NET.Thing>>();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(1);
+        things[0].Should().BeOfType<Schema.NET.Question>();
+
+        var question = (Schema.NET.Question)things[0];
+        var jsonLd = question.ToString();
+        jsonLd.Should().Contain("Auto-mapped question");
+    }
+
+    [Fact]
+    public void Resolve_BlockGridModel_ReturnsMappedThings()
+    {
+        // BlockGridModel should be handled the same as BlockListModel.
+        // Auto-mapping uses PascalCase schema property names (from reflection), so the
+        // block element property must match that casing for NSubstitute's GetProperty mock.
+        var blockElement = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["Name"] = "Grid question"
+        });
+        var blockGridModel = CreateBlockGridModel(blockElement);
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockGridModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Question");
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IEnumerable<Schema.NET.Thing>>();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(1);
+        things[0].Should().BeOfType<Schema.NET.Question>();
+
+        var question = (Schema.NET.Question)things[0];
+        var jsonLd = question.ToString();
+        jsonLd.Should().Contain("Grid question");
+    }
+
     private static IPublishedElement CreateBlockElement(string contentTypeAlias, Dictionary<string, object?> properties)
     {
         var element = Substitute.For<IPublishedElement>();
@@ -678,6 +741,14 @@ public class BlockContentResolverTests
             new BlockListItem(Guid.NewGuid(), e, null, null))
             .ToList();
         return new BlockListModel(items);
+    }
+
+    private static BlockGridModel CreateBlockGridModel(params IPublishedElement[] elements)
+    {
+        var items = elements.Select(e =>
+            new BlockGridItem(Guid.NewGuid(), e, null, null))
+            .ToList();
+        return new BlockGridModel(items, 12);
     }
 
     private PropertyResolverContext CreateContext(
