@@ -8,7 +8,7 @@
     <PackageId>Umbraco.Community.SchemeWeaver.uSync</PackageId>
     <Description>uSync addon for SchemeWeaver - sync schema mappings between environments</Description>
     <PackageTags>umbraco-marketplace umbraco-v17 usync</PackageTags>
-    <Version>1.0.0-beta</Version>
+    <Version>1.0.0-beta.3</Version>
     <Authors>Oliver Picton</Authors>
     <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

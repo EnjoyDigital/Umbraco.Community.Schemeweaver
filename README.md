@@ -43,6 +43,16 @@ dotnet add package Umbraco.Community.SchemeWeaver.AI --prerelease
 
 Requires [Umbraco.AI.Core](https://marketplace.umbraco.com/package/umbraco.ai.core) 1.7.0 or later and a configured chat provider (e.g. Azure OpenAI, Anthropic). See [AI Integration](docs/ai-integration.md) for details.
 
+### Optional: uSync Integration
+
+To sync schema mappings between environments via [uSync](https://jumoo.co.uk/usync/):
+
+```bash
+dotnet add package Umbraco.Community.SchemeWeaver.uSync --prerelease
+```
+
+See [uSync Integration](docs/usync.md) for details.
+
 ## Quick Start
 
 ### 1. Add the tag helper
@@ -85,6 +95,7 @@ const jsonLd = data.properties.schemaOrg;
 - [Content Type Generation](docs/content-type-generation.md) -- scaffold document types from Schema.org
 - [Delivery API](docs/delivery-api.md) -- headless integration
 - [Extending](docs/extending.md) -- custom property resolvers, replacing core services
+- [uSync Integration](docs/usync.md) -- sync schema mappings between environments
 - [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, troubleshooting
 - [API Reference](docs/api-reference.md) -- REST API endpoints
 - [AI Integration](docs/ai-integration.md) -- optional AI-powered schema suggestions, bulk analysis, and Copilot tools

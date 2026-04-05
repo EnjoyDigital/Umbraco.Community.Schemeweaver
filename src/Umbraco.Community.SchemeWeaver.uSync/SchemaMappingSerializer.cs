@@ -37,7 +37,8 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
             new XElement("ContentTypeAlias", item.ContentTypeAlias),
             new XElement("ContentTypeKey", item.ContentTypeKey),
             new XElement("SchemaTypeName", item.SchemaTypeName),
-            new XElement("IsEnabled", item.IsEnabled));
+            new XElement("IsEnabled", item.IsEnabled),
+            new XElement("IsInherited", item.IsInherited));
 
         node.Add(info);
 
@@ -89,6 +90,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
         var key = Guid.Parse(info.Element("ContentTypeKey")?.Value ?? Guid.Empty.ToString());
         var schemaTypeName = info.Element("SchemaTypeName")?.Value ?? string.Empty;
         var isEnabled = bool.Parse(info.Element("IsEnabled")?.Value ?? "false");
+        var isInherited = bool.Parse(info.Element("IsInherited")?.Value ?? "false");
 
         // Find existing or create new
         var existing = _repository.GetByContentTypeAlias(alias);
@@ -98,6 +100,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
         mapping.ContentTypeKey = key;
         mapping.SchemaTypeName = schemaTypeName;
         mapping.IsEnabled = isEnabled;
+        mapping.IsInherited = isInherited;
 
         var saved = _repository.Save(mapping);
 
