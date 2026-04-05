@@ -18,5 +18,6 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
+		<ProjectReference Include="..\..\src\Umbraco.Community.SchemeWeaver.AI\Umbraco.Community.SchemeWeaver.AI.csproj" />
 	</ItemGroup>
 </Project>

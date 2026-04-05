@@ -2,7 +2,7 @@ import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffic
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
-import type { SchemaTypeInfo } from '../api/types.js';
+import type { SchemaTypeInfo, SchemaTypeSuggestion } from '../api/types.js';
 import type { SchemaPickerModalData, SchemaPickerModalValue } from './schema-picker-modal.token.js';
 
 interface SchemaTypeGroup {
@@ -35,9 +35,57 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   @state()
   private _selectedType = '';
 
+  @state()
+  private _aiAvailable = false;
+
+  @state()
+  private _aiLoading = false;
+
+  @state()
+  private _aiSuggestions: SchemaTypeSuggestion[] = [];
+
   async connectedCallback() {
     super.connectedCallback();
     await this._fetchSchemaTypes();
+    this._checkAIStatus();
+  }
+
+  private async _checkAIStatus() {
+    try {
+      const status = await this.#repository.requestAIStatus();
+      this._aiAvailable = status?.available === true;
+    } catch {
+      this._aiAvailable = false;
+    }
+  }
+
+  private async _handleAISuggest() {
+    const contentTypeAlias = this.data?.contentTypeAlias;
+    if (!contentTypeAlias) return;
+
+    this._aiLoading = true;
+    this._aiSuggestions = [];
+    try {
+      const suggestions = await this.#repository.requestAISuggestSchemaType(contentTypeAlias);
+      if (suggestions && suggestions.length > 0) {
+        this._aiSuggestions = suggestions.slice(0, 3);
+      } else {
+        this.#notificationContext?.peek('warning', {
+          data: { message: this.localize.term('schemeWeaver_aiNoSuggestions') },
+        });
+      }
+    } catch (error) {
+      console.error('SchemeWeaver: AI suggestion error:', error);
+      this.#notificationContext?.peek('danger', {
+        data: { message: 'AI analysis failed. Please try again.' },
+      });
+    } finally {
+      this._aiLoading = false;
+    }
+  }
+
+  private _handleAISuggestionSelect(typeName: string) {
+    this._selectedType = typeName;
   }
 
   private async _fetchSchemaTypes() {
@@ -112,6 +160,46 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     return html`
       <umb-body-layout headline=${this.localize.term('schemeWeaver_selectSchemaType')}>
         <uui-box>
+          ${this._aiAvailable ? html`
+            <div class="ai-section">
+              ${this._aiSuggestions.length === 0 ? html`
+                <uui-button
+                  look="outline"
+                  color="positive"
+                  @click=${this._handleAISuggest}
+                  ?disabled=${this._aiLoading}
+                  .state=${this._aiLoading ? 'waiting' : undefined}
+                  label=${this.localize.term('schemeWeaver_aiAnalyse')}
+                >
+                  <uui-icon name="icon-wand"></uui-icon>
+                  ${this._aiLoading ? this.localize.term('schemeWeaver_aiAnalysing') : this.localize.term('schemeWeaver_aiAnalyse')}
+                </uui-button>
+              ` : html`
+                <div class="ai-suggestions">
+                  <h4 class="ai-suggestions-header">${this.localize.term('schemeWeaver_aiSuggestedSchema')}</h4>
+                  ${this._aiSuggestions.map((suggestion) => html`
+                    <div
+                      class="ai-suggestion-card ${this._selectedType === suggestion.schemaTypeName ? 'selected' : ''}"
+                      @click=${() => this._handleAISuggestionSelect(suggestion.schemaTypeName)}
+                      @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._handleAISuggestionSelect(suggestion.schemaTypeName); } }}
+                      tabindex="0"
+                      role="option"
+                      aria-selected="${this._selectedType === suggestion.schemaTypeName}"
+                    >
+                      <div class="ai-suggestion-header">
+                        <strong>${suggestion.schemaTypeName}</strong>
+                        <uui-tag color=${suggestion.confidence >= 80 ? 'positive' : suggestion.confidence >= 50 ? 'warning' : 'default'}>
+                          ${suggestion.confidence}%
+                        </uui-tag>
+                      </div>
+                      ${suggestion.reasoning ? html`<p class="ai-suggestion-reasoning">${suggestion.reasoning}</p>` : ''}
+                    </div>
+                  `)}
+                </div>
+              `}
+            </div>
+          ` : ''}
+
           <uui-input
             placeholder=${this.localize.term('schemeWeaver_searchSchemaTypes')}
             @input=${this._handleSearch}
@@ -272,6 +360,55 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
         color: var(--uui-color-text-alt);
         font-size: 0.8rem;
         margin-top: var(--uui-size-space-2);
+      }
+
+      .ai-section {
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .ai-suggestions {
+        margin-bottom: var(--uui-size-space-2);
+      }
+
+      .ai-suggestions-header {
+        color: var(--uui-color-text-alt);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 0 0 var(--uui-size-space-2) 0;
+      }
+
+      .ai-suggestion-card {
+        padding: var(--uui-size-space-3) var(--uui-size-space-4);
+        border-radius: var(--uui-border-radius);
+        border: 2px solid var(--uui-color-positive);
+        background: var(--uui-color-positive-standalone, rgba(27, 183, 110, 0.05));
+        cursor: pointer;
+        margin-bottom: var(--uui-size-space-2);
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+      }
+
+      .ai-suggestion-card:hover {
+        background-color: var(--uui-color-surface-alt);
+      }
+
+      .ai-suggestion-card.selected {
+        background-color: var(--uui-color-selected);
+        border-color: var(--uui-color-focus);
+      }
+
+      .ai-suggestion-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--uui-size-space-3);
+      }
+
+      .ai-suggestion-reasoning {
+        margin: var(--uui-size-space-1) 0 0 0;
+        color: var(--uui-color-text-alt);
+        font-size: 0.85rem;
+        line-height: 1.4;
       }
     `,
   ];

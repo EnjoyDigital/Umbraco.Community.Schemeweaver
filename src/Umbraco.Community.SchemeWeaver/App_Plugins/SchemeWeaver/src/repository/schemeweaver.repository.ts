@@ -69,4 +69,22 @@ export class SchemeWeaverRepository extends UmbControllerBase {
     const match = contentTypes.find((ct) => ct.key === unique);
     return match?.alias;
   }
+
+  // --- AI methods (require SchemeWeaver.AI satellite package) ---
+
+  async requestAIStatus() {
+    return this.#dataSource.getAIStatus();
+  }
+
+  async requestAISuggestSchemaType(contentTypeAlias: string) {
+    return this.#dataSource.suggestSchemaType(contentTypeAlias);
+  }
+
+  async requestAISuggestSchemaTypesBulk() {
+    return this.#dataSource.suggestSchemaTypesBulk();
+  }
+
+  async requestAIAutoMap(contentTypeAlias: string, schemaTypeName: string) {
+    return this.#dataSource.aiAutoMap(contentTypeAlias, schemaTypeName);
+  }
 }

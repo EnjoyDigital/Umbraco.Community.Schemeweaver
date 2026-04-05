@@ -88,6 +88,20 @@ export interface JsonLdPreviewResponse {
   errors: string[];
 }
 
+/** Matches C# SchemaTypeSuggestion from SchemeWeaver.AI */
+export interface SchemaTypeSuggestion {
+  schemaTypeName: string;
+  confidence: number;
+  reasoning: string | null;
+}
+
+/** Matches C# BulkSchemaTypeSuggestion from SchemeWeaver.AI */
+export interface BulkSchemaTypeSuggestion {
+  contentTypeAlias: string;
+  contentTypeName: string | null;
+  suggestions: SchemaTypeSuggestion[];
+}
+
 /** Matches C# ContentTypeGenerationRequest — sent to POST /generate-content-type */
 export interface ContentTypeGenerationRequest {
   schemaTypeName: string;
