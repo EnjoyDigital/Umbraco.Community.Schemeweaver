@@ -15,7 +15,7 @@ import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from '../modals/nested-mapping-moda
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from '../modals/complex-type-mapping-modal.token.js';
 import type { SchemaMappingDto, ContentTypeProperty, SchemaPropertyInfo } from '../api/types.js';
 
-import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange, filterRelevantSchemaProperties } from '../utils/mapping-converters.js';
+import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange } from '../utils/mapping-converters.js';
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
@@ -36,6 +36,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
   @state()
   private _saving = false;
+
+  @state()
+  private _allSchemaProperties: SchemaPropertyInfo[] = [];
 
   @state()
   private _contentTypeAlias = '';
@@ -110,6 +113,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       // Enrich rows with schema property info (acceptedTypes, isComplexType)
       const schemaProps = await this.#context.requestSchemaTypeProperties(mapping.schemaTypeName);
       if (schemaProps) {
+        this._allSchemaProperties = schemaProps;
         this._rows = this._rows.map(row => {
           const schemaProp = schemaProps.find(
             (sp: SchemaPropertyInfo) => sp.name.toLowerCase() === row.schemaPropertyName.toLowerCase()
@@ -141,38 +145,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
           }
           return row;
         });
-        // Add only relevant unmapped schema properties (popular + complex types)
-        // to avoid overwhelming the "Show more" section with 100+ empty rows
-        const existingNames = new Set(this._rows.map(r => r.schemaPropertyName.toLowerCase()));
-        const relevantProps = filterRelevantSchemaProperties(
-          schemaProps.map(sp => ({
-            name: sp.name,
-            propertyType: sp.propertyType || '',
-            acceptedTypes: sp.acceptedTypes || [],
-            isComplexType: sp.isComplexType || false,
-          })),
-          existingNames,
-        );
-        for (const sp of relevantProps) {
-          this._rows.push({
-            schemaPropertyName: sp.name,
-            schemaPropertyType: sp.propertyType,
-            sourceType: 'property',
-            contentTypePropertyAlias: '',
-            sourceContentTypeAlias: '',
-            staticValue: '',
-            confidence: null,
-            editorAlias: '',
-            nestedSchemaTypeName: '',
-            resolverConfig: null,
-            acceptedTypes: sp.acceptedTypes,
-            isComplexType: sp.isComplexType,
-            expanded: false,
-            subMappings: [],
-            selectedSubType: '',
-            sourceContentTypeProperties: [],
-          });
-        }
         this._rows = sortMappingRows(this._rows);
       }
 
@@ -504,6 +476,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
           <schemeweaver-property-mapping-table
             .mappings=${this._rows}
             .availableProperties=${this._availableProperties}
+            .allSchemaProperties=${this._allSchemaProperties}
             @mappings-changed=${this._handleMappingsChanged}
             @pick-source-origin=${this._handlePickSourceOrigin}
             @resolve-document-type=${this._handleResolveDocumentType}

@@ -192,12 +192,23 @@ test.describe.serial('Documentation Screenshots', () => {
   });
 
   test('09 — JSON-LD preview in backoffice', async ({ umbracoUi }) => {
-    await umbracoUi.goToBackOffice();
-    await umbracoUi.content.goToSection(ConstantHelper.sections.content);
+    // Find a content item that has a schema mapping by checking the mappings API
+    const mappingsResponse = await umbracoUi.page.request.get(`${API_BASE}/mappings`);
+    const mappings = await mappingsResponse.json();
+    const firstMapping = mappings.find((m: any) => m.contentTypeAlias === 'homePage') || mappings[0];
+    if (!firstMapping) {
+      test.skip();
+      return;
+    }
 
-    const treeItem = umbracoUi.page.locator('umb-tree-item').first();
+    // Navigate directly to the content section and find a content item of this type
+    await umbracoUi.page.goto('/umbraco/section/content');
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+
+    // Wait for tree and click the first content item
+    const treeItem = umbracoUi.page.locator('umb-tree-item a[href*="workspace/document/edit"]').first();
     await expect(treeItem).toBeVisible({ timeout: 15_000 });
-    await treeItem.locator('a').first().click();
+    await treeItem.click();
     await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     const jsonLdTab = umbracoUi.page.getByRole('tab', { name: /JSON-LD/i });

@@ -100,7 +100,7 @@ export default {
     unmappedProperties: 'unmapped properties',
     showMoreProperties: 'Show {0} more properties',
     showFewerProperties: 'Show fewer properties',
-    noMappedProperties: 'No properties are mapped yet. Click "Show more properties" below to configure mappings.',
+    noMappedProperties: 'No properties mapped yet. Use the dropdown below to add schema properties, or click Auto-map.',
     sourceComplexType: 'Schema.org Type',
     selectSubType: 'Select type',
     subPropertyMappings: 'Type Properties',
@@ -166,6 +166,11 @@ export default {
     selectAtLeastOneProperty: 'Select at least one property to generate.',
     selectASchemaType: 'Select a schema type to continue.',
     primitiveTypeHint: 'This is a primitive type with no schema properties to map. Use a simple property mapping instead.',
+    addSchemaProperty: 'Add schema property...',
+    popularProperties: 'Popular',
+    complexTypeProperties: 'Complex Types',
+    otherProperties: 'Other',
+    removeProperty: 'Remove',
 
     // AI features (require SchemeWeaver.AI satellite package)
     aiAnalyse: 'AI Analyse',

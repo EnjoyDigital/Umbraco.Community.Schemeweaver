@@ -55,13 +55,14 @@ The property mapping table uses intelligent ordering to surface the most relevan
 
 1. **Popular Schema.org properties** appear first, in a fixed order: `name`, `headline`, `description`, `image`, `url`, `author`, `datePublished`, `dateModified`, `sku`, `price`.
 2. **Mapped properties** (those with a content type property or static value assigned) come next, sorted by confidence score (highest first).
-3. **Unmapped properties** follow, also sorted by confidence then alphabetically.
 
-### Show more / fewer
+### Adding and removing properties
 
-Properties that are "likely" -- either already mapped or with a confidence score of 50% or above -- are shown by default. Remaining properties are hidden behind a **"Show N more properties"** toggle button at the bottom of the table. Click it to reveal all properties; click **"Show fewer properties"** to collapse them again.
+Only mapped properties (those with auto-mapped suggestions or manually configured values) are shown in the table. To add additional Schema.org properties, use the **Add property** combobox below the table. It presents all remaining schema properties grouped into Popular, Complex Type, and Other categories, with a search filter.
 
-If no properties are in the "likely" category (for example, when the content type has no properties that match any schema properties), a hint message appears: "No properties are mapped yet. Click 'Show more properties' below to configure mappings."
+To remove a property row, hover over the schema property name and click the trash icon that appears. Removed properties can be re-added via the combobox at any time.
+
+If no properties are mapped yet (for example, before auto-mapping runs), a hint message appears: "No properties are mapped yet."
 
 ### Property table columns
 

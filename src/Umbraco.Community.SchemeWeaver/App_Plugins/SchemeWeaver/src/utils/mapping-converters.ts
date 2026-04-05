@@ -90,11 +90,11 @@ export function mergeAutoMapSuggestions(
       rowMap.set(key, { ...existing, confidence: suggestion.confidence });
     } else if (
       suggestion.suggestedContentTypePropertyAlias ||
-      (suggestion.isComplexType && suggestion.suggestedNestedSchemaTypeName)
+      (suggestion.isComplexType && suggestion.suggestedNestedSchemaTypeName && suggestion.confidence > 0)
     ) {
       // Only add suggestions that have an actual property match or are complex
-      // types with a real nested schema type. Skip zero-confidence properties
-      // with no match to avoid cluttering the table with empty rows.
+      // types the auto-mapper actually matched (confidence > 0). Zero-confidence
+      // unmatched properties can be added on-demand via the "Add property" combobox.
       rowMap.set(key, suggestionToRow(suggestion));
     }
   }
@@ -141,22 +141,6 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: st
     subMappings: newSourceType === 'complexType' ? row.subMappings : [],
     selectedSubType: newSourceType === 'complexType' ? row.selectedSubType : '',
   };
-}
-
-/**
- * Filter schema properties to only include relevant ones as placeholder rows.
- * Only adds unmapped properties that are complex types or popular properties.
- * This prevents the "Show more" section from being overwhelmed with 100+ irrelevant properties.
- */
-export function filterRelevantSchemaProperties(
-  schemaProperties: Array<{ name: string; propertyType: string; acceptedTypes: string[]; isComplexType: boolean }>,
-  existingNames: Set<string>,
-): Array<{ name: string; propertyType: string; acceptedTypes: string[]; isComplexType: boolean }> {
-  const popularSet = new Set(POPULAR_PROPERTIES.map(p => p.toLowerCase()));
-  return schemaProperties.filter(sp => {
-    if (existingNames.has(sp.name.toLowerCase())) return false;
-    return sp.isComplexType || popularSet.has(sp.name.toLowerCase());
-  });
 }
 
 export function sortMappingRows(rows: PropertyMappingRow[]): PropertyMappingRow[] {

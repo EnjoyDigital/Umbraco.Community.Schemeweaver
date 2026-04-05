@@ -206,11 +206,52 @@ describe('mergeAutoMapSuggestions', () => {
   it('returns sorted results', () => {
     const existing: PropertyMappingRow[] = [];
     const suggestions = [
-      makeSuggestion({ schemaPropertyName: 'zeta', confidence: 50 }),
+      makeSuggestion({ schemaPropertyName: 'zeta', confidence: 50, suggestedContentTypePropertyAlias: 'zetaProp' }),
       makeSuggestion({ schemaPropertyName: 'name', confidence: 90, suggestedContentTypePropertyAlias: '__name' }),
-      makeSuggestion({ schemaPropertyName: 'alpha', confidence: 30 }),
+      makeSuggestion({ schemaPropertyName: 'alpha', confidence: 30, suggestedContentTypePropertyAlias: 'alphaProp' }),
     ];
     const result = mergeAutoMapSuggestions(existing, suggestions);
     expect(result[0].schemaPropertyName).to.equal('name');
+  });
+
+  it('does not add zero-confidence complex type suggestions without property match', () => {
+    const existing: PropertyMappingRow[] = [];
+    const suggestions = [
+      makeSuggestion({
+        schemaPropertyName: 'offers',
+        confidence: 0,
+        isComplexType: true,
+        suggestedNestedSchemaTypeName: 'Offer',
+      }),
+    ];
+    const result = mergeAutoMapSuggestions(existing, suggestions);
+    expect(result.length).to.equal(0);
+  });
+
+  it('adds complex type suggestions with confidence > 0', () => {
+    const existing: PropertyMappingRow[] = [];
+    const suggestions = [
+      makeSuggestion({
+        schemaPropertyName: 'offers',
+        confidence: 60,
+        isComplexType: true,
+        suggestedNestedSchemaTypeName: 'Offer',
+        suggestedSourceType: 'complexType',
+      }),
+    ];
+    const result = mergeAutoMapSuggestions(existing, suggestions);
+    expect(result.length).to.equal(1);
+    expect(result[0].schemaPropertyName).to.equal('offers');
+  });
+
+  it('excludes suggestions with no property match and zero confidence', () => {
+    const existing: PropertyMappingRow[] = [];
+    const suggestions = [
+      makeSuggestion({ schemaPropertyName: 'obscureField', confidence: 0 }),
+      makeSuggestion({ schemaPropertyName: 'headline', confidence: 80, suggestedContentTypePropertyAlias: 'title' }),
+    ];
+    const result = mergeAutoMapSuggestions(existing, suggestions);
+    expect(result.length).to.equal(1);
+    expect(result[0].schemaPropertyName).to.equal('headline');
   });
 });

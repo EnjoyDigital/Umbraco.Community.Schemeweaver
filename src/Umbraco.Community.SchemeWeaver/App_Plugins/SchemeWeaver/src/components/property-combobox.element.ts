@@ -54,6 +54,7 @@ export class PropertyComboboxElement extends UmbLitElement {
   private _lastSearch = '';
 
   #onSearch(event: UUIComboboxEvent) {
+    event.stopPropagation();
     const searchTerm = (event.currentTarget as UUIComboboxElement)?.search ?? '';
     this._lastSearch = searchTerm;
     this._filteredProperties = this._filterList(searchTerm);
@@ -68,13 +69,14 @@ export class PropertyComboboxElement extends UmbLitElement {
   }
 
   #onChange(event: UUIComboboxEvent) {
+    event.stopPropagation();
     const newValue = ((event.currentTarget as UUIComboboxElement)?.value as string) ?? '';
     this.value = newValue;
     this.dispatchEvent(
       new CustomEvent('change', {
         detail: { value: newValue },
         bubbles: true,
-        composed: true,
+        composed: false,
       }),
     );
   }

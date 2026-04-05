@@ -79,7 +79,7 @@ SchemeWeaver adds a **Schema.org** tab to the document type editor in the Umbrac
 
 - **Schema type display** -- shows the currently mapped Schema.org type (e.g. `Article`, `Event`) with the content type alias.
 - **Inherited toggle** -- a toggle switch that marks the schema as inherited, meaning it will be output on all descendant pages in addition to pages of this content type.
-- **Property mapping table** -- an editable table showing all Schema.org properties with dropdowns to select the Umbraco property source, source type, and source origin (parent, ancestor, sibling, static, blockContent, complexType).
+- **Property mapping table** -- an editable table showing mapped Schema.org properties with dropdowns to select the Umbraco property source, source type, and source origin (parent, ancestor, sibling, static, blockContent, complexType). Additional properties can be added via the "Add property" combobox below the table. Individual rows can be removed using the trash icon on hover.
 - **Auto-map** -- a button that calls the auto-mapping endpoint to suggest property mappings based on name similarity and type compatibility. Suggestions are merged into the existing table, preserving any manual overrides.
 - **Document type save integration** -- persists the mapping to the database when the document type itself is saved via the backoffice.
 

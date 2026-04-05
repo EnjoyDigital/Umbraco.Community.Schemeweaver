@@ -19,13 +19,13 @@ describe('PropertyComboboxElement', () => {
     expect(options.length).to.equal(3);
   });
 
-  it('shows camelCase names for built-in properties', async () => {
+  it('shows display names for built-in properties', async () => {
     const el = await fixture<PropertyComboboxElement>(
       html`<schemeweaver-property-combobox .properties=${['__url', '__name', 'title']}></schemeweaver-property-combobox>`,
     );
     const options = el.shadowRoot!.querySelectorAll('uui-combobox-list-option');
-    expect(options[0].textContent!.trim()).to.equal('url');
-    expect(options[1].textContent!.trim()).to.equal('name');
+    expect(options[0].textContent!.trim()).to.equal('URL (Built-in)');
+    expect(options[1].textContent!.trim()).to.equal('Name (Built-in)');
     expect(options[2].textContent!.trim()).to.equal('title');
   });
 
@@ -79,14 +79,14 @@ describe('PropertyComboboxElement', () => {
     expect(options.length).to.equal(1);
   });
 
-  it('sorts built-in properties to top of dropdown', async () => {
+  it('renders built-in properties with display names in input order', async () => {
     const el = await fixture<PropertyComboboxElement>(
-      html`<schemeweaver-property-combobox .properties=${['title', 'description', '__url', '__name']}></schemeweaver-property-combobox>`,
+      html`<schemeweaver-property-combobox .properties=${['__url', '__name', 'title', 'description']}></schemeweaver-property-combobox>`,
     );
     const options = el.shadowRoot!.querySelectorAll('uui-combobox-list-option');
     expect(options.length).to.equal(4);
-    expect(options[0].textContent!.trim()).to.equal('url');
-    expect(options[1].textContent!.trim()).to.equal('name');
+    expect(options[0].textContent!.trim()).to.equal('URL (Built-in)');
+    expect(options[1].textContent!.trim()).to.equal('Name (Built-in)');
     expect(options[2].textContent!.trim()).to.equal('title');
     expect(options[3].textContent!.trim()).to.equal('description');
   });

@@ -113,7 +113,7 @@ After selecting a Schema.org type, the Schema.org tab loads the property mapping
 | Medium | 80% | Synonym match (e.g. `title` to `name`, `bodyText` to `articleBody`) |
 | Low | 50% | Substring match |
 
-The property table uses smart ordering: popular Schema.org properties (`name`, `headline`, `description`, `image`, `url`, `author`, `datePublished`, `dateModified`, `sku`, `price`) appear first, followed by mapped properties sorted by confidence, then unmapped properties. Less likely properties are hidden behind a "Show more" toggle to keep the view focused.
+The property table uses smart ordering: popular Schema.org properties (`name`, `headline`, `description`, `image`, `url`, `author`, `datePublished`, `dateModified`, `sku`, `price`) appear first, followed by mapped properties sorted by confidence. To add additional schema properties, use the **Add property** combobox below the table.
 
 ![Basic property mapping](../screenshots/03-basic-mapping.png)
 

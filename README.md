@@ -10,7 +10,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 
 - **780 Schema.org types** -- discovers every type in the [Schema.NET.Pending](https://github.com/RehanSaeed/Schema.NET) library at startup, including pending types like `RealEstateListing`
 - **Auto-mapping with confidence scores** -- suggests property mappings using exact matching, synonym dictionaries, and substring matching
-- **Smart property UI** -- shows the most likely properties first, with a "Show more" toggle for the rest
+- **Smart property UI** -- shows mapped properties first, with an "Add property" combobox to add more schema properties
 - **Seven source types** -- pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, or nested complex types
 - **Transforms** -- strip HTML, convert to absolute URL, or format dates before output
 - **Content Type generation** -- scaffold a new Umbraco document type from any Schema.org type

@@ -10,6 +10,7 @@ import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { mergeAutoMapSuggestions, applySourceTypeChange } from '../utils/mapping-converters.js';
 
+import type { SchemaPropertyInfo } from '../api/types.js';
 import type { PropertyMappingModalData, PropertyMappingModalValue } from './property-mapping-modal.token.js';
 
 @customElement('schemeweaver-property-mapping-modal')
@@ -29,6 +30,9 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
   @state()
   private _availableProperties: string[] = [];
+
+  @state()
+  private _allSchemaProperties: SchemaPropertyInfo[] = [];
 
   @state()
   private _aiAvailable = false;
@@ -94,9 +98,30 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         this._mappings = mergeAutoMapSuggestions(this._mappings, suggestions);
       }
 
-      const props = await this.#repository.requestContentTypeProperties(this.data?.contentTypeAlias || '');
+      const [props, schemaProps] = await Promise.all([
+        this.#repository.requestContentTypeProperties(this.data?.contentTypeAlias || ''),
+        this.#repository.requestSchemaTypeProperties(this.data?.schemaType || ''),
+      ]);
       if (props) {
         this._availableProperties = props.map((p) => p.alias);
+      }
+      if (schemaProps) {
+        this._allSchemaProperties = schemaProps;
+        // Enrich rows with schema property metadata
+        this._mappings = this._mappings.map(row => {
+          const sp = schemaProps.find(
+            (s: SchemaPropertyInfo) => s.name.toLowerCase() === row.schemaPropertyName.toLowerCase()
+          );
+          if (sp) {
+            return {
+              ...row,
+              schemaPropertyType: sp.propertyType || row.schemaPropertyType,
+              acceptedTypes: sp.acceptedTypes || row.acceptedTypes,
+              isComplexType: sp.isComplexType || row.isComplexType,
+            };
+          }
+          return row;
+        });
       }
     } catch (error) {
       console.error('SchemeWeaver: Error initialising property mapping:', error);
@@ -307,6 +332,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
                 <schemeweaver-property-mapping-table
                   .mappings=${this._mappings}
                   .availableProperties=${this._availableProperties}
+                  .allSchemaProperties=${this._allSchemaProperties}
                   @mappings-changed=${this._handleMappingsChanged}
                   @configure-nested-mapping=${this._handleConfigureNestedMapping}
                   @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
