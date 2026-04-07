@@ -11,7 +11,7 @@ export interface PropertyPickerModalValue {
 export const SCHEMEWEAVER_PROPERTY_PICKER_MODAL = new UmbModalToken<
   PropertyPickerModalData,
   PropertyPickerModalValue
->('schemeweaver-property-picker-modal', {
+>('SchemeWeaver.Modal.PropertyPicker', {
   modal: {
     type: 'sidebar',
     size: 'medium',

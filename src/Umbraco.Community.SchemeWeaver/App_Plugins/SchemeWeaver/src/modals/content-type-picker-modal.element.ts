@@ -38,8 +38,7 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
       if (types) {
         this._contentTypes = types;
       }
-    } catch (error) {
-      console.error('SchemeWeaver: Error fetching content types:', error);
+    } catch {
       this.#notificationContext?.peek('danger', {
         data: { message: this.localize.term('schemeWeaver_failedToLoadContentTypes') },
       });

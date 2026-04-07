@@ -19,6 +19,8 @@ import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChan
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
+  // Per-view context instance — each workspace view scope has its own,
+  // which is fine because the workspace views never run on the same controller chain.
   #context = new SchemeWeaverContext(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
@@ -52,11 +54,16 @@ export class SchemaMappingViewElement extends UmbLitElement {
       this.#notificationContext = context;
     });
 
-    // Auto-save schema mapping when the document type is saved
+    // Auto-save schema mapping when *this* document type is saved.
+    // The reload event is emitted for every entity in the backoffice, so we
+    // must scope to events whose `unique` matches this view's content type.
     this.consumeContext(UMB_ACTION_EVENT_CONTEXT, (context) => {
       context?.addEventListener(
         UmbRequestReloadStructureForEntityEvent.TYPE,
-        () => {
+        (event: Event) => {
+          const reloadEvent = event as UmbRequestReloadStructureForEntityEvent;
+          const eventUnique = reloadEvent.getUnique?.();
+          if (!this._contentTypeKey || eventUnique !== this._contentTypeKey) return;
           if (this._mapping && this._rows.length > 0) {
             this._handleSave();
           }
@@ -91,6 +98,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
       }
     } catch {
       this._loading = false;
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_workspaceContextUnavailable') },
+      });
     }
   }
 
@@ -187,7 +197,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
         });
       }
     } catch (error) {
-      console.error('SchemeWeaver: Error fetching mapping:', error);
       this.#notificationContext?.peek('danger', {
         data: {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToLoadMapping'),
@@ -241,7 +250,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
         this._rows = mergeAutoMapSuggestions(this._rows, suggestions);
       }
     } catch (error) {
-      console.error('SchemeWeaver: Auto-map error:', error);
       this.#notificationContext?.peek('danger', {
         data: {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_autoMapFailed'),
@@ -286,7 +294,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
       });
       await this._fetchMapping();
     } catch (error) {
-      console.error('SchemeWeaver: Save error:', error);
       this.#notificationContext?.peek('danger', {
         data: {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToSave'),

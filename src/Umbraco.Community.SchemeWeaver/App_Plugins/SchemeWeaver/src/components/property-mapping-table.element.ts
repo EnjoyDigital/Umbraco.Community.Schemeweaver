@@ -4,6 +4,12 @@ import { POPULAR_PROPERTIES } from '../utils/mapping-converters.js';
 import type { SchemaPropertyInfo } from '../api/types.js';
 import './property-combobox.element.js';
 
+/** Local shape for uui-combobox events — search/value are exposed by the web component. */
+interface UUIComboboxEventTarget extends HTMLElement {
+  value: string;
+  search: string;
+}
+
 /** Local type matching UmbContentPickerDynamicRoot to avoid hard import dependency */
 interface DynamicRootConfig {
   originAlias: string;
@@ -408,11 +414,11 @@ export class PropertyMappingTableElement extends UmbLitElement {
           label=${this.localize.term('schemeWeaver_addSchemaProperty')}
           @search=${(e: Event) => {
             e.stopPropagation();
-            this._addPropertySearch = (e.currentTarget as any)?.search ?? '';
+            this._addPropertySearch = (e.currentTarget as UUIComboboxEventTarget | null)?.search ?? '';
           }}
           @change=${(e: Event) => {
             e.stopPropagation();
-            const val = ((e.currentTarget as any)?.value as string) ?? '';
+            const val = (e.currentTarget as UUIComboboxEventTarget | null)?.value ?? '';
             if (val) {
               this._handleAddSchemaProperty(val);
               this._addPropertyValue = '';

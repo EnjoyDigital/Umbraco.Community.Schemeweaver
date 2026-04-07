@@ -75,10 +75,9 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       if (suggestions && Array.isArray(suggestions)) {
         this._mappings = mergeAutoMapSuggestions(this._mappings, suggestions);
       }
-    } catch (error) {
-      console.error('SchemeWeaver: AI auto-map error:', error);
+    } catch {
       this.#notificationContext?.peek('danger', {
-        data: { message: 'AI auto-map failed. Please try again.' },
+        data: { message: this.localize.term('schemeWeaver_aiAutoMapFailed') },
       });
     } finally {
       this._aiLoading = false;
@@ -124,7 +123,6 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         });
       }
     } catch (error) {
-      console.error('SchemeWeaver: Error initialising property mapping:', error);
       this.#notificationContext?.peek('danger', {
         data: {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToLoadMappingData'),
@@ -283,7 +281,6 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       this.modalContext?.setValue({ saved: true });
       this.modalContext?.submit();
     } catch (error) {
-      console.error('SchemeWeaver: Save error:', error);
       this.#notificationContext?.peek('danger', {
         data: {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToSave'),

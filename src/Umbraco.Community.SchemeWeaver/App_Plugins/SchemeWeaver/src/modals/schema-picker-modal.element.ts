@@ -74,10 +74,9 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
           data: { message: this.localize.term('schemeWeaver_aiNoSuggestions') },
         });
       }
-    } catch (error) {
-      console.error('SchemeWeaver: AI suggestion error:', error);
+    } catch {
       this.#notificationContext?.peek('danger', {
-        data: { message: 'AI analysis failed. Please try again.' },
+        data: { message: this.localize.term('schemeWeaver_aiAnalysisFailed') },
       });
     } finally {
       this._aiLoading = false;
@@ -95,8 +94,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
       if (types) {
         this._schemaTypes = types;
       }
-    } catch (error) {
-      console.error('SchemeWeaver: Error fetching schema types:', error);
+    } catch {
       this.#notificationContext?.peek('danger', {
         data: { message: this.localize.term('schemeWeaver_failedToLoadSchemaTypes') },
       });
@@ -107,21 +105,24 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
 
   private _handleSearch(e: Event) {
     this._searchTerm = (e.target as HTMLInputElement).value;
+    this._loading = true;
     clearTimeout(this.#searchTimer);
     this.#searchTimer = setTimeout(() => this._doSearch(), 300);
   }
 
   private async _doSearch() {
+    this._loading = true;
     try {
       const types = await this.#repository.requestSchemaTypes(this._searchTerm || undefined);
       if (types) {
         this._schemaTypes = types;
       }
-    } catch (error) {
-      console.error('SchemeWeaver: Search error:', error);
+    } catch {
       this.#notificationContext?.peek('warning', {
         data: { message: this.localize.term('schemeWeaver_searchFailed') },
       });
+    } finally {
+      this._loading = false;
     }
   }
 
@@ -218,7 +219,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
                 </div>
               `
             : html`
-                <div class="schema-list" role="listbox" aria-label="Schema.org types">
+                <div class="schema-list" role="listbox" aria-label=${this.localize.term('schemeWeaver_schemaTypesListLabel')}>
                   ${this._groupedTypes.map(
                     (group) => html`
                       <div class="schema-group">

@@ -5,6 +5,27 @@ import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js
 import type { SchemaTypeInfo, SchemaPropertyInfo } from '../api/types.js';
 import type { GenerateDoctypeModalData, GenerateDoctypeModalValue } from './generate-doctype-modal.token.js';
 
+/**
+ * Convert a PascalCase Schema.org type name to a valid Umbraco camelCase alias.
+ * Handles single capitals (Person → person), pure all-caps (URL → url), and
+ * acronym prefixes (URLAddress → urlAddress) without naively only lower-casing
+ * the very first character.
+ */
+function toCamelCaseAlias(name: string): string {
+  if (!name) return '';
+  let upperRun = 0;
+  while (upperRun < name.length && name[upperRun] >= 'A' && name[upperRun] <= 'Z') {
+    upperRun++;
+  }
+  if (upperRun <= 1) {
+    return name.charAt(0).toLowerCase() + name.slice(1);
+  }
+  if (upperRun === name.length) {
+    return name.toLowerCase();
+  }
+  return name.slice(0, upperRun - 1).toLowerCase() + name.slice(upperRun - 1);
+}
+
 @customElement('schemeweaver-generate-doctype-modal')
 export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoctypeModalData, GenerateDoctypeModalValue> {
   #repository = new SchemeWeaverRepository(this);
@@ -57,8 +78,10 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
       if (types) {
         this._schemaTypes = types;
       }
-    } catch (error) {
-      console.error('SchemeWeaver: Error fetching schema types:', error);
+    } catch {
+      this.#notificationContext?.peek('danger', {
+        data: { message: this.localize.term('schemeWeaver_failedToLoadSchemaTypes') },
+      });
     } finally {
       this._loading = false;
     }
@@ -66,25 +89,31 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
 
   private _handleSearch(e: Event) {
     this._searchTerm = (e.target as HTMLInputElement).value;
+    this._loading = true;
     clearTimeout(this.#searchTimer);
     this.#searchTimer = setTimeout(() => this._doSearch(), 300);
   }
 
   private async _doSearch() {
+    this._loading = true;
     try {
       const types = await this.#repository.requestSchemaTypes(this._searchTerm || undefined);
       if (types) {
         this._schemaTypes = types;
       }
-    } catch (error) {
-      console.error('SchemeWeaver: Search error:', error);
+    } catch {
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_searchFailed') },
+      });
+    } finally {
+      this._loading = false;
     }
   }
 
   private async _handleSelectSchemaType(type: SchemaTypeInfo) {
     this._selectedSchemaType = type;
     this._documentTypeName = type.name;
-    this._documentTypeAlias = type.name.charAt(0).toLowerCase() + type.name.slice(1);
+    this._documentTypeAlias = toCamelCaseAlias(type.name);
 
     // Fetch full properties from the properties endpoint
     try {
@@ -93,8 +122,10 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
         this._selectedTypeProperties = props;
         this._selectedProperties = new Set(props.map((p) => p.name));
       }
-    } catch (error) {
-      console.error('SchemeWeaver: Error fetching schema properties:', error);
+    } catch {
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_failedToLoadSchemaTypes') },
+      });
     }
   }
 
@@ -132,7 +163,6 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
       this.modalContext?.setValue({ generated: true });
       this.modalContext?.submit();
     } catch (error) {
-      console.error('SchemeWeaver: Generate error:', error);
       this.#notificationContext?.peek('danger', {
         data: {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToGenerateContentType'),
@@ -202,7 +232,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
               </div>
             `
           : html`
-              <div class="schema-list" role="listbox" aria-label="Schema.org types">
+              <div class="schema-list" role="listbox" aria-label=${this.localize.term('schemeWeaver_schemaTypesListLabel')}>
                 ${this._schemaTypes.map(
                   (type) => html`
                     <div class="schema-item" role="option" tabindex="0" @click=${() => this._handleSelectSchemaType(type)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._handleSelectSchemaType(type); } }}>

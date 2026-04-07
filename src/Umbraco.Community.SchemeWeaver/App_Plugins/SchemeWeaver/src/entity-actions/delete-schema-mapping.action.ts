@@ -31,7 +31,7 @@ export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
         .open(this, UMB_CONFIRM_MODAL, {
           data: {
             headline: this.#localize.term('schemeWeaver_deleteMapping'),
-            content: this.#localize.term('schemeWeaver_deleteMappingConfirm'),
+            content: this.#localize.term('schemeWeaver_deleteMappingConfirm', contentTypeAlias),
             color: 'danger',
             confirmLabel: this.#localize.term('general_delete'),
           },

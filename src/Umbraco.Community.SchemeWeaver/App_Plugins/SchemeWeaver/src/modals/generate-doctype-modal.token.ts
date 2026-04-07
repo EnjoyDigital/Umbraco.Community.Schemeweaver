@@ -11,7 +11,7 @@ export interface GenerateDoctypeModalValue {
 export const SCHEMEWEAVER_GENERATE_DOCTYPE_MODAL = new UmbModalToken<
   GenerateDoctypeModalData,
   GenerateDoctypeModalValue
->('schemeweaver-generate-doctype-modal', {
+>('SchemeWeaver.Modal.GenerateDoctype', {
   modal: {
     type: 'sidebar',
     size: 'large',

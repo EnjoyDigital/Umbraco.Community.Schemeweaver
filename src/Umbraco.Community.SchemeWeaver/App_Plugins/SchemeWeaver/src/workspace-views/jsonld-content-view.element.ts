@@ -3,11 +3,13 @@ import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffic
 import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import '../components/jsonld-preview.element.js';
+import type { JsonLdPreviewElement } from '../components/jsonld-preview.element.js';
 import { SchemeWeaverContext } from '../context/schemeweaver.context.js';
 import type { JsonLdPreviewResponse } from '../api/types.js';
 
 @customElement('schemeweaver-jsonld-content-view')
 export class JsonLdContentViewElement extends UmbLitElement {
+  // Per-view context instance — see schema-mapping-view for rationale.
   #context = new SchemeWeaverContext(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
@@ -118,7 +120,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
   }
 
   private _handleCopy(): void {
-    const previewEl = this.shadowRoot?.querySelector('schemeweaver-jsonld-preview') as any;
+    const previewEl = this.shadowRoot?.querySelector<JsonLdPreviewElement>('schemeweaver-jsonld-preview');
     const text = previewEl?.formattedJson ?? '';
     navigator.clipboard.writeText(text).then(
       () => {

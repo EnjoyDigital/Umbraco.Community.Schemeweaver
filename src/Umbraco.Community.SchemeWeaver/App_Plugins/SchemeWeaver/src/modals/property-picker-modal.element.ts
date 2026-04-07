@@ -1,5 +1,7 @@
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
+import type { UmbNotificationContext } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { ContentTypeProperty } from '../api/types.js';
 import type { PropertyPickerModalData, PropertyPickerModalValue } from './property-picker-modal.token.js';
@@ -7,6 +9,7 @@ import type { PropertyPickerModalData, PropertyPickerModalValue } from './proper
 @customElement('schemeweaver-property-picker-modal')
 export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPickerModalData, PropertyPickerModalValue> {
   #repository = new SchemeWeaverRepository(this);
+  #notificationContext?: UmbNotificationContext;
 
   @state()
   private _loading = true;
@@ -19,6 +22,13 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
 
   @state()
   private _selectedProperty = '';
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => {
+      this.#notificationContext = ctx;
+    });
+  }
 
   async connectedCallback() {
     super.connectedCallback();
@@ -38,8 +48,10 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
       if (properties) {
         this._properties = properties;
       }
-    } catch (error) {
-      console.error('SchemeWeaver: Error fetching properties:', error);
+    } catch {
+      this.#notificationContext?.peek('danger', {
+        data: { message: this.localize.term('schemeWeaver_noProperties') },
+      });
     } finally {
       this._loading = false;
     }
@@ -95,7 +107,7 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
                 </div>
               `
             : html`
-                <div class="property-list" role="listbox" aria-label="Properties">
+                <div class="property-list" role="listbox" aria-label=${this.localize.term('schemeWeaver_propertiesListLabel')}>
                   ${this._filteredProperties.length > 0
                     ? this._filteredProperties.map(
                         (prop) => html`

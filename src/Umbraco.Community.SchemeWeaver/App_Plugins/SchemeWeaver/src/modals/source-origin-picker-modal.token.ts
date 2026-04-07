@@ -14,7 +14,7 @@ export interface SourceOriginPickerModalValue {
 export const SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL = new UmbModalToken<
   SourceOriginPickerModalData,
   SourceOriginPickerModalValue
->('schemeweaver-source-origin-picker-modal', {
+>('SchemeWeaver.Modal.SourceOriginPicker', {
   modal: {
     type: 'sidebar',
     size: 'small',

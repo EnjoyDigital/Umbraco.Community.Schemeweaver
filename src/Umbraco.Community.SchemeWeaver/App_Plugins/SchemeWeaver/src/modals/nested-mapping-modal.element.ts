@@ -106,7 +106,6 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         await this._selectBlockType(this._blockElementTypes[0]);
       }
     } catch (error) {
-      console.error('SchemeWeaver: Error loading nested mapping data:', error);
       this.#notificationContext?.peek('danger', {
         data: {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToLoadMappingData'),
@@ -147,7 +146,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         });
       }
     } catch {
-      console.warn('SchemeWeaver: Could not parse existing nested mapping config');
+      // Silently ignore parse errors — fall back to default config
     }
   }
 

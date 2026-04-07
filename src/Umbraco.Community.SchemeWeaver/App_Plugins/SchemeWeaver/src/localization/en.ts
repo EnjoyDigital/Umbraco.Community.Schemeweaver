@@ -25,7 +25,7 @@ export default {
     mapToSchema: 'Map to Schema.org',
     editMapping: 'Edit mapping',
     deleteMapping: 'Delete mapping',
-    deleteMappingConfirm: 'Are you sure you want to delete this Schema.org mapping?',
+    deleteMappingConfirm: 'Delete the Schema.org mapping for "{0}"? This cannot be undone.',
     noMappingExists: 'No mapping exists for this content type',
     previewJsonLd: 'Preview JSON-LD',
     autoMap: 'Auto-map',
@@ -192,5 +192,15 @@ export default {
     aiApplying: 'Applying mappings...',
     aiNoSuggestions: 'AI could not determine a suitable schema type for this content type.',
     aiBulkComplete: 'AI analysis complete',
+    aiAnalysisFailed: 'AI analysis failed. Please try again.',
+    aiAutoMapFailed: 'AI auto-map failed. Please try again.',
+
+    // Workspace context errors
+    workspaceContextUnavailable: 'Could not connect to the SchemeWeaver workspace context.',
+
+    // Modal aria-labels
+    schemaTypesListLabel: 'Schema.org types',
+    propertiesListLabel: 'Properties',
+    schemaSelectListLabel: 'Schema selection',
   },
 };

@@ -18,7 +18,7 @@ export interface ComplexTypeMappingModalValue {
 export const SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL = new UmbModalToken<
   ComplexTypeMappingModalData,
   ComplexTypeMappingModalValue
->('schemeweaver-complex-type-mapping-modal', {
+>('SchemeWeaver.Modal.ComplexTypeMapping', {
   modal: {
     type: 'sidebar',
     size: 'medium',

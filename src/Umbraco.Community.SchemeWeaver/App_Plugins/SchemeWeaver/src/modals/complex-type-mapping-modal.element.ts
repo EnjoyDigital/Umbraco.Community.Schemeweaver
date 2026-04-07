@@ -94,7 +94,6 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         this._currentStep = 'mappings';
       }
     } catch (error) {
-      console.error('SchemeWeaver: Error initialising complex type modal:', error);
       this.#notificationContext?.peek('danger', {
         data: { message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToLoadMappingData') },
       });
@@ -126,7 +125,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         }));
       }
     } catch {
-      console.warn('SchemeWeaver: Could not parse existing complex type config');
+      // Silently ignore parse errors — fall back to default config
     }
   }
 

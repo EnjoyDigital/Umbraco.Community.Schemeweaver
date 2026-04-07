@@ -12,7 +12,7 @@ export interface ContentTypePickerModalValue {
 export const SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL = new UmbModalToken<
   ContentTypePickerModalData,
   ContentTypePickerModalValue
->('schemeweaver-content-type-picker-modal', {
+>('SchemeWeaver.Modal.ContentTypePicker', {
   modal: {
     type: 'sidebar',
     size: 'medium',

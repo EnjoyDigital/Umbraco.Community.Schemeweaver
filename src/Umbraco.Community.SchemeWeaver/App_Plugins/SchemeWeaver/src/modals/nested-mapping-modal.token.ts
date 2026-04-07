@@ -14,7 +14,7 @@ export interface NestedMappingModalValue {
 export const SCHEMEWEAVER_NESTED_MAPPING_MODAL = new UmbModalToken<
   NestedMappingModalData,
   NestedMappingModalValue
->('schemeweaver-nested-mapping-modal', {
+>('SchemeWeaver.Modal.NestedMapping', {
   modal: {
     type: 'sidebar',
     size: 'medium',

@@ -13,7 +13,7 @@ export interface PropertyMappingModalValue {
 export const SCHEMEWEAVER_PROPERTY_MAPPING_MODAL = new UmbModalToken<
   PropertyMappingModalData,
   PropertyMappingModalValue
->('schemeweaver-property-mapping-modal', {
+>('SchemeWeaver.Modal.PropertyMapping', {
   modal: {
     type: 'sidebar',
     size: 'large',

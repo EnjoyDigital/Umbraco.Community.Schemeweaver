@@ -11,7 +11,7 @@ export interface SchemaPickerModalValue {
 export const SCHEMEWEAVER_SCHEMA_PICKER_MODAL = new UmbModalToken<
   SchemaPickerModalData,
   SchemaPickerModalValue
->('schemeweaver-schema-picker-modal', {
+>('SchemeWeaver.Modal.SchemaPicker', {
   modal: {
     type: 'sidebar',
     size: 'medium',
