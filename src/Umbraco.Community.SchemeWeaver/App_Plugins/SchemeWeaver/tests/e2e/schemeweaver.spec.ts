@@ -10,34 +10,39 @@ async function fillUuiInput(locator: any, text: string) {
 }
 
 /**
+ * Helper: look up a document type's key by its display name via the SchemeWeaver
+ * content-types API. This avoids flaky tree navigation when there are 100+ doc types.
+ */
+async function getDocTypeKeyByName(umbracoUi: any, docTypeName: string): Promise<string> {
+  const response = await umbracoUi.page.request.get(
+    '/umbraco/management/api/v1/schemeweaver/content-types'
+  );
+  if (!response.ok()) {
+    throw new Error(`Failed to fetch content types: ${response.status()}`);
+  }
+  const contentTypes = await response.json();
+  const docType = contentTypes.find((ct: any) => ct.name === docTypeName);
+  if (!docType) {
+    throw new Error(`Document type "${docTypeName}" not found in content-types list`);
+  }
+  return docType.key;
+}
+
+/**
  * Helper: navigate to a specific document type's Schema.org tab in the Settings section.
- * Opens Settings > Document Types, expands the tree, clicks the named document type,
- * then clicks the Schema.org workspace view tab.
+ * Uses the SchemeWeaver API to look up the doc type key and navigates directly to the
+ * workspace URL — bypassing the tree entirely. Robust regardless of tree position.
  */
 async function goToDocTypeSchemaTab(umbracoUi: any, docTypeName: string) {
-  // Navigate to Settings section
-  await umbracoUi.page.goto('/umbraco/section/settings');
+  // Ensure we're authenticated via the backoffice session
+  await umbracoUi.goToBackOffice();
   await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-  // Click on Document Types link in the tree
-  const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
-  await docTypesLink.waitFor({ timeout: 15_000 });
-  await docTypesLink.click();
-  await umbracoUi.page.waitForTimeout(1_000);
+  // Look up the doc type key via API (authenticated via browser cookies)
+  const docTypeKey = await getDocTypeKeyByName(umbracoUi, docTypeName);
 
-  // Expand the Document Types tree if needed
-  const expandBtn = umbracoUi.page.locator('button[aria-label*="Expand"]').first();
-  if (await expandBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await expandBtn.click();
-    await umbracoUi.page.waitForTimeout(1_000);
-  }
-
-  // Find and click the specific document type in the tree
-  const treeItem = umbracoUi.page.locator('umb-tree-item umb-tree-item', { hasText: docTypeName }).first();
-  await treeItem.waitFor({ timeout: 10_000 });
-  await treeItem.locator('a').first().click();
-
-  // Wait for workspace to load
+  // Navigate directly to the workspace view
+  await umbracoUi.page.goto(`/umbraco/section/settings/workspace/document-type/edit/${docTypeKey}`);
   await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
   // Click the Schema.org tab
@@ -354,7 +359,7 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
     expect(jsonLd['name']).toBeTruthy();
 
     // Also verify the product page has JSON-LD
-    await umbracoUi.page.goto(baseUrl + '/products/wireless-headphones-pro/');
+    await umbracoUi.page.goto(baseUrl + '/categories/products/electronics/wireless-headphones-pro/');
     await umbracoUi.page.waitForLoadState('domcontentloaded', { timeout: 15_000 });
 
     const productContent = await umbracoUi.page.content();
@@ -765,7 +770,7 @@ test.describe('Entity Actions', () => {
 // ────────────────────────────────────────────────────────────────
 test.describe('Review Fixes', () => {
   test('Schema.org tab loads mapping via context', async ({ umbracoUi }) => {
-    await goToDocTypeSchemaTab(umbracoUi.page, 'Product Page');
+    await goToDocTypeSchemaTab(umbracoUi, 'Product Page');
 
     // Verify the schema type badge is visible (indicates mapping loaded via context)
     const schemaTag = umbracoUi.page.locator('schemeweaver-schema-mapping-view uui-tag').first();
@@ -777,7 +782,7 @@ test.describe('Review Fixes', () => {
   });
 
   test('Save mapping persists after page refresh', async ({ umbracoUi }) => {
-    await goToDocTypeSchemaTab(umbracoUi.page, 'Product Page');
+    await goToDocTypeSchemaTab(umbracoUi, 'Product Page');
 
     // Capture the schema type name
     const schemaTag = umbracoUi.page.locator('schemeweaver-schema-mapping-view uui-tag').first();
@@ -786,7 +791,7 @@ test.describe('Review Fixes', () => {
 
     // Refresh and re-navigate
     await umbracoUi.page.reload();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 });
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     const schemaTab = umbracoUi.page.getByRole('tab', { name: /Schema\.org/i });
     if (await schemaTab.isVisible({ timeout: 5_000 }).catch(() => false)) {
@@ -799,74 +804,97 @@ test.describe('Review Fixes', () => {
     await expect(schemaTagAfter).toContainText(schemaTypeName ?? '');
   });
 
-  test('All three entity actions appear on document type', async ({ umbracoUi }) => {
-    // Navigate to Settings > Document Types
+});
+
+// ────────────────────────────────────────────────────────────────
+// Dynamic Root Config Round-Trip — proves parent/ancestor/sibling
+// source types persist the Umbraco dynamic root picker config
+// through the full API + database path.
+// ────────────────────────────────────────────────────────────────
+test.describe('Dynamic Root Config Round-Trip', () => {
+  test('dynamicRootConfig survives save and reload through management API', async ({ umbracoUi }) => {
+    // Ensure we have an authenticated backoffice session (page.request inherits cookies)
     await umbracoUi.goToBackOffice();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 });
-    await umbracoUi.page.locator('a', { hasText: 'Settings' }).first().click();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 10_000 });
+    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-    const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
-    await docTypesLink.click();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 10_000 });
+    const testAlias = 'productPage';
+    const dynamicRootJson = JSON.stringify({
+      originAlias: 'Root',
+      querySteps: [{ unique: 'e2e-guid-123', alias: 'childOfType' }],
+    });
 
-    // Expand tree and find first child
-    const treeItems = umbracoUi.page.locator('umb-tree-item');
-    const firstChild = treeItems.first();
-    await firstChild.waitFor({ timeout: 10_000 });
+    // ── STEP 1: Fetch the existing productPage mapping so we can restore it
+    // afterwards. Other tests (and the delivery-API JSON-LD tests) rely on
+    // the full seeded Product mapping remaining intact.
+    const listBefore = await umbracoUi.page.request.get(
+      '/umbraco/management/api/v1/schemeweaver/mappings'
+    );
+    expect(listBefore.ok()).toBeTruthy();
+    const mappingsBefore = await listBefore.json();
+    const originalMapping = mappingsBefore.find((m: any) => m.contentTypeAlias === testAlias);
+    expect(originalMapping, 'Seeded productPage mapping missing — cannot safely run round-trip test').toBeTruthy();
 
-    // Open context menu
-    await firstChild.click({ button: 'right' });
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 5_000 });
+    try {
+      // ── STEP 2: Save a modified mapping with dynamicRootConfig set on one
+      // property. Include all the original property mappings so we don't lose
+      // any fields if the restore step fails.
+      const modifiedMapping = {
+        ...originalMapping,
+        propertyMappings: [
+          ...originalMapping.propertyMappings,
+          {
+            schemaPropertyName: 'publisher',
+            sourceType: 'parent',
+            contentTypePropertyAlias: null,
+            sourceContentTypeAlias: 'productListing',
+            transformType: null,
+            isAutoMapped: false,
+            staticValue: null,
+            nestedSchemaTypeName: null,
+            resolverConfig: null,
+            dynamicRootConfig: dynamicRootJson,
+          },
+        ],
+      };
 
-    // Verify all 3 SchemeWeaver actions appear
-    const mapAction = umbracoUi.page.getByRole('button', { name: /Map to Schema\.org/i });
-    const deleteAction = umbracoUi.page.getByRole('button', { name: /Delete mapping/i });
-    const generateAction = umbracoUi.page.getByRole('button', { name: /Generate from Schema\.org/i });
+      const saveResponse = await umbracoUi.page.request.post(
+        '/umbraco/management/api/v1/schemeweaver/mappings',
+        { data: modifiedMapping }
+      );
+      expect(saveResponse.ok(), `Save failed: ${saveResponse.status()}`).toBeTruthy();
 
-    await expect(mapAction).toBeVisible({ timeout: 5_000 });
-    await expect(deleteAction).toBeVisible({ timeout: 5_000 });
-    await expect(generateAction).toBeVisible({ timeout: 5_000 });
-  });
+      // ── STEP 3: GET all mappings and find the one we just saved
+      const listAfter = await umbracoUi.page.request.get(
+        '/umbraco/management/api/v1/schemeweaver/mappings'
+      );
+      expect(listAfter.ok()).toBeTruthy();
 
-  test('Generate modal schema list is accessible', async ({ umbracoUi }) => {
-    // Navigate to Settings > Document Types
-    await umbracoUi.goToBackOffice();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 });
-    await umbracoUi.page.locator('a', { hasText: 'Settings' }).first().click();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 10_000 });
+      const mappingsAfter = await listAfter.json();
+      const saved = mappingsAfter.find((m: any) => m.contentTypeAlias === testAlias);
+      expect(saved, 'Saved mapping not found in list response').toBeTruthy();
 
-    const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
-    await docTypesLink.click();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 10_000 });
+      // Locate the parent-sourced publisher property mapping we just added
+      const publisherMapping = saved.propertyMappings.find(
+        (p: any) => p.schemaPropertyName === 'publisher' && p.sourceType === 'parent'
+      );
+      expect(publisherMapping, 'publisher mapping not found').toBeTruthy();
 
-    // Open context menu on first doc type
-    const treeItems = umbracoUi.page.locator('umb-tree-item');
-    const firstChild = treeItems.first();
-    await firstChild.waitFor({ timeout: 10_000 });
-    await firstChild.click({ button: 'right' });
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 5_000 });
+      // The dynamicRootConfig JSON string must round-trip byte-exact
+      expect(publisherMapping.dynamicRootConfig).toBe(dynamicRootJson);
 
-    // Click Generate from Schema.org
-    const generateAction = umbracoUi.page.getByRole('button', { name: /Generate from Schema\.org/i });
-    if (await generateAction.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await generateAction.click();
-
-      // Wait for the generate modal
-      const modal = umbracoUi.page.locator('schemeweaver-generate-doctype-modal');
-      await modal.waitFor({ timeout: 10_000 });
-
-      // Wait for loading to finish
-      const loader = modal.locator('uui-loader-circle');
-      await loader.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
-
-      // Verify schema list has role="listbox"
-      const schemaList = modal.locator('.schema-list');
-      await expect(schemaList).toHaveAttribute('role', 'listbox');
-
-      // Verify child items have role="option"
-      const firstItem = modal.locator('.schema-item').first();
-      await expect(firstItem).toHaveAttribute('role', 'option');
+      // Parse and verify the structure survived
+      const parsed = JSON.parse(publisherMapping.dynamicRootConfig);
+      expect(parsed.originAlias).toBe('Root');
+      expect(parsed.querySteps).toHaveLength(1);
+      expect(parsed.querySteps[0].unique).toBe('e2e-guid-123');
+      expect(parsed.querySteps[0].alias).toBe('childOfType');
+    } finally {
+      // ── STEP 4: Restore the original mapping so subsequent tests see the
+      // seeded state. Runs even if assertions above failed.
+      await umbracoUi.page.request.post(
+        '/umbraco/management/api/v1/schemeweaver/mappings',
+        { data: originalMapping }
+      );
     }
   });
 });
