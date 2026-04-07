@@ -53,6 +53,7 @@ public class SchemaMappingSerializerTests
             SourceType = "static",
             StaticValue = "Jane Smith",
             IsAutoMapped = false,
+            DynamicRootConfig = "{\"originAlias\":\"Root\",\"querySteps\":[{\"unique\":\"guid-123\",\"alias\":\"child\"}]}",
         },
         new()
         {
@@ -248,6 +249,42 @@ public class SchemaMappingSerializerTests
         savedMappings.Should().HaveCount(3);
         savedMappings[2].NestedSchemaTypeName.Should().Be("Question");
         savedMappings[2].ResolverConfig.Should().Contain("mappings");
+        savedMappings.Should().Contain(p =>
+            p.DynamicRootConfig == "{\"originAlias\":\"Root\",\"querySteps\":[{\"unique\":\"guid-123\",\"alias\":\"child\"}]}");
+    }
+
+    [Fact]
+    public async Task Serialize_IncludesDynamicRootConfig_WhenSet()
+    {
+        const string dynamicRootJson = "{\"originAlias\":\"Root\"}";
+
+        var mapping = CreateTestMapping();
+        var propertyMappings = new List<PropertyMapping>
+        {
+            new()
+            {
+                Id = 20,
+                SchemaMappingId = mapping.Id,
+                SchemaPropertyName = "publisher",
+                SourceType = "parent",
+                SourceContentTypeAlias = "organization",
+                IsAutoMapped = false,
+                DynamicRootConfig = dynamicRootJson,
+            }
+        };
+        _repository.GetPropertyMappings(mapping.Id).Returns(propertyMappings);
+
+        var serializeResult = await InvokeSerializeCoreAsync(mapping);
+
+        serializeResult.Success.Should().BeTrue();
+        var pmNode = serializeResult.Item!.Element("PropertyMappings")!.Element("PropertyMapping")!;
+        var dynamicRootElement = pmNode.Element("DynamicRootConfig");
+        dynamicRootElement.Should().NotBeNull();
+        dynamicRootElement!.Value.Should().Be(dynamicRootJson);
+
+        var xmlString = serializeResult.Item!.ToString();
+        xmlString.Should().Contain("<DynamicRootConfig");
+        xmlString.Should().Contain(dynamicRootJson);
     }
 
     // === Helper methods ===

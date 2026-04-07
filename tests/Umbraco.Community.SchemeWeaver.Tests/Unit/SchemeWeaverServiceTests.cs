@@ -135,6 +135,88 @@ public class SchemeWeaverServiceTests
     }
 
     [Fact]
+    public void SaveMapping_WithDynamicRootConfig_PersistsField()
+    {
+        const string dynamicRootJson = """{"originAlias":"Root","querySteps":[]}""";
+
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings = new List<PropertyMappingDto>
+            {
+                new()
+                {
+                    SchemaPropertyName = "publisher",
+                    SourceType = "parent",
+                    SourceContentTypeAlias = "organization",
+                    DynamicRootConfig = dynamicRootJson
+                }
+            }
+        };
+
+        var savedEntity = new SchemaMapping
+        {
+            Id = 1,
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true
+        };
+        _repository.GetByContentTypeAlias("article").Returns(null as SchemaMapping, savedEntity);
+        _repository.Save(Arg.Any<SchemaMapping>()).Returns(savedEntity);
+        _repository.GetPropertyMappings(1).Returns(Enumerable.Empty<PropertyMapping>());
+
+        List<PropertyMapping>? capturedMappings = null;
+        _repository
+            .When(r => r.SavePropertyMappings(1, Arg.Any<IEnumerable<PropertyMapping>>()))
+            .Do(c => capturedMappings = c.Arg<IEnumerable<PropertyMapping>>().ToList());
+
+        var result = _sut.SaveMapping(dto);
+
+        result.Should().NotBeNull();
+        capturedMappings.Should().NotBeNull();
+        capturedMappings!.Should().HaveCount(1);
+        capturedMappings[0].SchemaPropertyName.Should().Be("publisher");
+        capturedMappings[0].SourceType.Should().Be("parent");
+        capturedMappings[0].SourceContentTypeAlias.Should().Be("organization");
+        capturedMappings[0].DynamicRootConfig.Should().Be(dynamicRootJson);
+    }
+
+    [Fact]
+    public void GetMapping_ReturnsDynamicRootConfig()
+    {
+        const string dynamicRootJson = """{"originAlias":"Root"}""";
+
+        var mapping = new SchemaMapping
+        {
+            Id = 7,
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true
+        };
+        var propertyMappings = new List<PropertyMapping>
+        {
+            new()
+            {
+                Id = 100,
+                SchemaMappingId = 7,
+                SchemaPropertyName = "publisher",
+                SourceType = "parent",
+                DynamicRootConfig = dynamicRootJson
+            }
+        };
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(7).Returns(propertyMappings);
+
+        var result = _sut.GetMapping("article");
+
+        result.Should().NotBeNull();
+        result!.PropertyMappings.Should().HaveCount(1);
+        result.PropertyMappings[0].DynamicRootConfig.Should().Be(dynamicRootJson);
+    }
+
+    [Fact]
     public void SaveMapping_ResolvesContentTypeKey_WhenEmpty()
     {
         var expectedKey = Guid.NewGuid();

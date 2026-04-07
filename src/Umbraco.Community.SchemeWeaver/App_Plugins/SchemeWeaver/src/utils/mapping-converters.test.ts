@@ -1,7 +1,23 @@
 import { expect } from '@open-wc/testing';
-import type { PropertyMappingSuggestion } from '../api/types.js';
+import type { PropertyMappingDto, PropertyMappingSuggestion } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
-import { sortMappingRows, mergeAutoMapSuggestions } from './mapping-converters.js';
+import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, applySourceTypeChange } from './mapping-converters.js';
+
+/** Helper to create a minimal PropertyMappingDto */
+function makeDto(overrides: Partial<PropertyMappingDto> & { schemaPropertyName: string }): PropertyMappingDto {
+  return {
+    sourceType: 'property',
+    contentTypePropertyAlias: null,
+    sourceContentTypeAlias: null,
+    transformType: null,
+    isAutoMapped: false,
+    staticValue: null,
+    nestedSchemaTypeName: null,
+    resolverConfig: null,
+    dynamicRootConfig: null,
+    ...overrides,
+  };
+}
 
 /** Helper to create a minimal PropertyMappingRow */
 function makeRow(overrides: Partial<PropertyMappingRow> & { schemaPropertyName: string }): PropertyMappingRow {
@@ -253,5 +269,76 @@ describe('mergeAutoMapSuggestions', () => {
     const result = mergeAutoMapSuggestions(existing, suggestions);
     expect(result.length).to.equal(1);
     expect(result[0].schemaPropertyName).to.equal('headline');
+  });
+});
+
+describe('dtoToRow', () => {
+  it('parses dynamicRootConfig JSON into an object', () => {
+    const dto = makeDto({
+      schemaPropertyName: 'author',
+      sourceType: 'parent',
+      dynamicRootConfig: '{"originAlias":"Root","querySteps":[]}',
+    });
+    const row = dtoToRow(dto);
+    expect(row.dynamicRootConfig).to.deep.equal({ originAlias: 'Root', querySteps: [] });
+  });
+
+  it('handles null dynamicRootConfig as undefined', () => {
+    const dto = makeDto({
+      schemaPropertyName: 'author',
+      dynamicRootConfig: null,
+    });
+    const row = dtoToRow(dto);
+    expect(row.dynamicRootConfig).to.equal(undefined);
+  });
+});
+
+describe('applySourceTypeChange', () => {
+  it('clears dynamicRootConfig when switching to property source type', () => {
+    const row: PropertyMappingRow = {
+      schemaPropertyName: 'author',
+      schemaPropertyType: '',
+      sourceType: 'parent',
+      contentTypePropertyAlias: '',
+      sourceContentTypeAlias: 'parentDocType',
+      staticValue: '',
+      confidence: null,
+      editorAlias: '',
+      nestedSchemaTypeName: '',
+      resolverConfig: null,
+      acceptedTypes: [],
+      isComplexType: false,
+      expanded: false,
+      subMappings: [],
+      selectedSubType: '',
+      sourceContentTypeProperties: [],
+      dynamicRootConfig: { originAlias: 'Root' },
+    };
+    const result = applySourceTypeChange(row, 'property');
+    expect(result.dynamicRootConfig).to.equal(undefined);
+  });
+
+  it('preserves dynamicRootConfig when switching between related source types', () => {
+    const row: PropertyMappingRow = {
+      schemaPropertyName: 'author',
+      schemaPropertyType: '',
+      sourceType: 'parent',
+      contentTypePropertyAlias: '',
+      sourceContentTypeAlias: 'parentDocType',
+      staticValue: '',
+      confidence: null,
+      editorAlias: '',
+      nestedSchemaTypeName: '',
+      resolverConfig: null,
+      acceptedTypes: [],
+      isComplexType: false,
+      expanded: false,
+      subMappings: [],
+      selectedSubType: '',
+      sourceContentTypeProperties: [],
+      dynamicRootConfig: { originAlias: 'Root' },
+    };
+    const result = applySourceTypeChange(row, 'ancestor');
+    expect(result.dynamicRootConfig).to.deep.equal({ originAlias: 'Root' });
   });
 });

@@ -90,6 +90,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'author',
@@ -101,6 +102,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'datePublished',
@@ -112,6 +114,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
     ],
   },
@@ -132,6 +135,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'url',
@@ -143,6 +147,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'description',
@@ -154,6 +159,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
     ],
   },
@@ -174,6 +180,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'description',
@@ -185,6 +192,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'thumbnailUrl',
@@ -196,6 +204,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'uploadDate',
@@ -207,6 +216,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'contentUrl',
@@ -218,6 +228,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
     ],
   },
@@ -238,6 +249,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'description',
@@ -249,6 +261,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'datePosted',
@@ -260,6 +273,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'employmentType',
@@ -271,6 +285,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
     ],
   },
@@ -291,6 +306,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'description',
@@ -302,6 +318,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'telephone',
@@ -313,6 +330,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'email',
@@ -324,6 +342,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
     ],
   },
@@ -344,6 +363,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'description',
@@ -355,6 +375,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'totalTime',
@@ -366,6 +387,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: null,
         resolverConfig: null,
+        dynamicRootConfig: null,
       },
       {
         schemaPropertyName: 'step',
@@ -377,6 +399,7 @@ const DEFAULT_MAPPINGS: SchemaMappingDto[] = [
         staticValue: null,
         nestedSchemaTypeName: 'HowToStep',
         resolverConfig: POPULAR_RESOLVER_CONFIGS['HowTo.step'],
+        dynamicRootConfig: null,
       },
     ],
   },
