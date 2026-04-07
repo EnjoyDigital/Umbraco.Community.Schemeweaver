@@ -1,0 +1,49 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<LegislationPage>
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Title</h1>
+
+@if (!string.IsNullOrEmpty(Model.Description))
+{
+    <p class="lead">@Model.Description</p>
+}
+
+<div class="card">
+    <h2>Legislation Details</h2>
+    <dl>
+        @if (!string.IsNullOrEmpty(Model.LegislationIdentifier))
+        {
+            <dt>Identifier</dt>
+            <dd>@Model.LegislationIdentifier</dd>
+        }
+        @if (Model.LegislationDate != null)
+        {
+            <dt>Date</dt>
+            <dd>@Model.LegislationDate.Value.ToString("d MMMM yyyy")</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.LegislationJurisdiction))
+        {
+            <dt>Jurisdiction</dt>
+            <dd>@Model.LegislationJurisdiction</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.LegislationType))
+        {
+            <dt>Type</dt>
+            <dd>@Model.LegislationType</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.LegislationLegalForce))
+        {
+            <dt>Legal Force</dt>
+            <dd>@Model.LegislationLegalForce</dd>
+        }
+    </dl>
+</div>
+
+@if (Model.BodyText != null)
+{
+    <div class="card">
+        <h2>Full Text</h2>
+        @Model.BodyText
+    </div>
+}

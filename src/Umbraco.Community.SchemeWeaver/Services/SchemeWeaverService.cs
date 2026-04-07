@@ -90,7 +90,8 @@ public class SchemeWeaverService : ISchemeWeaverService
             IsAutoMapped = p.IsAutoMapped,
             StaticValue = p.StaticValue,
             NestedSchemaTypeName = p.NestedSchemaTypeName,
-            ResolverConfig = p.ResolverConfig
+            ResolverConfig = p.ResolverConfig,
+            DynamicRootConfig = p.DynamicRootConfig
         });
 
         _repository.SavePropertyMappings(saved.Id, propertyEntities);
@@ -291,7 +292,8 @@ public class SchemeWeaverService : ISchemeWeaverService
                 IsAutoMapped = p.IsAutoMapped,
                 StaticValue = p.StaticValue,
                 NestedSchemaTypeName = p.NestedSchemaTypeName,
-                ResolverConfig = p.ResolverConfig
+                ResolverConfig = p.ResolverConfig,
+                DynamicRootConfig = p.DynamicRootConfig
             }).ToList()
         };
 }

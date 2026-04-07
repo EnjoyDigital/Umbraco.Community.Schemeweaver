@@ -27,19 +27,6 @@ public class AISchemaMapper : IAISchemaMapper
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    /// <summary>
-    /// Common Schema.org types to suggest from — keeps the prompt focused.
-    /// </summary>
-    private static readonly string[] CommonSchemaTypes =
-    [
-        "Article", "BlogPosting", "NewsArticle", "WebPage", "AboutPage", "ContactPage",
-        "FAQPage", "Product", "Event", "LocalBusiness", "Restaurant", "Organization",
-        "Person", "Recipe", "Review", "Course", "JobPosting", "Service", "SoftwareApplication",
-        "VideoObject", "ImageObject", "HowTo", "BreadcrumbList", "ItemList",
-        "MedicalCondition", "RealEstateListing", "Vehicle", "Book", "Movie", "MusicAlbum",
-        "CreativeWork", "Place", "Thing"
-    ];
-
     public AISchemaMapper(
         IAIChatService chatService,
         IContentTypeService contentTypeService,
@@ -72,7 +59,7 @@ public class AISchemaMapper : IAISchemaMapper
         var propertyLines = string.Join("\n", properties.Select(p =>
             $"  - {p.alias} ({p.editor}) — {(string.IsNullOrEmpty(p.description) ? p.name : p.description)}"));
 
-        var schemaTypeList = string.Join(", ", CommonSchemaTypes);
+        var schemaTypeList = string.Join(", ", _schemaTypeRegistry.GetAllTypes().Select(t => t.Name));
         const string exampleFormat = """[{"schemaTypeName": "Article", "confidence": 95, "reasoning": "short explanation"}]""";
         var userPrompt = $"""
             Analyse this Umbraco content type and suggest the most appropriate Schema.org types.
@@ -138,7 +125,7 @@ public class AISchemaMapper : IAISchemaMapper
 
         var contentTypeLines = string.Join("\n", summaries.Select(s =>
             $"- {s.name} (alias: {s.alias}): properties: {string.Join(", ", s.properties)}"));
-        var schemaTypeList = string.Join(", ", CommonSchemaTypes);
+        var schemaTypeList = string.Join(", ", _schemaTypeRegistry.GetAllTypes().Select(t => t.Name));
         const string bulkExampleFormat = """[{"contentTypeAlias": "blogPost", "suggestions": [{"schemaTypeName": "BlogPosting", "confidence": 90, "reasoning": "..."}]}]""";
         var userPrompt = $"""
             Analyse these Umbraco content types and suggest the most appropriate Schema.org type for each.

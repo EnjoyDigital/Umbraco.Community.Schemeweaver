@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Routing;
@@ -27,6 +28,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     private readonly IPropertyValueResolverFactory _resolverFactory;
     private readonly IPublishedUrlProvider _urlProvider;
     private readonly ILogger<JsonLdGenerator> _logger;
+    private readonly SchemeWeaverOptions _options;
 
     public JsonLdGenerator(
         ISchemaMappingRepository repository,
@@ -36,7 +38,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         IPublishedContentStatusFilteringService publishedStatusFilteringService,
         IPropertyValueResolverFactory resolverFactory,
         IPublishedUrlProvider urlProvider,
-        ILogger<JsonLdGenerator> logger)
+        ILogger<JsonLdGenerator> logger,
+        IOptions<SchemeWeaverOptions> options)
     {
         _repository = repository;
         _registry = registry;
@@ -46,6 +49,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         _resolverFactory = resolverFactory;
         _urlProvider = urlProvider;
         _logger = logger;
+        _options = options.Value;
     }
 
     public Thing? GenerateJsonLd(IPublishedContent content)
@@ -226,7 +230,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 HttpContextAccessor = _httpContextAccessor,
                 ResolverFactory = _resolverFactory,
                 Property = null,
-                RecursionDepth = 0
+                RecursionDepth = 0,
+                MaxRecursionDepth = _options.MaxRecursionDepth
             };
             return builtInResolver.Resolve(builtInContext);
         }
@@ -251,7 +256,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             HttpContextAccessor = _httpContextAccessor,
             ResolverFactory = _resolverFactory,
             Property = publishedProperty,
-            RecursionDepth = 0
+            RecursionDepth = 0,
+            MaxRecursionDepth = _options.MaxRecursionDepth
         };
 
         return resolver.Resolve(context);
@@ -347,7 +353,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             HttpContextAccessor = _httpContextAccessor,
             ResolverFactory = _resolverFactory,
             Property = publishedProperty,
-            RecursionDepth = 0
+            RecursionDepth = 0,
+            MaxRecursionDepth = _options.MaxRecursionDepth
         };
 
         return resolver.Resolve(context);

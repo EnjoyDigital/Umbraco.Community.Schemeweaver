@@ -27,4 +27,5 @@ public class PropertyMappingDto
     public string? StaticValue { get; set; }
     public string? NestedSchemaTypeName { get; set; }
     public string? ResolverConfig { get; set; }
+    public string? DynamicRootConfig { get; set; }
 }

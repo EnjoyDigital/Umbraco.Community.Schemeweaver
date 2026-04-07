@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DeliveryApi;
 using Umbraco.Cms.Core.DependencyInjection;
+using Umbraco.Community.SchemeWeaver;
 using Umbraco.Community.SchemeWeaver.DeliveryApi;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
@@ -16,6 +17,9 @@ public class SchemeWeaverComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
+        builder.Services.AddOptions<SchemeWeaverOptions>()
+            .BindConfiguration("SchemeWeaver");
+
         builder.Services.AddControllers()
             .AddApplicationPart(typeof(SchemeWeaverComposer).Assembly);
 

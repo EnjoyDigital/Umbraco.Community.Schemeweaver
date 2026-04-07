@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Xunit;
 using NSubstitute;
 using Umbraco.Cms.Core.Models.Blocks;
@@ -39,7 +40,8 @@ public class JsonLdGeneratorTests
             _publishedStatusFilteringService,
             _resolverFactory,
             _urlProvider,
-            _logger);
+            _logger,
+            Options.Create(new SchemeWeaverOptions()));
     }
 
     private static IPublishedContent CreateContent(string contentTypeAlias, Dictionary<string, object?>? properties = null)
@@ -401,7 +403,8 @@ public class JsonLdGeneratorTests
         return new JsonLdGenerator(
             _repository, _registry, _httpContextAccessor,
             _navigationQueryService, _publishedStatusFilteringService,
-            blockResolverFactory, _urlProvider, _logger);
+            blockResolverFactory, _urlProvider, _logger,
+            Options.Create(new SchemeWeaverOptions()));
     }
 
     private static IPublishedContent CreateContentWithBlockList(

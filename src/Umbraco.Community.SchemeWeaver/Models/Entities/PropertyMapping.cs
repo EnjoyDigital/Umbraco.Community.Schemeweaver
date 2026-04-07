@@ -51,4 +51,9 @@ public class PropertyMapping
     [NullSetting(NullSetting = NullSettings.Null)]
     [SpecialDbType(SpecialDbTypes.NVARCHARMAX)]
     public string? ResolverConfig { get; set; }
+
+    [Column("DynamicRootConfig")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    [SpecialDbType(SpecialDbTypes.NVARCHARMAX)]
+    public string? DynamicRootConfig { get; set; }
 }

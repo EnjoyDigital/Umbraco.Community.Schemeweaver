@@ -47,6 +47,7 @@ export interface PropertyMappingDto {
   staticValue: string | null;
   nestedSchemaTypeName: string | null;
   resolverConfig: string | null;
+  dynamicRootConfig: string | null;
 }
 
 /** Matches C# SchemaMappingDto */

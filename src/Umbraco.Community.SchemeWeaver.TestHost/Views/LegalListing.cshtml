@@ -1,0 +1,37 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<LegalListing>
+@{
+    Layout = "Master.cshtml";
+}
+
+<nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="@Model.Parent?.Url()">Categories</a>
+    <span class="breadcrumb-sep">&rsaquo;</span>
+    <span class="breadcrumb-current">@Model.Name</span>
+</nav>
+
+<h1>@Model.Title</h1>
+
+@if (!string.IsNullOrEmpty(Model.Description))
+{
+    <p class="lead">@Model.Description</p>
+}
+
+@if (Model.Children != null && Model.Children.Any())
+{
+    <div class="card-grid">
+        @foreach (var child in Model.Children)
+        {
+            <div class="card">
+                <h3><a href="@child.Url()">@child.Name</a></h3>
+                @if (child.HasValue("description"))
+                {
+                    <p>@child.Value("description")</p>
+                }
+                else
+                {
+                    <p><span class="tag">@child.ContentType.Alias</span></p>
+                }
+            </div>
+        }
+    </div>
+}

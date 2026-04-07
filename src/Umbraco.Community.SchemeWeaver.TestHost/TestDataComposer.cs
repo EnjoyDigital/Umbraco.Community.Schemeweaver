@@ -204,6 +204,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("title", "Title", textboxDataType),
             ("description", "Description", descDataType),
         };
+        var categoriesListingCt = await CreateContentType("categoriesListing", "Categories Listing", "icon-categories", listingProps, cancellationToken);
         var blogListingCt = await CreateContentType("blogListing", "Blog Listing", "icon-thumbnails-small", listingProps, cancellationToken);
         var productListingCt = await CreateContentType("productListing", "Product Listing", "icon-thumbnails-small", listingProps, cancellationToken);
         var eventListingCt = await CreateContentType("eventListing", "Event Listing", "icon-thumbnails-small", listingProps, cancellationToken);
@@ -1143,6 +1144,44 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("addressCountry", "Address Country", textboxDataType),
         }, cancellationToken);
 
+        // 3c-ii. New Legal category content types
+        var legalListingCt = await CreateContentType("legalListing", "Legal Listing", "icon-gavel", listingProps, cancellationToken);
+
+        var notaryPageCt = await CreateContentType("notaryPage", "Notary Page", "icon-stamp", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("email", "Email", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var courthousePageCt = await CreateContentType("courthousePage", "Courthouse Page", "icon-scales", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("telephone", "Telephone", textboxDataType),
+            ("streetAddress", "Street Address", textboxDataType),
+            ("addressLocality", "Address Locality", textboxDataType),
+            ("postalCode", "Postal Code", textboxDataType),
+            ("addressCountry", "Address Country", textboxDataType),
+        }, cancellationToken);
+
+        var legislationPageCt = await CreateContentType("legislationPage", "Legislation Page", "icon-certificate", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", descDataType),
+            ("bodyText", "Body Text", bodyDataType),
+            ("legislationIdentifier", "Legislation Identifier", textboxDataType),
+            ("legislationDate", "Legislation Date", dateTimeDataType ?? textboxDataType),
+            ("legislationJurisdiction", "Jurisdiction", textboxDataType),
+            ("legislationType", "Legislation Type", textboxDataType),
+            ("legislationLegalForce", "Legal Force Status", textboxDataType),
+        }, cancellationToken);
+
         var financialServicePageCt = await CreateContentType("financialServicePage", "Financial Service Page", "icon-coins-alt", new[]
         {
             ("title", "Title", textboxDataType),
@@ -1486,7 +1525,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         var allContentTypes = new IContentType[]
         {
             blogArticleCt, productPageCt, faqPageCt, eventPageCt, recipePageCt,
-            homePageCt, aboutPageCt, blogListingCt, productListingCt, eventListingCt, recipeListingCt,
+            homePageCt, aboutPageCt, categoriesListingCt, blogListingCt, productListingCt, eventListingCt, recipeListingCt,
             newsArticleCt, techArticleCt, softwarePageCt, coursePageCt,
             howToPageCt, videoPageCt, jobPostingPageCt, profilePageCt,
             locationPageCt, restaurantPageCt, bookPageCt, contactPageCt,
@@ -1523,6 +1562,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             occupationPageCt,
             // New expanded types
             servicePageCt, professionalServicePageCt, legalServicePageCt, financialServicePageCt, governmentOrgPageCt,
+            // New subtypes — Legal
+            legalListingCt, notaryPageCt, courthousePageCt, legislationPageCt,
             libraryPageCt, movieTheaterPageCt, nightClubPageCt, stadiumPageCt, skiResortPageCt, golfCoursePageCt,
             apartmentPageCt, housePageCt, lodgingBusinessPageCt,
             articlePageCt, podcastSeriesPageCt, musicRecordingPageCt,
@@ -1586,6 +1627,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             reportPageCt, videoGamePageCt, sourceCodePageCt,
             occupationPageCt,
             servicePageCt, professionalServicePageCt, legalServicePageCt, financialServicePageCt, governmentOrgPageCt,
+            // New subtypes — Legal
+            legalListingCt, notaryPageCt, courthousePageCt, legislationPageCt,
             libraryPageCt, movieTheaterPageCt, nightClubPageCt, stadiumPageCt, skiResortPageCt, golfCoursePageCt,
             apartmentPageCt, housePageCt, lodgingBusinessPageCt,
             articlePageCt, podcastSeriesPageCt, musicRecordingPageCt,
@@ -2020,88 +2063,97 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         _contentService.Save(home);
         await PublishContent(home, cancellationToken);
 
-        // Create listing pages under home
+        // ── Top-level pages under home (nav order: Blog, Categories, About Us, FAQs) ──
         var blogListing = CreateAndPublishSimple("Blog", home.Id, "blogListing", "Blog", "Articles about Schema.org, structured data, and SEO.", cancellationToken);
-        var productListing = CreateAndPublishSimple("Products", home.Id, "productListing", "Products", "Our software products and tools.", cancellationToken);
-        var eventListing = CreateAndPublishSimple("Events", home.Id, "eventListing", "Events", "Upcoming community events and conferences.", cancellationToken);
-        var recipeListing = CreateAndPublishSimple("Recipes", home.Id, "recipeListing", "Recipes", "Delicious recipes with structured data.", cancellationToken);
+        var categoriesListing = CreateAndPublishSimple("Categories", home.Id, "categoriesListing", "Categories", "Browse all content organised by category.", cancellationToken);
+        await CreateAboutPage(home.Id, cancellationToken);
+        await CreateFaqContent(faqItemType, home.Id, cancellationToken);
 
-        // Create product subcategory nodes under Products listing
+        // ── Category listings under Categories ──
+        var categoriesId = await categoriesListing;
+        var productListing = CreateAndPublishSimple("Products", categoriesId, "productListing", "Products", "Our software products and tools.", cancellationToken);
+        var eventListing = CreateAndPublishSimple("Events", categoriesId, "eventListing", "Events", "Upcoming community events and conferences.", cancellationToken);
+        var recipeListing = CreateAndPublishSimple("Recipes", categoriesId, "recipeListing", "Recipes", "Delicious recipes with structured data.", cancellationToken);
+
+        // Product subcategories
         var electronicsCategory = CreateAndPublishSimple("Electronics", await productListing, "productListing", "Electronics", "Electronic devices and gadgets", cancellationToken);
         var softwareCategory = CreateAndPublishSimple("Software", await productListing, "productListing", "Software", "Software products and digital tools", cancellationToken);
         var automotiveCategory = CreateAndPublishSimple("Automotive", await productListing, "productListing", "Automotive", "Vehicles and automotive products", cancellationToken);
         var financeCategory = CreateAndPublishSimple("Finance", await productListing, "productListing", "Finance", "Financial products and services", cancellationToken);
 
-        // Create event subcategory nodes under Events listing
+        // Event subcategories
         var musicTheatreCategory = CreateAndPublishSimple("Music & Theatre", await eventListing, "eventListing", "Music & Theatre", "Live music, theatre, and performing arts", cancellationToken);
         var sportsCategory = CreateAndPublishSimple("Sports", await eventListing, "eventListing", "Sports", "Sporting events and matches", cancellationToken);
         var conferencesCategory = CreateAndPublishSimple("Conferences", await eventListing, "eventListing", "Conferences", "Tech conferences, summits, and bootcamps", cancellationToken);
         var foodFestivalsCategory = CreateAndPublishSimple("Food & Festivals", await eventListing, "eventListing", "Food & Festivals", "Food events, festivals, and outdoor celebrations", cancellationToken);
 
-        // Create content under listings (existing content, now as children)
-        await CreateFaqContent(faqItemType, home.Id, cancellationToken);
+        // Content under listings
         await CreateProductContent(reviewItemType, await electronicsCategory, cancellationToken);
         await CreateRecipeContent(recipeIngredientType, recipeStepType, await recipeListing, cancellationToken);
         await CreateBlogContent(await blogListing, cancellationToken);
         await CreateEventContent(await conferencesCategory, cancellationToken);
 
-        // Create new content types
+        // Blog content
         await CreateNewsArticle(await blogListing, cancellationToken);
         await CreateTechArticle(await blogListing, cancellationToken);
-        await CreateSoftwarePage(await softwareCategory, cancellationToken);
-        await CreateCoursePage(home.Id, cancellationToken);
-        await CreateHowToPage(howToStepType, howToToolType, home.Id, cancellationToken);
-        await CreateVideoPage(home.Id, cancellationToken);
-        await CreateJobPostingPage(home.Id, cancellationToken);
-        await CreateProfilePage(home.Id, cancellationToken);
-        await CreateLocationPage(openingHoursType, home.Id, cancellationToken);
-        await CreateRestaurantPage(openingHoursType, home.Id, cancellationToken);
-        await CreateBookPage(home.Id, cancellationToken);
-        await CreateAboutPage(home.Id, cancellationToken);
-        await CreateContactContent(home.Id, cancellationToken);
+        await CreateBlogPageContent(await blogListing, cancellationToken);
+        await CreateLiveBlogPage(await blogListing, cancellationToken);
 
-        // New product subtypes under product subcategories
+        // Product subtypes
+        await CreateSoftwarePage(await softwareCategory, cancellationToken);
         await CreateVehiclePage(await automotiveCategory, cancellationToken);
         await CreateFinancialProductPage(await financeCategory, cancellationToken);
         await CreateIndividualProductPage(await electronicsCategory, cancellationToken);
         await CreateProductModelPage(await electronicsCategory, cancellationToken);
+        await CreateOfferPageContent(await softwareCategory, cancellationToken);
 
-        // New event subtypes under event subcategories
+        // Event subtypes
         await CreateMusicEventPage(await musicTheatreCategory, cancellationToken);
         await CreateSportsEventPage(await sportsCategory, cancellationToken);
         await CreateBusinessEventPage(await conferencesCategory, cancellationToken);
         await CreateFoodEventPage(await foodFestivalsCategory, cancellationToken);
         await CreateFestivalPage(await foodFestivalsCategory, cancellationToken);
         await CreateEducationEventPage(await conferencesCategory, cancellationToken);
+        await CreateTheaterEventPage(await musicTheatreCategory, cancellationToken);
+        await CreateScreeningEventPage(await musicTheatreCategory, cancellationToken);
 
-        // New Organisations listing + children
-        var organisationListing = CreateAndPublishSimple("Organisations", home.Id, "organisationListing", "Organisations", "Notable organisations and companies.", cancellationToken);
+        // Organisations listing under Categories
+        var organisationListing = CreateAndPublishSimple("Organisations", categoriesId, "organisationListing", "Organisations", "Notable organisations and companies.", cancellationToken);
         await CreateCorporationPage(await organisationListing, cancellationToken);
         await CreateSportsTeamPage(await organisationListing, cancellationToken);
         await CreateAirlinePage(await organisationListing, cancellationToken);
         await CreateNgoPage(await organisationListing, cancellationToken);
+        await CreateGovernmentOrgPageContent(await organisationListing, cancellationToken);
 
-        // New Places listing + children
-        var placesListing = CreateAndPublishSimple("Places", home.Id, "placesListing", "Places", "Interesting places and venues.", cancellationToken);
+        // Places listing under Categories
+        var placesListing = CreateAndPublishSimple("Places", categoriesId, "placesListing", "Places", "Interesting places and venues.", cancellationToken);
         await CreateHotelPage(await placesListing, cancellationToken);
         await CreateStorePage(await placesListing, cancellationToken);
         await CreateHospitalPage(await placesListing, cancellationToken);
         await CreateGymPage(await placesListing, cancellationToken);
+        await CreateLibraryPageContent(await placesListing, cancellationToken);
+        await CreateMovieTheaterPageContent(await placesListing, cancellationToken);
+        await CreateNightClubPageContent(await placesListing, cancellationToken);
+        await CreateStadiumPageContent(await placesListing, cancellationToken);
+        await CreateSkiResortPageContent(await placesListing, cancellationToken);
+        await CreateGolfCoursePageContent(await placesListing, cancellationToken);
 
-        // New Creative listing + children
-        var creativeListing = CreateAndPublishSimple("Creative", home.Id, "creativeListing", "Creative", "Films, music, podcasts, and more.", cancellationToken);
+        // Creative listing under Categories
+        var creativeListing = CreateAndPublishSimple("Creative", categoriesId, "creativeListing", "Creative", "Films, music, podcasts, and more.", cancellationToken);
         await CreateMoviePage(await creativeListing, cancellationToken);
         await CreateMusicAlbumPage(await creativeListing, cancellationToken);
         await CreatePodcastEpisodePage(await creativeListing, cancellationToken);
         await CreatePhotographPage(await creativeListing, cancellationToken);
         await CreateDatasetPage(await creativeListing, cancellationToken);
+        await CreateReportPage(await creativeListing, cancellationToken);
+        await CreateVideoGamePage(await creativeListing, cancellationToken);
+        await CreateSourceCodePage(await creativeListing, cancellationToken);
+        await CreateArticlePageContent(await creativeListing, cancellationToken);
+        await CreatePodcastSeriesPageContent(await creativeListing, cancellationToken);
+        await CreateMusicRecordingPageContent(await creativeListing, cancellationToken);
 
-        // Standalone pages under home
-        await CreateMobileAppPage(home.Id, cancellationToken);
-        await CreateWebAppPage(home.Id, cancellationToken);
-
-        // New Shops listing + children
-        var shopsListing = CreateAndPublishSimple("Shops", home.Id, "shopsListing", "Shops", "Local shops and retail stores in Leeds.", cancellationToken);
+        // Shops listing under Categories
+        var shopsListing = CreateAndPublishSimple("Shops", categoriesId, "shopsListing", "Shops", "Local shops and retail stores in Leeds.", cancellationToken);
         await CreateBookStorePage(await shopsListing, cancellationToken);
         await CreateElectronicsStorePage(await shopsListing, cancellationToken);
         await CreateClothingStorePage(await shopsListing, cancellationToken);
@@ -2109,8 +2161,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreateFurnitureStorePage(await shopsListing, cancellationToken);
         await CreateJewelryStorePage(await shopsListing, cancellationToken);
 
-        // New Dining listing + children
-        var diningListing = CreateAndPublishSimple("Dining", home.Id, "diningListing", "Dining", "Restaurants, cafes, and bars across Leeds and Yorkshire.", cancellationToken);
+        // Dining listing under Categories
+        var diningListing = CreateAndPublishSimple("Dining", categoriesId, "diningListing", "Dining", "Restaurants, cafes, and bars across Leeds and Yorkshire.", cancellationToken);
         await CreateBakeryPage(await diningListing, cancellationToken);
         await CreateCafePage(await diningListing, cancellationToken);
         await CreateBarPage(await diningListing, cancellationToken);
@@ -2118,8 +2170,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreateWineryPage(await diningListing, cancellationToken);
         await CreateBreweryPage(await diningListing, cancellationToken);
 
-        // New Travel listing + children
-        var travelListing = CreateAndPublishSimple("Travel", home.Id, "travelListing", "Travel", "Travel reservations, flights, and tourist attractions.", cancellationToken);
+        // Travel listing under Categories
+        var travelListing = CreateAndPublishSimple("Travel", categoriesId, "travelListing", "Travel", "Travel reservations, flights, and tourist attractions.", cancellationToken);
         await CreateFlightReservationPage(await travelListing, cancellationToken);
         await CreateLodgingReservationPage(await travelListing, cancellationToken);
         await CreateEventReservationPage(await travelListing, cancellationToken);
@@ -2129,89 +2181,57 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreateBedAndBreakfastPage(await travelListing, cancellationToken);
         await CreateCampgroundPage(await travelListing, cancellationToken);
 
-        // New Healthcare listing + children
-        var healthcareListing = CreateAndPublishSimple("Healthcare", home.Id, "healthcareListing", "Healthcare", "Medical services, conditions, and pharmaceuticals.", cancellationToken);
+        // Healthcare listing under Categories
+        var healthcareListing = CreateAndPublishSimple("Healthcare", categoriesId, "healthcareListing", "Healthcare", "Medical services, conditions, and pharmaceuticals.", cancellationToken);
         await CreateDrugPage(await healthcareListing, cancellationToken);
         await CreateMedicalConditionPage(await healthcareListing, cancellationToken);
         await CreatePhysicianPage(await healthcareListing, cancellationToken);
         await CreatePharmacyPage(await healthcareListing, cancellationToken);
         await CreateDentistPage(await healthcareListing, cancellationToken);
         await CreateMedicalClinicPage(await healthcareListing, cancellationToken);
+        await CreateDiagnosticLabPageContent(await healthcareListing, cancellationToken);
 
-        // New Automotive listing + children
-        var automotiveListing = CreateAndPublishSimple("Automotive", home.Id, "automotiveListing", "Automotive", "Cars, motorcycles, dealers, and repair shops.", cancellationToken);
+        // Automotive listing under Categories
+        var automotiveListing = CreateAndPublishSimple("Automotive", categoriesId, "automotiveListing", "Automotive", "Cars, motorcycles, dealers, and repair shops.", cancellationToken);
         await CreateCarPage(await automotiveListing, cancellationToken);
         await CreateMotorcyclePage(await automotiveListing, cancellationToken);
         await CreateAutoDealerPage(await automotiveListing, cancellationToken);
         await CreateAutoRepairPage(await automotiveListing, cancellationToken);
 
-        // New event types under event subcategories
-        await CreateTheaterEventPage(await musicTheatreCategory, cancellationToken);
-        await CreateScreeningEventPage(await musicTheatreCategory, cancellationToken);
-
-        // New Entertainment listing + children
-        var entertainmentListing = CreateAndPublishSimple("Entertainment", home.Id, "entertainmentListing", "Entertainment", "Music groups, zoos, museums, and amusement parks.", cancellationToken);
+        // Entertainment listing under Categories
+        var entertainmentListing = CreateAndPublishSimple("Entertainment", categoriesId, "entertainmentListing", "Entertainment", "Music groups, zoos, museums, and amusement parks.", cancellationToken);
         await CreateMusicGroupPage(await entertainmentListing, cancellationToken);
         await CreateZooPage(await entertainmentListing, cancellationToken);
         await CreateMuseumPage(await entertainmentListing, cancellationToken);
         await CreateAmusementParkPage(await entertainmentListing, cancellationToken);
 
-        // New Services listing + children
-        var servicesListing = CreateAndPublishSimple("Services", home.Id, "servicesListing", "Services", "Professional services in Leeds and surrounding areas.", cancellationToken);
-        await CreateAttorneyPage(await servicesListing, cancellationToken);
+        // Services listing under Categories
+        var servicesListing = CreateAndPublishSimple("Services", categoriesId, "servicesListing", "Services", "Professional services in Leeds and surrounding areas.", cancellationToken);
         await CreateAccountingPage(await servicesListing, cancellationToken);
         await CreateRealEstatePage(await servicesListing, cancellationToken);
         await CreateInsurancePage(await servicesListing, cancellationToken);
         await CreateTravelAgencyPage(await servicesListing, cancellationToken);
+        await CreateServicePageContent(await servicesListing, cancellationToken);
+        await CreateProfessionalServicePageContent(await servicesListing, cancellationToken);
+        await CreateFinancialServicePageContent(await servicesListing, cancellationToken);
 
-        // New Education listing + children
-        var educationListing = CreateAndPublishSimple("Education", home.Id, "educationListing", "Education", "Universities, schools, and courses.", cancellationToken);
+        // Legal listing under Categories
+        var legalListing = CreateAndPublishSimple("Legal", categoriesId, "legalListing", "Legal", "Legal services, legislation, and judicial institutions.", cancellationToken);
+        await CreateAttorneyPage(await legalListing, cancellationToken);
+        await CreateLegalServicePageContent(await legalListing, cancellationToken);
+        await CreateNotaryPageContent(await legalListing, cancellationToken);
+        await CreateCourthousePageContent(await legalListing, cancellationToken);
+        await CreateLegislationPageContent(await legalListing, cancellationToken);
+
+        // Education listing under Categories
+        var educationListing = CreateAndPublishSimple("Education", categoriesId, "educationListing", "Education", "Universities, schools, and courses.", cancellationToken);
         await CreateUniversityPage(await educationListing, cancellationToken);
         await CreateSchoolPage(await educationListing, cancellationToken);
         await CreateCourseInstancePage(await educationListing, cancellationToken);
+        await CreateEducationalOrgPageContent(await educationListing, cancellationToken);
 
-        // New blog types under Blog listing
-        await CreateBlogPageContent(await blogListing, cancellationToken);
-        await CreateLiveBlogPage(await blogListing, cancellationToken);
-
-        // New creative types under Creative listing
-        await CreateReportPage(await creativeListing, cancellationToken);
-        await CreateVideoGamePage(await creativeListing, cancellationToken);
-        await CreateSourceCodePage(await creativeListing, cancellationToken);
-
-        // Standalone under home
-        await CreateOccupationPage(home.Id, cancellationToken);
-
-        // New expanded types — Web Page (standalone under home)
-        await CreateWebPageContent(home.Id, cancellationToken);
-
-        // New expanded types — Services under Services listing
-        await CreateServicePageContent(await servicesListing, cancellationToken);
-        await CreateProfessionalServicePageContent(await servicesListing, cancellationToken);
-        await CreateLegalServicePageContent(await servicesListing, cancellationToken);
-        await CreateFinancialServicePageContent(await servicesListing, cancellationToken);
-
-        // New expanded types — Government Org under Organisations listing
-        await CreateGovernmentOrgPageContent(await organisationListing, cancellationToken);
-
-        // New expanded types — Places under Places listing
-        await CreateLibraryPageContent(await placesListing, cancellationToken);
-        await CreateMovieTheaterPageContent(await placesListing, cancellationToken);
-        await CreateNightClubPageContent(await placesListing, cancellationToken);
-        await CreateStadiumPageContent(await placesListing, cancellationToken);
-        await CreateSkiResortPageContent(await placesListing, cancellationToken);
-        await CreateGolfCoursePageContent(await placesListing, cancellationToken);
-
-        // New expanded types — Creative under Creative listing
-        await CreateArticlePageContent(await creativeListing, cancellationToken);
-        await CreatePodcastSeriesPageContent(await creativeListing, cancellationToken);
-        await CreateMusicRecordingPageContent(await creativeListing, cancellationToken);
-
-        // New expanded types — Commerce under Software product subcategory
-        await CreateOfferPageContent(await softwareCategory, cancellationToken);
-
-        // Property (Real Estate) listing + children
-        var propertyListing = CreateAndPublishSimple("Property", home.Id, "propertyListing", "Property", "Residential and commercial property listings across Leeds and Yorkshire.", cancellationToken);
+        // Property listing under Categories
+        var propertyListing = CreateAndPublishSimple("Property", categoriesId, "propertyListing", "Property", "Residential and commercial property listings across Leeds and Yorkshire.", cancellationToken);
         await CreateApartmentPageContent(await propertyListing, cancellationToken);
         await CreateHousePageContent(await propertyListing, cancellationToken);
         await CreateLodgingBusinessPageContent(await propertyListing, cancellationToken);
@@ -2223,14 +2243,23 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreateGatedResidenceCommunityPageContent(await propertyListing, cancellationToken);
         await CreateAccommodationPageContent(await propertyListing, cancellationToken);
 
-        // New expanded types — Healthcare under Healthcare listing
-        await CreateDiagnosticLabPageContent(await healthcareListing, cancellationToken);
+        // Standalone pages under Categories
+        await CreateCoursePage(categoriesId, cancellationToken);
+        await CreateHowToPage(howToStepType, howToToolType, categoriesId, cancellationToken);
+        await CreateVideoPage(categoriesId, cancellationToken);
+        await CreateJobPostingPage(categoriesId, cancellationToken);
+        await CreateProfilePage(categoriesId, cancellationToken);
+        await CreateLocationPage(openingHoursType, categoriesId, cancellationToken);
+        await CreateRestaurantPage(openingHoursType, categoriesId, cancellationToken);
+        await CreateBookPage(categoriesId, cancellationToken);
+        await CreateContactContent(categoriesId, cancellationToken);
+        await CreateMobileAppPage(categoriesId, cancellationToken);
+        await CreateWebAppPage(categoriesId, cancellationToken);
+        await CreateOccupationPage(categoriesId, cancellationToken);
+        await CreateWebPageContent(categoriesId, cancellationToken);
 
-        // New expanded types — Education under Education listing
-        await CreateEducationalOrgPageContent(await educationListing, cancellationToken);
-
-        // Acme Corp hierarchy (parent/ancestor/sibling testing)
-        var acmeCorp = _contentService.Create("Acme Corporation", home.Id, "organisationParent");
+        // Acme Corp hierarchy under Organisations (parent/ancestor/sibling testing)
+        var acmeCorp = _contentService.Create("Acme Corporation", await organisationListing, "organisationParent");
         acmeCorp.SetValue("title", "Acme Corporation");
         acmeCorp.SetValue("description", "A multinational conglomerate headquartered in Leeds.");
         acmeCorp.SetValue("telephone", "+44 113 496 0000");
@@ -2260,7 +2289,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         _contentService.Save(acmeMarketing);
         await PublishContent(acmeMarketing, cancellationToken);
 
-        _logger.LogInformation("TestDataSeeder: created and published {Count} sample content nodes", 147);
+        _logger.LogInformation("TestDataSeeder: created and published sample content nodes");
     }
 
     private async Task<int> CreateAndPublishSimple(string name, int parentId, string contentTypeAlias, string title, string description, CancellationToken cancellationToken)
@@ -2275,8 +2304,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
     private async Task CreateFaqContent(IContentType faqItemType, int parentId, CancellationToken cancellationToken)
     {
-        var content = _contentService.Create("Frequently Asked Questions", parentId, "faqPage");
-        content.SetValue("title", "Frequently Asked Questions");
+        var content = _contentService.Create("FAQs", parentId, "faqPage");
+        content.SetValue("title", "FAQs");
         content.SetValue("description", "Common questions about our services");
 
         var faqItems = BuildBlockListJson(faqItemType.Key, new[]
@@ -3611,6 +3640,47 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await SaveAndPublishAsync(content);
     }
 
+    private async Task CreateNotaryPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Leeds Notary Public", parentId, "notaryPage");
+        content.SetValue("title", "Leeds Notary Public");
+        content.SetValue("description", "Experienced notary public providing document authentication, oath administration, and international notarial services for individuals and businesses.");
+        content.SetValue("telephone", "+44 113 245 8800");
+        content.SetValue("email", "notary@leedsnotary.example.com");
+        content.SetValue("streetAddress", "15 Greek Street");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 5RU");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateCourthousePageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Leeds Combined Court Centre", parentId, "courthousePage");
+        content.SetValue("title", "Leeds Combined Court Centre");
+        content.SetValue("description", "Major court complex housing the Crown Court, County Court, and Family Court, handling civil, criminal, and family proceedings across West Yorkshire.");
+        content.SetValue("telephone", "+44 113 306 2800");
+        content.SetValue("streetAddress", "1 Oxford Row");
+        content.SetValue("addressLocality", "Leeds");
+        content.SetValue("postalCode", "LS1 3BG");
+        content.SetValue("addressCountry", "GB");
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateLegislationPageContent(int parentId, CancellationToken ct)
+    {
+        var content = _contentService.Create("Data Protection Act 2018", parentId, "legislationPage");
+        content.SetValue("title", "Data Protection Act 2018");
+        content.SetValue("description", "The Data Protection Act 2018 is the UK's implementation of the General Data Protection Regulation (GDPR). It controls how personal information is used by organisations, businesses, and the government.");
+        content.SetValue("bodyText", "<p>The Data Protection Act 2018 sets out the framework for data protection law in the United Kingdom. It updates and replaces the Data Protection Act 1998 and supplements the EU General Data Protection Regulation (GDPR).</p><p>The Act covers the general processing of personal data, law enforcement processing, and intelligence services processing. It establishes the Information Commissioner as the UK's independent supervisory authority for data protection.</p>");
+        content.SetValue("legislationIdentifier", "ukpga/2018/12");
+        content.SetValue("legislationDate", new DateTime(2018, 5, 23));
+        content.SetValue("legislationJurisdiction", "United Kingdom");
+        content.SetValue("legislationType", "Act of Parliament");
+        content.SetValue("legislationLegalForce", "InForce");
+        await SaveAndPublishAsync(content);
+    }
+
     private async Task CreateFinancialServicePageContent(int parentId, CancellationToken ct)
     {
         var content = _contentService.Create("Northern Finance Advisors", parentId, "financialServicePage");
@@ -4065,6 +4135,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType reportPageCt, IContentType videoGamePageCt, IContentType sourceCodePageCt,
         IContentType occupationPageCt,
         IContentType servicePageCt, IContentType professionalServicePageCt, IContentType legalServicePageCt, IContentType financialServicePageCt, IContentType governmentOrgPageCt,
+        // Legal
+        IContentType legalListingCt, IContentType notaryPageCt, IContentType courthousePageCt, IContentType legislationPageCt,
         IContentType libraryPageCt, IContentType movieTheaterPageCt, IContentType nightClubPageCt, IContentType stadiumPageCt, IContentType skiResortPageCt, IContentType golfCoursePageCt,
         IContentType apartmentPageCt, IContentType housePageCt, IContentType lodgingBusinessPageCt,
         IContentType articlePageCt, IContentType podcastSeriesPageCt, IContentType musicRecordingPageCt,
@@ -4247,6 +4319,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, professionalServicePageCt, "ProfessionalService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("PriceRange", "priceRange"), ("Url", "__url"));
         SeedSimpleMapping(repo, legalServicePageCt, "LegalService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
         SeedSimpleMapping(repo, financialServicePageCt, "FinancialService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
+
+        // New legal category mappings
+        SeedSimpleMapping(repo, legalListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
+        SeedSimpleMapping(repo, notaryPageCt, "Notary", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
+        SeedSimpleMapping(repo, courthousePageCt, "Courthouse", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
+        SeedSimpleMapping(repo, legislationPageCt, "Legislation", ("Name", "title"), ("Description", "description"), ("LegislationIdentifier", "legislationIdentifier"), ("LegislationDate", "legislationDate"), ("LegislationJurisdiction", "legislationJurisdiction"), ("LegislationType", "legislationType"), ("Url", "__url"));
         SeedSimpleMapping(repo, governmentOrgPageCt, "GovernmentOrganization", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("AreaServed", "areaServed"), ("Url", "__url"));
         SeedSimpleMapping(repo, libraryPageCt, "Library", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
         SeedSimpleMapping(repo, movieTheaterPageCt, "MovieTheater", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("ScreenCount", "screenCount"), ("Url", "__url"));

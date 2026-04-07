@@ -1,0 +1,47 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<CourthousePage>
+@{
+    Layout = "Master.cshtml";
+}
+<h1>@Model.Title</h1>
+
+@if (!string.IsNullOrEmpty(Model.Description))
+{
+    <p class="lead">@Model.Description</p>
+}
+
+@if (!string.IsNullOrEmpty(Model.Telephone))
+{
+    <div class="card">
+        <h2>Contact</h2>
+        <dl>
+            <dt>Telephone</dt>
+            <dd>@Model.Telephone</dd>
+        </dl>
+    </div>
+}
+
+<div class="card">
+    <h2>Address</h2>
+    <dl>
+        @if (!string.IsNullOrEmpty(Model.StreetAddress))
+        {
+            <dt>Street</dt>
+            <dd>@Model.StreetAddress</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.AddressLocality))
+        {
+            <dt>Locality</dt>
+            <dd>@Model.AddressLocality</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.PostalCode))
+        {
+            <dt>Post Code</dt>
+            <dd>@Model.PostalCode</dd>
+        }
+        @if (!string.IsNullOrEmpty(Model.AddressCountry))
+        {
+            <dt>Country</dt>
+            <dd>@Model.AddressCountry</dd>
+        }
+    </dl>
+</div>

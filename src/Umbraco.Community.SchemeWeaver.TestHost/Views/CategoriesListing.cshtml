@@ -1,0 +1,47 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<CategoriesListing>
+@{
+    Layout = "Master.cshtml";
+    var categories = Model.Children?.Where(c => c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
+    var items = Model.Children?.Where(c => !c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
+}
+
+<h1>@Model.Title</h1>
+
+@if (!string.IsNullOrEmpty(Model.Description))
+{
+    <p class="lead">@Model.Description</p>
+}
+
+@if (categories.Any())
+{
+    <div class="card-grid">
+        @foreach (var child in categories)
+        {
+            <div class="card category-card">
+                <h3><a href="@child.Url()">@child.Name</a></h3>
+                @if (child.HasValue("description"))
+                {
+                    <p>@child.Value("description")</p>
+                }
+                <p class="article-meta">@child.Children?.Count() items</p>
+            </div>
+        }
+    </div>
+}
+
+@if (items.Any())
+{
+    <h2>More</h2>
+    <div class="card-grid">
+        @foreach (var child in items)
+        {
+            <div class="card">
+                <h3><a href="@child.Url()">@child.Name</a></h3>
+                @if (child.HasValue("description"))
+                {
+                    <p>@child.Value("description")</p>
+                }
+            </div>
+        }
+    </div>
+}

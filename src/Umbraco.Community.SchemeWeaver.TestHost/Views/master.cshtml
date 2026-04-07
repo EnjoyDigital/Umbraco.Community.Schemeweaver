@@ -27,9 +27,9 @@
                     var rootChildren = Model.Root()?.Children;
                     if (rootChildren != null)
                     {
-                        foreach (var child in rootChildren.Take(8))
+                        foreach (var child in rootChildren)
                         {
-                            <a href="@child.Url()" class="@(Model.IsAncestorOrSelf(child) ? "active" : "")">@child.Name</a>
+                            <a href="@child.Url()" class="@(child.IsAncestorOrSelf(Model) ? "active" : "")">@child.Name</a>
                         }
                     }
                 }

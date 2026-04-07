@@ -70,6 +70,9 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
             if (!string.IsNullOrEmpty(pm.ResolverConfig))
                 pmNode.Add(new XElement("ResolverConfig", new XCData(pm.ResolverConfig)));
 
+            if (!string.IsNullOrEmpty(pm.DynamicRootConfig))
+                pmNode.Add(new XElement("DynamicRootConfig", new XCData(pm.DynamicRootConfig)));
+
             propertyMappingsNode.Add(pmNode);
         }
 
@@ -124,6 +127,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
                     StaticValue = pmNode.Element("StaticValue")?.Value,
                     NestedSchemaTypeName = pmNode.Element("NestedSchemaTypeName")?.Value,
                     ResolverConfig = pmNode.Element("ResolverConfig")?.Value,
+                    DynamicRootConfig = pmNode.Element("DynamicRootConfig")?.Value,
                 };
 
                 propertyMappings.Add(pm);

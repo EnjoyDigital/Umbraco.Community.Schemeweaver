@@ -276,6 +276,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
             staticValue: row.staticValue || null,
             nestedSchemaTypeName: row.nestedSchemaTypeName || null,
             resolverConfig: row.resolverConfig,
+            dynamicRootConfig: row.dynamicRootConfig ? JSON.stringify(row.dynamicRootConfig) : null,
           })),
       });
 

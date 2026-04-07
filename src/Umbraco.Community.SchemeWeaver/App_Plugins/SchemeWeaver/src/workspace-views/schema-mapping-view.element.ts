@@ -171,9 +171,17 @@ export class SchemaMappingViewElement extends UmbLitElement {
           })
         );
 
+        // Fetch content types to reconstruct sourceDocumentTypeUnique from alias
+        const contentTypes = await this.#context.requestContentTypes();
+
         this._rows = this._rows.map((row) => {
           if (row.sourceContentTypeAlias && sourcePropsMap.has(row.sourceContentTypeAlias)) {
-            return { ...row, sourceContentTypeProperties: sourcePropsMap.get(row.sourceContentTypeAlias)! };
+            const ctMatch = contentTypes?.find((ct) => ct.alias === row.sourceContentTypeAlias);
+            return {
+              ...row,
+              sourceContentTypeProperties: sourcePropsMap.get(row.sourceContentTypeAlias)!,
+              sourceDocumentTypeUnique: ctMatch?.key,
+            };
           }
           return row;
         });
@@ -269,6 +277,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
             staticValue: row.staticValue || null,
             nestedSchemaTypeName: row.nestedSchemaTypeName || null,
             resolverConfig: row.resolverConfig,
+            dynamicRootConfig: row.dynamicRootConfig ? JSON.stringify(row.dynamicRootConfig) : null,
           })),
       };
       await this.#context.saveMapping(dto);

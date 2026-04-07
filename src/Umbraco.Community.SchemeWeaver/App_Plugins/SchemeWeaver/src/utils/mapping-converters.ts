@@ -26,7 +26,7 @@ export function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
     subMappings: [],
     selectedSubType: '',
     sourceContentTypeProperties: [],
-    dynamicRootConfig: undefined,
+    dynamicRootConfig: dto.dynamicRootConfig ? JSON.parse(dto.dynamicRootConfig) : undefined,
     sourceDocumentTypeUnique: undefined,
   };
 }
