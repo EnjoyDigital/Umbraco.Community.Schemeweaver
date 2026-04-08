@@ -202,5 +202,27 @@ export default {
     schemaTypesListLabel: 'Schema.org types',
     propertiesListLabel: 'Properties',
     schemaSelectListLabel: 'Schema selection',
+
+    // Workspace-view tab labels (kept short — they appear on document type / content tabs)
+    workspaceViewSchemaOrg: 'Schema.org',
+    workspaceViewJsonLd: 'JSON-LD',
+
+    // Built-in property display names shown in the property combobox
+    builtInUrl: 'URL (Built-in)',
+    builtInName: 'Name (Built-in)',
+    builtInCreateDate: 'Create Date (Built-in)',
+    builtInUpdateDate: 'Update Date (Built-in)',
+
+    // Parameterised strings
+    schemaPropertyCount: '{0} properties',
+    loadingEllipsis: 'Loading...',
+    wrapPrefix: 'wrap',
+    mapPropertiesForType: 'Map Properties — {0}',
+    nestedMappingForType: 'Nested Mapping — {0}',
+    valueForProperty: 'Value for {0}',
+    propertyAliasLabel: 'Property alias for {0}',
+    staticValueForProperty: 'Static value for {0}',
+    nestedTypeForProperty: 'Nested type for {0}',
+    wrapInTypeForProperty: 'Wrap-in type for {0}',
   },
 };

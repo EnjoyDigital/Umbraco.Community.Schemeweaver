@@ -1,6 +1,6 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
-import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
+import { UMB_DOCUMENT_TYPE_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/document-type';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
@@ -76,28 +76,36 @@ export class SchemaMappingViewElement extends UmbLitElement {
     super.connectedCallback();
 
     try {
-      const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as
-        { alias?: { subscribe(cb: (v: string | null) => void): void }; getUnique?(): string | undefined };
-      if (workspaceContext?.alias) {
-        this.observe(
-          workspaceContext.alias,
-          (alias: string | null) => {
-            if (alias) {
-              this._contentTypeAlias = alias;
-              this._fetchMapping();
-            }
-          },
-          '_observeAlias'
-        );
+      const workspaceContext = await this.getContext(UMB_DOCUMENT_TYPE_WORKSPACE_CONTEXT);
+      if (!workspaceContext) {
+        // Workspace view rendered outside its expected document-type workspace.
+        // In production this should never happen because the workspaceView
+        // condition gates it. Leave the loader in place rather than revealing
+        // an empty state to the user.
+        return;
       }
-      if (workspaceContext?.getUnique) {
-        const unique = workspaceContext.getUnique();
-        if (unique) {
-          this._contentTypeKey = unique;
-        }
+
+      this.observe(
+        workspaceContext.alias,
+        (alias) => {
+          if (alias) {
+            this._contentTypeAlias = alias;
+            this._fetchMapping();
+          }
+        },
+        '_observeAlias',
+      );
+
+      const unique = workspaceContext.getUnique();
+      if (unique) {
+        this._contentTypeKey = unique;
       }
     } catch {
-      this._loading = false;
+      // Workspace context wasn't available (e.g., element rendered outside its
+      // expected workspace, or running under a test fixture). Surface a warning
+      // notification but keep `_loading` true so the user sees a spinner rather
+      // than an empty state — the workspaceView condition guarantees this only
+      // ever runs inside a real document-type workspace in production.
       this.#notificationContext?.peek('warning', {
         data: { message: this.localize.term('schemeWeaver_workspaceContextUnavailable') },
       });

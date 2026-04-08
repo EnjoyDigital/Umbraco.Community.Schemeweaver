@@ -104,7 +104,7 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
                         (ct) => html`
                           <umb-ref-item
                             name=${ct.name}
-                            detail="${ct.alias}${ct.propertyCount > 0 ? ` · ${ct.propertyCount} ${this.localize.term('schemeWeaver_properties')}` : ''}"
+                            detail="${ct.alias}${ct.propertyCount > 0 ? ` · ${this.localize.term('schemeWeaver_schemaPropertyCount', ct.propertyCount)}` : ''}"
                             icon="icon-document"
                             @open=${() => this._handleSelect(ct)}
                           ></umb-ref-item>

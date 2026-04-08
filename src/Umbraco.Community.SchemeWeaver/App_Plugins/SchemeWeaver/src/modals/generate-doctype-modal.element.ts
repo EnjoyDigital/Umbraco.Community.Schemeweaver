@@ -71,6 +71,16 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
     await this._fetchSchemaTypes();
   }
 
+  override disconnectedCallback() {
+    // Cancel any pending debounced search before the modal is removed from the
+    // DOM so the timer can't fire against a destroyed element.
+    if (this.#searchTimer) {
+      clearTimeout(this.#searchTimer);
+      this.#searchTimer = undefined;
+    }
+    super.disconnectedCallback();
+  }
+
   private async _fetchSchemaTypes() {
     this._loading = true;
     try {

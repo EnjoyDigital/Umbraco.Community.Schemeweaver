@@ -50,6 +50,16 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     this._checkAIStatus();
   }
 
+  override disconnectedCallback() {
+    // Clear any pending debounced search so a callback can't fire after the
+    // modal has been closed and the element is being torn down.
+    if (this.#searchTimer) {
+      clearTimeout(this.#searchTimer);
+      this.#searchTimer = undefined;
+    }
+    super.disconnectedCallback();
+  }
+
   private async _checkAIStatus() {
     try {
       const status = await this.#repository.requestAIStatus();
@@ -242,7 +252,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
                               </div>
                               <p class="schema-description">${type.description}</p>
                               ${type.propertyCount > 0
-                                ? html`<small class="property-count">${type.propertyCount} ${this.localize.term('schemeWeaver_properties')}</small>`
+                                ? html`<small class="property-count">${this.localize.term('schemeWeaver_schemaPropertyCount', type.propertyCount)}</small>`
                                 : ''}
                             </div>
                           `

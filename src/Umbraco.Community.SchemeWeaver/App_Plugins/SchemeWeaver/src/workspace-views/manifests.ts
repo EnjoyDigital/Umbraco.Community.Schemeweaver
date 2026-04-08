@@ -8,7 +8,7 @@ export const manifests = [
     element: () => import('./schema-mapping-view.element.js'),
     weight: 90,
     meta: {
-      label: 'Schema.org',
+      label: '#schemeWeaver_workspaceViewSchemaOrg',
       pathname: 'schema-org',
       icon: 'icon-brackets',
     },
@@ -26,7 +26,7 @@ export const manifests = [
     element: () => import('./jsonld-content-view.element.js'),
     weight: 80,
     meta: {
-      label: 'JSON-LD',
+      label: '#schemeWeaver_workspaceViewJsonLd',
       pathname: 'json-ld',
       icon: 'icon-brackets',
     },

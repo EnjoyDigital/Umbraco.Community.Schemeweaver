@@ -9,7 +9,7 @@ interface JsonToken {
 
 @customElement('schemeweaver-jsonld-preview')
 export class JsonLdPreviewElement extends UmbLitElement {
-  @property({ type: Object })
+  @property({ type: Object, attribute: false })
   jsonLd: JsonLdPreviewResponse | null = null;
 
   get formattedJson(): string {

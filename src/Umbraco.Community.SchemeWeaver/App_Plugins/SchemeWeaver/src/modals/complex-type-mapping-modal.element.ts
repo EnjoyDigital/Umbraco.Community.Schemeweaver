@@ -551,7 +551,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
             label=${this.localize.term('schemeWeaver_autoMap')}
           >
             <uui-icon name="icon-wand"></uui-icon>
-            ${this._autoMapping ? '...' : this.localize.term('schemeWeaver_autoMap')}
+            ${this._autoMapping ? this.localize.term('schemeWeaver_loadingEllipsis') : this.localize.term('schemeWeaver_autoMap')}
           </uui-button>
         </div>
 
@@ -622,7 +622,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
           .value=${mapping.staticValue}
           @input=${(e: Event) => this._handleStaticValueChange(index, (e.target as HTMLInputElement).value)}
           placeholder=${this.localize.term('schemeWeaver_enterStaticValue')}
-          label=${this.localize.term('schemeWeaver_staticValueFor') + ' ' + mapping.schemaProperty}
+          label=${this.localize.term('schemeWeaver_staticValueForProperty', mapping.schemaProperty)}
         ></uui-input>
       `;
     }
@@ -652,7 +652,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
                 <schemeweaver-property-combobox
                   .properties=${mapping.sourceContentTypeProperties}
                   .value=${mapping.contentTypePropertyAlias}
-                  label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaProperty}
+                  label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
                   placeholder=${this.localize.term('schemeWeaver_selectProperty')}
                   @change=${(e: CustomEvent) => this._handlePropertyChange(index, e.detail.value)}
                 ></schemeweaver-property-combobox>
@@ -676,7 +676,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
       <schemeweaver-property-combobox
         .properties=${this.data?.availableProperties || []}
         .value=${mapping.contentTypePropertyAlias}
-        label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaProperty}
+        label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
         placeholder=${this.localize.term('schemeWeaver_selectProperty')}
         @change=${(e: CustomEvent) => this._handlePropertyChange(index, e.detail.value)}
       ></schemeweaver-property-combobox>

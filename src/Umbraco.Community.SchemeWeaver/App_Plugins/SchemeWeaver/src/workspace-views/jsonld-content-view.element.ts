@@ -1,6 +1,6 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
-import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
+import { UMB_DOCUMENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/document';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import '../components/jsonld-preview.element.js';
 import type { JsonLdPreviewElement } from '../components/jsonld-preview.element.js';
@@ -42,34 +42,29 @@ export class JsonLdContentViewElement extends UmbLitElement {
     super.connectedCallback();
 
     try {
-      const workspaceContext = await this.getContext(UMB_WORKSPACE_CONTEXT) as
-        { getUnique?(): string | undefined; contentTypeUnique?: { subscribe(cb: (v: string | null) => void): void } };
-
-      if (workspaceContext?.getUnique) {
-        this._contentKey = workspaceContext.getUnique() ?? '';
-      }
-
-      // contentTypeUnique is an observable on the Document workspace context
-      if (workspaceContext?.contentTypeUnique) {
-        this.observe(
-          workspaceContext.contentTypeUnique,
-          async (contentTypeId: string | null) => {
-            if (contentTypeId) {
-              const alias = await this.#context.resolveContentTypeAlias(contentTypeId);
-              if (alias) {
-                this._contentTypeAlias = alias;
-                await this._checkMapping();
-              } else {
-                this._hasMapping = false;
-                this._loading = false;
-              }
-            }
-          },
-          '_observeContentTypeUnique',
-        );
-      } else {
+      const workspaceContext = await this.getContext(UMB_DOCUMENT_WORKSPACE_CONTEXT);
+      if (!workspaceContext) {
         this._loading = false;
+        return;
       }
+
+      this._contentKey = workspaceContext.getUnique() ?? '';
+
+      this.observe(
+        workspaceContext.contentTypeUnique,
+        async (contentTypeId) => {
+          if (!contentTypeId) return;
+          const alias = await this.#context.resolveContentTypeAlias(contentTypeId);
+          if (alias) {
+            this._contentTypeAlias = alias;
+            await this._checkMapping();
+          } else {
+            this._hasMapping = false;
+            this._loading = false;
+          }
+        },
+        '_observeContentTypeUnique',
+      );
     } catch {
       // Workspace context may not be available
       this._loading = false;

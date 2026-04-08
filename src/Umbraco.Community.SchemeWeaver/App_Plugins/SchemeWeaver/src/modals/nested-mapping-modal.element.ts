@@ -443,7 +443,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     const stepNumber = this._currentStep === 'block-type' ? 1 : this._currentStep === 'mappings' ? 2 : 3;
 
     return html`
-      <umb-body-layout headline="${this.localize.term('schemeWeaver_nestedMappings')} - ${this.data?.nestedSchemaTypeName || ''}">
+      <umb-body-layout headline="${this.localize.term('schemeWeaver_nestedMappings')}: ${this.data?.nestedSchemaTypeName ?? ''}">
         ${this._loading
           ? html`
               <div class="loading">
@@ -598,7 +598,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
             label=${this.localize.term('schemeWeaver_autoMapNested')}
           >
             <uui-icon name="icon-wand"></uui-icon>
-            ${this._autoMapping ? '...' : this.localize.term('schemeWeaver_autoMapNested')}
+            ${this._autoMapping ? this.localize.term('schemeWeaver_loadingEllipsis') : this.localize.term('schemeWeaver_autoMapNested')}
           </uui-button>
         </div>
 
@@ -621,7 +621,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                 ${blockProperties.length > 0
                   ? html`
                       <uui-select
-                        label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaProperty}
+                        label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
                         .options=${[
                           { name: this.localize.term('schemeWeaver_none'), value: '', selected: !mapping.contentProperty },
                           ...blockProperties.map((p) => ({
@@ -638,7 +638,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                         .value=${mapping.contentProperty}
                         @input=${(e: Event) => this._handleContentPropertyChange(index, (e.target as HTMLInputElement).value)}
                         placeholder=${this.localize.term('schemeWeaver_blockPropertyPlaceholder')}
-                        label=${this.localize.term('schemeWeaver_value') + ' ' + mapping.schemaProperty}
+                        label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
                       ></uui-input>
                     `}
               </uui-table-cell>
@@ -680,7 +680,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           ${mapping.acceptedTypes.length > 0
             ? html`
                 <uui-select
-                  label=${this.localize.term('schemeWeaver_wrapInType') + ' ' + mapping.schemaProperty}
+                  label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', mapping.schemaProperty)}
                   .options=${[
                     { name: this.localize.term('schemeWeaver_none'), value: '', selected: !mapping.wrapInType },
                     ...mapping.acceptedTypes.map((t) => ({
@@ -697,7 +697,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                   .value=${mapping.wrapInType}
                   @input=${(e: Event) => this._handleWrapInTypeChange(index, (e.target as HTMLInputElement).value)}
                   placeholder=${this.localize.term('schemeWeaver_wrapInType')}
-                  label=${this.localize.term('schemeWeaver_wrapInType') + ' ' + mapping.schemaProperty}
+                  label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', mapping.schemaProperty)}
                 ></uui-input>
               `}
           <uui-button compact look="secondary" label=${this.localize.term('schemeWeaver_done')} @click=${() => this._toggleWrapOverride(index)}>
@@ -752,7 +752,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                 <span class="preview-arrow">&larr;</span>
                 <span>${m.contentProperty}</span>
                 ${m.wrapInType
-                  ? html`<uui-tag look="secondary" class="wrap-tag">wrap: ${m.wrapInType}</uui-tag>`
+                  ? html`<uui-tag look="secondary" class="wrap-tag">${this.localize.term('schemeWeaver_wrapPrefix')}: ${m.wrapInType}</uui-tag>`
                   : nothing}
               </div>
             `

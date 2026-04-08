@@ -297,7 +297,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
   render() {
     return html`
-      <umb-body-layout headline="${this.localize.term('schemeWeaver_mapProperties')} - ${this.data?.schemaType || ''}">
+      <umb-body-layout headline="${this.localize.term('schemeWeaver_mapProperties')}: ${this.data?.schemaType ?? ''}">
         ${this._loading
           ? html`
               <div class="loading">

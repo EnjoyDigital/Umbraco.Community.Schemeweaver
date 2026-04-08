@@ -2,18 +2,17 @@ import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state } from '@umbraco-cms/backoffice/external/lit';
 import type { UUIComboboxElement, UUIComboboxEvent } from '@umbraco-cms/backoffice/external/uui';
 
-/** Built-in property alias display name map */
-const BUILT_IN_DISPLAY_NAMES: Record<string, string> = {
-  '__url': 'URL (Built-in)',
-  '__name': 'Name (Built-in)',
-  '__createDate': 'Create Date (Built-in)',
-  '__updateDate': 'Update Date (Built-in)',
+/**
+ * Maps built-in property aliases to their localisation key + English fallback.
+ * The fallback is used when no localisation provider is registered (e.g. in
+ * isolated component tests) so the dropdown still shows readable text.
+ */
+const BUILT_IN_DISPLAY: Record<string, { key: string; fallback: string }> = {
+  '__url': { key: 'schemeWeaver_builtInUrl', fallback: 'URL (Built-in)' },
+  '__name': { key: 'schemeWeaver_builtInName', fallback: 'Name (Built-in)' },
+  '__createDate': { key: 'schemeWeaver_builtInCreateDate', fallback: 'Create Date (Built-in)' },
+  '__updateDate': { key: 'schemeWeaver_builtInUpdateDate', fallback: 'Update Date (Built-in)' },
 };
-
-/** Returns a display-friendly name for a property alias, with built-in indicator */
-export function formatPropertyName(alias: string): string {
-  return BUILT_IN_DISPLAY_NAMES[alias] ?? alias;
-}
 
 /**
  * Searchable property combobox component.
@@ -60,11 +59,21 @@ export class PropertyComboboxElement extends UmbLitElement {
     this._filteredProperties = this._filterList(searchTerm);
   }
 
+  /** Resolves a property alias to a display-friendly name using the localisation map. */
+  #formatPropertyName(alias: string): string {
+    const entry = BUILT_IN_DISPLAY[alias];
+    if (!entry) return alias;
+    // `localize.term` returns the key itself when no provider is registered;
+    // detect that case and fall back to the English string.
+    const localised = this.localize.term(entry.key);
+    return localised && localised !== entry.key ? localised : entry.fallback;
+  }
+
   private _filterList(searchTerm: string): string[] {
     if (!searchTerm) return this.properties;
     const regex = new RegExp(searchTerm, 'i');
     return this.properties.filter(
-      (alias) => regex.test(alias) || regex.test(formatPropertyName(alias)),
+      (alias) => regex.test(alias) || regex.test(this.#formatPropertyName(alias)),
     );
   }
 
@@ -91,8 +100,8 @@ export class PropertyComboboxElement extends UmbLitElement {
         <uui-combobox-list>
           ${this._filteredProperties.map(
             (alias) => html`
-              <uui-combobox-list-option .value=${alias} .displayValue=${formatPropertyName(alias)}>
-                ${formatPropertyName(alias)}
+              <uui-combobox-list-option .value=${alias} .displayValue=${this.#formatPropertyName(alias)}>
+                ${this.#formatPropertyName(alias)}
               </uui-combobox-list-option>
             `,
           )}
