@@ -135,6 +135,76 @@ public class SchemeWeaverServiceTests
     }
 
     [Fact]
+    public void SaveMapping_WithMultipleProperties_PreservesAll()
+    {
+        // Round-trips a mapping containing many distinct property mappings
+        // through SaveMapping → SavePropertyMappings to make sure none are
+        // dropped along the way. This regression test exists because an early
+        // E2E test corrupted seeded data by accidentally writing back a
+        // single-property mapping; that case never reached the C# layer but
+        // the safety net belongs here.
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings = new List<PropertyMappingDto>
+            {
+                new() { SchemaPropertyName = "headline", SourceType = "property", ContentTypePropertyAlias = "title" },
+                new() { SchemaPropertyName = "description", SourceType = "property", ContentTypePropertyAlias = "summary" },
+                new() { SchemaPropertyName = "image", SourceType = "property", ContentTypePropertyAlias = "heroImage" },
+                new() { SchemaPropertyName = "author", SourceType = "static", StaticValue = "Editorial Team" },
+                new()
+                {
+                    SchemaPropertyName = "publisher",
+                    SourceType = "parent",
+                    SourceContentTypeAlias = "siteRoot",
+                    DynamicRootConfig = """{"originAlias":"Root","querySteps":[]}"""
+                },
+                new()
+                {
+                    SchemaPropertyName = "review",
+                    SourceType = "blockContent",
+                    ContentTypePropertyAlias = "reviews",
+                    NestedSchemaTypeName = "Review",
+                    ResolverConfig = """{"nestedMappings":[{"schemaProperty":"Author","contentProperty":"reviewAuthor"}]}"""
+                },
+            }
+        };
+
+        var savedEntity = new SchemaMapping
+        {
+            Id = 42,
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true
+        };
+        _repository.GetByContentTypeAlias("article").Returns(null as SchemaMapping, savedEntity);
+        _repository.Save(Arg.Any<SchemaMapping>()).Returns(savedEntity);
+        _repository.GetPropertyMappings(42).Returns(Enumerable.Empty<PropertyMapping>());
+
+        List<PropertyMapping>? captured = null;
+        _repository
+            .When(r => r.SavePropertyMappings(42, Arg.Any<IEnumerable<PropertyMapping>>()))
+            .Do(c => captured = c.Arg<IEnumerable<PropertyMapping>>().ToList());
+
+        _sut.SaveMapping(dto);
+
+        captured.Should().NotBeNull();
+        captured!.Should().HaveCount(6, "all six property mappings must reach the repository");
+        captured.Select(m => m.SchemaPropertyName).Should().BeEquivalentTo(new[]
+        {
+            "headline", "description", "image", "author", "publisher", "review"
+        });
+        captured.Single(m => m.SchemaPropertyName == "publisher").DynamicRootConfig
+            .Should().Be("""{"originAlias":"Root","querySteps":[]}""");
+        captured.Single(m => m.SchemaPropertyName == "review").ResolverConfig
+            .Should().Contain("reviewAuthor");
+        captured.Single(m => m.SchemaPropertyName == "author").StaticValue
+            .Should().Be("Editorial Team");
+    }
+
+    [Fact]
     public void SaveMapping_WithDynamicRootConfig_PersistsField()
     {
         const string dynamicRootJson = """{"originAlias":"Root","querySteps":[]}""";

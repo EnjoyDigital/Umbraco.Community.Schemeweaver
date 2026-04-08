@@ -817,31 +817,50 @@ test.describe('Dynamic Root Config Round-Trip', () => {
     await umbracoUi.goToBackOffice();
     await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-    const testAlias = 'productPage';
+    // Use a synthetic alias that no real content type owns. This isolates the
+    // round-trip test from the seeded data so a failure cannot strip mappings
+    // belonging to productPage / blogArticle / etc.
+    const testAlias = 'e2eDynamicRootRoundTripTest';
     const dynamicRootJson = JSON.stringify({
       originAlias: 'Root',
       querySteps: [{ unique: 'e2e-guid-123', alias: 'childOfType' }],
     });
 
-    // ── STEP 1: Fetch the existing productPage mapping so we can restore it
-    // afterwards. Other tests (and the delivery-API JSON-LD tests) rely on
-    // the full seeded Product mapping remaining intact.
-    const listBefore = await umbracoUi.page.request.get(
-      '/umbraco/management/api/v1/schemeweaver/mappings'
-    );
-    expect(listBefore.ok()).toBeTruthy();
-    const mappingsBefore = await listBefore.json();
-    const originalMapping = mappingsBefore.find((m: any) => m.contentTypeAlias === testAlias);
-    expect(originalMapping, 'Seeded productPage mapping missing — cannot safely run round-trip test').toBeTruthy();
-
     try {
-      // ── STEP 2: Save a modified mapping with dynamicRootConfig set on one
-      // property. Include all the original property mappings so we don't lose
-      // any fields if the restore step fails.
-      const modifiedMapping = {
-        ...originalMapping,
+      // ── STEP 1: POST a brand-new mapping with three properties, one of
+      // which carries a dynamicRootConfig blob. Multiple properties verify the
+      // round-trip preserves the full collection, not just one row.
+      const newMapping = {
+        contentTypeAlias: testAlias,
+        contentTypeKey: '00000000-0000-0000-0000-000000000000',
+        schemaTypeName: 'Article',
+        isEnabled: true,
+        isInherited: false,
         propertyMappings: [
-          ...originalMapping.propertyMappings,
+          {
+            schemaPropertyName: 'headline',
+            sourceType: 'property',
+            contentTypePropertyAlias: 'title',
+            sourceContentTypeAlias: null,
+            transformType: null,
+            isAutoMapped: false,
+            staticValue: null,
+            nestedSchemaTypeName: null,
+            resolverConfig: null,
+            dynamicRootConfig: null,
+          },
+          {
+            schemaPropertyName: 'description',
+            sourceType: 'property',
+            contentTypePropertyAlias: 'summary',
+            sourceContentTypeAlias: null,
+            transformType: null,
+            isAutoMapped: false,
+            staticValue: null,
+            nestedSchemaTypeName: null,
+            resolverConfig: null,
+            dynamicRootConfig: null,
+          },
           {
             schemaPropertyName: 'publisher',
             sourceType: 'parent',
@@ -859,41 +878,54 @@ test.describe('Dynamic Root Config Round-Trip', () => {
 
       const saveResponse = await umbracoUi.page.request.post(
         '/umbraco/management/api/v1/schemeweaver/mappings',
-        { data: modifiedMapping }
+        { data: newMapping }
       );
       expect(saveResponse.ok(), `Save failed: ${saveResponse.status()}`).toBeTruthy();
 
-      // ── STEP 3: GET all mappings and find the one we just saved
-      const listAfter = await umbracoUi.page.request.get(
-        '/umbraco/management/api/v1/schemeweaver/mappings'
+      // ── STEP 2: GET the mapping back via the by-alias endpoint and assert
+      // that ALL THREE property mappings survived, not just the publisher.
+      const fetchResponse = await umbracoUi.page.request.get(
+        `/umbraco/management/api/v1/schemeweaver/mappings/${testAlias}`
       );
-      expect(listAfter.ok()).toBeTruthy();
+      expect(fetchResponse.ok(), `Fetch failed: ${fetchResponse.status()}`).toBeTruthy();
+      const saved = await fetchResponse.json();
 
-      const mappingsAfter = await listAfter.json();
-      const saved = mappingsAfter.find((m: any) => m.contentTypeAlias === testAlias);
-      expect(saved, 'Saved mapping not found in list response').toBeTruthy();
+      expect(saved.propertyMappings, 'propertyMappings missing on response').toBeTruthy();
+      expect(saved.propertyMappings.length, 'expected three property mappings to round-trip').toBe(3);
 
-      // Locate the parent-sourced publisher property mapping we just added
       const publisherMapping = saved.propertyMappings.find(
         (p: any) => p.schemaPropertyName === 'publisher' && p.sourceType === 'parent'
       );
       expect(publisherMapping, 'publisher mapping not found').toBeTruthy();
+      expect(publisherMapping.sourceContentTypeAlias).toBe('productListing');
 
       // The dynamicRootConfig JSON string must round-trip byte-exact
       expect(publisherMapping.dynamicRootConfig).toBe(dynamicRootJson);
 
-      // Parse and verify the structure survived
       const parsed = JSON.parse(publisherMapping.dynamicRootConfig);
       expect(parsed.originAlias).toBe('Root');
       expect(parsed.querySteps).toHaveLength(1);
       expect(parsed.querySteps[0].unique).toBe('e2e-guid-123');
       expect(parsed.querySteps[0].alias).toBe('childOfType');
+
+      // Verify the other two property mappings were preserved with their fields
+      const headlineMapping = saved.propertyMappings.find(
+        (p: any) => p.schemaPropertyName === 'headline'
+      );
+      expect(headlineMapping, 'headline mapping missing').toBeTruthy();
+      expect(headlineMapping.contentTypePropertyAlias).toBe('title');
+
+      const descriptionMapping = saved.propertyMappings.find(
+        (p: any) => p.schemaPropertyName === 'description'
+      );
+      expect(descriptionMapping, 'description mapping missing').toBeTruthy();
+      expect(descriptionMapping.contentTypePropertyAlias).toBe('summary');
     } finally {
-      // ── STEP 4: Restore the original mapping so subsequent tests see the
-      // seeded state. Runs even if assertions above failed.
-      await umbracoUi.page.request.post(
-        '/umbraco/management/api/v1/schemeweaver/mappings',
-        { data: originalMapping }
+      // ── STEP 3: Always delete the synthetic mapping so the test leaves no
+      // residue. No real content type uses this alias, so failure here is
+      // harmless to other tests.
+      await umbracoUi.page.request.delete(
+        `/umbraco/management/api/v1/schemeweaver/mappings/${testAlias}`
       );
     }
   });
