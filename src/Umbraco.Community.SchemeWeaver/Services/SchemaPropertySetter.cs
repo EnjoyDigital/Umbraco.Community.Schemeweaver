@@ -81,7 +81,132 @@ public static class SchemaPropertySetter
         if (targetType == typeof(string) && value is string strVal)
         {
             property.SetValue(instance, strVal);
+            return;
         }
+
+        // Auto-wrap scalar strings into a concrete Thing for object-typed properties.
+        // e.g. `Brand` mapped from a Textbox → { "@type": "Brand", "name": "AudioTech" }.
+        // Users very commonly map Schema.org object properties (Brand, Author, Publisher)
+        // from a plain string field; without this fallback Schema.NET silently drops the
+        // value because no implicit conversion from string to IBrand/IPerson exists.
+        if (value is string scalarString && !string.IsNullOrWhiteSpace(scalarString))
+        {
+            var wrapped = TryWrapScalarAsThing(targetType, propertyName, scalarString);
+            if (wrapped is not null)
+            {
+                // Re-enter the main setter with the wrapped Thing — it will match the
+                // normal Thing-handling paths (implicit conversion / OneOrMany / Values).
+                SetPropertyValue(instance, propertyName, wrapped, logger);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Walks a generic property type looking for Schema.NET interface type arguments
+    /// (e.g., IBrand, IPerson, IOrganization) so we can auto-construct a concrete Thing
+    /// for scalar-to-object auto-wrapping.
+    /// </summary>
+    private static List<Type> CollectCandidateThingInterfaces(Type targetType)
+    {
+        var results = new List<Type>();
+        var seen = new HashSet<Type>();
+
+        void Walk(Type t)
+        {
+            if (!seen.Add(t))
+                return;
+
+            if (t.IsInterface && typeof(IThing).IsAssignableFrom(t))
+            {
+                results.Add(t);
+                return;
+            }
+
+            if (t.IsGenericType)
+            {
+                foreach (var arg in t.GetGenericArguments())
+                    Walk(arg);
+            }
+        }
+
+        Walk(targetType);
+        return results;
+    }
+
+    /// <summary>
+    /// Builds a concrete <see cref="Thing"/> instance from a scalar string for an
+    /// object-typed Schema.org property. Uses the property name as a hint to pick
+    /// between multiple candidate interfaces (e.g., `Author` → Person rather than
+    /// Organization, `Publisher` → Organization rather than Person).
+    /// </summary>
+    private static Thing? TryWrapScalarAsThing(Type targetType, string propertyName, string scalarValue)
+    {
+        var candidates = CollectCandidateThingInterfaces(targetType);
+        if (candidates.Count == 0)
+            return null;
+
+        var concreteType = ChooseConcreteThingType(candidates, propertyName);
+        if (concreteType is null)
+            return null;
+
+        if (Activator.CreateInstance(concreteType) is not Thing thing)
+            return null;
+
+        // Name is OneOrMany<Values<string>> on every Schema.org Thing — set it via
+        // the recursive path so the existing implicit-conversion handling runs.
+        SetPropertyValue(thing, "Name", scalarValue);
+        return thing;
+    }
+
+    /// <summary>
+    /// Chooses a concrete Schema.NET type to instantiate for a property mapping.
+    /// Picks the best match from the candidate interfaces using a small property-name
+    /// heuristic, then falls back to the first candidate.
+    /// </summary>
+    private static Type? ChooseConcreteThingType(List<Type> candidateInterfaces, string propertyName)
+    {
+        static Type? InterfaceToConcrete(Type iface)
+        {
+            var name = iface.Name;
+            if (name.Length < 2 || name[0] != 'I')
+                return null;
+            var concreteName = name[1..];
+            return iface.Assembly.GetType($"{iface.Namespace}.{concreteName}");
+        }
+
+        // Property-name → preferred concrete type. Matches suffix (case-insensitive)
+        // so nested property paths like `author`, `mainAuthor`, `articleAuthor` all match.
+        var preferred = propertyName.ToLowerInvariant() switch
+        {
+            var n when n.EndsWith("author") => "Person",
+            var n when n.EndsWith("publisher") => "Organization",
+            var n when n.EndsWith("provider") => "Organization",
+            var n when n.EndsWith("manufacturer") => "Organization",
+            var n when n.EndsWith("organizer") => "Organization",
+            var n when n.EndsWith("sponsor") => "Organization",
+            var n when n.EndsWith("brand") => "Brand",
+            _ => null
+        };
+
+        if (preferred is not null)
+        {
+            foreach (var iface in candidateInterfaces)
+            {
+                var concrete = InterfaceToConcrete(iface);
+                if (concrete is not null && concrete.Name == preferred)
+                    return concrete;
+            }
+        }
+
+        // Fallback: first candidate that resolves to a concrete type.
+        foreach (var iface in candidateInterfaces)
+        {
+            var concrete = InterfaceToConcrete(iface);
+            if (concrete is not null)
+                return concrete;
+        }
+
+        return null;
     }
 
     /// <summary>

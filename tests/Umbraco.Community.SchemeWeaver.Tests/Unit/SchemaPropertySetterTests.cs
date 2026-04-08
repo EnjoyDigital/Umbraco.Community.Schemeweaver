@@ -190,4 +190,72 @@ public class SchemaPropertySetterTests
     }
 
     #endregion
+
+    #region Scalar auto-wrapping (Brand, Author, Publisher, etc.)
+
+    [Fact]
+    public void SetPropertyValue_ProductBrand_WrapsStringIntoBrandObject()
+    {
+        // Product.Brand is OneOrMany<IBrand>/OneOrMany<Values<IBrand, IOrganization>> — a Thing
+        // property. Users frequently map it from a plain Textbox in Umbraco, so we must wrap
+        // the scalar string into `{ "@type": "Brand", "name": "AudioTech" }`.
+        var product = new Product();
+        SchemaPropertySetter.SetPropertyValue(product, "Brand", "AudioTech");
+
+        var jsonLd = product.ToString();
+        jsonLd.Should().Contain("AudioTech", "the brand name must appear in the JSON-LD");
+        jsonLd.Should().Contain("Brand", "the wrapped Brand @type must appear");
+    }
+
+    [Fact]
+    public void SetPropertyValue_ArticleAuthor_WrapsStringIntoPersonObject()
+    {
+        // Article.Author expects a Person or Organization. Mapping it from a Textbox
+        // (e.g., author name) should wrap as { "@type": "Person", "name": "..." }.
+        var article = new Article();
+        SchemaPropertySetter.SetPropertyValue(article, "Author", "Jane Doe");
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("Jane Doe");
+        jsonLd.Should().Contain("Person");
+    }
+
+    [Fact]
+    public void SetPropertyValue_ArticlePublisher_WrapsStringIntoOrganizationObject()
+    {
+        // Article.Publisher expects Person or Organization. Organization is more appropriate
+        // for a publisher field mapped from a string.
+        var article = new Article();
+        SchemaPropertySetter.SetPropertyValue(article, "Publisher", "Acme Publishing");
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("Acme Publishing");
+        jsonLd.Should().Contain("Organization");
+    }
+
+    [Fact]
+    public void SetPropertyValue_RecipeAuthor_WrapsStringIntoPersonObject()
+    {
+        var recipe = new Recipe();
+        SchemaPropertySetter.SetPropertyValue(recipe, "Author", "Jamie Oliver");
+
+        var jsonLd = recipe.ToString();
+        jsonLd.Should().Contain("Jamie Oliver");
+        jsonLd.Should().Contain("Person");
+    }
+
+    [Fact]
+    public void SetPropertyValue_ProductBrand_StillAcceptsExplicitBrandObject()
+    {
+        // The auto-wrap must not break the existing path where the value is already a Thing.
+        var product = new Product();
+        var brand = new Brand { Name = "AudioTech", Url = new Uri("https://audiotech.example") };
+        SchemaPropertySetter.SetPropertyValue(product, "Brand", brand);
+
+        var jsonLd = product.ToString();
+        jsonLd.Should().Contain("AudioTech");
+        jsonLd.Should().Contain("https://audiotech.example");
+    }
+
+    #endregion
 }
