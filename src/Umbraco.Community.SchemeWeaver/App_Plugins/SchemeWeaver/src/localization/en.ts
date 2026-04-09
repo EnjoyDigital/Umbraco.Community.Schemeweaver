@@ -165,7 +165,7 @@ export default {
     noBlockTypesConfigureHint: 'Configure block types in the data type settings to enable selection here.',
     selectAtLeastOneProperty: 'Select at least one property to generate.',
     selectASchemaType: 'Select a schema type to continue.',
-    primitiveTypeHint: 'This is a primitive type with no schema properties to map. Use a simple property mapping instead.',
+    noPropertiesToMap: 'No properties available to map for this schema type.',
     addSchemaProperty: 'Add schema property',
     addSchemaPropertyDescription: 'Search and select a schema property to add to the mapping.',
     popularProperties: 'Popular',

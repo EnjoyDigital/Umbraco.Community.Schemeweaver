@@ -8,6 +8,7 @@ import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-mo
 import type { SchemaPropertyInfo } from '../api/types.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import type { ComplexTypeMappingModalData, ComplexTypeMappingModalValue } from './complex-type-mapping-modal.token.js';
+import { filterOutPrimitiveSchemaTypes } from '../utils/schema-primitives.js';
 import '../components/property-combobox.element.js';
 
 interface ComplexSubMapping {
@@ -49,6 +50,13 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
   @state()
   private _autoMapping = false;
 
+  /** `data.acceptedTypes` minus Schema.org primitives (Text, URL, Number, etc.).
+   *  Primitives have no sub-properties to map, so they are hidden from the type picker —
+   *  users should express primitive values via the simple mapping on the main screen. */
+  private get _complexAcceptedTypes(): string[] {
+    return filterOutPrimitiveSchemaTypes(this.data?.acceptedTypes ?? []);
+  }
+
   constructor() {
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => { this.#notificationContext = ctx; });
@@ -68,11 +76,13 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         this._loadExistingConfig();
       }
 
-      // If a sub-type was already selected, or there's only one option
+      const complexTypes = this._complexAcceptedTypes;
+
+      // If a sub-type was already selected, or there's only one (non-primitive) option
       if (this.data?.selectedSubType) {
         this._selectedSubType = this.data.selectedSubType;
-      } else if (this.data?.acceptedTypes?.length === 1) {
-        this._selectedSubType = this.data.acceptedTypes[0];
+      } else if (complexTypes.length === 1) {
+        this._selectedSubType = complexTypes[0];
       }
 
       // If we have a selected type and no existing mappings, load properties
@@ -87,9 +97,9 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         this._currentStep = 'mappings';
       }
 
-      // Auto-select and skip if only 1 type
-      if (this.data?.acceptedTypes?.length === 1 && this._currentStep === 'type-selection') {
-        this._selectedSubType = this.data.acceptedTypes[0];
+      // Auto-select and skip if only 1 (non-primitive) type
+      if (complexTypes.length === 1 && this._currentStep === 'type-selection') {
+        this._selectedSubType = complexTypes[0];
         await this._loadSubTypeProperties(this._selectedSubType);
         this._currentStep = 'mappings';
       }
@@ -475,7 +485,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
                   @click=${() => {
                     if (this._currentStep === 'preview') {
                       this._goToStep('mappings');
-                    } else if (this.data?.acceptedTypes?.length === 1) {
+                    } else if (this._complexAcceptedTypes.length === 1) {
                       this._handleClose();
                     } else {
                       this._goToStep('type-selection');
@@ -513,7 +523,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
   }
 
   private _renderTypePicker() {
-    const types = this.data?.acceptedTypes || [];
+    const types = this._complexAcceptedTypes;
 
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_selectSchemaSubType')}>
@@ -556,7 +566,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         </div>
 
         ${this._subMappings.length === 0
-          ? html`<p class="primitive-type-hint">${this.localize.term('schemeWeaver_primitiveTypeHint')}</p>`
+          ? html`<p class="primitive-type-hint">${this.localize.term('schemeWeaver_noPropertiesToMap')}</p>`
           : html`
               <uui-table aria-label=${this.localize.term('schemeWeaver_complexTypeMappings')}>
                 <uui-table-head>
