@@ -46,3 +46,7 @@ umbraco-package-schema.json
 src/Umbraco.Community.SchemeWeaver.TestHost/umbraco/
 src/Umbraco.Community.SchemeWeaver.TestHost/App_Data/
 src/Umbraco.Community.SchemeWeaver.TestHost/App_Plugins/
+
+## Playwright E2E generated artefacts
+src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/playwright-report/
+src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/tests/e2e/.auth/
