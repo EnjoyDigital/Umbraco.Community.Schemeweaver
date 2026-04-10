@@ -9,11 +9,11 @@
 }
 
 @{
-    var productImage = Model.ProductImage;
+    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
 }
-@if (productImage != null)
+@if (heroImg != null)
 {
-    <img src="@productImage.MediaUrl()" alt="@Model.Title" class="featured-image" />
+    <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
 }
 
 <div class="card">

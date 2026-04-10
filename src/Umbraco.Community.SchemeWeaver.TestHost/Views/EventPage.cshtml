@@ -9,13 +9,12 @@
     <p class="lead">@Model.Description</p>
 }
 
-@if (Model.EventImage != null)
+@{
+    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+}
+@if (heroImg != null)
 {
-    var imageUrl = Model.EventImage?.MediaUrl();
-    if (!string.IsNullOrEmpty(imageUrl))
-    {
-        <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
-    }
+    <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
 }
 
 <div class="card">

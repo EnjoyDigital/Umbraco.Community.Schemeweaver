@@ -4,6 +4,14 @@
 }
 <article>
     <h1>@Model.Title</h1>
+@{
+    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+}
+@if (heroImg != null)
+{
+    <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
+}
+
     <div class="article-meta">
         @if (!string.IsNullOrEmpty(Model.Dateline))
         {

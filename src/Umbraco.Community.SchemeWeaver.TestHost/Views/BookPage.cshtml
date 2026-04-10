@@ -4,13 +4,12 @@
 }
 <h1>@Model.Title</h1>
 
-@if (Model.BookImage != null)
+@{
+    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+}
+@if (heroImg != null)
 {
-    var imageUrl = Model.BookImage?.MediaUrl();
-    if (!string.IsNullOrEmpty(imageUrl))
-    {
-        <img src="@imageUrl" alt="@Model.Title" class="constrained-image" />
-    }
+    <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
 }
 
 @if (!string.IsNullOrEmpty(Model.Description))

@@ -10,10 +10,10 @@
 }
 
 @{
-    var eventImage = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("eventImage");
-    if (eventImage != null)
+    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+    if (heroImg != null)
     {
-        var imageUrl = eventImage.MediaUrl();
+        var imageUrl = heroImg.MediaUrl();
         if (!string.IsNullOrEmpty(imageUrl))
         {
             <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
