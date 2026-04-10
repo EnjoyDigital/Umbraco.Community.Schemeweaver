@@ -167,7 +167,7 @@ dd { color: #c0b8e0; }
 
 /* --- Images --- */
 img { max-width: 100%; height: auto; border-radius: 0; margin-bottom: 1rem; border: 2px solid #9890cc; }
-.featured-image { width: 100%; max-height: 400px; object-fit: cover; }
+.featured-image { width: 100%; max-height: 500px; object-fit: contain; background: #352879; }
 .constrained-image { max-width: 300px; }
 .profile-image { max-width: 300px; border-radius: 0; border: 3px solid #6ed458; }
 
