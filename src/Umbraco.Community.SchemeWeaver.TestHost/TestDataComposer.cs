@@ -48,6 +48,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     /// <summary>Media keys seeded during startup, available for content property assignment.</summary>
     private readonly Dictionary<string, Guid> _mediaKeys = new();
 
+    /// <summary>MediaPicker3 data type captured during <see cref="StartAsync"/> so <see cref="CreateContentType"/> can add a universal "heroImage" property to every doctype.</summary>
+    private IDataType? _mediaPickerDataType;
+
     public TestDataSeeder(
         IContentTypeService contentTypeService,
         IDataTypeService dataTypeService,
@@ -110,6 +113,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             .GetByEditorAliasAsync(Constants.PropertyEditors.Aliases.MediaPicker3)
             .ConfigureAwait(false))
             .FirstOrDefault();
+        _mediaPickerDataType = mediaPickerDataType;
 
         var bodyDataType = richtextDataType ?? textareaDataType ?? textboxDataType;
         var descDataType = textareaDataType ?? textboxDataType;
@@ -1649,26 +1653,28 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
     private async Task SeedMediaFromDisk(CancellationToken ct)
     {
-        // Find all image files in wwwroot/media (surviving from previous sessions)
-        var mediaRoot = Path.Combine(_webHostEnvironment.WebRootPath, "media");
-        if (!Directory.Exists(mediaRoot))
+        // Read committed seed assets from the project tree (NOT Umbraco's runtime wwwroot/media
+        // ULID dirs, which are per-session and not in git). The .csproj copies SeedAssets/Media
+        // to the output directory via <Content CopyToOutputDirectory="PreserveNewest" />.
+        var seedDir = Path.Combine(_webHostEnvironment.ContentRootPath, "SeedAssets", "Media");
+        if (!Directory.Exists(seedDir))
         {
-            _logger.LogInformation("TestDataSeeder: No media directory found, skipping media seed");
+            _logger.LogWarning("TestDataSeeder: Seed media directory missing at {Path}", seedDir);
             return;
         }
 
-        var imageFiles = Directory.GetFiles(mediaRoot, "*.png", SearchOption.AllDirectories)
-            .Concat(Directory.GetFiles(mediaRoot, "*.jpg", SearchOption.AllDirectories))
-            .Concat(Directory.GetFiles(mediaRoot, "*.jpeg", SearchOption.AllDirectories))
+        var imageFiles = Directory.GetFiles(seedDir, "*.png")
+            .Concat(Directory.GetFiles(seedDir, "*.jpg"))
+            .Concat(Directory.GetFiles(seedDir, "*.jpeg"))
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var index = 1;
         foreach (var filePath in imageFiles)
         {
             try
             {
                 var fileName = Path.GetFileName(filePath);
-                var mediaName = $"Product Image {index}";
+                var key = Path.GetFileNameWithoutExtension(filePath); // stable basename key
 
                 await using var stream = System.IO.File.OpenRead(filePath);
                 var result = await _mediaImportService.ImportAsync(
@@ -1678,10 +1684,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
                     Constants.Conventions.MediaTypes.Image,
                     Constants.Security.SuperUserKey);
 
-                _mediaKeys[$"product-image-{index}"] = result.Key;
-                _logger.LogInformation("TestDataSeeder: Created media '{Name}' ({Key}) from {File}",
-                    mediaName, result.Key, fileName);
-                index++;
+                _mediaKeys[key] = result.Key;
+                _logger.LogInformation("TestDataSeeder: Imported '{Key}' ({Id}) from {File}",
+                    key, result.Key, fileName);
             }
             catch (Exception ex)
             {
@@ -1689,7 +1694,19 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             }
         }
 
-        _logger.LogInformation("TestDataSeeder: Seeded {Count} media items", _mediaKeys.Count);
+        _logger.LogInformation("TestDataSeeder: Seeded {Count} media items from {Path}", _mediaKeys.Count, seedDir);
+    }
+
+    /// <summary>
+    /// Assigns a hero image media picker value to a content item if the corresponding media
+    /// was imported during <see cref="SeedMediaFromDisk"/>. No-op if the media key is missing,
+    /// which means content creation remains resilient when generation hasn't produced every image yet.
+    /// </summary>
+    private void TrySetHeroImage(IContent content, string mediaKey)
+    {
+        var value = BuildMediaPickerValue(mediaKey);
+        if (value is not null)
+            content.SetValue("heroImage", value);
     }
 
     /// <summary>
@@ -1765,6 +1782,22 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             {
                 Alias = propAlias,
                 Name = propName,
+            }, "content", "Content");
+        }
+
+        // Universal hero image: every doctype gets a "heroImage" media picker so the demo site
+        // has a consistent image slot on every Schema.org type. Opt out by passing heroImage in
+        // properties or extraProperties.
+        var alreadyHasHeroImage =
+            properties.Any(p => string.Equals(p.alias, "heroImage", StringComparison.OrdinalIgnoreCase))
+            || extraProperties.Any(p => string.Equals(p.alias, "heroImage", StringComparison.OrdinalIgnoreCase));
+
+        if (!alreadyHasHeroImage && _mediaPickerDataType is not null)
+        {
+            ct.AddPropertyType(new PropertyType(_shortStringHelper, _mediaPickerDataType)
+            {
+                Alias = "heroImage",
+                Name = "Hero Image",
             }, "content", "Content");
         }
 
@@ -1868,6 +1901,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         AddProperty(ct, "authorName", "Author Name", textbox, "metadata");
         AddProperty(ct, "publishDate", "Publish Date", dateTime ?? textbox, "metadata");
         AddProperty(ct, "featuredImage", "Featured Image", mediaPicker ?? textbox, "content");
+        AddProperty(ct, "heroImage", "Hero Image", mediaPicker ?? textbox, "content");
         AddProperty(ct, "keywords", "Keywords", textbox, "metadata");
         AddProperty(ct, "category", "Category", textbox, "metadata");
 
@@ -1900,6 +1934,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         AddProperty(ct, "availability", "Availability", textbox, "product");
         AddProperty(ct, "currency", "Currency", textbox, "product");
         AddProperty(ct, "productImage", "Product Image", mediaPicker ?? textbox, "content");
+        AddProperty(ct, "heroImage", "Hero Image", mediaPicker ?? textbox, "content");
         AddProperty(ct, "reviews", "Reviews", reviewsBlockList, "product");
 
         await _contentTypeService.CreateAsync(ct, Constants.Security.SuperUserKey).ConfigureAwait(false);
@@ -1923,6 +1958,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         AddProperty(ct, "title", "Title", textbox, "content", true);
         AddProperty(ct, "description", "Description", desc, "content");
         AddProperty(ct, "faqItems", "FAQ Items", faqBlockList, "content");
+        if (_mediaPickerDataType is not null)
+            AddProperty(ct, "heroImage", "Hero Image", _mediaPickerDataType, "content");
 
         await _contentTypeService.CreateAsync(ct, Constants.Security.SuperUserKey).ConfigureAwait(false);
         return ct;
@@ -1951,6 +1988,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         AddProperty(ct, "postalCode", "Post Code", textbox, "address");
         AddProperty(ct, "addressCountry", "Country", textbox, "address");
         AddProperty(ct, "openingHours", "Opening Hours", textbox, "content");
+        if (_mediaPickerDataType is not null)
+            AddProperty(ct, "heroImage", "Hero Image", _mediaPickerDataType, "content");
 
         await _contentTypeService.CreateAsync(ct, Constants.Security.SuperUserKey).ConfigureAwait(false);
         return ct;
@@ -1982,6 +2021,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         AddProperty(ct, "ticketPrice", "Ticket Price", textbox, "event");
         AddProperty(ct, "ticketUrl", "Ticket URL", textbox, "event");
         AddProperty(ct, "eventImage", "Event Image", mediaPicker ?? textbox, "content");
+        AddProperty(ct, "heroImage", "Hero Image", mediaPicker ?? textbox, "content");
 
         await _contentTypeService.CreateAsync(ct, Constants.Security.SuperUserKey).ConfigureAwait(false);
         return ct;
@@ -2016,6 +2056,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         AddProperty(ct, "recipeCuisine", "Cuisine", textbox, "recipe");
         AddProperty(ct, "authorName", "Author Name", textbox, "recipe");
         AddProperty(ct, "recipeImage", "Recipe Image", mediaPicker ?? textbox, "content");
+        AddProperty(ct, "heroImage", "Hero Image", mediaPicker ?? textbox, "content");
         AddProperty(ct, "ingredients", "Ingredients", ingredientsBlockList, "ingredients");
         AddProperty(ct, "instructions", "Instructions", instructionsBlockList, "ingredients");
 
@@ -2089,6 +2130,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         // Content under listings
         await CreateProductContent(reviewItemType, await electronicsCategory, cancellationToken);
+        await CreateSmartWatchContent(await electronicsCategory, cancellationToken);
         await CreateRecipeContent(recipeIngredientType, recipeStepType, await recipeListing, cancellationToken);
         await CreateBlogContent(await blogListing, cancellationToken);
         await CreateEventContent(await conferencesCategory, cancellationToken);
@@ -2361,10 +2403,30 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         });
         content.SetValue("reviews", reviews);
 
-        // Assign product image if available
-        var productImageValue = BuildMediaPickerValue("product-image-1");
+        // Assign product image using stable basename key (committed seed asset).
+        var productImageValue = BuildMediaPickerValue("wireless-headphones-v1");
         if (productImageValue is not null)
             content.SetValue("productImage", productImageValue);
+        TrySetHeroImage(content, "wireless-headphones-v1");
+
+        await SaveAndPublishAsync(content);
+    }
+
+    private async Task CreateSmartWatchContent(int parentId, CancellationToken cancellationToken)
+    {
+        var content = _contentService.Create("C64 Syntax Watch", parentId, "productPage");
+        content.SetValue("title", "C64 Syntax Watch");
+        content.SetValue("description", "A retro-styled smart watch that proudly displays every developer's favourite error message. Hand-assembled, limited run of 64 pieces.");
+        content.SetValue("price", "129.99");
+        content.SetValue("sku", "C64-SW-001");
+        content.SetValue("brand", "Commodore Revival");
+        content.SetValue("availability", "InStock");
+        content.SetValue("currency", "GBP");
+
+        var productImageValue = BuildMediaPickerValue("smart-watch");
+        if (productImageValue is not null)
+            content.SetValue("productImage", productImageValue);
+        TrySetHeroImage(content, "smart-watch");
 
         await SaveAndPublishAsync(content);
     }
@@ -2416,6 +2478,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         });
         content.SetValue("instructions", instructions);
 
+        TrySetHeroImage(content, "classic-victoria-sponge");
+
         await SaveAndPublishAsync(content);
     }
 
@@ -2429,6 +2493,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("publishDate", DateTime.Now);
         content.SetValue("keywords", "schema.org, structured data, SEO");
         content.SetValue("category", "Technology");
+
+        TrySetHeroImage(content, "getting-started-with-schema-org");
 
         await SaveAndPublishAsync(content);
     }
@@ -2445,6 +2511,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("organiserName", "Umbraco Community");
         content.SetValue("ticketPrice", "199.00");
         content.SetValue("ticketUrl", "https://umbracofestival.co.uk/tickets");
+
+        TrySetHeroImage(content, "umbraco-uk-festival-2026");
 
         await SaveAndPublishAsync(content);
     }
@@ -2488,6 +2556,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("publishDate", DateTime.Now.AddDays(-3));
         content.SetValue("keywords", "schema.org, structured data, release, news");
         content.SetValue("dateline", "London, UK");
+        TrySetHeroImage(content, "breaking-news-schema-org-v26-released");
         await SaveAndPublishAsync(content);
     }
 
@@ -2501,6 +2570,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("publishDate", DateTime.Now.AddDays(-7));
         content.SetValue("proficiencyLevel", "Advanced");
         content.SetValue("dependencies", "Lit 3.x, TypeScript 5.x, Umbraco 17+");
+        TrySetHeroImage(content, "building-lit-web-components-for-umbraco");
         await SaveAndPublishAsync(content);
     }
 
@@ -2516,6 +2586,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("downloadUrl", "https://www.nuget.org/packages/Umbraco.Community.SchemeWeaver");
         content.SetValue("price", "0");
         content.SetValue("currency", "GBP");
+        TrySetHeroImage(content, "schemeweaver-software");
         await SaveAndPublishAsync(content);
     }
 
@@ -2531,6 +2602,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("price", "499.00");
         content.SetValue("currency", "GBP");
         content.SetValue("startDate", DateTime.Now.AddMonths(1));
+        TrySetHeroImage(content, "web-development-masterclass");
         await SaveAndPublishAsync(content);
     }
 
@@ -2558,6 +2630,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         });
         content.SetValue("howToTools", tools);
 
+        TrySetHeroImage(content, "how-to-set-up-schema-org-markup");
+
         await SaveAndPublishAsync(content);
     }
 
@@ -2571,6 +2645,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("duration", "PT12M30S");
         content.SetValue("contentUrl", "https://example.com/videos/intro-structured-data.mp4");
         content.SetValue("embedUrl", "https://www.youtube.com/embed/dQw4w9WgXcQ");
+        TrySetHeroImage(content, "introduction-to-structured-data");
         await SaveAndPublishAsync(content);
     }
 
@@ -2588,6 +2663,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("jobLocationName", "Leeds, UK");
         content.SetValue("jobLocationAddress", "7 Park Row, Leeds LS1 5HD");
         content.SetValue("qualifications", ".NET 8+\nUmbraco CMS\nTypeScript\nREST APIs\nSQL Server");
+        TrySetHeroImage(content, "senior-net-developer");
         await SaveAndPublishAsync(content);
     }
 
@@ -2602,6 +2678,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("email", "oliver@enjoy-digital.co.uk");
         content.SetValue("worksFor", "Enjoy Digital");
         content.SetValue("sameAs", "https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver,https://twitter.com/oliverpicton");
+        TrySetHeroImage(content, "oliver-picton");
         await SaveAndPublishAsync(content);
     }
 
@@ -2630,6 +2707,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             new Dictionary<string, object> { ["dayOfWeek"] = "Friday", ["opens"] = "09:00", ["closes"] = "17:00" },
         });
         content.SetValue("openingHours", hours);
+
+        TrySetHeroImage(content, "location-enjoy-digital");
 
         await SaveAndPublishAsync(content);
     }
@@ -2664,6 +2743,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         });
         content.SetValue("openingHours", hours);
 
+        TrySetHeroImage(content, "the-olive-kitchen");
+
         await SaveAndPublishAsync(content);
     }
 
@@ -2681,6 +2762,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("datePublished", DateTime.Now.AddMonths(-6));
         content.SetValue("price", "39.99");
         content.SetValue("currency", "GBP");
+        TrySetHeroImage(content, "umbraco-in-practice");
         await SaveAndPublishAsync(content);
     }
 
@@ -2726,6 +2808,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("color", "Magnetic Grey");
         content.SetValue("numberOfDoors", "5");
         content.SetValue("bodyText", "<p>This well-maintained Ford Focus is perfect for families. Low mileage, full service history, and one previous owner. MOT until March 2027.</p>");
+        TrySetHeroImage(content, "family-saloon-2024");
         await SaveAndPublishAsync(content);
     }
 
@@ -2738,6 +2821,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("interestRate", "4.5");
         content.SetValue("annualPercentageRate", "4.5% AER");
         content.SetValue("bodyText", "<p>Our Premium Savings Account offers one of the best rates on the high street. Minimum deposit of £1,000 required. FSCS protected up to £85,000.</p>");
+        TrySetHeroImage(content, "premium-savings-account");
         await SaveAndPublishAsync(content);
     }
 
@@ -2751,6 +2835,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("color", "Rose Gold");
         content.SetValue("weight", "85g");
         content.SetValue("bodyText", "<p>Each watch in this limited run is individually numbered and comes with a certificate of authenticity. Swiss movement, sapphire crystal glass, and genuine leather strap.</p>");
+        TrySetHeroImage(content, "limited-edition-watch");
         await SaveAndPublishAsync(content);
     }
 
@@ -2760,6 +2845,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("title", "Headphones Pro v2");
         content.SetValue("description", "The second generation of our award-winning noise-cancelling headphones with improved battery life and spatial audio.");
         content.SetValue("bodyText", "<p>Building on the success of the original Headphones Pro, the v2 features 40-hour battery life, adaptive noise cancellation, and support for spatial audio. Available in Midnight Black, Arctic White, and Leeds Blue.</p>");
+        TrySetHeroImage(content, "wireless-headphones-v2");
         await SaveAndPublishAsync(content);
     }
 
@@ -2773,6 +2859,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("endDate", new DateTime(2026, 6, 15, 23, 0, 0));
         content.SetValue("locationName", "Howard Assembly Room");
         content.SetValue("locationAddress", "46 New Briggate, Leeds LS1 6NU");
+        TrySetHeroImage(content, "jazz-night-at-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -2785,6 +2872,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("startDate", new DateTime(2026, 9, 20, 15, 0, 0));
         content.SetValue("locationName", "Elland Road");
         content.SetValue("sport", "Football");
+        TrySetHeroImage(content, "event-leeds-utd-vs-city");
         await SaveAndPublishAsync(content);
     }
 
@@ -2797,6 +2885,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("startDate", new DateTime(2026, 10, 8, 9, 0, 0));
         content.SetValue("locationName", "Leeds Dock");
         content.SetValue("sponsor", "Umbraco HQ");
+        TrySetHeroImage(content, "digital-summit-2026");
         await SaveAndPublishAsync(content);
     }
 
@@ -2807,6 +2896,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "A celebration of Yorkshire's finest produce, street food, and craft beverages in Roundhay Park.");
         content.SetValue("startDate", new DateTime(2026, 7, 12, 10, 0, 0));
         content.SetValue("locationName", "Roundhay Park, Leeds");
+        TrySetHeroImage(content, "yorkshire-food-fest");
         await SaveAndPublishAsync(content);
     }
 
@@ -2818,6 +2908,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("startDate", new DateTime(2026, 8, 1, 12, 0, 0));
         content.SetValue("endDate", new DateTime(2026, 8, 3, 23, 0, 0));
         content.SetValue("locationName", "Headingley Stadium, Leeds");
+        TrySetHeroImage(content, "headingley-festival");
         await SaveAndPublishAsync(content);
     }
 
@@ -2828,6 +2919,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "An intensive weekend bootcamp covering .NET, TypeScript, and modern CMS development with Umbraco.");
         content.SetValue("startDate", new DateTime(2026, 5, 17, 9, 0, 0));
         content.SetValue("locationName", "Platform, Leeds");
+        TrySetHeroImage(content, "coding-bootcamp");
         await SaveAndPublishAsync(content);
     }
 
@@ -2840,6 +2932,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("legalName", "TechCorp Public Limited Company");
         content.SetValue("foundingDate", "2008");
         content.SetValue("numberOfEmployees", "1200");
+        TrySetHeroImage(content, "techcorp-plc");
         await SaveAndPublishAsync(content);
     }
 
@@ -2850,6 +2943,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "Professional rugby league club based at Headingley Stadium, one of the most successful teams in Super League history.");
         content.SetValue("sport", "Rugby League");
         content.SetValue("coach", "Rohan Smith");
+        TrySetHeroImage(content, "leeds-rhinos");
         await SaveAndPublishAsync(content);
     }
 
@@ -2860,6 +2954,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "Regional airline operating domestic and European routes from Leeds Bradford Airport.");
         content.SetValue("iataCode", "BE");
         content.SetValue("foundingDate", "1979");
+        TrySetHeroImage(content, "flybe-airways");
         await SaveAndPublishAsync(content);
     }
 
@@ -2870,6 +2965,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "A non-profit organisation teaching coding skills to disadvantaged young people across West Yorkshire.");
         content.SetValue("foundingDate", "2019");
         content.SetValue("areaServed", "West Yorkshire, United Kingdom");
+        TrySetHeroImage(content, "code-for-good");
         await SaveAndPublishAsync(content);
     }
 
@@ -2885,6 +2981,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("starRating", "4");
         content.SetValue("checkinTime", "15:00");
         content.SetValue("checkoutTime", "11:00");
+        TrySetHeroImage(content, "grand-hotel-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -2898,6 +2995,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 6AZ");
         content.SetValue("paymentAccepted", "Cash, Credit Card, Apple Pay, Google Pay");
+        TrySetHeroImage(content, "digital-store-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -2910,6 +3008,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "Great George Street");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("medicalSpecialty", "Cardiology, Oncology, Neurology, Emergency Medicine");
+        TrySetHeroImage(content, "leeds-general-infirmary");
         await SaveAndPublishAsync(content);
     }
 
@@ -2922,6 +3021,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "14 North Lane");
         content.SetValue("addressLocality", "Headingley, Leeds");
         content.SetValue("openingHours", "Mon-Fri 06:00-22:00, Sat-Sun 08:00-20:00");
+        TrySetHeroImage(content, "fitlife-gym");
         await SaveAndPublishAsync(content);
     }
 
@@ -2934,6 +3034,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("actor", "The Umbraco Community");
         content.SetValue("duration", "PT1H30M");
         content.SetValue("dateCreated", new DateTime(2025, 3, 15));
+        TrySetHeroImage(content, "umbraco-the-documentary");
         await SaveAndPublishAsync(content);
     }
 
@@ -2945,6 +3046,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("byArtist", "DJ Structured");
         content.SetValue("numTracks", "12");
         content.SetValue("datePublished", new DateTime(2025, 11, 1));
+        TrySetHeroImage(content, "schema-sounds");
         await SaveAndPublishAsync(content);
     }
 
@@ -2955,6 +3057,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "In the first episode of Dev Talk, we explore how Schema.org structured data improves search visibility for Umbraco sites.");
         content.SetValue("duration", "PT45M");
         content.SetValue("datePublished", new DateTime(2026, 1, 10));
+        TrySetHeroImage(content, "dev-talk-ep-1");
         await SaveAndPublishAsync(content);
     }
 
@@ -2966,6 +3069,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("creator", "Oliver Picton");
         content.SetValue("dateCreated", new DateTime(2025, 8, 22));
         content.SetValue("contentUrl", "https://example.com/photos/leeds-skyline-2025.jpg");
+        TrySetHeroImage(content, "leeds-skyline");
         await SaveAndPublishAsync(content);
     }
 
@@ -2976,6 +3080,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "Official census data for England and Wales, including population demographics, housing, and employment statistics.");
         content.SetValue("distribution", "https://www.ons.gov.uk/census/2021census");
         content.SetValue("license", "Open Government Licence v3.0");
+        TrySetHeroImage(content, "uk-census-2021");
         await SaveAndPublishAsync(content);
     }
 
@@ -2988,6 +3093,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("applicationCategory", "DeveloperApplication");
         content.SetValue("downloadUrl", "https://apps.example.com/schemeweaver");
         content.SetValue("softwareVersion", "1.2.0");
+        TrySetHeroImage(content, "schemeweaver-mobile");
         await SaveAndPublishAsync(content);
     }
 
@@ -2999,6 +3105,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("browserRequirements", "Chrome 90+, Firefox 88+, Safari 14+, Edge 90+");
         content.SetValue("applicationCategory", "DeveloperApplication");
         content.SetValue("url", "https://app.schemeweaver.dev");
+        TrySetHeroImage(content, "schemeweaver-web");
         await SaveAndPublishAsync(content);
     }
 
@@ -3016,6 +3123,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "93-97 Albion Street");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 6AG");
+        TrySetHeroImage(content, "waterstones-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3028,6 +3136,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "Crown Point Retail Park");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS10 1ET");
+        TrySetHeroImage(content, "currys-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3040,6 +3149,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "107-111 Briggate");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 6AZ");
+        TrySetHeroImage(content, "harvey-nichols-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3052,6 +3162,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "72 Briggate");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 6BR");
+        TrySetHeroImage(content, "marks-spencer-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3064,6 +3175,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "Victoria Quarter, Vicar Lane");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 6AX");
+        TrySetHeroImage(content, "heal-s-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3076,6 +3188,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "Victoria Quarter, Vicar Lane");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 6AX");
+        TrySetHeroImage(content, "berry-s-jewellers-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3089,6 +3202,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "1 Parliament Street");
         content.SetValue("addressLocality", "Harrogate");
         content.SetValue("servesCuisine", "British, Patisserie");
+        TrySetHeroImage(content, "bettys-tea-rooms");
         await SaveAndPublishAsync(content);
     }
 
@@ -3100,6 +3214,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 245 4454");
         content.SetValue("streetAddress", "16 New Station Street");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "laynes-espresso");
         await SaveAndPublishAsync(content);
     }
 
@@ -3111,6 +3226,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 244 5044");
         content.SetValue("streetAddress", "101 Water Lane");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "the-midnight-bell");
         await SaveAndPublishAsync(content);
     }
 
@@ -3122,6 +3238,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 245 9876");
         content.SetValue("streetAddress", "Kirkgate Market");
         content.SetValue("servesCuisine", "Korean");
+        TrySetHeroImage(content, "bulgogi-grill-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3133,6 +3250,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 288 0088");
         content.SetValue("streetAddress", "Bullerthorpe Lane");
         content.SetValue("addressLocality", "Woodlesford, Leeds");
+        TrySetHeroImage(content, "leventhorpe-vineyard");
         await SaveAndPublishAsync(content);
     }
 
@@ -3144,6 +3262,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 243 6430");
         content.SetValue("streetAddress", "The Old Flax Store, Marshall Street");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "northern-monk-brewery");
         await SaveAndPublishAsync(content);
     }
 
@@ -3158,6 +3277,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("departureAirport", "Leeds Bradford Airport (LBA)");
         content.SetValue("arrivalAirport", "Malaga Airport (AGP)");
         content.SetValue("departureTime", new DateTime(2026, 7, 20, 6, 30, 0));
+        TrySetHeroImage(content, "leeds-bradford-to-malaga");
         await SaveAndPublishAsync(content);
     }
 
@@ -3170,6 +3290,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("checkinTime", new DateTime(2026, 7, 15, 15, 0, 0));
         content.SetValue("checkoutTime", new DateTime(2026, 7, 17, 11, 0, 0));
         content.SetValue("lodgingUnitDescription", "Deluxe King Room with City View");
+        TrySetHeroImage(content, "grand-hotel-leeds-stay");
         await SaveAndPublishAsync(content);
     }
 
@@ -3180,6 +3301,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "Two stalls tickets for Wicked at Leeds Grand Theatre, Saturday evening performance.");
         content.SetValue("reservationId", "LGT-2026-088");
         content.SetValue("reservationFor", "Wicked at Leeds Grand Theatre");
+        TrySetHeroImage(content, "wicked-musical-tickets");
         await SaveAndPublishAsync(content);
     }
 
@@ -3191,6 +3313,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("reservationId", "ENT-2026-LBA-055");
         content.SetValue("pickupLocation", "Leeds Bradford Airport, Whitehouse Lane");
         content.SetValue("pickupTime", new DateTime(2026, 8, 5, 10, 0, 0));
+        TrySetHeroImage(content, "enterprise-leeds-airport");
         await SaveAndPublishAsync(content);
     }
 
@@ -3204,6 +3327,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("arrivalAirport", "Malaga Airport (AGP)");
         content.SetValue("departureTime", new DateTime(2026, 7, 20, 6, 30, 0));
         content.SetValue("arrivalTime", new DateTime(2026, 7, 20, 10, 45, 0));
+        TrySetHeroImage(content, "flight-fr2045");
         await SaveAndPublishAsync(content);
     }
 
@@ -3215,6 +3339,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "Studley Royal Water Garden");
         content.SetValue("addressLocality", "Ripon, North Yorkshire");
         content.SetValue("telephone", "+44 1765 608888");
+        TrySetHeroImage(content, "fountains-abbey");
         await SaveAndPublishAsync(content);
     }
 
@@ -3227,6 +3352,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "18 Shire Oak Road");
         content.SetValue("addressLocality", "Headingley, Leeds");
         content.SetValue("starRating", "4");
+        TrySetHeroImage(content, "the-arden-house");
         await SaveAndPublishAsync(content);
     }
 
@@ -3238,6 +3364,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 1756 720340");
         content.SetValue("streetAddress", "Moor Lane");
         content.SetValue("addressLocality", "Burnsall, North Yorkshire");
+        TrySetHeroImage(content, "moor-lodge-campsite");
         await SaveAndPublishAsync(content);
     }
 
@@ -3251,6 +3378,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("dosageForm", "Tablet");
         content.SetValue("administrationRoute", "Oral");
         content.SetValue("prescriptionStatus", "Over the counter");
+        TrySetHeroImage(content, "ibuprofen-400mg");
         await SaveAndPublishAsync(content);
     }
 
@@ -3262,6 +3390,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("possibleTreatment", "Metformin, lifestyle changes, insulin therapy");
         content.SetValue("riskFactor", "Obesity, sedentary lifestyle, family history");
         content.SetValue("signOrSymptom", "Increased thirst, frequent urination, fatigue");
+        TrySetHeroImage(content, "type-2-diabetes");
         await SaveAndPublishAsync(content);
     }
 
@@ -3274,6 +3403,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "4 Great George Street");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("medicalSpecialty", "General Practice");
+        TrySetHeroImage(content, "dr-sarah-mitchell");
         await SaveAndPublishAsync(content);
     }
 
@@ -3285,6 +3415,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 243 1771");
         content.SetValue("streetAddress", "15 Briggate");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "boots-pharmacy-briggate");
         await SaveAndPublishAsync(content);
     }
 
@@ -3296,6 +3427,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 245 5522");
         content.SetValue("streetAddress", "11 Park Row");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "park-row-dental-practice");
         await SaveAndPublishAsync(content);
     }
 
@@ -3308,6 +3440,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "2 Leighton Street");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("medicalSpecialty", "Orthopaedics, Cardiology, Dermatology");
+        TrySetHeroImage(content, "nuffield-health-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3324,6 +3457,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("color", "Pure White");
         content.SetValue("numberOfDoors", "5");
         content.SetValue("vehicleTransmission", "Manual");
+        TrySetHeroImage(content, "2024-volkswagen-golf");
         await SaveAndPublishAsync(content);
     }
 
@@ -3337,6 +3471,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("fuelType", "Petrol");
         content.SetValue("mileageFromOdometer", "4200 miles");
         content.SetValue("color", "Matt Jet Black");
+        TrySetHeroImage(content, "2023-triumph-street-triple");
         await SaveAndPublishAsync(content);
     }
 
@@ -3348,6 +3483,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 389 0600");
         content.SetValue("streetAddress", "Stonebridge Lane");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "jct600-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3359,6 +3495,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 242 8899");
         content.SetValue("streetAddress", "45 Wellington Road");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "kwik-fit-leeds-central");
         await SaveAndPublishAsync(content);
     }
 
@@ -3371,6 +3508,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("performer", "UK Touring Cast");
         content.SetValue("startDate", new DateTime(2026, 8, 10, 19, 30, 0));
         content.SetValue("locationName", "Leeds Grand Theatre");
+        TrySetHeroImage(content, "wicked-at-leeds-grand");
         await SaveAndPublishAsync(content);
     }
 
@@ -3382,6 +3520,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("startDate", new DateTime(2026, 9, 5, 20, 0, 0));
         content.SetValue("locationName", "Hyde Park Picture House, Leeds");
         content.SetValue("workPresented", "Brief Encounter (1945)");
+        TrySetHeroImage(content, "hyde-park-picture-house-screening");
         await SaveAndPublishAsync(content);
     }
 
@@ -3393,6 +3532,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "Indie rock band formed in Leeds in 2000, known for hits like I Predict a Riot and Ruby.");
         content.SetValue("genre", "Indie Rock");
         content.SetValue("foundingDate", "2000");
+        TrySetHeroImage(content, "kaiser-chiefs");
         await SaveAndPublishAsync(content);
     }
 
@@ -3404,6 +3544,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 1302 535057");
         content.SetValue("streetAddress", "Warning Tongue Lane");
         content.SetValue("addressLocality", "Doncaster");
+        TrySetHeroImage(content, "yorkshire-wildlife-park");
         await SaveAndPublishAsync(content);
     }
 
@@ -3415,6 +3556,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 220 1999");
         content.SetValue("streetAddress", "Armouries Drive");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "royal-armouries-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3426,6 +3568,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 1653 668287");
         content.SetValue("streetAddress", "Kirby Misperton");
         content.SetValue("addressLocality", "Malton, North Yorkshire");
+        TrySetHeroImage(content, "flamingo-land");
         await SaveAndPublishAsync(content);
     }
 
@@ -3438,6 +3581,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 283 2500");
         content.SetValue("streetAddress", "Kings Chambers, Wellington Place");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "walker-morris-llp");
         await SaveAndPublishAsync(content);
     }
 
@@ -3449,6 +3593,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 204 1220");
         content.SetValue("streetAddress", "55 Baker Street");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "bdo-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3460,6 +3605,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 246 1234");
         content.SetValue("streetAddress", "20 Park Row");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "dacre-son-hartley");
         await SaveAndPublishAsync(content);
     }
 
@@ -3471,6 +3617,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 345 246 8704");
         content.SetValue("streetAddress", "3 Brewery Wharf");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "direct-line-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3482,6 +3629,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("telephone", "+44 113 242 0099");
         content.SetValue("streetAddress", "56 Briggate");
         content.SetValue("addressLocality", "Leeds");
+        TrySetHeroImage(content, "hays-travel-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3495,6 +3643,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("telephone", "+44 113 243 1751");
         content.SetValue("foundingDate", "1904");
+        TrySetHeroImage(content, "university-of-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3506,6 +3655,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("streetAddress", "Alwoodley Gates, Harrogate Road");
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("telephone", "+44 113 229 1552");
+        TrySetHeroImage(content, "leeds-grammar-school");
         await SaveAndPublishAsync(content);
     }
 
@@ -3518,6 +3668,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("endDate", new DateTime(2026, 9, 5, 17, 0, 0));
         content.SetValue("locationName", "Platform, New Station Street, Leeds");
         content.SetValue("instructor", "Oliver Picton");
+        TrySetHeroImage(content, "umbraco-certified-developer-2026");
         await SaveAndPublishAsync(content);
     }
 
@@ -3527,6 +3678,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         var content = _contentService.Create("SchemeWeaver Dev Blog", parentId, "blogPage");
         content.SetValue("title", "SchemeWeaver Dev Blog");
         content.SetValue("description", "Development updates, release notes, and insights from the SchemeWeaver team.");
+        TrySetHeroImage(content, "schemeweaver-dev-blog");
         await SaveAndPublishAsync(content);
     }
 
@@ -3540,6 +3692,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("authorName", "Oliver Picton");
         content.SetValue("coverageStartTime", new DateTime(2026, 6, 12, 9, 0, 0));
         content.SetValue("coverageEndTime", new DateTime(2026, 6, 12, 18, 0, 0));
+        TrySetHeroImage(content, "umbraco-uk-fest-2026-live-blog");
         await SaveAndPublishAsync(content);
     }
 
@@ -3552,6 +3705,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("bodyText", "<p>Our 2026 report reveals that structured data adoption has grown by 35% year on year, with JSON-LD now the dominant format across all sectors.</p>");
         content.SetValue("authorName", "Oliver Picton");
         content.SetValue("publishDate", new DateTime(2026, 3, 1));
+        TrySetHeroImage(content, "state-of-structured-data-2026");
         await SaveAndPublishAsync(content);
     }
 
@@ -3564,6 +3718,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("operatingSystem", "Windows, macOS, Linux");
         content.SetValue("gamePlatform", "PC, PlayStation 5, Xbox Series X");
         content.SetValue("genre", "RPG");
+        TrySetHeroImage(content, "schema-quest");
         await SaveAndPublishAsync(content);
     }
 
@@ -3575,6 +3730,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("programmingLanguage", "C#, TypeScript");
         content.SetValue("runtimePlatform", ".NET 10");
         content.SetValue("codeRepository", "https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver");
+        TrySetHeroImage(content, "schemeweaver-source");
         await SaveAndPublishAsync(content);
     }
 
@@ -3587,6 +3743,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("occupationalCategory", "15-1256.00");
         content.SetValue("estimatedSalary", "45000-80000 GBP per year");
         content.SetValue("skills", "C#, TypeScript, SQL, Cloud Computing, Agile");
+        TrySetHeroImage(content, "software-engineer");
         await SaveAndPublishAsync(content);
     }
 
@@ -3596,6 +3753,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("title", "About This Site");
         content.SetValue("description", "Information about the SchemeWeaver demo site and its structured data capabilities.");
         content.SetValue("bodyText", "This site demonstrates how Umbraco content types can be mapped to Schema.org types to produce JSON-LD structured data automatically.");
+        TrySetHeroImage(content, "about-this-site");
         await SaveAndPublishAsync(content);
     }
 
@@ -3608,6 +3766,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("provider", "Enjoy Digital");
         content.SetValue("areaServed", "Leeds, Yorkshire, United Kingdom");
         content.SetValue("price", "From £2,500");
+        TrySetHeroImage(content, "web-design-services");
         await SaveAndPublishAsync(content);
     }
 
@@ -3623,6 +3782,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("postalCode", "LS1 5JL");
         content.SetValue("addressCountry", "GB");
         content.SetValue("priceRange", "$$$");
+        TrySetHeroImage(content, "leeds-consulting-group");
         await SaveAndPublishAsync(content);
     }
 
@@ -3637,6 +3797,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 4AW");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "whitehall-legal-partners");
         await SaveAndPublishAsync(content);
     }
 
@@ -3651,6 +3812,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 5RU");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "leeds-notary-public");
         await SaveAndPublishAsync(content);
     }
 
@@ -3664,6 +3826,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 3BG");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "leeds-combined-court-centre");
         await SaveAndPublishAsync(content);
     }
 
@@ -3678,6 +3841,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("legislationJurisdiction", "United Kingdom");
         content.SetValue("legislationType", "Act of Parliament");
         content.SetValue("legislationLegalForce", "InForce");
+        TrySetHeroImage(content, "data-protection-act-2018");
         await SaveAndPublishAsync(content);
     }
 
@@ -3692,6 +3856,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 4LT");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "northern-finance-advisors");
         await SaveAndPublishAsync(content);
     }
 
@@ -3707,6 +3872,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("postalCode", "LS1 1UR");
         content.SetValue("addressCountry", "GB");
         content.SetValue("areaServed", "Leeds, West Yorkshire");
+        TrySetHeroImage(content, "leeds-city-council");
         await SaveAndPublishAsync(content);
     }
 
@@ -3720,6 +3886,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 3AB");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "leeds-central-library");
         await SaveAndPublishAsync(content);
     }
 
@@ -3734,6 +3901,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 5AT");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "everyman-cinema-leeds");
         await SaveAndPublishAsync(content);
     }
 
@@ -3747,6 +3915,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 4AW");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "mint-warehouse");
         await SaveAndPublishAsync(content);
     }
 
@@ -3761,6 +3930,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS11 0ES");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "elland-road");
         await SaveAndPublishAsync(content);
     }
 
@@ -3774,6 +3944,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Castleford");
         content.SetValue("postalCode", "WF10 4TA");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "xscape-yorkshire-ski-slope");
         await SaveAndPublishAsync(content);
     }
 
@@ -3787,6 +3958,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS17 7DB");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "moortown-golf-club");
         await SaveAndPublishAsync(content);
     }
 
@@ -3802,6 +3974,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 4BR");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "waterfront-apartment");
         await SaveAndPublishAsync(content);
     }
 
@@ -3816,6 +3989,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS6 3AW");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "victorian-terrace-headingley");
         await SaveAndPublishAsync(content);
     }
 
@@ -3832,6 +4006,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS2 7EW");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "the-calls-boutique-hotel");
         await SaveAndPublishAsync(content);
     }
 
@@ -3845,6 +4020,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("datePublished", "2026-03-15");
         content.SetValue("articleSection", "Technology");
         content.SetValue("wordCount", "1250");
+        TrySetHeroImage(content, "the-future-of-structured-data");
         await SaveAndPublishAsync(content);
     }
 
@@ -3855,6 +4031,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("description", "Weekly podcast exploring structured data, SEO, and the semantic web with industry experts.");
         content.SetValue("webFeed", "https://schemamatters.example.com/feed.xml");
         content.SetValue("authorName", "Emma Richardson");
+        TrySetHeroImage(content, "schema-matters-podcast");
         await SaveAndPublishAsync(content);
     }
 
@@ -3867,6 +4044,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("byArtist", "The Aire Valley Band");
         content.SetValue("inAlbum", "Yorkshire Skies");
         content.SetValue("datePublished", "2025-11-01");
+        TrySetHeroImage(content, "northern-lights");
         await SaveAndPublishAsync(content);
     }
 
@@ -3881,6 +4059,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("validFrom", "2026-03-01");
         content.SetValue("validThrough", "2026-05-31");
         content.SetValue("itemOffered", "SchemeWeaver Professional Licence");
+        TrySetHeroImage(content, "spring-sale-25-off");
         await SaveAndPublishAsync(content);
     }
 
@@ -3896,6 +4075,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS8 2PJ");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "3-bed-semi-detached-roundhay");
         await SaveAndPublishAsync(content);
     }
 
@@ -3912,6 +4092,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS17 8SA");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "detached-family-home-alwoodley");
         await SaveAndPublishAsync(content);
     }
 
@@ -3927,6 +4108,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS10 1JR");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "clarence-dock-apartments");
         await SaveAndPublishAsync(content);
     }
 
@@ -3941,6 +4123,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS7 3QR");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "chapel-allerton-townhouse");
         await SaveAndPublishAsync(content);
     }
 
@@ -3957,6 +4140,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS1 1PJ");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "queens-hotel-penthouse-suite");
         await SaveAndPublishAsync(content);
     }
 
@@ -3971,6 +4155,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Wetherby");
         content.SetValue("postalCode", "LS23 6ND");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "bramham-park-gated-community");
         await SaveAndPublishAsync(content);
     }
 
@@ -3987,6 +4172,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS5 3EH");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "kirkstall-student-accommodation");
         await SaveAndPublishAsync(content);
     }
 
@@ -4000,6 +4186,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS9 7TF");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "leeds-pathlab-diagnostics");
         await SaveAndPublishAsync(content);
     }
 
@@ -4013,6 +4200,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         content.SetValue("addressLocality", "Leeds");
         content.SetValue("postalCode", "LS2 9AQ");
         content.SetValue("addressCountry", "GB");
+        TrySetHeroImage(content, "leeds-arts-university");
         await SaveAndPublishAsync(content);
     }
 
@@ -4163,7 +4351,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, aboutPageCt, "AboutPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"), ("DateModified", "__updateDate"));
         SeedSimpleMapping(repo, newsArticleCt, "NewsArticle", ("Headline", "title"), ("Description", "description"), ("ArticleBody", "bodyText"), ("DatePublished", "publishDate"), ("Keywords", "keywords"), ("Dateline", "dateline"), ("Url", "__url"));
         SeedSimpleMapping(repo, techArticleCt, "TechArticle", ("Headline", "title"), ("Description", "description"), ("ArticleBody", "bodyText"), ("DatePublished", "publishDate"), ("ProficiencyLevel", "proficiencyLevel"), ("Url", "__url"));
-        SeedSimpleMapping(repo, softwarePageCt, "SoftwareApplication", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("ApplicationCategory", "applicationCategory"), ("OperatingSystem", "operatingSystem"), ("SoftwareVersion", "softwareVersion"), ("DownloadUrl", "downloadUrl"), ("Url", "__url"));
+        SeedSimpleMapping(repo, softwarePageCt, "SoftwareApplication", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("ApplicationCategory", "applicationCategory"), ("OperatingSystem", "operatingSystem"), ("SoftwareVersion", "softwareVersion"), ("DownloadUrl", "downloadUrl"), ("Url", "__url"));
         SeedSimpleMapping(repo, coursePageCt, "Course", ("Name", "title"), ("Description", "description"), ("CourseCode", "courseCode"), ("Url", "__url"));
         SeedSimpleMapping(repo, videoPageCt, "VideoObject", ("Name", "title"), ("Description", "description"), ("ThumbnailUrl", "thumbnailUrl"), ("UploadDate", "uploadDate"), ("Duration", "duration"), ("ContentUrl", "contentUrl"), ("EmbedUrl", "embedUrl"), ("Url", "__url"));
         SeedSimpleMapping(repo, jobPostingPageCt, "JobPosting", ("Title", "title"), ("Description", "description"), ("DatePosted", "datePosted"), ("ValidThrough", "validThrough"), ("EmploymentType", "employmentType"), ("BaseSalary", "salary"), ("Url", "__url"));
@@ -4191,18 +4379,18 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, recipeListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
 
         // New product subtype mappings
-        SeedSimpleMapping(repo, vehiclePageCt, "Vehicle", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("Brand", "brand"), ("Model", "model"), ("FuelType", "fuelType"), ("MileageFromOdometer", "mileageFromOdometer"), ("VehicleEngine", "vehicleEngine"), ("Color", "color"), ("NumberOfDoors", "numberOfDoors"), ("Url", "__url"));
-        SeedSimpleMapping(repo, financialProductPageCt, "FinancialProduct", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("FeesAndCommissionsSpecification", "feesAndCommissionsSpecification"), ("InterestRate", "interestRate"), ("AnnualPercentageRate", "annualPercentageRate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, individualProductPageCt, "IndividualProduct", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("SerialNumber", "serialNumber"), ("Sku", "sku"), ("Color", "color"), ("Weight", "weight"), ("Url", "__url"));
-        SeedSimpleMapping(repo, productModelPageCt, "ProductModel", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("Url", "__url"));
+        SeedSimpleMapping(repo, vehiclePageCt, "Vehicle", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("Brand", "brand"), ("Model", "model"), ("FuelType", "fuelType"), ("MileageFromOdometer", "mileageFromOdometer"), ("VehicleEngine", "vehicleEngine"), ("Color", "color"), ("NumberOfDoors", "numberOfDoors"), ("Url", "__url"));
+        SeedSimpleMapping(repo, financialProductPageCt, "FinancialProduct", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("FeesAndCommissionsSpecification", "feesAndCommissionsSpecification"), ("InterestRate", "interestRate"), ("AnnualPercentageRate", "annualPercentageRate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, individualProductPageCt, "IndividualProduct", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("SerialNumber", "serialNumber"), ("Sku", "sku"), ("Color", "color"), ("Weight", "weight"), ("Url", "__url"));
+        SeedSimpleMapping(repo, productModelPageCt, "ProductModel", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("Url", "__url"));
 
         // New event subtype mappings
-        SeedSimpleMapping(repo, musicEventPageCt, "MusicEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("Performer", "performer"), ("StartDate", "startDate"), ("EndDate", "endDate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, sportsEventPageCt, "SportsEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("Competitor", "competitor"), ("StartDate", "startDate"), ("Sport", "sport"), ("Url", "__url"));
-        SeedSimpleMapping(repo, businessEventPageCt, "BusinessEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("Sponsor", "sponsor"), ("Url", "__url"));
-        SeedSimpleMapping(repo, foodEventPageCt, "FoodEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, festivalPageCt, "Festival", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("EndDate", "endDate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, educationEventPageCt, "EducationEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, musicEventPageCt, "MusicEvent", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("Performer", "performer"), ("StartDate", "startDate"), ("EndDate", "endDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, sportsEventPageCt, "SportsEvent", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("Competitor", "competitor"), ("StartDate", "startDate"), ("Sport", "sport"), ("Url", "__url"));
+        SeedSimpleMapping(repo, businessEventPageCt, "BusinessEvent", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("StartDate", "startDate"), ("Sponsor", "sponsor"), ("Url", "__url"));
+        SeedSimpleMapping(repo, foodEventPageCt, "FoodEvent", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("StartDate", "startDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, festivalPageCt, "Festival", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("StartDate", "startDate"), ("EndDate", "endDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, educationEventPageCt, "EducationEvent", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("StartDate", "startDate"), ("Url", "__url"));
 
         // New organisation subtype mappings
         SeedSimpleMapping(repo, organisationListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
@@ -4276,8 +4464,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, autoRepairPageCt, "AutoRepair", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Url", "__url"));
 
         // New event subtype mappings (additional)
-        SeedSimpleMapping(repo, theaterEventPageCt, "TheaterEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("Performer", "performer"), ("StartDate", "startDate"), ("Url", "__url"));
-        SeedSimpleMapping(repo, screeningEventPageCt, "ScreeningEvent", ("Name", "title"), ("Description", "description"), ("Image", "eventImage"), ("StartDate", "startDate"), ("WorkPresented", "workPresented"), ("Url", "__url"));
+        SeedSimpleMapping(repo, theaterEventPageCt, "TheaterEvent", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("Performer", "performer"), ("StartDate", "startDate"), ("Url", "__url"));
+        SeedSimpleMapping(repo, screeningEventPageCt, "ScreeningEvent", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("StartDate", "startDate"), ("WorkPresented", "workPresented"), ("Url", "__url"));
 
         // New entertainment subtype mappings
         SeedSimpleMapping(repo, entertainmentListingCt, "CollectionPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
@@ -4315,7 +4503,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         // New expanded schema types
         SeedSimpleMapping(repo, webPageCt, "WebPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"));
         SeedSimpleMapping(repo, servicePageCt, "Service", ("Name", "title"), ("Description", "description"), ("ServiceType", "serviceType"), ("Provider", "provider"), ("AreaServed", "areaServed"), ("Url", "__url"));
-        SeedSimpleMapping(repo, offerPageCt, "Offer", ("Name", "title"), ("Description", "description"), ("Image", "productImage"), ("Price", "price"), ("PriceCurrency", "priceCurrency"), ("Availability", "availability"), ("Url", "__url"));
+        SeedSimpleMapping(repo, offerPageCt, "Offer", ("Name", "title"), ("Description", "description"), ("Image", "heroImage"), ("Price", "price"), ("PriceCurrency", "priceCurrency"), ("Availability", "availability"), ("Url", "__url"));
         SeedSimpleMapping(repo, professionalServicePageCt, "ProfessionalService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("PriceRange", "priceRange"), ("Url", "__url"));
         SeedSimpleMapping(repo, legalServicePageCt, "LegalService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
         SeedSimpleMapping(repo, financialServicePageCt, "FinancialService", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
@@ -4447,15 +4635,32 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             IsInherited = isInherited,
         });
 
-        repo.SavePropertyMappings(mapping.Id, mappings.Select(m => new PropertyMapping
+        var propertyMappings = mappings.Select(m => new PropertyMapping
         {
             SchemaPropertyName = m.schemaProperty,
             SourceType = "property",
             ContentTypePropertyAlias = m.contentProperty,
-        }).ToArray());
+        }).ToList();
+
+        // Universal Image → heroImage mapping. CreateContentType adds heroImage to every doctype,
+        // so this pair always resolves to something when the seeder populates a hero image.
+        // Skip if the caller already explicitly mapped "Image" (e.g. productPage → productImage).
+        var hasImage = propertyMappings.Any(m =>
+            string.Equals(m.SchemaPropertyName, "Image", StringComparison.OrdinalIgnoreCase));
+        if (!hasImage && ct.PropertyTypes.Any(p => string.Equals(p.Alias, "heroImage", StringComparison.OrdinalIgnoreCase)))
+        {
+            propertyMappings.Add(new PropertyMapping
+            {
+                SchemaPropertyName = "Image",
+                SourceType = "property",
+                ContentTypePropertyAlias = "heroImage",
+            });
+        }
+
+        repo.SavePropertyMappings(mapping.Id, propertyMappings);
     }
 
-    private void AddCategoryMapping(ISchemaMappingRepository repo, string contentTypeAlias, string ancestorContentTypeAlias)
+    private void AddCategoryMapping(ISchemaMappingRepository repo, string contentTypeAlias, string parentContentTypeAlias)
     {
         var mapping = repo.GetByContentTypeAlias(contentTypeAlias);
         if (mapping != null)
@@ -4464,9 +4669,13 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             existingMappings.Add(new PropertyMapping
             {
                 SchemaPropertyName = "Category",
-                SourceType = "ancestor",
+                // Use "parent" (immediate content parent) rather than "ancestor" — the ancestor
+                // walk filters by SourceContentTypeAlias AND requires the property to be non-null,
+                // which was silently skipping the intermediate category nodes ("Electronics",
+                // "Software", …) and resolving to the root "Products" listing instead.
+                SourceType = "parent",
                 ContentTypePropertyAlias = "title",
-                SourceContentTypeAlias = ancestorContentTypeAlias,
+                SourceContentTypeAlias = parentContentTypeAlias,
             });
             repo.SavePropertyMappings(mapping.Id, existingMappings);
         }
@@ -4604,7 +4813,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             {
                 SchemaPropertyName = "Image",
                 SourceType = "property",
-                ContentTypePropertyAlias = "recipeImage",
+                ContentTypePropertyAlias = "heroImage",
             },
             new PropertyMapping
             {
@@ -4740,7 +4949,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             {
                 SchemaPropertyName = "Image",
                 SourceType = "property",
-                ContentTypePropertyAlias = "featuredImage",
+                ContentTypePropertyAlias = "heroImage",
             },
         });
     }
@@ -4824,7 +5033,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             {
                 SchemaPropertyName = "Image",
                 SourceType = "property",
-                ContentTypePropertyAlias = "eventImage",
+                ContentTypePropertyAlias = "heroImage",
             },
             new PropertyMapping
             {
