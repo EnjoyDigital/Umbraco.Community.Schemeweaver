@@ -54,3 +54,7 @@ test-images/
 ## Playwright E2E generated artefacts
 src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/playwright-report/
 src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/tests/e2e/.auth/
+
+## Claude Code ephemeral worktrees — created by the agent for isolation,
+## never intended to be tracked.
+.claude/worktrees/
