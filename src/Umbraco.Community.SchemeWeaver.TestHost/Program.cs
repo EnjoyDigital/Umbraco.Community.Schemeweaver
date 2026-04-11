@@ -24,3 +24,7 @@ app.UseUmbraco()
     });
 
 await app.RunAsync();
+
+// Exposed for Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program>
+// so integration tests can bind to this entry point. No behavioural impact.
+public partial class Program;
