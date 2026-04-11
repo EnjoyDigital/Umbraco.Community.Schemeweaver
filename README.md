@@ -155,7 +155,8 @@ cd src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
 npm install
 npm run build
 npm test
-npm run test:e2e        # Playwright, needs a running Umbraco + .env
+npm run test:e2e         # Playwright, needs a running Umbraco + .env
+npm run test:screenshots # regenerate the docs screenshots (opt-in)
 
 # Test host with 100+ sample content types
 dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
@@ -170,7 +171,7 @@ Please add tests for behavioural changes, and a regression test for bug fixes. C
 | Layer | Framework | Location |
 |---|---|---|
 | C# Unit | xUnit + NSubstitute + FluentAssertions | `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/` |
-| C# Integration | xUnit + `WebApplicationFactory<Program>` against the SchemeWeaver TestHost (per-class temp SQLite) | `tests/Umbraco.Community.SchemeWeaver.Tests/Integration/` |
+| C# Integration | xUnit + `WebApplicationFactory<Program>` against the SchemeWeaver TestHost, shared via an xUnit collection fixture so every test class reuses a single host (temp SQLite, one file per suite) | `tests/Umbraco.Community.SchemeWeaver.Tests/Integration/` |
 | TS Unit / Component | `@open-wc/testing` + MSW | `App_Plugins/SchemeWeaver/src/**/*.test.ts` |
 | E2E | Playwright + `@umbraco/playwright-testhelpers` | `App_Plugins/SchemeWeaver/tests/e2e/` |
 

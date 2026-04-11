@@ -18,8 +18,11 @@ dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.cs
 ```
 
 C# integration tests boot the SchemeWeaver TestHost via
-`WebApplicationFactory<Program>` against a per-class temp SQLite database,
-with authorization bypassed by a test `IPolicyEvaluator`. See
+`WebApplicationFactory<Program>` against a temp SQLite database, shared
+across every test class through an xUnit collection fixture
+(`SchemeWeaverIntegrationCollection`). One host per suite keeps Umbraco's
+static state from colliding when multiple factories would otherwise boot
+in parallel. Authorization is bypassed by a test `IPolicyEvaluator`. See
 `tests/Umbraco.Community.SchemeWeaver.Tests/Integration/Fixtures/`.
 
 ### Frontend (in src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/)
@@ -83,7 +86,7 @@ All under `/umbraco/management/api/v1/schemeweaver`, backoffice-authenticated:
 | Layer | Framework | Location |
 |---|---|---|
 | C# Unit | xUnit + NSubstitute + FluentAssertions | tests/Umbraco.Community.SchemeWeaver.Tests/Unit/ |
-| C# Integration | xUnit + Microsoft.AspNetCore.Mvc.Testing (`WebApplicationFactory<Program>` against the SchemeWeaver TestHost + per-class temp SQLite) | tests/Umbraco.Community.SchemeWeaver.Tests/Integration/ |
+| C# Integration | xUnit + Microsoft.AspNetCore.Mvc.Testing (`WebApplicationFactory<Program>` against the SchemeWeaver TestHost, shared via xUnit collection fixture + temp SQLite) | tests/Umbraco.Community.SchemeWeaver.Tests/Integration/ |
 | TS Unit/Component | @open-wc/testing + MSW | App_Plugins/SchemeWeaver/src/**/*.test.ts |
 | E2E | Playwright + @umbraco/playwright-testhelpers | App_Plugins/SchemeWeaver/tests/e2e/ |
 
