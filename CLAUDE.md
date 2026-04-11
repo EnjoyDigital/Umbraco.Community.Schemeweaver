@@ -11,18 +11,25 @@ Umbraco community package that maps Content Types to Schema.org types and genera
 ### C# Backend
 ```bash
 dotnet build                    # Build solution
-dotnet test                     # Run all C# tests (43 unit + 14 skipped integration stubs)
-dotnet test --filter "FullyQualifiedName~Unit"  # Unit tests only
+dotnet test                     # Run all C# tests (unit + integration)
+dotnet test --filter "FullyQualifiedName~Unit"         # Unit only
+dotnet test --filter "FullyQualifiedName~Integration"  # Integration only (WebApplicationFactory)
 dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --configuration Release --output ./artifacts
 ```
+
+C# integration tests boot the SchemeWeaver TestHost via
+`WebApplicationFactory<Program>` against a per-class temp SQLite database,
+with authorization bypassed by a test `IPolicyEvaluator`. See
+`tests/Umbraco.Community.SchemeWeaver.Tests/Integration/Fixtures/`.
 
 ### Frontend (in src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/)
 ```bash
 npm install
 npm run build                   # Vite build → ../../wwwroot/dist/
 npm test                        # Web Test Runner unit + component tests
+npm run test:msw                # Same suite with MSW enabled for HTTP mocks
 npm run test:watch              # Watch mode
-npm run test:e2e                # Playwright E2E tests (requires running Umbraco)
+npm run test:e2e                # Playwright E2E (all specs in tests/e2e/)
 npm run test:e2e:ui             # Playwright UI mode
 ```
 
@@ -76,9 +83,19 @@ All under `/umbraco/management/api/v1/schemeweaver`, backoffice-authenticated:
 | Layer | Framework | Location |
 |---|---|---|
 | C# Unit | xUnit + NSubstitute + FluentAssertions | tests/Umbraco.Community.SchemeWeaver.Tests/Unit/ |
-| C# Integration | xUnit (stubs, marked Skip) | tests/Umbraco.Community.SchemeWeaver.Tests/Integration/ |
+| C# Integration | xUnit + Microsoft.AspNetCore.Mvc.Testing (`WebApplicationFactory<Program>` against the SchemeWeaver TestHost + per-class temp SQLite) | tests/Umbraco.Community.SchemeWeaver.Tests/Integration/ |
 | TS Unit/Component | @open-wc/testing + MSW | App_Plugins/SchemeWeaver/src/**/*.test.ts |
 | E2E | Playwright + @umbraco/playwright-testhelpers | App_Plugins/SchemeWeaver/tests/e2e/ |
+
+**Known gap — Mocked Backoffice tier.** The Umbraco Backoffice Skills pyramid
+includes a "Mocked Backoffice" tier (Playwright driving the real Umbraco
+backoffice UI with MSW faking the backend). See the
+[umbraco-mocked-backoffice skill](https://github.com/umbraco/Umbraco-CMS-Backoffice-Skills).
+SchemeWeaver does not currently wire this up because the canonical harness
+needs the `umbraco/Umbraco-CMS` source cloned locally plus a Vite + manifest
+bootstrap recipe from the Umbraco-CMS `tree-example`. Contributors adopting
+that tier should follow the skill repo and land the harness under
+`App_Plugins/SchemeWeaver/tests/mocked-backoffice/`.
 
 ## Conventions
 - British English spelling

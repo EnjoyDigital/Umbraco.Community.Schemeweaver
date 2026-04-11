@@ -170,10 +170,13 @@ Please add tests for behavioural changes, and a regression test for bug fixes. C
 | Layer | Framework | Location |
 |---|---|---|
 | C# Unit | xUnit + NSubstitute + FluentAssertions | `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/` |
+| C# Integration | xUnit + `WebApplicationFactory<Program>` against the SchemeWeaver TestHost (per-class temp SQLite) | `tests/Umbraco.Community.SchemeWeaver.Tests/Integration/` |
 | TS Unit / Component | `@open-wc/testing` + MSW | `App_Plugins/SchemeWeaver/src/**/*.test.ts` |
 | E2E | Playwright + `@umbraco/playwright-testhelpers` | `App_Plugins/SchemeWeaver/tests/e2e/` |
 
 For backoffice UI changes, `npm run test:e2e` against a running Umbraco is the only thing that verifies manifests, modals, and entity actions are wired up correctly — type checks and unit tests won't catch that.
+
+**Known gap — Mocked Backoffice tier.** The Umbraco Backoffice Skills pyramid has a middle tier that drives the real Umbraco backoffice UI in a browser with MSW faking the backend — see the [umbraco-mocked-backoffice skill](https://github.com/umbraco/Umbraco-CMS-Backoffice-Skills). SchemeWeaver doesn't wire this up yet because the canonical harness needs the `umbraco/Umbraco-CMS` source cloned locally plus a Vite + manifests bootstrap from the `tree-example`. Contributions welcome — land the harness under `App_Plugins/SchemeWeaver/tests/mocked-backoffice/`.
 
 ### Using an AI assistant
 
