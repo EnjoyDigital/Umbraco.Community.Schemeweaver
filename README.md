@@ -155,8 +155,10 @@ cd src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
 npm install
 npm run build
 npm test
-npm run test:e2e         # Playwright, needs a running Umbraco + .env
-npm run test:screenshots # regenerate the docs screenshots (opt-in)
+npm run test:msw                 # component tests with MSW handlers
+npm run test:mocked-backoffice   # Playwright drives the real backoffice UI with MSW — needs Umbraco-CMS clone
+npm run test:e2e                 # Playwright against a running Umbraco + .env
+npm run test:screenshots         # regenerate the docs screenshots (opt-in)
 
 # Test host with 100+ sample content types
 dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
@@ -173,11 +175,10 @@ Please add tests for behavioural changes, and a regression test for bug fixes. C
 | C# Unit | xUnit + NSubstitute + FluentAssertions | `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/` |
 | C# Integration | xUnit + `WebApplicationFactory<Program>` against the SchemeWeaver TestHost, shared via an xUnit collection fixture so every test class reuses a single host (temp SQLite, one file per suite) | `tests/Umbraco.Community.SchemeWeaver.Tests/Integration/` |
 | TS Unit / Component | `@open-wc/testing` + MSW | `App_Plugins/SchemeWeaver/src/**/*.test.ts` |
-| E2E | Playwright + `@umbraco/playwright-testhelpers` | `App_Plugins/SchemeWeaver/tests/e2e/` |
+| Mocked Backoffice | Playwright drives the real Umbraco backoffice UI via `VITE_EXAMPLE_PATH`, with SchemeWeaver's MSW handlers serving all HTTP traffic — no .NET required. Requires a local `umbraco/Umbraco-CMS` clone plus a small `addMockHandlers` patch; see [`tests/mocked-backoffice/README.md`](src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/tests/mocked-backoffice/README.md) | `App_Plugins/SchemeWeaver/tests/mocked-backoffice/` |
+| E2E | Playwright + `@umbraco/playwright-testhelpers` against a running Umbraco | `App_Plugins/SchemeWeaver/tests/e2e/` |
 
-For backoffice UI changes, `npm run test:e2e` against a running Umbraco is the only thing that verifies manifests, modals, and entity actions are wired up correctly — type checks and unit tests won't catch that.
-
-**Known gap — Mocked Backoffice tier.** The Umbraco Backoffice Skills pyramid has a middle tier that drives the real Umbraco backoffice UI in a browser with MSW faking the backend — see the [umbraco-mocked-backoffice skill](https://github.com/umbraco/Umbraco-CMS-Backoffice-Skills). SchemeWeaver doesn't wire this up yet because the canonical harness needs the `umbraco/Umbraco-CMS` source cloned locally plus a Vite + manifests bootstrap from the `tree-example`. Contributions welcome — land the harness under `App_Plugins/SchemeWeaver/tests/mocked-backoffice/`.
+For backoffice UI changes, `npm run test:mocked-backoffice` verifies manifest wiring, workspace-view conditions, and modal plumbing without a running Umbraco; `npm run test:e2e` against a real instance is still the only thing that catches issues across the full .NET + backoffice stack.
 
 ### Using an AI assistant
 

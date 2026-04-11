@@ -1,0 +1,16 @@
+--- a/src/mocks/index.ts
++++ b/src/mocks/index.ts
+@@ -5,6 +5,13 @@ import type { http as httpType, HttpResponse as HttpResponseType, delay as delay
+ import { umbracoPath } from '@umbraco-cms/backoffice/utils';
+
+ const worker = setupWorker(...handlers);
++
++// Allow external extensions (e.g. SchemeWeaver) to register their own MSW
++// handlers at runtime. Uses ??= so a future upstream implementation of
++// `addMockHandlers` takes precedence without a merge conflict.
++(window as unknown as { MockServiceWorker: { addMockHandlers?: typeof worker.use } })
++	.MockServiceWorker.addMockHandlers ??= (...extra: Parameters<typeof worker.use>) =>
++		worker.use(...extra);
+
+ export { setupWorker };
+

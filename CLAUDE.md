@@ -88,17 +88,15 @@ All under `/umbraco/management/api/v1/schemeweaver`, backoffice-authenticated:
 | C# Unit | xUnit + NSubstitute + FluentAssertions | tests/Umbraco.Community.SchemeWeaver.Tests/Unit/ |
 | C# Integration | xUnit + Microsoft.AspNetCore.Mvc.Testing (`WebApplicationFactory<Program>` against the SchemeWeaver TestHost, shared via xUnit collection fixture + temp SQLite) | tests/Umbraco.Community.SchemeWeaver.Tests/Integration/ |
 | TS Unit/Component | @open-wc/testing + MSW | App_Plugins/SchemeWeaver/src/**/*.test.ts |
+| Mocked Backoffice | Playwright + the real Umbraco-CMS backoffice via `VITE_EXAMPLE_PATH`, all HTTP served by SchemeWeaver's own MSW handlers. Needs a local Umbraco-CMS clone and a tiny `addMockHandlers` patch — see `App_Plugins/SchemeWeaver/tests/mocked-backoffice/README.md` | App_Plugins/SchemeWeaver/tests/mocked-backoffice/ |
 | E2E | Playwright + @umbraco/playwright-testhelpers | App_Plugins/SchemeWeaver/tests/e2e/ |
 
-**Known gap — Mocked Backoffice tier.** The Umbraco Backoffice Skills pyramid
-includes a "Mocked Backoffice" tier (Playwright driving the real Umbraco
-backoffice UI with MSW faking the backend). See the
-[umbraco-mocked-backoffice skill](https://github.com/umbraco/Umbraco-CMS-Backoffice-Skills).
-SchemeWeaver does not currently wire this up because the canonical harness
-needs the `umbraco/Umbraco-CMS` source cloned locally plus a Vite + manifest
-bootstrap recipe from the Umbraco-CMS `tree-example`. Contributors adopting
-that tier should follow the skill repo and land the harness under
-`App_Plugins/SchemeWeaver/tests/mocked-backoffice/`.
+The Mocked Backoffice tier currently requires the user to apply a
+one-line patch to their local Umbraco-CMS clone, because Umbraco v17.2.2
+does not yet expose a runtime `addMockHandlers` API on
+`window.MockServiceWorker`. The patch uses `??=` so it becomes a no-op
+once upstream ships the real API. See the harness README for the exact
+`git apply` command.
 
 ## Conventions
 - British English spelling
