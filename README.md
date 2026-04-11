@@ -182,31 +182,14 @@ AI tools (Claude, Copilot, Cursor, etc.) are welcome to help. The rules are shor
 - **You review it.** Read every line before committing. You're accountable for the PR, not the assistant.
 - **MIT-compatible only.** Don't submit code copied from incompatible sources.
 - **Add tests**, same as any other contribution.
-- **For UI work, use the [Umbraco Backoffice Skills](https://github.com/umbraco/Umbraco-CMS-Backoffice-Skills).** They encode the correct `UmbLitElement` / modal / manifest / context-token patterns so generated code fits the Umbraco 17+ backoffice instead of looking like generic Lit. Install in Claude Code with:
-
-  ```
-  /plugin marketplace add umbraco/Umbraco-CMS-Backoffice-Skills
-  /plugin install umbraco-cms-backoffice-skills@umbraco-backoffice-marketplace
-  /plugin install umbraco-cms-backoffice-testing-skills@umbraco-backoffice-marketplace
-  ```
-
-  Cursor / Copilot / Windsurf: `npx skills add umbraco/Umbraco-CMS-Backoffice-Skills --skill '*' -a cursor`.
-
-  **Important — clone the Umbraco source.** For the skills to produce idiomatic backoffice UI they need to grep the canonical implementations. Clone these two repos alongside your work and add them as Claude Code working directories:
-
-  ```bash
-  git clone https://github.com/umbraco/Umbraco-CMS.git
-  git clone https://github.com/umbraco/Umbraco.UI.git
-  ```
-
-  The folders that matter are [`Umbraco-CMS/src/Umbraco.Web.UI.Client`](https://github.com/umbraco/Umbraco-CMS/tree/main/src/Umbraco.Web.UI.Client) (every core workspace view, entity action, modal, property editor and context token) and [`Umbraco.UI/packages/uui`](https://github.com/umbraco/Umbraco.UI/tree/main/packages/uui) (the UUI component library). Without them the skills fall back to guessing manifest and context shapes and you get plausible-looking-but-wrong code. Also run the `umbraco-extension-reviewer` agent on UI changes — it audits manifests, context usage and modal wiring. Local skill stubs in this repo live under [`.claude/skills/`](.claude/skills/).
+- **For UI work**, install the [Umbraco Backoffice Skills](https://github.com/umbraco/Umbraco-CMS-Backoffice-Skills) and add [`umbraco/Umbraco-CMS`](https://github.com/umbraco/Umbraco-CMS) (`src/Umbraco.Web.UI.Client`) and [`umbraco/Umbraco.UI`](https://github.com/umbraco/Umbraco.UI) (`packages/uui`) as working directories so the skills can grep the canonical backoffice source — see the skills repo for setup. Also run the `umbraco-extension-reviewer` agent on UI changes.
 - **Tag the commit.** When an assistant materially helped, add a git trailer at the bottom of the commit message so we can see which model was used:
 
   ```
   Assisted-by: Claude:claude-opus-4-6
   ```
 
-  Format is `Assisted-by: <agent>:<model> [optional tools]`, e.g. `Assisted-by: Copilot:gpt-5 playwright`. Just leave a blank line before it, or use `git commit --trailer "Assisted-by=..."`. Basic tools (`git`, `dotnet`, `npm`, editors) don't need listing.
+  Format is `Assisted-by: <agent>:<model> [optional tools]`, e.g. `Assisted-by: Copilot:gpt-5 playwright`. Just leave a blank line before it, or use `git commit --trailer "Assisted-by=..."`. Basic tools (`git`, `dotnet`, `npm`, editors) don't need listing. If your tool already adds a `Co-authored-by:` trailer for the assistant automatically, that's fine too — just don't bother adding both.
 
 - **Don't add `Signed-off-by` on a human's behalf.** Only the human submitter can sign off their own contribution.
 
