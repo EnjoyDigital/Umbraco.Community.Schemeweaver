@@ -79,3 +79,43 @@ export const handlers = [
     }, { status: 201 });
   }),
 ];
+
+// ---------------------------------------------------------------------------
+// Error-path overrides. Pass to `worker.use(...)` inside an individual test to
+// switch the relevant endpoint into an error mode. They are scoped to a single
+// test run and reset by MSW between tests via `worker.resetHandlers()`.
+// ---------------------------------------------------------------------------
+
+/** All mapping GETs return 404 — exercises the empty-state / not-found paths. */
+export const mappingNotFoundHandlers = [
+  http.get(`${BASE}/mappings`, () => HttpResponse.json([], { status: 200 })),
+  http.get(`${BASE}/mappings/:alias`, () =>
+    HttpResponse.json({ error: 'Not found' }, { status: 404 }),
+  ),
+];
+
+/** Save / auto-map endpoints return 400 — exercises client-side validation error handling. */
+export const validationErrorHandlers = [
+  http.post(`${BASE}/mappings`, () =>
+    HttpResponse.json({ error: 'ContentTypeAlias is required.' }, { status: 400 }),
+  ),
+  http.post(`${BASE}/mappings/:alias/auto-map`, () =>
+    HttpResponse.json({ error: 'schemaTypeName query parameter is required.' }, { status: 400 }),
+  ),
+];
+
+/** Every endpoint returns 500 — exercises generic error handling in the UI. */
+export const serverErrorHandlers = [
+  http.get(`${BASE}/mappings`, () =>
+    HttpResponse.json({ error: 'Internal server error' }, { status: 500 }),
+  ),
+  http.get(`${BASE}/mappings/:alias`, () =>
+    HttpResponse.json({ error: 'Internal server error' }, { status: 500 }),
+  ),
+  http.post(`${BASE}/mappings`, () =>
+    HttpResponse.json({ error: 'Internal server error' }, { status: 500 }),
+  ),
+  http.post(`${BASE}/mappings/:alias/preview`, () =>
+    HttpResponse.json({ error: 'Internal server error' }, { status: 500 }),
+  ),
+];
