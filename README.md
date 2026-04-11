@@ -141,18 +141,113 @@ The generated output:
 
 ## Contributing
 
-```bash
-# Build
-dotnet build
+Contributions are very welcome -- bug reports, fixes, docs improvements, new property resolvers, extra auto-mapper synonyms, or whole new features. Please read this section before opening a pull request.
 
-# Run tests
-dotnet test                    # C# unit tests
-cd src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
-npm test                       # Frontend tests
+### Licence and legal
 
-# Run the test host (100+ sample content types with Schema.org mappings)
-dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
+- SchemeWeaver is licensed under the **MIT Licence** -- see [LICENSE](LICENSE).
+- By submitting a pull request you agree that your contribution is licensed under the same MIT Licence.
+- Do not include code copied from incompatible sources (GPL, proprietary, unknown licence). If in doubt, ask first in an issue.
+- Keep third-party dependencies to a minimum and prefer libraries that are already referenced by Umbraco or Schema.NET.
+
+### Development workflow
+
+1. **Fork** the repository and create a topic branch from `main`.
+2. Read [`CLAUDE.md`](CLAUDE.md) -- it documents the architecture, DI registrations, and conventions used across the C# and frontend projects.
+3. Build, run, and smoke-test your change against the bundled test host before opening a PR:
+
+   ```bash
+   # Build the solution
+   dotnet build
+
+   # C# tests (unit + skipped integration stubs)
+   dotnet test
+   dotnet test --filter "FullyQualifiedName~Unit"
+
+   # Frontend tests
+   cd src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
+   npm install
+   npm run build
+   npm test                       # Web Test Runner unit + component tests
+   npm run test:e2e               # Playwright E2E (requires running Umbraco + .env)
+
+   # Run the test host (100+ sample content types with Schema.org mappings)
+   dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
+   ```
+
+4. Keep commits focused, use British English in prose, and follow existing naming (`SchemeWeaver`, not `SchemaWeaver`).
+5. Open a pull request describing **what** changed and **why**, and link any related issues.
+
+### Tests are required
+
+Every behavioural change **must** come with tests. PRs without tests will usually be asked to add them before review.
+
+| Layer | Framework | Location |
+|---|---|---|
+| C# Unit | xUnit + NSubstitute + FluentAssertions | `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/` |
+| C# Integration | xUnit (stubs, marked `Skip`) | `tests/Umbraco.Community.SchemeWeaver.Tests/Integration/` |
+| TS Unit / Component | `@open-wc/testing` + MSW | `App_Plugins/SchemeWeaver/src/**/*.test.ts` |
+| E2E | Playwright + `@umbraco/playwright-testhelpers` | `App_Plugins/SchemeWeaver/tests/e2e/` |
+
+Specifically:
+
+- New or changed C# services, resolvers, auto-mapper rules, or repositories need xUnit tests in `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/`.
+- New or changed Lit components, modals, entity actions, or workspace views need `@open-wc/testing` component tests under `src/**/*.test.ts` (use the MSW handlers in `src/mocks/`).
+- UI flows that cross the backoffice boundary (opening a modal, saving a mapping, generating a doc type) should get a Playwright spec under `tests/e2e/` and be run locally via `npm run test:e2e` before the PR is marked ready.
+- Bug fixes need a regression test that fails without the fix.
+
+All tests must pass before a PR can be merged. CI runs `dotnet test` and the frontend test suite on every push.
+
+### Umbraco backoffice skills and review agents
+
+If you are using Claude Code (or another agent runner) to help with a contribution, please lean on the Umbraco-specific tooling we already use in this repo:
+
+- **Umbraco backoffice skills** -- prefer these for any UI / extension work (workspace views, modals, property editors, entity actions, context tokens). They encode the correct `UmbLitElement`, `UmbModalBaseElement`, `UmbControllerBase`, and manifest patterns so generated code slots into the backoffice cleanly. See the skills bundled with [Claude Code for Umbraco](https://github.com/umbraco/Umbraco-CMS) and the local skill definitions under [`.claude/skills/`](.claude/skills/) (`simplify-umbraco`, `review`, `git-workflow`, etc.).
+- **`umbraco-extension-reviewer` agent** -- run this whenever you have finished a UI change. It audits manifests, context usage, modal wiring, and naming against the Umbraco 17+ backoffice conventions. CLAUDE.md requires this to be run before UI work is considered complete.
+- **E2E Playwright run** -- close the loop on any UI change with `npm run test:e2e` against a running Umbraco instance. Type checks and unit tests verify correctness; only E2E verifies the feature actually works in the backoffice.
+
+### Coding style
+
+- C#: follow the existing style in the solution (file-scoped namespaces, nullable enabled, standard Umbraco composer / controller patterns, NPoco for persistence).
+- Frontend: TypeScript + Lit, `camelCase` DTOs matching the C# API, Umbraco backoffice observables and context tokens. Run `npm run build` to confirm Vite compiles cleanly.
+- Keep public APIs stable. If you need to break one, call it out explicitly in the PR description.
+
+### Guidance for AI coding assistants
+
+AI tools (Claude, Copilot, Cursor, etc.) are welcome to help with SchemeWeaver contributions. The same rules apply as for human contributors, with a few extras to keep the history honest and the project safe.
+
+**Follow the existing process.** AI-assisted patches must follow the workflow above: read [`CLAUDE.md`](CLAUDE.md), match the architecture in `src/Umbraco.Community.SchemeWeaver/`, use the Umbraco backoffice skills for UI work, and run the `umbraco-extension-reviewer` agent on UI changes.
+
+**Licensing.** All AI-generated code must be compatible with the MIT Licence. Do not submit code an assistant produced by quoting large blocks from incompatible sources. You, the human submitter, are responsible for confirming this.
+
+**Tests are non-negotiable.** An AI assistant must add tests for the code it writes (C# unit, Lit component, and/or Playwright E2E as appropriate). PRs that say "tests to follow" or that skip the test pyramid described above will be sent back.
+
+**Human review and accountability.** Only a human can sign off on a contribution. The submitter is responsible for:
+
+- Reading and understanding every line of AI-generated code before committing it.
+- Confirming licence compatibility and that no secrets / private data leaked into the diff.
+- Running `dotnet build`, `dotnet test`, `npm test`, and (for UI) `npm run test:e2e` locally.
+- Taking full responsibility for the contribution in the PR.
+
+**Attribution.** When AI tooling materially contributed to a commit, add an `Assisted-by` trailer to the commit message so we can track how AI assistance evolves in the project. Basic developer tools (`git`, `dotnet`, `npm`, editors) do not need to be listed.
+
 ```
+Assisted-by: AGENT_NAME:MODEL_VERSION [TOOL1] [TOOL2]
+```
+
+Example:
+
+```
+Assisted-by: Claude:claude-opus-4-6 umbraco-extension-reviewer playwright
+```
+
+Where:
+
+- `AGENT_NAME` is the AI tool or framework (e.g. `Claude`, `Copilot`, `Cursor`).
+- `MODEL_VERSION` is the specific model version used.
+- `[TOOL1] [TOOL2]` are optional specialised analysis tools or agents used (e.g. `umbraco-extension-reviewer`, `playwright`, `roslyn-analyzers`).
+
+**Do not add DCO `Signed-off-by` trailers on behalf of a human.** Only the human submitter may add their own sign-off (if required) to certify the contribution.
 
 ## Licence
 
