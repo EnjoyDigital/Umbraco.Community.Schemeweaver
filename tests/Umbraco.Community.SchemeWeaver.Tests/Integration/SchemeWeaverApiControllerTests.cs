@@ -14,6 +14,7 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Integration;
 /// with authorization bypassed by <see cref="TestPolicyEvaluator"/> so tests can call
 /// protected endpoints directly.
 /// </summary>
+[Collection(SchemeWeaverIntegrationCollection.Name)]
 public class SchemeWeaverApiControllerTests : UmbracoIntegrationTestBase
 {
     private const string BaseRoute = "/umbraco/management/api/v1/schemeweaver";

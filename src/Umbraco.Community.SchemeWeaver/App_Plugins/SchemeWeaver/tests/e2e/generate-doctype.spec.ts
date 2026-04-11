@@ -16,10 +16,10 @@ import { test } from '@umbraco/playwright-testhelpers';
 
 const BASE = '/umbraco/management/api/v1/schemeweaver';
 
-async function ensureAuthenticated(umbracoUi: any) {
-  await umbracoUi.goToBackOffice();
-  await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-}
+// This spec is pure `page.request.*` traffic: no UI interaction at all.
+// `page.request` inherits cookies from the Playwright storageState that
+// `auth.setup.ts` produced, so we don't need to navigate to the backoffice
+// shell on every test — that was ~5 s of pure waste per test.
 
 async function getContentTypeByAlias(umbracoUi: any, alias: string) {
   const response = await umbracoUi.page.request.get(`${BASE}/content-types`);
@@ -38,16 +38,23 @@ async function deleteDocumentTypeIfExists(umbracoUi: any, key: string) {
 
 test.describe('Generate content type from Schema.org (E2E)', () => {
   test('POST /generate-content-type creates a real Umbraco document type', async ({ umbracoUi }) => {
-    await ensureAuthenticated(umbracoUi);
-
-    const alias = 'e2eGeneratedRecipe';
+    // Unique alias per run so back-to-back runs (or a prior crash that
+    // skipped the finally-block cleanup) can't leave a collision behind.
+    const alias = `e2eGeneratedRecipe${Date.now()}`;
     const request = {
       schemaTypeName: 'Recipe',
-      documentTypeName: 'E2E Generated Recipe',
+      documentTypeName: `E2E Generated Recipe ${alias}`,
       documentTypeAlias: alias,
       selectedProperties: ['name', 'description', 'recipeIngredient'],
       propertyGroupName: 'Content',
     };
+
+    // Belt-and-braces: if a previous run died mid-flight leaving a content
+    // type with the target alias, nuke it before we start.
+    const stale = await getContentTypeByAlias(umbracoUi, alias);
+    if (stale) {
+      await deleteDocumentTypeIfExists(umbracoUi, stale.key);
+    }
 
     let createdKey: string | undefined;
 
@@ -65,7 +72,7 @@ test.describe('Generate content type from Schema.org (E2E)', () => {
       // Verify the new content type shows up in the list.
       const persisted = await getContentTypeByAlias(umbracoUi, alias);
       expect(persisted, `document type "${alias}" not found after generation`).toBeTruthy();
-      expect(persisted!.name).toBe('E2E Generated Recipe');
+      expect(persisted!.name).toBe(request.documentTypeName);
     } finally {
       if (createdKey) {
         await deleteDocumentTypeIfExists(umbracoUi, createdKey);
@@ -74,8 +81,6 @@ test.describe('Generate content type from Schema.org (E2E)', () => {
   });
 
   test('missing schemaTypeName returns 400 BadRequest', async ({ umbracoUi }) => {
-    await ensureAuthenticated(umbracoUi);
-
     const response = await umbracoUi.page.request.post(
       `${BASE}/generate-content-type`,
       {
@@ -93,8 +98,6 @@ test.describe('Generate content type from Schema.org (E2E)', () => {
   });
 
   test('missing documentTypeName returns 400 BadRequest', async ({ umbracoUi }) => {
-    await ensureAuthenticated(umbracoUi);
-
     const response = await umbracoUi.page.request.post(
       `${BASE}/generate-content-type`,
       {

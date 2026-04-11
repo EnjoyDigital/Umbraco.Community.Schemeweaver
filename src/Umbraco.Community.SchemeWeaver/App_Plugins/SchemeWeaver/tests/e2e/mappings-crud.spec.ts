@@ -16,10 +16,9 @@ import { test } from '@umbraco/playwright-testhelpers';
 
 const BASE = '/umbraco/management/api/v1/schemeweaver';
 
-async function ensureAuthenticated(umbracoUi: any) {
-  await umbracoUi.goToBackOffice();
-  await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-}
+// Pure API suite: `page.request.*` already inherits cookies from the
+// Playwright storageState produced by `auth.setup.ts`, so skip the
+// `goToBackOffice()` + `networkidle` handshake per test.
 
 async function deleteMappingIfExists(umbracoUi: any, alias: string) {
   // Swallow errors — cleanup should never fail a test.
@@ -30,8 +29,6 @@ async function deleteMappingIfExists(umbracoUi: any, alias: string) {
 
 test.describe('Mappings CRUD (E2E)', () => {
   test('create → get → delete round trip through the management API', async ({ umbracoUi }) => {
-    await ensureAuthenticated(umbracoUi);
-
     const alias = 'e2eCrudRoundTrip';
     const payload = {
       contentTypeAlias: alias,
@@ -82,8 +79,6 @@ test.describe('Mappings CRUD (E2E)', () => {
   });
 
   test('saving the same alias twice updates in place without duplicating', async ({ umbracoUi }) => {
-    await ensureAuthenticated(umbracoUi);
-
     const alias = 'e2eUpdateInPlace';
     const initial = {
       contentTypeAlias: alias,
@@ -116,8 +111,6 @@ test.describe('Mappings CRUD (E2E)', () => {
   });
 
   test('delete endpoint returns 204 and removes the mapping from the list', async ({ umbracoUi }) => {
-    await ensureAuthenticated(umbracoUi);
-
     const alias = 'e2eDeleteViaApi';
     const payload = {
       contentTypeAlias: alias,
@@ -152,8 +145,6 @@ test.describe('Mappings CRUD (E2E)', () => {
   });
 
   test('save with missing schemaTypeName returns 400 BadRequest', async ({ umbracoUi }) => {
-    await ensureAuthenticated(umbracoUi);
-
     const payload = {
       contentTypeAlias: 'e2eValidationTest',
       contentTypeKey: '00000000-0000-0000-0000-000000000000',

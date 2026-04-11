@@ -10,6 +10,22 @@ async function fillUuiInput(locator: any, text: string) {
 }
 
 /**
+ * Type into the schema picker's search input and wait for a matching schema
+ * item to appear. Replaces a blind 1 s `waitForTimeout()` that was there to
+ * cover the debounced search render — the locator-based wait is both faster
+ * on cache hits and more resilient on slow CI.
+ */
+async function searchAndPickSchema(pickerModal: any, schemaName: string) {
+  await fillUuiInput(pickerModal.locator('uui-input').first(), schemaName);
+  const match = pickerModal
+    .locator('.schema-item', { hasText: new RegExp(`^${schemaName}$`, 'i') })
+    .first();
+  await match.waitFor({ state: 'visible', timeout: 10_000 });
+  await match.click();
+  await pickerModal.locator('uui-button[look="primary"]').last().click();
+}
+
+/**
  * Helper: look up a document type's key by its display name via the SchemeWeaver
  * content-types API. This avoids flaky tree navigation when there are 100+ doc types.
  */
@@ -34,23 +50,21 @@ async function getDocTypeKeyByName(umbracoUi: any, docTypeName: string): Promise
  * workspace URL — bypassing the tree entirely. Robust regardless of tree position.
  */
 async function goToDocTypeSchemaTab(umbracoUi: any, docTypeName: string) {
-  // Ensure we're authenticated via the backoffice session
+  // `goToBackOffice()` resolves when the shell is visible — that's already
+  // enough for `page.request.*` to inherit cookies, so skip the extra
+  // `networkidle` wait that would otherwise block on backoffice polling.
   await umbracoUi.goToBackOffice();
-  await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-  // Look up the doc type key via API (authenticated via browser cookies)
   const docTypeKey = await getDocTypeKeyByName(umbracoUi, docTypeName);
 
-  // Navigate directly to the workspace view
   await umbracoUi.page.goto(`/umbraco/section/settings/workspace/document-type/edit/${docTypeKey}`);
-  await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-  // Click the Schema.org tab
+  // Schema.org tab + the mapping view itself are the real readiness signals;
+  // the previous `networkidle` wait was redundant given the locator waits.
   const schemaTab = umbracoUi.page.getByRole('tab', { name: /Schema\.org/i });
   await schemaTab.waitFor({ timeout: 15_000 });
   await schemaTab.click();
 
-  // Wait for the schema mapping view to load
   await umbracoUi.page.locator('schemeweaver-schema-mapping-view').waitFor({ timeout: 15_000 });
 }
 
@@ -383,22 +397,17 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
   });
 
   test('JSON-LD preview works in backoffice', async ({ umbracoUi }) => {
-    // Navigate to Content section
     await umbracoUi.goToBackOffice();
     await umbracoUi.content.goToSection(ConstantHelper.sections.content);
 
-    // Wait for content tree to load
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-
-    // Click on the first content node (Home Page)
+    // The tree item's own `waitFor` covers tree-ready; no need to block on
+    // a `networkidle` window the backoffice may never give us.
     const treeItem = umbracoUi.page.locator('umb-tree-item').first();
     await treeItem.waitFor({ timeout: 15_000 });
     await treeItem.locator('a').first().click();
 
-    // Wait for workspace to load
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-
-    // Look for the JSON-LD tab
+    // Workspace readiness = the JSON-LD tab being queryable; the tab's
+    // `isVisible` check below is the real gate.
     const jsonLdTab = umbracoUi.page.getByRole('tab', { name: /JSON-LD/i });
     if (await jsonLdTab.isVisible({ timeout: 10_000 }).catch(() => false)) {
       await jsonLdTab.click();
@@ -407,14 +416,12 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
       const jsonLdView = umbracoUi.page.locator('schemeweaver-jsonld-content-view');
       await expect(jsonLdView).toBeVisible({ timeout: 10_000 });
 
-      // Click generate preview button
+      // Click generate preview button. The test doesn't assert on preview
+      // content — `click()` is enough of a smoke check, so no post-click
+      // sleep is needed.
       const generateBtn = jsonLdView.locator('uui-button', { hasText: /Generate Preview/i });
       if (await generateBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
         await generateBtn.click();
-
-        // Wait for preview to render
-        await umbracoUi.page.waitForTimeout(3_000);
-
       }
     }
   });
@@ -426,11 +433,10 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
 
 test.describe('Document Type Workspace View', () => {
   test('Schema.org tab appears on document type editor', async ({ umbracoUi }) => {
-    // Navigate directly to Settings section via URL to avoid testhelper selector issues
     await umbracoUi.page.goto('/umbraco/section/settings');
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-    // Click on Document Types link in the tree
+    // The tree link's own `waitFor` is sufficient — no need to wait on a
+    // `networkidle` window that never arrives on the polling backoffice.
     const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
     await docTypesLink.waitFor({ timeout: 15_000 });
     await docTypesLink.click();
@@ -469,10 +475,7 @@ test.describe('Complex Mapping Workflows', () => {
       // Pick FAQPage schema type
       const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
       await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-      await fillUuiInput(pickerModal.locator('uui-input').first(), 'FAQPage');
-      await umbracoUi.page.waitForTimeout(1_000);
-      await pickerModal.locator('.schema-item').first().click();
-      await pickerModal.locator('uui-button[look="primary"]').last().click();
+      await searchAndPickSchema(pickerModal, 'FAQPage');
 
       // Property mapping modal should show blockContent suggestion
       const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
@@ -527,10 +530,7 @@ test.describe('Complex Mapping Workflows', () => {
 
       const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
       await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-      await fillUuiInput(pickerModal.locator('uui-input').first(), 'Product');
-      await umbracoUi.page.waitForTimeout(1_000);
-      await pickerModal.locator('.schema-item').first().click();
-      await pickerModal.locator('uui-button[look="primary"]').last().click();
+      await searchAndPickSchema(pickerModal, 'Product');
 
       const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
       await expect(mappingModal).toBeVisible({ timeout: 10_000 });
@@ -551,10 +551,7 @@ test.describe('Complex Mapping Workflows', () => {
 
       const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
       await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-      await fillUuiInput(pickerModal.locator('uui-input').first(), 'Recipe');
-      await umbracoUi.page.waitForTimeout(1_000);
-      await pickerModal.locator('.schema-item').first().click();
-      await pickerModal.locator('uui-button[look="primary"]').last().click();
+      await searchAndPickSchema(pickerModal, 'Recipe');
 
       const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
       await expect(mappingModal).toBeVisible({ timeout: 10_000 });
@@ -575,10 +572,7 @@ test.describe('Complex Mapping Workflows', () => {
 
       const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
       await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-      await fillUuiInput(pickerModal.locator('uui-input').first(), 'Event');
-      await umbracoUi.page.waitForTimeout(1_000);
-      await pickerModal.locator('.schema-item').first().click();
-      await pickerModal.locator('uui-button[look="primary"]').last().click();
+      await searchAndPickSchema(pickerModal, 'Event');
 
       const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
       await expect(mappingModal).toBeVisible({ timeout: 10_000 });
@@ -601,10 +595,7 @@ test.describe('Complex Mapping Workflows', () => {
 
     const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
     await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-    await fillUuiInput(pickerModal.locator('uui-input').first(), 'FAQPage');
-    await umbracoUi.page.waitForTimeout(1_000);
-    await pickerModal.locator('.schema-item').first().click();
-    await pickerModal.locator('uui-button[look="primary"]').last().click();
+    await searchAndPickSchema(pickerModal, 'FAQPage');
 
     const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
     await expect(mappingModal).toBeVisible({ timeout: 10_000 });
@@ -630,9 +621,9 @@ test.describe('Complex Mapping Workflows', () => {
       const previewBtn = nestedModal.locator('uui-button', { hasText: 'Preview' });
       if (await previewBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
         await previewBtn.click();
-        await umbracoUi.page.waitForTimeout(500);
 
-        // Step 3: Preview
+        // Step 3: Preview — the `previewSummary.isVisible` check below is
+        // the real readiness signal; no need to sleep beforehand.
         const previewSummary = nestedModal.locator('.preview-summary');
         if (await previewSummary.isVisible({ timeout: 3_000 }).catch(() => false)) {
           // Save
@@ -666,10 +657,7 @@ test.describe('Complex Mapping Workflows', () => {
 
     const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
     await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-    await fillUuiInput(pickerModal.locator('uui-input').first(), 'Product');
-    await umbracoUi.page.waitForTimeout(1_000);
-    await pickerModal.locator('.schema-item').first().click();
-    await pickerModal.locator('uui-button[look="primary"]').last().click();
+    await searchAndPickSchema(pickerModal, 'Product');
 
     const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
     await expect(mappingModal).toBeVisible({ timeout: 10_000 });
@@ -733,9 +721,7 @@ test.describe('Complex Mapping Workflows', () => {
 test.describe('Entity Actions', () => {
   test('Map to Schema.org action exists on document type context menu', async ({ umbracoUi }) => {
     await umbracoUi.page.goto('/umbraco/section/settings');
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-    // Click on Document Types link in the tree
     const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
     await docTypesLink.waitFor({ timeout: 15_000 });
 
@@ -743,7 +729,6 @@ test.describe('Entity Actions', () => {
     const expandBtn = umbracoUi.page.locator('button[aria-label*="Expand"]').first();
     if (await expandBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await expandBtn.click();
-      await umbracoUi.page.waitForTimeout(1_000);
     }
 
     // Find first child tree item
@@ -789,9 +774,7 @@ test.describe('Review Fixes', () => {
     await expect(schemaTag).toBeVisible({ timeout: 10_000 });
     const schemaTypeName = await schemaTag.textContent();
 
-    // Refresh and re-navigate
     await umbracoUi.page.reload();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     const schemaTab = umbracoUi.page.getByRole('tab', { name: /Schema\.org/i });
     if (await schemaTab.isVisible({ timeout: 5_000 }).catch(() => false)) {
@@ -813,9 +796,9 @@ test.describe('Review Fixes', () => {
 // ────────────────────────────────────────────────────────────────
 test.describe('Dynamic Root Config Round-Trip', () => {
   test('dynamicRootConfig survives save and reload through management API', async ({ umbracoUi }) => {
-    // Ensure we have an authenticated backoffice session (page.request inherits cookies)
+    // `goToBackOffice()` primes the cookie jar that `page.request` inherits —
+    // no need to wait for a `networkidle` window on top of that.
     await umbracoUi.goToBackOffice();
-    await umbracoUi.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     // Use a synthetic alias that no real content type owns. This isolates the
     // round-trip test from the seeded data so a failure cannot strip mappings

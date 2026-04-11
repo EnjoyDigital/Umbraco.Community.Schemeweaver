@@ -7,13 +7,15 @@ using Xunit;
 namespace Umbraco.Community.SchemeWeaver.Tests.Integration.Fixtures;
 
 /// <summary>
-/// Base class for SchemeWeaver integration tests. Provides a shared
-/// <see cref="SchemeWeaverWebApplicationFactory"/> via xUnit's
-/// <see cref="IClassFixture{TFixture}"/>, plus helpers to resolve services from
-/// fresh DI scopes and wipe SchemeWeaver tables between tests.
+/// Base class for SchemeWeaver integration tests. Concrete derivations must be
+/// attributed with
+/// <c>[Collection(SchemeWeaverIntegrationCollection.Name)]</c> so every test
+/// class shares a single <see cref="SchemeWeaverWebApplicationFactory"/>, which
+/// avoids the Umbraco static-state collision that happens when multiple
+/// <see cref="Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory{TEntryPoint}"/>
+/// instances boot in parallel.
 /// </summary>
-public abstract class UmbracoIntegrationTestBase
-    : IClassFixture<SchemeWeaverWebApplicationFactory>, IAsyncLifetime
+public abstract class UmbracoIntegrationTestBase : IAsyncLifetime
 {
     protected SchemeWeaverWebApplicationFactory Factory { get; }
 

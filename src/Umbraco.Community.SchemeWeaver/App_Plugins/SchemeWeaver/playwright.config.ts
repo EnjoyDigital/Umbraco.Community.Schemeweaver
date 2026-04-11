@@ -9,12 +9,20 @@ process.env.STORAGE_STAGE_PATH = STORAGE_STATE;
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // screenshots.spec.ts is a docs-generation tier, not regression — it has
+  // its own `npm run test:screenshots` script (which passes the file path
+  // explicitly and therefore bypasses testIgnore). Keeping it out of the
+  // default run cuts ~2 min off the loop.
+  testIgnore: ['**/screenshots.spec.ts'],
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
+  // Each worker gets its own browser context + its own cookie jar read from
+  // the file-backed storageState, so parallelism is safe. Keep CI at 2 to
+  // avoid starving shared runners; local dev can use 4.
+  workers: process.env.CI ? 2 : 4,
   reporter: process.env.CI ? 'line' : 'html',
   use: {
     baseURL: process.env.URL || process.env.UMBRACO_URL || 'https://localhost:44308',

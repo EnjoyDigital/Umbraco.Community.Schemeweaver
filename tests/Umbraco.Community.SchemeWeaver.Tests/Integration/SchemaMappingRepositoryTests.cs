@@ -10,6 +10,7 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Integration;
 /// Exercises NPoco CRUD against a real SQLite database booted via
 /// <see cref="SchemeWeaverWebApplicationFactory"/>.
 /// </summary>
+[Collection(SchemeWeaverIntegrationCollection.Name)]
 public class SchemaMappingRepositoryTests : UmbracoIntegrationTestBase
 {
     public SchemaMappingRepositoryTests(SchemeWeaverWebApplicationFactory factory)
