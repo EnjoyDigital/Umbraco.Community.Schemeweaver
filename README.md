@@ -141,117 +141,78 @@ The generated output:
 
 ## Contributing
 
-Contributions are very welcome -- bug reports, fixes, docs improvements, new property resolvers, extra auto-mapper synonyms, or whole new features. Please read this section before opening a pull request.
+Contributions are very welcome — bug reports, fixes, docs, new property resolvers, extra auto-mapper synonyms, whole new features. Small PRs are fine.
 
-### Licence and legal
+### Getting set up
 
-- SchemeWeaver is licensed under the **MIT Licence** -- see [LICENSE](LICENSE).
-- By submitting a pull request you agree that your contribution is licensed under the same MIT Licence.
-- Do not include code copied from incompatible sources (GPL, proprietary, unknown licence). If in doubt, ask first in an issue.
-- Keep third-party dependencies to a minimum and prefer libraries that are already referenced by Umbraco or Schema.NET.
+```bash
+# C#
+dotnet build
+dotnet test
 
-### Development workflow
+# Frontend
+cd src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
+npm install
+npm run build
+npm test
+npm run test:e2e        # Playwright, needs a running Umbraco + .env
 
-1. **Fork** the repository and create a topic branch from `main`.
-2. Read [`CLAUDE.md`](CLAUDE.md) -- it documents the architecture, DI registrations, and conventions used across the C# and frontend projects.
-3. Build, run, and smoke-test your change against the bundled test host before opening a PR:
+# Test host with 100+ sample content types
+dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
+```
 
-   ```bash
-   # Build the solution
-   dotnet build
+Read [`CLAUDE.md`](CLAUDE.md) for architecture, DI wiring, and naming conventions.
 
-   # C# tests (unit + skipped integration stubs)
-   dotnet test
-   dotnet test --filter "FullyQualifiedName~Unit"
+### Tests
 
-   # Frontend tests
-   cd src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
-   npm install
-   npm run build
-   npm test                       # Web Test Runner unit + component tests
-   npm run test:e2e               # Playwright E2E (requires running Umbraco + .env)
-
-   # Run the test host (100+ sample content types with Schema.org mappings)
-   dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
-   ```
-
-4. Keep commits focused, use English in prose, and follow existing naming (`SchemeWeaver`, not `SchemaWeaver`).
-5. Open a pull request describing **what** changed and **why**, and link any related issues.
-
-### Tests are required
-
-Every behavioural change **must** come with tests. PRs without tests will usually be asked to add them before review.
+Please add tests for behavioural changes, and a regression test for bug fixes. CI runs the full suite on every push.
 
 | Layer | Framework | Location |
 |---|---|---|
 | C# Unit | xUnit + NSubstitute + FluentAssertions | `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/` |
-| C# Integration | xUnit (stubs, marked `Skip`) | `tests/Umbraco.Community.SchemeWeaver.Tests/Integration/` |
 | TS Unit / Component | `@open-wc/testing` + MSW | `App_Plugins/SchemeWeaver/src/**/*.test.ts` |
 | E2E | Playwright + `@umbraco/playwright-testhelpers` | `App_Plugins/SchemeWeaver/tests/e2e/` |
 
-Specifically:
+For backoffice UI changes, `npm run test:e2e` against a running Umbraco is the only thing that verifies manifests, modals, and entity actions are wired up correctly — type checks and unit tests won't catch that.
 
-- New or changed C# services, resolvers, auto-mapper rules, or repositories need xUnit tests in `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/`.
-- New or changed Lit components, modals, entity actions, or workspace views need `@open-wc/testing` component tests under `src/**/*.test.ts` (use the MSW handlers in `src/mocks/`).
-- UI flows that cross the backoffice boundary (opening a modal, saving a mapping, generating a doc type) should get a Playwright spec under `tests/e2e/` and be run locally via `npm run test:e2e` before the PR is marked ready.
-- Bug fixes need a regression test that fails without the fix.
+### Using an AI assistant
 
-All tests must pass before a PR can be merged. CI runs `dotnet test` and the frontend test suite on every push.
+AI tools (Claude, Copilot, Cursor, etc.) are welcome to help. The rules are short:
 
-### Umbraco backoffice skills and review agents
+- **You review it.** Read every line before committing. You're accountable for the PR, not the assistant.
+- **MIT-compatible only.** Don't submit code copied from incompatible sources.
+- **Add tests**, same as any other contribution.
+- **For UI work, use the [Umbraco Backoffice Skills](https://github.com/umbraco/Umbraco-CMS-Backoffice-Skills).** They encode the correct `UmbLitElement` / modal / manifest / context-token patterns so generated code fits the Umbraco 17+ backoffice instead of looking like generic Lit. Install in Claude Code with:
 
-If you are using Claude Code (or another agent runner) to help with a contribution, please lean on the Umbraco-specific tooling we already use in this repo:
+  ```
+  /plugin marketplace add umbraco/Umbraco-CMS-Backoffice-Skills
+  /plugin install umbraco-cms-backoffice-skills@umbraco-backoffice-marketplace
+  /plugin install umbraco-cms-backoffice-testing-skills@umbraco-backoffice-marketplace
+  ```
 
-- **Umbraco backoffice skills** -- prefer these for any UI / extension work (workspace views, modals, property editors, entity actions, context tokens). They encode the correct `UmbLitElement`, `UmbModalBaseElement`, `UmbControllerBase`, and manifest patterns so generated code slots into the backoffice cleanly. See the skills bundled with [Claude Code for Umbraco](https://github.com/umbraco/Umbraco-CMS) and the local skill definitions under [`.claude/skills/`](.claude/skills/) (`simplify-umbraco`, `review`, `git-workflow`, etc.).
-- **`umbraco-extension-reviewer` agent** -- run this whenever you have finished a UI change. It audits manifests, context usage, modal wiring, and naming against the Umbraco 17+ backoffice conventions. CLAUDE.md requires this to be run before UI work is considered complete.
-- **E2E Playwright run** -- close the loop on any UI change with `npm run test:e2e` against a running Umbraco instance. Type checks and unit tests verify correctness; only E2E verifies the feature actually works in the backoffice.
+  Cursor / Copilot / Windsurf: `npx skills add umbraco/Umbraco-CMS-Backoffice-Skills --skill '*' -a cursor`.
 
-### Coding style
+  **Important — clone the Umbraco source.** For the skills to produce idiomatic backoffice UI they need to grep the canonical implementations. Clone these two repos alongside your work and add them as Claude Code working directories:
 
-- C#: follow the existing style in the solution (file-scoped namespaces, nullable enabled, standard Umbraco composer / controller patterns, NPoco for persistence).
-- Frontend: TypeScript + Lit, `camelCase` DTOs matching the C# API, Umbraco backoffice observables and context tokens. Run `npm run build` to confirm Vite compiles cleanly.
-- Keep public APIs stable. If you need to break one, call it out explicitly in the PR description.
+  ```bash
+  git clone https://github.com/umbraco/Umbraco-CMS.git
+  git clone https://github.com/umbraco/Umbraco.UI.git
+  ```
 
-### Guidance for AI coding assistants
+  The folders that matter are [`Umbraco-CMS/src/Umbraco.Web.UI.Client`](https://github.com/umbraco/Umbraco-CMS/tree/main/src/Umbraco.Web.UI.Client) (every core workspace view, entity action, modal, property editor and context token) and [`Umbraco.UI/packages/uui`](https://github.com/umbraco/Umbraco.UI/tree/main/packages/uui) (the UUI component library). Without them the skills fall back to guessing manifest and context shapes and you get plausible-looking-but-wrong code. Also run the `umbraco-extension-reviewer` agent on UI changes — it audits manifests, context usage and modal wiring. Local skill stubs in this repo live under [`.claude/skills/`](.claude/skills/).
+- **Tag the commit.** When an assistant materially helped, add a git trailer at the bottom of the commit message so we can see which model was used:
 
-AI tools (Claude, Copilot, Cursor, etc.) are welcome to help with SchemeWeaver contributions. The same rules apply as for human contributors, with a few extras to keep the history honest and the project safe.
+  ```
+  Assisted-by: Claude:claude-opus-4-6
+  ```
 
-**Follow the existing process.** AI-assisted patches must follow the workflow above: read [`CLAUDE.md`](CLAUDE.md), match the architecture in `src/Umbraco.Community.SchemeWeaver/`, use the Umbraco backoffice skills for UI work, and run the `umbraco-extension-reviewer` agent on UI changes.
+  Format is `Assisted-by: <agent>:<model> [optional tools]`, e.g. `Assisted-by: Copilot:gpt-5 playwright`. Just leave a blank line before it, or use `git commit --trailer "Assisted-by=..."`. Basic tools (`git`, `dotnet`, `npm`, editors) don't need listing.
 
-**Licensing.** All AI-generated code must be compatible with the MIT Licence. Do not submit code an assistant produced by quoting large blocks from incompatible sources. You, the human submitter, are responsible for confirming this.
-
-**Tests are non-negotiable.** An AI assistant must add tests for the code it writes (C# unit, Lit component, and/or Playwright E2E as appropriate). PRs that say "tests to follow" or that skip the test pyramid described above will be sent back.
-
-**Human review and accountability.** Only a human can sign off on a contribution. The submitter is responsible for:
-
-- Reading and understanding every line of AI-generated code before committing it.
-- Confirming licence compatibility and that no secrets / private data leaked into the diff.
-- Running `dotnet build`, `dotnet test`, `npm test`, and (for UI) `npm run test:e2e` locally.
-- Taking full responsibility for the contribution in the PR.
-
-**Attribution.** When AI tooling materially contributed to a commit, add an `Assisted-by` trailer to the commit message so we can track how AI assistance evolves in the project. Basic developer tools (`git`, `dotnet`, `npm`, editors) do not need to be listed.
-
-```
-Assisted-by: AGENT_NAME:MODEL_VERSION [TOOL1] [TOOL2]
-```
-
-Example:
-
-```
-Assisted-by: Claude:claude-opus-4-6 umbraco-extension-reviewer playwright
-```
-
-Where:
-
-- `AGENT_NAME` is the AI tool or framework (e.g. `Claude`, `Copilot`, `Cursor`).
-- `MODEL_VERSION` is the specific model version used.
-- `[TOOL1] [TOOL2]` are optional specialised analysis tools or agents used (e.g. `umbraco-extension-reviewer`, `playwright`, `roslyn-analyzers`).
-
-**Do not add DCO `Signed-off-by` trailers on behalf of a human.** Only the human submitter may add their own sign-off (if required) to certify the contribution.
+- **Don't add `Signed-off-by` on a human's behalf.** Only the human submitter can sign off their own contribution.
 
 ## Licence
 
-MIT -- see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). By submitting a pull request you agree to license your contribution under the same terms.
 
 ## Author
 
