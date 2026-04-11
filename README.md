@@ -175,7 +175,7 @@ Contributions are very welcome -- bug reports, fixes, docs improvements, new pro
    dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
    ```
 
-4. Keep commits focused, use British English in prose, and follow existing naming (`SchemeWeaver`, not `SchemaWeaver`).
+4. Keep commits focused, use English in prose, and follow existing naming (`SchemeWeaver`, not `SchemaWeaver`).
 5. Open a pull request describing **what** changed and **why**, and link any related issues.
 
 ### Tests are required
