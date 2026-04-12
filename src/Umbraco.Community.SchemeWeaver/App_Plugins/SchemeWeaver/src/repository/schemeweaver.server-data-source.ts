@@ -149,8 +149,12 @@ export class SchemeWeaverServerDataSource {
   async preview(
     contentTypeAlias: string,
     contentKey?: string,
+    culture?: string,
   ): Promise<JsonLdPreviewResponse | undefined> {
-    const query = contentKey ? `?contentKey=${encodeURIComponent(contentKey)}` : '';
+    const params = new URLSearchParams();
+    if (contentKey) params.set('contentKey', contentKey);
+    if (culture) params.set('culture', culture);
+    const query = params.toString() ? `?${params.toString()}` : '';
     return fetchApi<JsonLdPreviewResponse>(
       this.#host,
       `/mappings/${encodeURIComponent(contentTypeAlias)}/preview${query}`,

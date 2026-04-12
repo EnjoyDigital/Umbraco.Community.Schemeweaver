@@ -1469,7 +1469,7 @@ class SchemeWeaverMockDb {
     return null;
   }
 
-  preview(alias: string): JsonLdPreviewResponse {
+  preview(alias: string, _culture?: string): JsonLdPreviewResponse {
     const mapping = this._mappings.find((m) => m.contentTypeAlias === alias);
     if (!mapping) {
       return { jsonLd: '{}', isValid: false, errors: ['No mapping found'] };
