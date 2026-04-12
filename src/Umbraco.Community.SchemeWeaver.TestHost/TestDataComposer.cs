@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.Models.ContentEditing;
 using Umbraco.Cms.Core.Models.ContentPublishing;
 using Umbraco.Cms.Core.PropertyEditors;
 using Umbraco.Cms.Core.Serialization;
@@ -43,6 +44,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private readonly IMediaImportService _mediaImportService;
     private readonly IWebHostEnvironment _webHostEnvironment;
     private readonly ILanguageService _languageService;
+    private readonly IDomainService _domainService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TestDataSeeder> _logger;
 
@@ -65,6 +67,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IMediaImportService mediaImportService,
         IWebHostEnvironment webHostEnvironment,
         ILanguageService languageService,
+        IDomainService domainService,
         IServiceScopeFactory scopeFactory,
         ILogger<TestDataSeeder> logger)
     {
@@ -80,6 +83,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         _mediaImportService = mediaImportService;
         _webHostEnvironment = webHostEnvironment;
         _languageService = languageService;
+        _domainService = domainService;
         _scopeFactory = scopeFactory;
         _logger = logger;
     }
@@ -205,6 +209,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("sameAs", "Social Links", descDataType),
         }, cancellationToken);
 
+        // Make homePage culture-variant (siteName + siteDescription vary by culture)
+        homePageCt.Variations = ContentVariation.Culture;
+        foreach (var prop in homePageCt.PropertyTypes.Where(p => p.Alias is "siteName" or "siteDescription"))
+            prop.Variations = ContentVariation.Culture;
+        await _contentTypeService.UpdateAsync(homePageCt, Constants.Security.SuperUserKey);
+
         var aboutPageCt = await CreateContentType("aboutPage", "About Page", "icon-info", new[]
         {
             ("title", "Title", textboxDataType),
@@ -214,6 +224,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("foundingDate", "Founding Date", textboxDataType),
             ("numberOfEmployees", "Number of Employees", textboxDataType),
         }, cancellationToken);
+
+        // Make aboutPage culture-variant (title + bodyText vary by culture)
+        aboutPageCt.Variations = ContentVariation.Culture;
+        foreach (var prop in aboutPageCt.PropertyTypes.Where(p => p.Alias is "title" or "bodyText"))
+            prop.Variations = ContentVariation.Culture;
+        await _contentTypeService.UpdateAsync(aboutPageCt, Constants.Security.SuperUserKey);
 
         var listingProps = new[]
         {
@@ -1623,6 +1639,33 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             howToStepEl, howToToolEl, openingHoursEl,
             cancellationToken);
 
+        // 4a. Assign domain/culture routing on the home page (/en → en-US, /de → de-DE)
+        try
+        {
+            var homeContent = _contentService.GetRootContent()?.FirstOrDefault(c => c.ContentType.Alias == "homePage");
+            if (homeContent is not null)
+            {
+                var domainResult = await _domainService.UpdateDomainsAsync(homeContent.Key, new DomainsUpdateModel
+                {
+                    DefaultIsoCode = "en-US",
+                    Domains = new[]
+                    {
+                        new DomainModel { DomainName = "/en", IsoCode = "en-US" },
+                        new DomainModel { DomainName = "/de", IsoCode = "de-DE" },
+                    },
+                });
+                _logger.LogInformation("TestDataSeeder: Domain routing result: {Status}", domainResult.Status);
+            }
+            else
+            {
+                _logger.LogWarning("TestDataSeeder: Could not find home page for domain assignment");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "TestDataSeeder: Could not assign domain routing (may already exist)");
+        }
+
         // 4b. Create variant content (multi-language)
         await CreateVariantArticleContent(cancellationToken);
 
@@ -1912,14 +1955,15 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             Name = "Blog Article",
             Icon = "icon-edit",
             AllowedAsRoot = true,
+            Variations = ContentVariation.Culture,
         };
 
         ct.AddPropertyGroup("content", "Content");
         ct.AddPropertyGroup("metadata", "Metadata");
 
-        AddProperty(ct, "title", "Title", textbox, "content", true);
-        AddProperty(ct, "description", "Description", desc, "content");
-        AddProperty(ct, "bodyText", "Body Text", body, "content");
+        AddProperty(ct, "title", "Title", textbox, "content", true, ContentVariation.Culture);
+        AddProperty(ct, "description", "Description", desc, "content", variations: ContentVariation.Culture);
+        AddProperty(ct, "bodyText", "Body Text", body, "content", variations: ContentVariation.Culture);
         AddProperty(ct, "authorName", "Author Name", textbox, "metadata");
         AddProperty(ct, "publishDate", "Publish Date", dateTime ?? textbox, "metadata");
         AddProperty(ct, "featuredImage", "Featured Image", mediaPicker ?? textbox, "content");
@@ -1942,13 +1986,14 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             Name = "Product Page",
             Icon = "icon-box",
             AllowedAsRoot = true,
+            Variations = ContentVariation.Culture,
         };
 
         ct.AddPropertyGroup("content", "Content");
         ct.AddPropertyGroup("product", "Product Details");
 
-        AddProperty(ct, "title", "Title", textbox, "content", true);
-        AddProperty(ct, "description", "Description", desc, "content");
+        AddProperty(ct, "title", "Title", textbox, "content", true, ContentVariation.Culture);
+        AddProperty(ct, "description", "Description", desc, "content", variations: ContentVariation.Culture);
         AddProperty(ct, "bodyText", "Body Text", body, "content");
         AddProperty(ct, "price", "Price", textbox, "product");
         AddProperty(ct, "sku", "SKU", textbox, "product");
@@ -1973,12 +2018,13 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             Name = "FAQ Page",
             Icon = "icon-help-alt",
             AllowedAsRoot = true,
+            Variations = ContentVariation.Culture,
         };
 
         ct.AddPropertyGroup("content", "Content");
 
-        AddProperty(ct, "title", "Title", textbox, "content", true);
-        AddProperty(ct, "description", "Description", desc, "content");
+        AddProperty(ct, "title", "Title", textbox, "content", true, ContentVariation.Culture);
+        AddProperty(ct, "description", "Description", desc, "content", variations: ContentVariation.Culture);
         AddProperty(ct, "faqItems", "FAQ Items", faqBlockList, "content");
         if (_mediaPickerDataType is not null)
             AddProperty(ct, "heroImage", "Hero Image", _mediaPickerDataType, "content");
@@ -2028,13 +2074,14 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             Name = "Event Page",
             Icon = "icon-calendar",
             AllowedAsRoot = true,
+            Variations = ContentVariation.Culture,
         };
 
         ct.AddPropertyGroup("content", "Content");
         ct.AddPropertyGroup("event", "Event Details");
 
-        AddProperty(ct, "title", "Title", textbox, "content", true);
-        AddProperty(ct, "description", "Description", desc, "content");
+        AddProperty(ct, "title", "Title", textbox, "content", true, ContentVariation.Culture);
+        AddProperty(ct, "description", "Description", desc, "content", variations: ContentVariation.Culture);
         AddProperty(ct, "startDate", "Start Date", dateTime ?? textbox, "event");
         AddProperty(ct, "endDate", "End Date", dateTime ?? textbox, "event");
         AddProperty(ct, "locationName", "Location Name", textbox, "event");
@@ -2061,14 +2108,15 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             Name = "Recipe Page",
             Icon = "icon-food",
             AllowedAsRoot = true,
+            Variations = ContentVariation.Culture,
         };
 
         ct.AddPropertyGroup("content", "Content");
         ct.AddPropertyGroup("recipe", "Recipe Details");
         ct.AddPropertyGroup("ingredients", "Ingredients & Instructions");
 
-        AddProperty(ct, "title", "Title", textbox, "content", true);
-        AddProperty(ct, "description", "Description", desc, "content");
+        AddProperty(ct, "title", "Title", textbox, "content", true, ContentVariation.Culture);
+        AddProperty(ct, "description", "Description", desc, "content", variations: ContentVariation.Culture);
         AddProperty(ct, "prepTime", "Prep Time", textbox, "recipe");
         AddProperty(ct, "cookTime", "Cook Time", textbox, "recipe");
         AddProperty(ct, "totalTime", "Total Time", textbox, "recipe");
@@ -2089,7 +2137,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private void AddProperty(
         ContentType ct, string alias, string name,
         IDataType? dataType, string groupAlias,
-        bool mandatory = false)
+        bool mandatory = false,
+        ContentVariation variations = ContentVariation.Nothing)
     {
         if (dataType is null) return;
 
@@ -2098,6 +2147,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             Alias = alias,
             Name = name,
             Mandatory = mandatory,
+            Variations = variations,
         }, groupAlias);
     }
 
@@ -2199,16 +2249,19 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType openingHoursType,
         CancellationToken cancellationToken)
     {
-        // Create home page as site root
+        // Create home page as site root (culture-variant)
         var home = _contentService.Create("SchemeWeaver Demo Site", Constants.System.Root, "homePage");
-        home.SetValue("siteName", "SchemeWeaver Demo Site");
-        home.SetValue("siteDescription", "Comprehensive Schema.org structured data demo — covering 30+ schema types with working JSON-LD output.");
+        home.SetCultureName("SchemeWeaver Demo Site", "en-US");
+        home.SetCultureName("SchemeWeaver Demosite", "de-DE");
+        home.SetValue("siteName", "SchemeWeaver Demo Site", "en-US");
+        home.SetValue("siteName", "SchemeWeaver Demosite", "de-DE");
+        home.SetValue("siteDescription", "Comprehensive Schema.org structured data demo — covering 30+ schema types with working JSON-LD output.", "en-US");
+        home.SetValue("siteDescription", "Willkommen bei der SchemeWeaver Demonstrationsseite — über 30 Schema.org-Typen mit funktionierender JSON-LD-Ausgabe.", "de-DE");
         home.SetValue("organisationName", "Enjoy Digital");
         home.SetValue("organisationEmail", "hello@enjoy-digital.co.uk");
         home.SetValue("organisationTelephone", "+44 113 357 0000");
         home.SetValue("sameAs", "https://twitter.com/enjoydigital,https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver");
-        _contentService.Save(home);
-        await PublishContent(home, cancellationToken);
+        await SaveAndPublishVariantAsync(home);
 
         // ── Top-level pages under home (nav order: Blog, Categories, About Us, FAQs) ──
         var blogListing = CreateAndPublishSimple("Blog", home.Id, "blogListing", "Blog", "Articles about Schema.org, structured data, and SEO.", cancellationToken);
@@ -2453,8 +2506,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private async Task CreateFaqContent(IContentType faqItemType, int parentId, CancellationToken cancellationToken)
     {
         var content = _contentService.Create("FAQs", parentId, "faqPage");
-        content.SetValue("title", "FAQs");
-        content.SetValue("description", "Common questions about our services");
+        content.SetCultureName("FAQs", "en-US");
+        content.SetCultureName("Häufig gestellte Fragen", "de-DE");
+        content.SetValue("title", "FAQs", "en-US");
+        content.SetValue("title", "Häufig gestellte Fragen", "de-DE");
+        content.SetValue("description", "Common questions about our services", "en-US");
+        content.SetValue("description", "Häufige Fragen zu unseren Dienstleistungen", "de-DE");
 
         var faqItems = BuildBlockListJson(faqItemType.Key, new[]
         {
@@ -2476,14 +2533,18 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         });
         content.SetValue("faqItems", faqItems);
 
-        await SaveAndPublishAsync(content);
+        await SaveAndPublishVariantAsync(content);
     }
 
     private async Task CreateProductContent(IContentType reviewItemType, int parentId, CancellationToken cancellationToken)
     {
         var content = _contentService.Create("Wireless Headphones Pro", parentId, "productPage");
-        content.SetValue("title", "Wireless Headphones Pro");
-        content.SetValue("description", "Premium noise-cancelling wireless headphones");
+        content.SetCultureName("Wireless Headphones Pro", "en-US");
+        content.SetCultureName("Kabellose Kopfhörer Pro", "de-DE");
+        content.SetValue("title", "Wireless Headphones Pro", "en-US");
+        content.SetValue("title", "Kabellose Kopfhörer Pro", "de-DE");
+        content.SetValue("description", "Premium noise-cancelling wireless headphones", "en-US");
+        content.SetValue("description", "Erstklassige kabellose Kopfhörer mit Geräuschunterdrückung", "de-DE");
         content.SetValue("price", "149.99");
         content.SetValue("sku", "WHP-001");
         content.SetValue("brand", "AudioTech");
@@ -2515,14 +2576,18 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             content.SetValue("productImage", productImageValue);
         TrySetHeroImage(content, "wireless-headphones-v1");
 
-        await SaveAndPublishAsync(content);
+        await SaveAndPublishVariantAsync(content);
     }
 
     private async Task CreateSmartWatchContent(int parentId, CancellationToken cancellationToken)
     {
         var content = _contentService.Create("C64 Syntax Watch", parentId, "productPage");
-        content.SetValue("title", "C64 Syntax Watch");
-        content.SetValue("description", "A retro-styled smart watch that proudly displays every developer's favourite error message. Hand-assembled, limited run of 64 pieces.");
+        content.SetCultureName("C64 Syntax Watch", "en-US");
+        content.SetCultureName("C64 Syntax-Uhr", "de-DE");
+        content.SetValue("title", "C64 Syntax Watch", "en-US");
+        content.SetValue("title", "C64 Syntax-Uhr", "de-DE");
+        content.SetValue("description", "A retro-styled smart watch that proudly displays every developer's favourite error message. Hand-assembled, limited run of 64 pieces.", "en-US");
+        content.SetValue("description", "Eine Retro-Smartwatch, die stolz die Lieblingsfehlermeldung jedes Entwicklers anzeigt. Handgefertigt, limitierte Auflage von 64 Stück.", "de-DE");
         content.SetValue("price", "129.99");
         content.SetValue("sku", "C64-SW-001");
         content.SetValue("brand", "Commodore Revival");
@@ -2534,7 +2599,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             content.SetValue("productImage", productImageValue);
         TrySetHeroImage(content, "smart-watch");
 
-        await SaveAndPublishAsync(content);
+        await SaveAndPublishVariantAsync(content);
     }
 
     private async Task CreateRecipeContent(
@@ -2544,8 +2609,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         CancellationToken cancellationToken)
     {
         var content = _contentService.Create("Classic Victoria Sponge", parentId, "recipePage");
-        content.SetValue("title", "Classic Victoria Sponge");
-        content.SetValue("description", "A traditional British cake recipe");
+        content.SetCultureName("Classic Victoria Sponge", "en-US");
+        content.SetCultureName("Omas Apfelkuchen", "de-DE");
+        content.SetValue("title", "Classic Victoria Sponge", "en-US");
+        content.SetValue("title", "Omas Apfelkuchen", "de-DE");
+        content.SetValue("description", "A traditional British cake recipe", "en-US");
+        content.SetValue("description", "Ein traditionelles deutsches Apfelkuchenrezept nach Großmutters Art", "de-DE");
         content.SetValue("authorName", "Mary Berry");
         content.SetValue("prepTime", "PT20M");
         content.SetValue("cookTime", "PT25M");
@@ -2586,15 +2655,20 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         TrySetHeroImage(content, "classic-victoria-sponge");
 
-        await SaveAndPublishAsync(content);
+        await SaveAndPublishVariantAsync(content);
     }
 
     private async Task CreateBlogContent(int parentId, CancellationToken cancellationToken)
     {
         var content = _contentService.Create("Getting Started with Schema.org", parentId, "blogArticle");
-        content.SetValue("title", "Getting Started with Schema.org");
-        content.SetValue("description", "Learn how structured data helps search engines understand your content.");
-        content.SetValue("bodyText", "<p>Schema.org provides a shared vocabulary for structured data markup on web pages.</p>");
+        content.SetCultureName("Getting Started with Schema.org", "en-US");
+        content.SetCultureName("Zehn Tipps für besseres SEO", "de-DE");
+        content.SetValue("title", "Getting Started with Schema.org", "en-US");
+        content.SetValue("title", "Zehn Tipps für besseres SEO", "de-DE");
+        content.SetValue("description", "Learn how structured data helps search engines understand your content.", "en-US");
+        content.SetValue("description", "Erfahren Sie, wie strukturierte Daten Suchmaschinen helfen, Ihre Inhalte zu verstehen.", "de-DE");
+        content.SetValue("bodyText", "<p>Schema.org provides a shared vocabulary for structured data markup on web pages.</p>", "en-US");
+        content.SetValue("bodyText", "<p>Schema.org bietet ein gemeinsames Vokabular für strukturierte Datenauszeichnung auf Webseiten. Strukturierte Daten helfen Suchmaschinen, den Inhalt Ihrer Seiten besser zu verstehen und reichhaltigere Suchergebnisse anzuzeigen.</p>", "de-DE");
         content.SetValue("authorName", "Oliver");
         content.SetValue("publishDate", DateTime.Now);
         content.SetValue("keywords", "schema.org, structured data, SEO");
@@ -2602,14 +2676,18 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         TrySetHeroImage(content, "getting-started-with-schema-org");
 
-        await SaveAndPublishAsync(content);
+        await SaveAndPublishVariantAsync(content);
     }
 
     private async Task CreateEventContent(int parentId, CancellationToken cancellationToken)
     {
         var content = _contentService.Create("Umbraco UK Festival 2026", parentId, "eventPage");
-        content.SetValue("title", "Umbraco UK Festival 2026");
-        content.SetValue("description", "The premier Umbraco community event in the UK");
+        content.SetCultureName("Umbraco UK Festival 2026", "en-US");
+        content.SetCultureName("Technologiekonferenz 2025", "de-DE");
+        content.SetValue("title", "Umbraco UK Festival 2026", "en-US");
+        content.SetValue("title", "Technologiekonferenz 2025", "de-DE");
+        content.SetValue("description", "The premier Umbraco community event in the UK", "en-US");
+        content.SetValue("description", "Die führende Technologiekonferenz für Webentwickler in Europa", "de-DE");
         content.SetValue("startDate", DateTime.Now.AddMonths(2));
         content.SetValue("endDate", DateTime.Now.AddMonths(2).AddDays(1));
         content.SetValue("locationName", "etc.venues");
@@ -2620,7 +2698,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         TrySetHeroImage(content, "umbraco-uk-festival-2026");
 
-        await SaveAndPublishAsync(content);
+        await SaveAndPublishVariantAsync(content);
     }
 
     private async Task SaveAndPublishAsync(IContent content)
@@ -2645,6 +2723,36 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "TestDataSeeder: Could not publish {Name}, saved as draft", content.Name);
+        }
+    }
+
+    /// <summary>
+    /// Saves and publishes content in both en-US and de-DE cultures.
+    /// Used for the 7 key variant content types.
+    /// </summary>
+    private async Task SaveAndPublishVariantAsync(IContent content)
+    {
+        _contentService.Save(content);
+
+        try
+        {
+            var cultureSchedules = new List<CulturePublishScheduleModel>
+            {
+                new() { Culture = "en-US", Schedule = null },
+                new() { Culture = "de-DE", Schedule = null },
+            };
+
+            var result = await _contentPublishingService.PublishAsync(
+                content.Key,
+                cultureSchedules,
+                Constants.Security.SuperUserKey);
+
+            _logger.LogInformation("TestDataSeeder: Published {Name} in en-US + de-DE — result: {Result}",
+                content.Name, result.GetType().Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "TestDataSeeder: Could not publish variant {Name}, saved as draft", content.Name);
         }
     }
 
@@ -2875,13 +2983,17 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private async Task CreateAboutPage(int parentId, CancellationToken ct)
     {
         var content = _contentService.Create("About Us", parentId, "aboutPage");
-        content.SetValue("title", "About Enjoy Digital");
+        content.SetCultureName("About Us", "en-US");
+        content.SetCultureName("Über uns", "de-DE");
+        content.SetValue("title", "About Enjoy Digital", "en-US");
+        content.SetValue("title", "Über uns", "de-DE");
         content.SetValue("description", "We are a digital agency specialising in Umbraco CMS development and structured data solutions.");
-        content.SetValue("bodyText", "<p>Enjoy Digital has been building exceptional digital experiences since 2006. We specialise in Umbraco CMS, .NET development, and helping organisations improve their search visibility through structured data.</p>");
+        content.SetValue("bodyText", "<p>Enjoy Digital has been building exceptional digital experiences since 2006. We specialise in Umbraco CMS, .NET development, and helping organisations improve their search visibility through structured data.</p>", "en-US");
+        content.SetValue("bodyText", "<p>Wir sind ein engagiertes Team von Webentwicklern, das sich auf Umbraco CMS und strukturierte Daten spezialisiert hat. Seit 2006 erstellen wir außergewöhnliche digitale Erlebnisse für unsere Kunden.</p>", "de-DE");
         content.SetValue("organisationName", "Enjoy Digital");
         content.SetValue("foundingDate", "2006");
         content.SetValue("numberOfEmployees", "50");
-        await SaveAndPublishAsync(content);
+        await SaveAndPublishVariantAsync(content);
     }
 
     private async Task CreateContactContent(int parentId, CancellationToken ct)
