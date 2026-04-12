@@ -24,6 +24,7 @@ export default {
             '@umbraco-cms/backoffice/observable-api': '/src/__mocks__/observable-api.js',
             '@umbraco-cms/backoffice/resources': '/src/__mocks__/resources.js',
             '@umbraco-cms/backoffice/extension-registry': '/src/__mocks__/extension-registry.js',
+            '@umbraco-cms/backoffice/document': '/src/__mocks__/document.js',
           },
         },
       },
