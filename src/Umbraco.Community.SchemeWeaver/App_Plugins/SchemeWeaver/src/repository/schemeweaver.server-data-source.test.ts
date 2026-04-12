@@ -28,6 +28,29 @@ describe('SchemeWeaverServerDataSource', () => {
       expect(`${BASE}/mappings/${alias}/preview`).to.equal('/umbraco/management/api/v1/schemeweaver/mappings/blogArticle/preview');
     });
 
+    it('preview endpoint appends culture query param when provided', () => {
+      const alias = 'blogArticle';
+      const contentKey = '11111111-1111-1111-1111-111111111111';
+      const culture = 'de-DE';
+      const params = new URLSearchParams();
+      params.set('contentKey', contentKey);
+      params.set('culture', culture);
+      const url = `${BASE}/mappings/${encodeURIComponent(alias)}/preview?${params.toString()}`;
+      expect(url).to.contain('culture=de-DE');
+      expect(url).to.contain('contentKey=');
+    });
+
+    it('preview endpoint omits culture query param when undefined', () => {
+      const alias = 'blogArticle';
+      const contentKey = '11111111-1111-1111-1111-111111111111';
+      const culture = undefined;
+      const params = new URLSearchParams();
+      params.set('contentKey', contentKey);
+      if (culture) params.set('culture', culture);
+      const url = `${BASE}/mappings/${encodeURIComponent(alias)}/preview?${params.toString()}`;
+      expect(url).to.not.contain('culture=');
+    });
+
     it('schema-types search endpoint includes query string', () => {
       const search = 'Article';
       const url = `${BASE}/schema-types?search=${encodeURIComponent(search)}`;

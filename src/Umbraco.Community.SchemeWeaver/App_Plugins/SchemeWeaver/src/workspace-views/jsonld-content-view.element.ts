@@ -31,6 +31,9 @@ export class JsonLdContentViewElement extends UmbLitElement {
   @state()
   private _preview: JsonLdPreviewResponse | null = null;
 
+  @state()
+  private _culture: string | undefined = undefined;
+
   constructor() {
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
@@ -49,6 +52,15 @@ export class JsonLdContentViewElement extends UmbLitElement {
       }
 
       this._contentKey = workspaceContext.getUnique() ?? '';
+
+      // Track the active variant culture so the preview uses the correct language.
+      this.observe(
+        workspaceContext.splitView.activeVariantByIndex(0),
+        (activeVariant) => {
+          this._culture = activeVariant?.culture ?? undefined;
+        },
+        '_observeActiveVariant',
+      );
 
       this.observe(
         workspaceContext.contentTypeUnique,
@@ -95,7 +107,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
     this._generating = true;
     this._unpublished = false;
     try {
-      const result = await this.#context.requestPreview(this._contentTypeAlias, this._contentKey);
+      const result = await this.#context.requestPreview(this._contentTypeAlias, this._contentKey, this._culture);
       if (result) {
         this._preview = result;
       } else {

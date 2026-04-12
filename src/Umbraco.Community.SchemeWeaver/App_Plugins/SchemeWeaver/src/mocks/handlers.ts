@@ -67,9 +67,11 @@ export const handlers = [
     return HttpResponse.json(schemeWeaverDb.autoMap(alias, schemaType));
   }),
 
-  http.post(`${BASE}/mappings/:alias/preview`, ({ params }) => {
+  http.post(`${BASE}/mappings/:alias/preview`, ({ params, request }) => {
     const alias = params.alias as string;
-    const result = schemeWeaverDb.preview(alias);
+    const url = new URL(request.url);
+    const culture = url.searchParams.get('culture');
+    const result = schemeWeaverDb.preview(alias, culture ?? undefined);
     return HttpResponse.json(result);
   }),
 

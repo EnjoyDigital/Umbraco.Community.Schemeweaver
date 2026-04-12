@@ -91,8 +91,8 @@ export class SchemeWeaverContext extends UmbControllerBase {
     return this.#repository.requestAutoMap(contentTypeAlias, schemaTypeName);
   }
 
-  async requestPreview(contentTypeAlias: string, contentKey?: string) {
-    const result = await this.#repository.requestPreview(contentTypeAlias, contentKey);
+  async requestPreview(contentTypeAlias: string, contentKey?: string, culture?: string) {
+    const result = await this.#repository.requestPreview(contentTypeAlias, contentKey, culture);
     if (result) {
       this.#preview.setValue(result);
     }

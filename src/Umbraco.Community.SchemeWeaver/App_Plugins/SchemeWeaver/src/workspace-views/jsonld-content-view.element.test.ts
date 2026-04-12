@@ -110,4 +110,47 @@ describe('JsonLdContentViewElement', () => {
     const unpublishedMessage = el.shadowRoot!.querySelector('.unpublished-message');
     expect(unpublishedMessage).to.exist;
   });
+
+  it('exposes _culture state for variant-aware preview', async () => {
+    const el = (await fixture<JsonLdContentViewElement>(
+      html`<schemeweaver-jsonld-content-view></schemeweaver-jsonld-content-view>`,
+    )) as unknown as {
+      _culture: string | undefined;
+      updateComplete: Promise<void>;
+    } & HTMLElement;
+
+    // Default: invariant content has no culture
+    expect(el._culture).to.be.undefined;
+  });
+
+  it('stores culture when set externally (simulates variant workspace)', async () => {
+    const el = (await fixture<JsonLdContentViewElement>(
+      html`<schemeweaver-jsonld-content-view></schemeweaver-jsonld-content-view>`,
+    )) as unknown as {
+      _culture: string | undefined;
+      _hasMapping: boolean;
+      _loading: boolean;
+      _generating: boolean;
+      _preview: JsonLdPreviewResponse;
+      updateComplete: Promise<void>;
+    } & HTMLElement;
+
+    // Simulate variant workspace setting culture to German
+    el._culture = 'de-DE';
+    el._hasMapping = true;
+    el._loading = false;
+    el._generating = false;
+    el._preview = {
+      jsonLd: '{"@context":"https://schema.org","@type":"BlogPosting","headline":"Hallo"}',
+      isValid: true,
+      errors: [],
+      warnings: [],
+    } as JsonLdPreviewResponse;
+    await el.updateComplete;
+
+    expect(el._culture).to.equal('de-DE');
+    // Preview should still render normally
+    const preview = el.shadowRoot!.querySelector('schemeweaver-jsonld-preview');
+    expect(preview).to.exist;
+  });
 });

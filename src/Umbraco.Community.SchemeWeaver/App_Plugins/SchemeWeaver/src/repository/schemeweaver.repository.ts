@@ -50,8 +50,8 @@ export class SchemeWeaverRepository extends UmbControllerBase {
     return this.#dataSource.autoMap(contentTypeAlias, schemaTypeName);
   }
 
-  async requestPreview(contentTypeAlias: string, contentKey?: string) {
-    return this.#dataSource.preview(contentTypeAlias, contentKey);
+  async requestPreview(contentTypeAlias: string, contentKey?: string, culture?: string) {
+    return this.#dataSource.preview(contentTypeAlias, contentKey, culture);
   }
 
   async requestBlockElementTypes(contentTypeAlias: string, propertyAlias: string) {
