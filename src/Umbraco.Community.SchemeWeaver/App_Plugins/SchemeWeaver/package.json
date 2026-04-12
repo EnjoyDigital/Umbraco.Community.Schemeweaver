@@ -12,7 +12,7 @@
     "test:msw": "web-test-runner --config web-test-runner.msw.config.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:screenshots": "playwright test tests/e2e/screenshots.spec.ts",
+    "test:screenshots": "playwright test --config=playwright.screenshots.config.ts",
     "test:mocked-backoffice": "playwright test --config=tests/mocked-backoffice/playwright.config.ts",
     "postinstall": "npx msw init . --save"
   },
