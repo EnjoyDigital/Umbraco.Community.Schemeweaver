@@ -69,6 +69,16 @@ E2E tests require `.env` with `UMBRACO_URL`, `UMBRACO_USER_LOGIN`, `UMBRACO_USER
 - Confidence is integer 0–100 from C# auto-mapper (thresholds: ≥80 High, ≥50 Medium)
 - Frontend builds to `wwwroot/dist/` which gets included as static web assets in the NuGet package
 
+### Language Variants (Culture Support)
+- `JsonLdGenerator.GenerateJsonLd(content, culture)` accepts an optional `string? culture`. When set, it pushes a `VariationContext(culture)` scope onto `IVariationContextAccessor` for the duration of the call, fixing URL generation and all transitive `GetValue()` calls.
+- `PropertyResolverContext.Culture` threads the culture to every resolver; all resolvers pass `GetValue(culture: context.Culture)`.
+- `SchemeWeaverTagHelper` reads culture from `IVariationContextAccessor.VariationContext?.Culture` automatically.
+- `SchemaJsonLdExpansion` (Delivery API handler) sets `VariesByCulture = true` and passes the framework-supplied culture to the generator.
+- Preview endpoint accepts `?culture=` query param; the frontend JSON-LD preview tab reads the active workspace variant via `splitView.activeVariantByIndex(0)`.
+- `inLanguage` is auto-populated from the culture when the mapping doesn't explicitly map it.
+- Mappings are invariant — no per-culture mapping rows. The same mapping applies to all cultures; values are resolved at generation time.
+- Ancestor/sibling probes use invariant `GetValue()` for existence checks, culture for value resolution.
+
 ### API Endpoints
 All under `/umbraco/management/api/v1/schemeweaver`, backoffice-authenticated:
 - `GET /schema-types` — list/search Schema.org types

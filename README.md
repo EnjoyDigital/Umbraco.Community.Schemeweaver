@@ -14,8 +14,9 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Seven source types** -- pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, or nested complex types
 - **Transforms** -- strip HTML, convert to absolute URL, or format dates before output
 - **Content Type generation** -- scaffold a new Umbraco document type from any Schema.org type
-- **Delivery API integration** -- JSON-LD is automatically indexed and available via the `schemaOrg` field
-- **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template
+- **Language variants** -- culture-aware JSON-LD generation for multi-language sites. When content varies by culture, SchemeWeaver pulls the correct localised values and auto-populates `inLanguage` with the BCP 47 culture code. Works across server-rendered templates, the Delivery API, and the backoffice preview
+- **Delivery API integration** -- JSON-LD is automatically indexed per culture and available via the `schemaOrg` field
+- **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template; the tag helper reads the current culture from Umbraco's `IVariationContextAccessor` automatically
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
 - **AI-powered mapping (optional)** -- install the companion [`Umbraco.Community.SchemeWeaver.AI`](docs/ai-integration.md) package for AI schema type suggestions, bulk analysis across all content types, and Umbraco Copilot integration
@@ -86,6 +87,18 @@ const data = await response.json();
 const jsonLd = data.properties.schemaOrg;
 ```
 
+### 4. Language variants
+
+No extra configuration needed. If your content type varies by culture, SchemeWeaver automatically:
+
+- Pulls property values in the requested culture (tag helper reads the current `VariationContext`; the Delivery API handler is called once per culture)
+- Populates `inLanguage` with the BCP 47 culture code (e.g. `"de-DE"`) unless you've explicitly mapped `inLanguage` yourself
+- Generates culture-correct URLs for `@id` and breadcrumb links
+
+Mappings stay invariant -- the same mapping applies to all cultures. You don't need per-language mappings; SchemeWeaver resolves the right value at generation time.
+
+The backoffice JSON-LD preview tab automatically follows the workspace variant selector, so switching to German in the editor shows the German JSON-LD output.
+
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) -- installation, tag helper, first mapping
@@ -111,6 +124,7 @@ Each mapping connects one Umbraco **Content Type** to one **Schema.org type**. W
 | `datePublished` | property | `publishDate` | Formatted as ISO date |
 | `publisher` | parent | `organisationName` | Read from the parent node |
 | `mainEntity` | blockContent | `faqItems` | Built from BlockList items |
+| `inLanguage` | *(auto)* | | Auto-populated from the current culture on variant content |
 
 The auto-mapper suggests assignments using three confidence tiers:
 
@@ -129,7 +143,8 @@ The generated output:
     "@type": "Person",
     "name": "Jane Smith"
   },
-  "datePublished": "2024-01-15"
+  "datePublished": "2024-01-15",
+  "inLanguage": "en-US"
 }
 ```
 
