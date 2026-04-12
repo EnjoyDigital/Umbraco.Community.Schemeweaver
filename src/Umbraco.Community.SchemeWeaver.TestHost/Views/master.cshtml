@@ -4,7 +4,7 @@
     Layout = null;
 }
 <!DOCTYPE html>
-<html lang="en">
+<html lang="@System.Threading.Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -17,6 +17,18 @@
 <body>
     <header>
         <div class="container">
+            @{
+                var cultures = new[] { ("en-US", "EN"), ("de-DE", "DE") };
+                var currentCulture = System.Threading.Thread.CurrentThread.CurrentUICulture.Name;
+            }
+            <div class="lang-switcher">
+                @foreach (var (culture, label) in cultures)
+                {
+                    var url = Model.Url(culture: culture);
+                    var isActive = currentCulture.StartsWith(culture.Split('-')[0]);
+                    <a href="@(url ?? "#")" class="@(isActive ? "active" : "")">@label</a>
+                }
+            </div>
             <div class="boot-text">
                 <div>**** SCHEMEWEAVER DEMO V1.0 ****</div>
                 <div>64K RAM SYSTEM  38911 BASIC BYTES FREE</div>

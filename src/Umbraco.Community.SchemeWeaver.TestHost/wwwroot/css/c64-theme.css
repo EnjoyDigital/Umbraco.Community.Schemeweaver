@@ -36,6 +36,7 @@ body::after {
 .container { max-width: 960px; margin: 0 auto; padding: 0 1.5rem; }
 
 header {
+  position: relative;
   background: #1a1a2e;
   color: #9890cc;
   padding: 1.5rem 0 1rem;
@@ -284,6 +285,34 @@ img { max-width: 100%; height: auto; border-radius: 0; margin-bottom: 1rem; bord
 ::-webkit-scrollbar-track { background: #1a1a2e; }
 ::-webkit-scrollbar-thumb { background: #9890cc; border: 2px solid #1a1a2e; }
 ::-webkit-scrollbar-thumb:hover { background: #c0b8e0; }
+
+/* --- Language Switcher --- */
+.lang-switcher {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  font-family: 'VT323', monospace;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+}
+
+.lang-switcher a {
+  color: #9890cc;
+  text-decoration: none;
+  margin: 0 4px;
+  transition: color 0.15s, text-shadow 0.15s;
+}
+
+.lang-switcher a:hover {
+  color: #6ed458;
+  text-shadow: 0 0 6px rgba(110, 212, 88, 0.5);
+}
+
+.lang-switcher a.active {
+  color: #7fff5e;
+  text-decoration: underline;
+  text-shadow: 0 0 8px rgba(127, 255, 94, 0.5);
+}
 
 /* --- Selection highlight --- */
 ::selection { background: #6ed458; color: #000; }
