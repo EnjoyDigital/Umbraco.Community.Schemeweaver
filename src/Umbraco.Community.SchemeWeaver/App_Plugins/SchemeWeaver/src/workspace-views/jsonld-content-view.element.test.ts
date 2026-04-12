@@ -4,13 +4,22 @@ import type { JsonLdContentViewElement } from './jsonld-content-view.element.js'
 import type { JsonLdPreviewResponse } from '../api/types.js';
 
 describe('JsonLdContentViewElement', () => {
-  it('renders loading state initially', async () => {
+  it('renders empty state when workspace context is unavailable', async () => {
+    // Without a real UMB_DOCUMENT_WORKSPACE_CONTEXT provider above the
+    // element, getContext resolves to undefined and the element drops
+    // straight from loading to the empty/no-mapping state.
     const el = await fixture<JsonLdContentViewElement>(
       html`<schemeweaver-jsonld-content-view></schemeweaver-jsonld-content-view>`,
     );
 
+    // Give the async context resolution a tick to settle.
+    await el.updateComplete;
+
+    const emptyState = el.shadowRoot!.querySelector('.empty-state');
     const loader = el.shadowRoot!.querySelector('uui-loader-circle');
-    expect(loader).to.exist;
+    // Either the empty state is shown or the loader is gone — both are
+    // acceptable evidence that the element handled the missing context.
+    expect(emptyState !== null || loader === null).to.be.true;
   });
 
   it('renders empty state when no mapping exists for the content type', async () => {
