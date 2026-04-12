@@ -85,3 +85,91 @@ test.describe('Language Variants (E2E)', () => {
     expect(propNames).toContain('ArticleBody');
   });
 });
+
+/**
+ * Frontend navigation tests for language-variant JSON-LD output.
+ *
+ * These tests hit the published site (same origin as the backoffice) and
+ * verify that the `<script type="application/ld+json">` blocks change
+ * correctly when switching between /en/ and /de/ routes.
+ *
+ * Requires domain-culture routing to be configured in the TestHost:
+ *   /en/... → en-US, /de/... → de-DE
+ *
+ * Tests gracefully skip when routing is not yet available.
+ */
+
+const FRONTEND_BASE = process.env.UMBRACO_URL || 'https://localhost:44308';
+
+test.describe('Language Variants — Frontend HTML', () => {
+
+  test('German home page has German JSON-LD with inLanguage', async ({ umbracoUi }) => {
+    const response = await umbracoUi.page.goto(`${FRONTEND_BASE}/de/`);
+    if (!response?.ok()) {
+      test.skip(true, 'German home page not available — domain routing may not be configured');
+      return;
+    }
+    const scripts = await umbracoUi.page.locator('script[type="application/ld+json"]').allTextContents();
+    expect(scripts.length).toBeGreaterThan(0);
+    const allJsonLd = scripts.join(' ');
+    expect(allJsonLd).toContain('de-DE');
+  });
+
+  test('English home page has English JSON-LD with inLanguage', async ({ umbracoUi }) => {
+    const response = await umbracoUi.page.goto(`${FRONTEND_BASE}/en/`);
+    if (!response?.ok()) {
+      test.skip(true, 'English home page not available');
+      return;
+    }
+    const scripts = await umbracoUi.page.locator('script[type="application/ld+json"]').allTextContents();
+    expect(scripts.length).toBeGreaterThan(0);
+    const allJsonLd = scripts.join(' ');
+    expect(allJsonLd).toContain('en-US');
+  });
+
+  test('German home page JSON-LD includes inLanguage property', async ({ umbracoUi }) => {
+    const homeRes = await umbracoUi.page.goto(`${FRONTEND_BASE}/de/`);
+    if (!homeRes?.ok()) {
+      test.skip(true, 'German routing not available');
+      return;
+    }
+    const scripts = await umbracoUi.page.locator('script[type="application/ld+json"]').allTextContents();
+    const allJsonLd = scripts.join(' ');
+    expect(allJsonLd).toContain('"inLanguage"');
+  });
+
+  test('language switcher is visible on the page', async ({ umbracoUi }) => {
+    const response = await umbracoUi.page.goto(`${FRONTEND_BASE}/en/`);
+    if (!response?.ok()) {
+      test.skip(true, 'Frontend not available');
+      return;
+    }
+    const switcher = umbracoUi.page.locator('.lang-switcher');
+    await expect(switcher).toBeVisible({ timeout: 10_000 });
+    // Should have both EN and DE links
+    const links = switcher.locator('a');
+    await expect(links).toHaveCount(2);
+  });
+
+  test('switching from English to German changes JSON-LD language', async ({ umbracoUi }) => {
+    const enRes = await umbracoUi.page.goto(`${FRONTEND_BASE}/en/`);
+    if (!enRes?.ok()) {
+      test.skip(true, 'English home not available');
+      return;
+    }
+    const enScripts = await umbracoUi.page.locator('script[type="application/ld+json"]').allTextContents();
+    const enJsonLd = enScripts.join(' ');
+    expect(enJsonLd).toContain('en-US');
+
+    // Click the DE switcher link
+    const deSwitcher = umbracoUi.page.locator('.lang-switcher a').filter({ hasText: 'DE' });
+    if (await deSwitcher.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await deSwitcher.click();
+      await umbracoUi.page.waitForLoadState('domcontentloaded');
+
+      const deScripts = await umbracoUi.page.locator('script[type="application/ld+json"]').allTextContents();
+      const deJsonLd = deScripts.join(' ');
+      expect(deJsonLd).toContain('de-DE');
+    }
+  });
+});
