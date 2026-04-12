@@ -42,6 +42,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private readonly ITemplateService _templateService;
     private readonly IMediaImportService _mediaImportService;
     private readonly IWebHostEnvironment _webHostEnvironment;
+    private readonly ILanguageService _languageService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TestDataSeeder> _logger;
 
@@ -63,6 +64,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         ITemplateService templateService,
         IMediaImportService mediaImportService,
         IWebHostEnvironment webHostEnvironment,
+        ILanguageService languageService,
         IServiceScopeFactory scopeFactory,
         ILogger<TestDataSeeder> logger)
     {
@@ -77,6 +79,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         _templateService = templateService;
         _mediaImportService = mediaImportService;
         _webHostEnvironment = webHostEnvironment;
+        _languageService = languageService;
         _scopeFactory = scopeFactory;
         _logger = logger;
     }
@@ -87,6 +90,15 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         var existing = _contentTypeService.GetAll();
         if (existing.Any())
             return;
+
+        // Add German language for variant testing
+        var germanExists = await _languageService.GetAsync("de-DE");
+        if (germanExists is null)
+        {
+            var german = new Language("de-DE", "German (Germany)") { IsDefault = false, IsMandatory = false };
+            var langResult = await _languageService.CreateAsync(german, Constants.Security.SuperUserKey);
+            _logger.LogInformation("TestDataSeeder: German language creation result: {Status}", langResult.Status);
+        }
 
         // Fetch base data types
         var textboxDataType = (await _dataTypeService
@@ -1519,6 +1531,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("description", "Description", descDataType),
         }, cancellationToken);
 
+        // 3d. Variant article — culture-varying content type for multi-language testing
+        var variantArticleCt = await CreateVariantArticle(textboxDataType!, bodyDataType!, cancellationToken);
+
         // 3b. Create master template and assign templates to content types
         if (await _templateService.GetAsync("master") is null)
         {
@@ -1579,6 +1594,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             // New subtypes — Property (Real Estate)
             propertyListingCt, singleFamilyResidencePageCt, apartmentComplexPageCt, residencePageCt, suitePageCt, gatedResidenceCommunityPageCt, accommodationPageCt,
             organisationParentCt, localBusinessChildCt, departmentPageCt,
+            // Variant (culture-varying) content type
+            variantArticleCt,
         };
 
         foreach (var ct in allContentTypes)
@@ -1605,6 +1622,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             faqItem, reviewItem, recipeIngredient, recipeStep,
             howToStepEl, howToToolEl, openingHoursEl,
             cancellationToken);
+
+        // 4b. Create variant content (multi-language)
+        await CreateVariantArticleContent(cancellationToken);
 
         // 5. Seed default schema mappings
         SeedSchemaMappings(blogArticleCt, productPageCt, faqPageCt, eventPageCt, recipePageCt,
@@ -1642,7 +1662,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             webPageCt,
             realEstateListingPageCt,
             propertyListingCt, singleFamilyResidencePageCt, apartmentComplexPageCt, residencePageCt, suitePageCt, gatedResidenceCommunityPageCt, accommodationPageCt,
-            organisationParentCt, localBusinessChildCt, departmentPageCt);
+            organisationParentCt, localBusinessChildCt, departmentPageCt,
+            // Variant (culture-varying)
+            variantArticleCt);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -2077,6 +2099,80 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             Name = name,
             Mandatory = mandatory,
         }, groupAlias);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Variant (culture-varying) content type + content
+    // ──────────────────────────────────────────────────────────────
+
+    private async Task<IContentType> CreateVariantArticle(
+        IDataType textbox, IDataType body, CancellationToken cancellationToken)
+    {
+        var ct = new ContentType(_shortStringHelper, -1)
+        {
+            Alias = "variantArticle",
+            Name = "Variant Article",
+            Icon = "icon-globe",
+            AllowedAsRoot = true,
+            Variations = ContentVariation.Culture,
+        };
+
+        ct.AddPropertyGroup("content", "Content");
+
+        ct.AddPropertyType(new PropertyType(_shortStringHelper, textbox)
+        {
+            Alias = "title",
+            Name = "Title",
+            Mandatory = true,
+            Variations = ContentVariation.Culture,
+        }, "content", "Content");
+
+        ct.AddPropertyType(new PropertyType(_shortStringHelper, body)
+        {
+            Alias = "bodyText",
+            Name = "Body Text",
+            Variations = ContentVariation.Culture,
+        }, "content", "Content");
+
+        if (_mediaPickerDataType is not null)
+        {
+            ct.AddPropertyType(new PropertyType(_shortStringHelper, _mediaPickerDataType)
+            {
+                Alias = "heroImage",
+                Name = "Hero Image",
+            }, "content", "Content");
+        }
+
+        await _contentTypeService.CreateAsync(ct, Constants.Security.SuperUserKey).ConfigureAwait(false);
+        return ct;
+    }
+
+    private async Task CreateVariantArticleContent(CancellationToken cancellationToken)
+    {
+        var content = _contentService.Create("Test Variant Article", Constants.System.Root, "variantArticle");
+        content.SetCultureName("Test Variant Article", "en-US");
+        content.SetCultureName("Testvarianten-Artikel", "de-DE");
+        content.SetValue("title", "Seven things about SchemeWeaver", "en-US");
+        content.SetValue("title", "Sieben Dinge über SchemeWeaver", "de-DE");
+        content.SetValue("bodyText", "<p>English body text for variant testing.</p>", "en-US");
+        content.SetValue("bodyText", "<p>Deutscher Textkörper für Variantentests.</p>", "de-DE");
+        _contentService.Save(content);
+
+        try
+        {
+            var cultureSchedules = new List<CulturePublishScheduleModel>
+            {
+                new() { Culture = "en-US", Schedule = null },
+                new() { Culture = "de-DE", Schedule = null },
+            };
+            await _contentPublishingService.PublishAsync(
+                content.Key, cultureSchedules, Constants.Security.SuperUserKey);
+            _logger.LogInformation("TestDataSeeder: Published variant article in en-US + de-DE");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "TestDataSeeder: Could not publish variant article, saved as draft");
+        }
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -4334,7 +4430,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType webPageCt,
         IContentType realEstateListingPageCt,
         IContentType propertyListingCt, IContentType singleFamilyResidencePageCt, IContentType apartmentComplexPageCt, IContentType residencePageCt, IContentType suitePageCt, IContentType gatedResidenceCommunityPageCt, IContentType accommodationPageCt,
-        IContentType organisationParentCt, IContentType localBusinessChildCt, IContentType departmentPageCt)
+        IContentType organisationParentCt, IContentType localBusinessChildCt, IContentType departmentPageCt,
+        // Variant (culture-varying)
+        IContentType variantArticleCt)
     {
         using var scope = _scopeFactory.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
@@ -4345,6 +4443,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedRecipePageMapping(recipePageCt, repo);
         SeedBlogArticleMapping(blogArticleCt, repo);
         SeedEventPageMapping(eventPageCt, repo);
+
+        // Variant article mapping
+        SeedSimpleMapping(repo, variantArticleCt, "Article", ("Name", "title"), ("ArticleBody", "bodyText"), ("Url", "__url"));
 
         // New mappings — simple property types
         SeedInheritedMapping(repo, homePageCt, "WebSite", ("Name", "siteName"), ("Description", "siteDescription"), ("Url", "__url"));
