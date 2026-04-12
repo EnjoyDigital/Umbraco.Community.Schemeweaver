@@ -2147,9 +2147,19 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         return ct;
     }
 
+    /// <summary>
+    /// Well-known key for the variant article content item. E2E tests in
+    /// <c>language-variants.spec.ts</c> reference this directly so they
+    /// don't need to discover it via the Umbraco management tree API
+    /// (which requires OAuth tokens the Playwright storageState doesn't carry).
+    /// </summary>
+    public static readonly Guid VariantArticleContentKey =
+        Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
     private async Task CreateVariantArticleContent(CancellationToken cancellationToken)
     {
         var content = _contentService.Create("Test Variant Article", Constants.System.Root, "variantArticle");
+        content.Key = VariantArticleContentKey;
         content.SetCultureName("Test Variant Article", "en-US");
         content.SetCultureName("Testvarianten-Artikel", "de-DE");
         content.SetValue("title", "Seven things about SchemeWeaver", "en-US");

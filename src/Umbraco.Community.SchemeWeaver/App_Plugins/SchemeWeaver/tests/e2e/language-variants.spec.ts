@@ -19,73 +19,17 @@ import { test } from '@umbraco/playwright-testhelpers';
 const BASE = '/umbraco/management/api/v1/schemeweaver';
 const VARIANT_ALIAS = 'variantArticle';
 
-/**
- * Resolve the content key of the first published "variantArticle" node.
- * Uses Umbraco's content delivery or management API to find it.
- */
-async function getVariantArticleContentKey(umbracoUi: any): Promise<string | undefined> {
-  // The SchemeWeaver content-types endpoint returns all Umbraco content types
-  // but not content items. Use the Umbraco management API to find content
-  // of type variantArticle.
-  const response = await umbracoUi.page.request.get(
-    '/umbraco/management/api/v1/document?filter=contentType:variantArticle&take=1',
-  );
-  if (!response.ok()) {
-    // Fallback: try the tree children endpoint at the root
-    const rootResponse = await umbracoUi.page.request.get(
-      '/umbraco/management/api/v1/tree/document/children?parentId=-1&take=50',
-    );
-    if (!rootResponse.ok()) return undefined;
-    const tree = await rootResponse.json();
-    const items = tree.items ?? tree;
-    const match = Array.isArray(items)
-      ? items.find(
-          (item: any) =>
-            item.contentTypeAlias === VARIANT_ALIAS ||
-            item.variants?.some((v: any) => v.name === 'Test Variant Article'),
-        )
-      : undefined;
-    return match?.id ?? match?.key;
-  }
-  const body = await response.json();
-  const items = body.items ?? body;
-  return Array.isArray(items) && items.length > 0 ? items[0].id ?? items[0].key : undefined;
-}
+// Well-known key assigned by TestDataSeeder.VariantArticleContentKey.
+// Using a deterministic GUID avoids the need to discover the content key
+// via the Umbraco management tree API, which requires OAuth tokens the
+// Playwright storageState doesn't carry.
+const VARIANT_CONTENT_KEY = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
 test.describe('Language Variants (E2E)', () => {
-  let contentKey: string | undefined;
-
-  test.beforeAll(async ({ browser }) => {
-    // Resolve the variant article content key once for all tests.
-    // We need a page context with storageState for authenticated requests.
-    const context = await browser.newContext({
-      storageState: process.env.STORAGE_STAGE_PATH,
-      ignoreHTTPSErrors: true,
-    });
-    const page = await context.newPage();
-    const response = await page.request.get(
-      `${process.env.URL || process.env.UMBRACO_URL || 'https://localhost:44308'}/umbraco/management/api/v1/tree/document/children?parentId=-1&take=50`,
-    );
-    if (response.ok()) {
-      const tree = await response.json();
-      const items = tree.items ?? tree;
-      if (Array.isArray(items)) {
-        const match = items.find(
-          (item: any) =>
-            item.contentTypeAlias === VARIANT_ALIAS ||
-            item.variants?.some((v: any) => v.name === 'Test Variant Article'),
-        );
-        contentKey = match?.id ?? match?.key;
-      }
-    }
-    await context.close();
-  });
 
   test('preview with culture=de-DE returns German values and inLanguage', async ({ umbracoUi }) => {
-    test.skip(!contentKey, 'Variant article content not found in TestHost — seed may not have run');
-
     const response = await umbracoUi.page.request.post(
-      `${BASE}/mappings/${VARIANT_ALIAS}/preview?contentKey=${contentKey}&culture=de-DE`,
+      `${BASE}/mappings/${VARIANT_ALIAS}/preview?contentKey=${VARIANT_CONTENT_KEY}&culture=de-DE`,
     );
     expect(response.ok(), `Preview failed: ${response.status()}`).toBeTruthy();
 
@@ -99,10 +43,8 @@ test.describe('Language Variants (E2E)', () => {
   });
 
   test('preview with culture=en-US returns English values and inLanguage', async ({ umbracoUi }) => {
-    test.skip(!contentKey, 'Variant article content not found in TestHost — seed may not have run');
-
     const response = await umbracoUi.page.request.post(
-      `${BASE}/mappings/${VARIANT_ALIAS}/preview?contentKey=${contentKey}&culture=en-US`,
+      `${BASE}/mappings/${VARIANT_ALIAS}/preview?contentKey=${VARIANT_CONTENT_KEY}&culture=en-US`,
     );
     expect(response.ok(), `Preview failed: ${response.status()}`).toBeTruthy();
 
@@ -116,10 +58,8 @@ test.describe('Language Variants (E2E)', () => {
   });
 
   test('preview without culture param returns default language values', async ({ umbracoUi }) => {
-    test.skip(!contentKey, 'Variant article content not found in TestHost — seed may not have run');
-
     const response = await umbracoUi.page.request.post(
-      `${BASE}/mappings/${VARIANT_ALIAS}/preview?contentKey=${contentKey}`,
+      `${BASE}/mappings/${VARIANT_ALIAS}/preview?contentKey=${VARIANT_CONTENT_KEY}`,
     );
     // Should succeed (backwards compatible) — the server picks the default culture
     expect(response.ok(), `Preview without culture failed: ${response.status()}`).toBeTruthy();
