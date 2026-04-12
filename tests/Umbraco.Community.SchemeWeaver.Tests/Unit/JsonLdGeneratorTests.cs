@@ -8,6 +8,7 @@ using Xunit;
 using NSubstitute;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
@@ -26,6 +27,7 @@ public class JsonLdGeneratorTests
     private readonly IPublishedContentStatusFilteringService _publishedStatusFilteringService = Substitute.For<IPublishedContentStatusFilteringService>();
     private readonly IPropertyValueResolverFactory _resolverFactory;
     private readonly IPublishedUrlProvider _urlProvider = Substitute.For<IPublishedUrlProvider>();
+    private readonly IVariationContextAccessor _variationContextAccessor = Substitute.For<IVariationContextAccessor>();
     private readonly ILogger<JsonLdGenerator> _logger = Substitute.For<ILogger<JsonLdGenerator>>();
     private readonly JsonLdGenerator _sut;
 
@@ -40,6 +42,7 @@ public class JsonLdGeneratorTests
             _publishedStatusFilteringService,
             _resolverFactory,
             _urlProvider,
+            _variationContextAccessor,
             _logger,
             Options.Create(new SchemeWeaverOptions()));
     }
@@ -403,8 +406,8 @@ public class JsonLdGeneratorTests
         return new JsonLdGenerator(
             _repository, _registry, _httpContextAccessor,
             _navigationQueryService, _publishedStatusFilteringService,
-            blockResolverFactory, _urlProvider, _logger,
-            Options.Create(new SchemeWeaverOptions()));
+            blockResolverFactory, _urlProvider, _variationContextAccessor,
+            _logger, Options.Create(new SchemeWeaverOptions()));
     }
 
     private static IPublishedContent CreateContentWithBlockList(
@@ -1549,6 +1552,136 @@ public class JsonLdGeneratorTests
 
         var jsonLd = result!.ToString();
         jsonLd.Should().Contain("Article");
+    }
+
+    #endregion
+
+    #region Culture / Variant Tests
+
+    [Fact]
+    public void GenerateJsonLd_WithCultureNull_PreservesExistingBehaviour()
+    {
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "Invariant Headline"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+
+        var result = _sut.GenerateJsonLd(content, culture: null);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Article>();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Invariant Headline");
+        jsonLd.Should().NotContain("inLanguage");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_WithCulture_ReturnsVariantValues()
+    {
+        var content = Substitute.For<IPublishedContent>();
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns("article");
+        content.ContentType.Returns(contentType);
+        content.Id.Returns(1);
+        content.Key.Returns(Guid.NewGuid());
+
+        var property = Substitute.For<IPublishedProperty>();
+        // Return different values per culture
+        property.GetValue("de-DE", null).Returns("Deutscher Titel");
+        property.GetValue(null, null).Returns("English Title");
+        content.GetProperty("headline").Returns(property);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+
+        var result = _sut.GenerateJsonLd(content, culture: "de-DE");
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("Deutscher Titel");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_WithCulture_AutoFillsInLanguage()
+    {
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "Test"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+
+        var result = _sut.GenerateJsonLd(content, culture: "de-DE");
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("de-DE");
+        jsonLd.Should().Contain("inLanguage");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_WithCulture_ExplicitInLanguageMappingWins()
+    {
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "Test"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" },
+            new() { SchemaPropertyName = "InLanguage", SourceType = "static", StaticValue = "fr-FR" }
+        });
+
+        var result = _sut.GenerateJsonLd(content, culture: "de-DE");
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("fr-FR");
+        jsonLd.Should().NotContain("de-DE");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_WithCulture_SetsAndRestoresVariationContext()
+    {
+        var content = CreateContent("article");
+        _repository.GetByContentTypeAlias("article").Returns((SchemaMapping?)null);
+
+        var originalContext = new VariationContext("en-US");
+        _variationContextAccessor.VariationContext = originalContext;
+
+        _sut.GenerateJsonLd(content, culture: "de-DE");
+
+        _variationContextAccessor.VariationContext.Should().BeSameAs(originalContext);
+    }
+
+    [Fact]
+    public void GenerateJsonLd_WithNullCulture_DoesNotSetVariationContext()
+    {
+        var content = CreateContent("article");
+        _repository.GetByContentTypeAlias("article").Returns((SchemaMapping?)null);
+
+        VariationContext? originalContext = null;
+        _variationContextAccessor.VariationContext = originalContext;
+
+        _sut.GenerateJsonLd(content, culture: null);
+
+        _variationContextAccessor.VariationContext.Should().BeNull();
     }
 
     #endregion

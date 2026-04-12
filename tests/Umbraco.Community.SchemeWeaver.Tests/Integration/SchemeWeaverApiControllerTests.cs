@@ -224,6 +224,22 @@ public class SchemeWeaverApiControllerTests : UmbracoIntegrationTestBase
         doc.RootElement.ValueKind.Should().Be(JsonValueKind.Object);
     }
 
+    [Fact(Skip = "Requires variant seed from feature/variants-testhost")]
+    public async Task Preview_WithCultureParam_ReturnsOkWithCulturedPreview()
+    {
+        // This test needs variant content seeded in the TestHost (Worktree B).
+        // Once merged, it should call POST /preview?contentKey=...&culture=de-DE
+        // and verify the JSON-LD contains German values and inLanguage: "de-DE".
+        var response = await Client.PostAsync(
+            $"{BaseRoute}/mappings/blogPost/preview?culture=de-DE",
+            content: null);
+
+        // For now just verify the endpoint accepts the culture parameter
+        response.StatusCode.Should().BeOneOf(
+            System.Net.HttpStatusCode.OK,
+            System.Net.HttpStatusCode.NotFound);
+    }
+
     // --------------------------------------------------------------------
     // End-to-end round trip
     // --------------------------------------------------------------------

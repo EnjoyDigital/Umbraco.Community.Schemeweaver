@@ -115,13 +115,13 @@ public class SchemeWeaverService : ISchemeWeaverService
     public IEnumerable<PropertyMappingSuggestion> AutoMap(string contentTypeAlias, string schemaTypeName)
         => _autoMapper.SuggestMappings(contentTypeAlias, schemaTypeName);
 
-    public JsonLdPreviewResponse GeneratePreview(IPublishedContent content)
+    public JsonLdPreviewResponse GeneratePreview(IPublishedContent content, string? culture = null)
     {
         var response = new JsonLdPreviewResponse();
 
         try
         {
-            var jsonLd = _generator.GenerateJsonLdString(content);
+            var jsonLd = _generator.GenerateJsonLdString(content, culture);
             if (jsonLd is not null)
             {
                 response.JsonLd = jsonLd;

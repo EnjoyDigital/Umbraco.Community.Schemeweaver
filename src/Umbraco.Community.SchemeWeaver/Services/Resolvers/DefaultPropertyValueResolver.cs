@@ -12,6 +12,6 @@ public class DefaultPropertyValueResolver : IPropertyValueResolver
 
     public object? Resolve(PropertyResolverContext context)
     {
-        return context.Property?.GetValue()?.ToString();
+        return context.Property?.GetValue(culture: context.Culture)?.ToString();
     }
 }

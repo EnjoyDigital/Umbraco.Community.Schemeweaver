@@ -4,6 +4,7 @@ using Xunit;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.TagHelpers;
 
@@ -12,11 +13,12 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 public class SchemeWeaverTagHelperTests
 {
     private readonly IJsonLdGenerator _generator = Substitute.For<IJsonLdGenerator>();
+    private readonly IVariationContextAccessor _variationContextAccessor = Substitute.For<IVariationContextAccessor>();
     private readonly ILogger<SchemeWeaverTagHelper> _logger = Substitute.For<ILogger<SchemeWeaverTagHelper>>();
 
     private SchemeWeaverTagHelper CreateTagHelper()
     {
-        return new SchemeWeaverTagHelper(_generator, _logger);
+        return new SchemeWeaverTagHelper(_generator, _variationContextAccessor, _logger);
     }
 
     private static (TagHelperContext context, TagHelperOutput output) CreateTagHelperContextAndOutput()

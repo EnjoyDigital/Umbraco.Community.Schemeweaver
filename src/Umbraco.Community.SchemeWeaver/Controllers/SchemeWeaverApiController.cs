@@ -256,7 +256,7 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpPost("mappings/{contentTypeAlias}/preview")]
     [ProducesResponseType(typeof(JsonLdPreviewResponse), StatusCodes.Status200OK)]
-    public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid? contentKey = null)
+    public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid? contentKey = null, [FromQuery] string? culture = null)
     {
         try
         {
@@ -271,7 +271,7 @@ public class SchemeWeaverApiController : ControllerBase
                 var content = umbracoContext.Content?.GetById(contentKey.Value);
                 if (content == null) return NotFound("Content not found.");
 
-                var preview = _service.GeneratePreview(content);
+                var preview = _service.GeneratePreview(content, culture);
                 return Ok(preview);
             }
 

@@ -16,7 +16,7 @@ public class ContentPickerResolver : IPropertyValueResolver
 
     public object? Resolve(PropertyResolverContext context)
     {
-        var value = context.Property?.GetValue();
+        var value = context.Property?.GetValue(culture: context.Culture);
         if (value is not IPublishedContent pickedContent)
             return null;
 
@@ -80,7 +80,8 @@ public class ContentPickerResolver : IPropertyValueResolver
                     Property = publishedProperty,
                     RecursionDepth = context.RecursionDepth + 1,
                     MaxRecursionDepth = context.MaxRecursionDepth,
-                    VisitedContentKeys = childVisitedKeys
+                    VisitedContentKeys = childVisitedKeys,
+                    Culture = context.Culture
                 };
 
                 var resolvedValue = resolver.Resolve(childContext);

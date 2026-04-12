@@ -75,6 +75,31 @@ public class DefaultPropertyValueResolverTests
         result.Should().Be("42");
     }
 
+    [Fact]
+    public void Resolve_WithCulture_PassesCultureToGetValue()
+    {
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue("de-DE", null).Returns("German Value");
+        property.GetValue(null, null).Returns("Default Value");
+
+        var content = Substitute.For<IPublishedContent>();
+        var context = new PropertyResolverContext
+        {
+            Content = content,
+            Mapping = new PropertyMapping { SchemaPropertyName = "TestProp" },
+            PropertyAlias = "testProp",
+            SchemaTypeRegistry = Substitute.For<ISchemaTypeRegistry>(),
+            MappingRepository = Substitute.For<ISchemaMappingRepository>(),
+            HttpContextAccessor = Substitute.For<IHttpContextAccessor>(),
+            Property = property,
+            Culture = "de-DE"
+        };
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("German Value");
+    }
+
     private static PropertyResolverContext CreateContext(IPublishedProperty? property)
     {
         var content = Substitute.For<IPublishedContent>();

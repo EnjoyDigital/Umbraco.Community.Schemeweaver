@@ -9,6 +9,7 @@ using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
+using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
 using Umbraco.Extensions;
 
@@ -27,6 +28,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     private readonly IPublishedContentStatusFilteringService _publishedStatusFilteringService;
     private readonly IPropertyValueResolverFactory _resolverFactory;
     private readonly IPublishedUrlProvider _urlProvider;
+    private readonly IVariationContextAccessor _variationContextAccessor;
     private readonly ILogger<JsonLdGenerator> _logger;
     private readonly SchemeWeaverOptions _options;
 
@@ -38,6 +40,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         IPublishedContentStatusFilteringService publishedStatusFilteringService,
         IPropertyValueResolverFactory resolverFactory,
         IPublishedUrlProvider urlProvider,
+        IVariationContextAccessor variationContextAccessor,
         ILogger<JsonLdGenerator> logger,
         IOptions<SchemeWeaverOptions> options)
     {
@@ -48,11 +51,28 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         _publishedStatusFilteringService = publishedStatusFilteringService;
         _resolverFactory = resolverFactory;
         _urlProvider = urlProvider;
+        _variationContextAccessor = variationContextAccessor;
         _logger = logger;
         _options = options.Value;
     }
 
-    public Thing? GenerateJsonLd(IPublishedContent content)
+    public Thing? GenerateJsonLd(IPublishedContent content, string? culture = null)
+    {
+        var previousContext = _variationContextAccessor.VariationContext;
+        if (culture is not null)
+            _variationContextAccessor.VariationContext = new VariationContext(culture);
+
+        try
+        {
+            return GenerateJsonLdCore(content, culture);
+        }
+        finally
+        {
+            _variationContextAccessor.VariationContext = previousContext;
+        }
+    }
+
+    private Thing? GenerateJsonLdCore(IPublishedContent content, string? culture)
     {
         var mapping = _repository.GetByContentTypeAlias(content.ContentType.Alias);
         if (mapping is not { IsEnabled: true })
@@ -69,12 +89,16 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             return null;
 
         var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
+        var hasExplicitInLanguage = false;
 
         foreach (var propMapping in propertyMappings)
         {
             try
             {
-                var value = ResolveValue(propMapping, content);
+                if (string.Equals(propMapping.SchemaPropertyName, "InLanguage", StringComparison.OrdinalIgnoreCase))
+                    hasExplicitInLanguage = true;
+
+                var value = ResolveValue(propMapping, content, culture);
                 if (value is null)
                     continue;
 
@@ -99,6 +123,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             }
         }
 
+        // Auto-fill inLanguage when culture is set and not explicitly mapped
+        if (culture is not null && !hasExplicitInLanguage)
+            SchemaPropertySetter.SetPropertyValue(instance, "InLanguage", culture);
+
         // Set @id from content URL for AI agent discoverability
         var contentUrl = ResolveAbsoluteUrl(content);
         if (!string.IsNullOrEmpty(contentUrl))
@@ -109,12 +137,12 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         return instance;
     }
 
-    public string? GenerateJsonLdString(IPublishedContent content)
+    public string? GenerateJsonLdString(IPublishedContent content, string? culture = null)
     {
-        return GenerateJsonLd(content)?.ToString();
+        return GenerateJsonLd(content, culture)?.ToString();
     }
 
-    public string? GenerateBreadcrumbJsonLd(IPublishedContent content)
+    public string? GenerateBreadcrumbJsonLd(IPublishedContent content, string? culture = null)
     {
         // Walk the parent chain to build the ancestor list (root-first order)
         var ancestors = new List<IPublishedContent> { content };
@@ -198,11 +226,11 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// Two-axis resolution: first determines WHERE (which node) via SourceType,
     /// then HOW (value extraction) via the resolver factory based on property editor alias.
     /// </summary>
-    private object? ResolveValue(PropertyMapping propMapping, IPublishedContent content)
+    private object? ResolveValue(PropertyMapping propMapping, IPublishedContent content, string? culture)
     {
         // Complex type creates a nested Thing with sub-property mappings
         if (propMapping.SourceType == "complexType")
-            return ResolveComplexType(propMapping, content);
+            return ResolveComplexType(propMapping, content, culture);
 
         // Static values bypass resolver entirely
         if (propMapping.SourceType == "static")
@@ -231,7 +259,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 ResolverFactory = _resolverFactory,
                 Property = null,
                 RecursionDepth = 0,
-                MaxRecursionDepth = _options.MaxRecursionDepth
+                MaxRecursionDepth = _options.MaxRecursionDepth,
+                Culture = culture
             };
             return builtInResolver.Resolve(builtInContext);
         }
@@ -257,7 +286,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             ResolverFactory = _resolverFactory,
             Property = publishedProperty,
             RecursionDepth = 0,
-            MaxRecursionDepth = _options.MaxRecursionDepth
+            MaxRecursionDepth = _options.MaxRecursionDepth,
+            Culture = culture
         };
 
         return resolver.Resolve(context);
@@ -266,14 +296,14 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// <summary>
     /// Resolves a complex Schema.org type by creating a nested Thing with sub-property mappings.
     /// </summary>
-    private object? ResolveComplexType(PropertyMapping propMapping, IPublishedContent content)
+    private object? ResolveComplexType(PropertyMapping propMapping, IPublishedContent content, string? culture)
     {
         var nestedTypeName = propMapping.NestedSchemaTypeName;
         if (string.IsNullOrEmpty(nestedTypeName))
             return null;
 
         var config = ParseComplexTypeConfig(propMapping.ResolverConfig);
-        return ResolveComplexTypeFromConfig(nestedTypeName, config, content);
+        return ResolveComplexTypeFromConfig(nestedTypeName, config, content, culture);
     }
 
     /// <summary>
@@ -281,7 +311,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// No depth limit — recursion is bounded by the finite JSON structure of resolverConfig.
     /// </summary>
     private object? ResolveComplexTypeFromConfig(
-        string typeName, ComplexTypeConfigModel? config, IPublishedContent content)
+        string typeName, ComplexTypeConfigModel? config, IPublishedContent content, string? culture)
     {
         var clrType = _registry.GetClrType(typeName);
         if (clrType is null || Activator.CreateInstance(clrType) is not Thing nestedInstance)
@@ -299,9 +329,9 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             {
                 "static" => subMapping.StaticValue,
                 "property" when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
-                    ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias),
+                    ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias, culture),
                 "complexType" when !string.IsNullOrEmpty(subMapping.ResolverConfig) =>
-                    ResolveNestedComplexType(subMapping, content),
+                    ResolveNestedComplexType(subMapping, content, culture),
                 _ => null
             };
 
@@ -316,21 +346,21 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// Resolves a nested complex type sub-mapping by parsing its ResolverConfig and recursing.
     /// </summary>
     private object? ResolveNestedComplexType(
-        ComplexTypeMappingEntry entry, IPublishedContent content)
+        ComplexTypeMappingEntry entry, IPublishedContent content, string? culture)
     {
         var nestedConfig = ParseComplexTypeConfig(entry.ResolverConfig);
         var nestedTypeName = nestedConfig?.SelectedSubType;
         if (string.IsNullOrEmpty(nestedTypeName))
             return null;
 
-        return ResolveComplexTypeFromConfig(nestedTypeName, nestedConfig, content);
+        return ResolveComplexTypeFromConfig(nestedTypeName, nestedConfig, content, culture);
     }
 
     /// <summary>
     /// Resolves a property value for complex type sub-mappings using the resolver factory.
     /// This ensures media pickers, content pickers, etc. are handled correctly.
     /// </summary>
-    private object? ResolveComplexTypePropertyValue(IPublishedContent content, string propertyAlias)
+    private object? ResolveComplexTypePropertyValue(IPublishedContent content, string propertyAlias, string? culture)
     {
         var publishedProperty = content.GetProperty(propertyAlias);
         if (publishedProperty is null)
@@ -354,7 +384,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             ResolverFactory = _resolverFactory,
             Property = publishedProperty,
             RecursionDepth = 0,
-            MaxRecursionDepth = _options.MaxRecursionDepth
+            MaxRecursionDepth = _options.MaxRecursionDepth,
+            Culture = culture
         };
 
         return resolver.Resolve(context);
@@ -410,6 +441,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
                     return node;
 
+                // Invariant probe: check existence without culture so we find the node
+                // regardless of which language variant has a value
                 if (node.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
                     return node;
             }
@@ -442,6 +475,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
                     return sibling;
 
+                // Invariant probe: check existence without culture so we find the node
+                // regardless of which language variant has a value
                 if (sibling.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
                     return sibling;
             }
@@ -491,7 +526,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     private static partial Regex StripHtmlRegex();
 
     /// <inheritdoc />
-    public IEnumerable<string> GenerateInheritedJsonLdStrings(IPublishedContent content)
+    public IEnumerable<string> GenerateInheritedJsonLdStrings(IPublishedContent content, string? culture = null)
     {
         var inheritedAliases = _repository.GetInheritedMappings()
             .Select(m => m.ContentTypeAlias)
@@ -507,7 +542,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         {
             if (inheritedAliases.Contains(current.ContentType.Alias))
             {
-                var jsonLd = GenerateJsonLdString(current);
+                var jsonLd = GenerateJsonLdString(current, culture);
                 if (!string.IsNullOrEmpty(jsonLd))
                     results.Add(jsonLd);
             }
@@ -520,7 +555,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     }
 
     /// <inheritdoc />
-    public IEnumerable<string> GenerateBlockElementJsonLdStrings(IPublishedContent content)
+    public IEnumerable<string> GenerateBlockElementJsonLdStrings(IPublishedContent content, string? culture = null)
     {
         // Batch-load all mappings in one query and index by alias for O(1) lookups.
         // This avoids N+1 queries when a page has multiple block element types.
@@ -552,7 +587,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             if (explicitBlockProperties.Contains(property.Alias))
                 continue;
 
-            var value = property.GetValue();
+            var value = property.GetValue(culture: culture);
             if (value is null)
                 continue;
 

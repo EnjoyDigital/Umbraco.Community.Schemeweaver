@@ -63,6 +63,11 @@ public class PropertyResolverContext
     public int MaxRecursionDepth { get; init; } = 3;
 
     /// <summary>
+    /// The culture to use when resolving property values. Null for invariant content.
+    /// </summary>
+    public string? Culture { get; init; }
+
+    /// <summary>
     /// Content keys already in the current resolution chain.
     /// Used to detect circular references (e.g., content A picks content B which picks content A).
     /// </summary>

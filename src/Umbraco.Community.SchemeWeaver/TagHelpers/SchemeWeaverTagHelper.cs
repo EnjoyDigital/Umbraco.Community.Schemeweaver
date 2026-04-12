@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Community.SchemeWeaver.Services;
 
 namespace Umbraco.Community.SchemeWeaver.TagHelpers;
@@ -13,11 +14,16 @@ namespace Umbraco.Community.SchemeWeaver.TagHelpers;
 public class SchemeWeaverTagHelper : TagHelper
 {
     private readonly IJsonLdGenerator _generator;
+    private readonly IVariationContextAccessor _variationContextAccessor;
     private readonly ILogger<SchemeWeaverTagHelper> _logger;
 
-    public SchemeWeaverTagHelper(IJsonLdGenerator generator, ILogger<SchemeWeaverTagHelper> logger)
+    public SchemeWeaverTagHelper(
+        IJsonLdGenerator generator,
+        IVariationContextAccessor variationContextAccessor,
+        ILogger<SchemeWeaverTagHelper> logger)
     {
         _generator = generator;
+        _variationContextAccessor = variationContextAccessor;
         _logger = logger;
     }
 
@@ -37,9 +43,10 @@ public class SchemeWeaverTagHelper : TagHelper
         try
         {
             var hasOutput = false;
+            var culture = _variationContextAccessor.VariationContext?.Culture;
 
             // 1. Inherited schemas from ancestor nodes (root-first order)
-            foreach (var inheritedJsonLd in _generator.GenerateInheritedJsonLdStrings(Content))
+            foreach (var inheritedJsonLd in _generator.GenerateInheritedJsonLdStrings(Content, culture))
             {
                 var prefix = hasOutput ? "\n" : "";
                 output.Content.AppendHtml($"{prefix}<script type=\"application/ld+json\">{inheritedJsonLd}</script>");
@@ -47,7 +54,7 @@ public class SchemeWeaverTagHelper : TagHelper
             }
 
             // 2. BreadcrumbList as a separate JSON-LD block
-            var breadcrumbJson = _generator.GenerateBreadcrumbJsonLd(Content);
+            var breadcrumbJson = _generator.GenerateBreadcrumbJsonLd(Content, culture);
             if (!string.IsNullOrEmpty(breadcrumbJson))
             {
                 var prefix = hasOutput ? "\n" : "";
@@ -56,7 +63,7 @@ public class SchemeWeaverTagHelper : TagHelper
             }
 
             // 3. Main page schema
-            var jsonLd = _generator.GenerateJsonLdString(Content);
+            var jsonLd = _generator.GenerateJsonLdString(Content, culture);
             if (!string.IsNullOrEmpty(jsonLd))
             {
                 var prefix = hasOutput ? "\n" : "";
@@ -65,7 +72,7 @@ public class SchemeWeaverTagHelper : TagHelper
             }
 
             // 4. Schemas from mapped block elements
-            foreach (var blockJsonLd in _generator.GenerateBlockElementJsonLdStrings(Content))
+            foreach (var blockJsonLd in _generator.GenerateBlockElementJsonLdStrings(Content, culture))
             {
                 var prefix = hasOutput ? "\n" : "";
                 output.Content.AppendHtml($"{prefix}<script type=\"application/ld+json\">{blockJsonLd}</script>");

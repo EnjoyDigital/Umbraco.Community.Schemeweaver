@@ -13,14 +13,14 @@ public class DateTimeResolver : IPropertyValueResolver
 
     public object? Resolve(PropertyResolverContext context)
     {
-        var value = context.Property?.GetValue();
+        var value = context.Property?.GetValue(culture: context.Culture);
         if (value is null)
             return null;
 
         return value switch
         {
-            DateTime dt => dt.ToString("o"),
-            DateTimeOffset dto => dto.ToString("o"),
+            DateTime dt => dt.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
+            DateTimeOffset dto => dto.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
             _ => value.ToString()
         };
     }

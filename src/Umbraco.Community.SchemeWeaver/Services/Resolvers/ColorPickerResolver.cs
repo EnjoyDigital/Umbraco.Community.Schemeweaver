@@ -16,7 +16,7 @@ public class ColorPickerResolver : IPropertyValueResolver
 
     public object? Resolve(PropertyResolverContext context)
     {
-        var value = context.Property?.GetValue();
+        var value = context.Property?.GetValue(culture: context.Culture);
         if (value is null)
             return null;
 

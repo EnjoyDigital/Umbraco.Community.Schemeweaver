@@ -47,15 +47,15 @@ public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
             var generator = scope.ServiceProvider.GetRequiredService<IJsonLdGenerator>();
 
             // Inherited schemas from ancestor nodes (root-first order)
-            allJsonLd.AddRange(generator.GenerateInheritedJsonLdStrings(published));
+            allJsonLd.AddRange(generator.GenerateInheritedJsonLdStrings(published, culture));
 
             // Main schema for the current content
-            var jsonLd = generator.GenerateJsonLdString(published);
+            var jsonLd = generator.GenerateJsonLdString(published, culture);
             if (!string.IsNullOrEmpty(jsonLd))
                 allJsonLd.Add(jsonLd);
 
             // Schemas from mapped block elements
-            allJsonLd.AddRange(generator.GenerateBlockElementJsonLdStrings(published));
+            allJsonLd.AddRange(generator.GenerateBlockElementJsonLdStrings(published, culture));
         }
         catch (Exception ex)
         {
@@ -80,7 +80,7 @@ public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
             {
                 FieldName = "schemaOrg",
                 FieldType = FieldType.StringRaw,
-                VariesByCulture = false
+                VariesByCulture = true
             }
         ];
     }
