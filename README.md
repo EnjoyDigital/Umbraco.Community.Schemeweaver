@@ -197,7 +197,7 @@ For backoffice UI changes, `npm run test:mocked-backoffice` verifies manifest wi
 
 ### Using an AI assistant
 
-AI tools (Claude, Copilot, Cursor, etc.) are welcome to help. The rules are short:
+AI tools (Claude, Codex, Copilot, Cursor, etc.) are welcome to help. The rules are short:
 
 - **You review it.** Read every line before committing. You're accountable for the PR, not the assistant.
 - **MIT-compatible only.** Don't submit code copied from incompatible sources.
