@@ -1,8 +1,11 @@
+using Umbraco.AI.Extensions;
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
+    .AddUmbracoAI()
     .AddComposers()
     .Build();
 
