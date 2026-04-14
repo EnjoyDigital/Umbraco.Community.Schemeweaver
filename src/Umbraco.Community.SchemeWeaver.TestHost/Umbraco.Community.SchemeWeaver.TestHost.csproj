@@ -4,15 +4,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CompressionEnabled>false</CompressionEnabled> <!-- Disable compression. E.g. for umbraco backoffice files. These files should be precompressed by node and not let dotnet handle it -->
+    <UserSecretsId>95d126b6-eee0-4838-8ec9-afa38a12a91f</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Umbraco.Cms" Version="17.2.2" />
-    <PackageReference Include="Umbraco.Cms.DevelopmentMode.Backoffice" Version="17.2.2" />
+    <PackageReference Include="Umbraco.Cms" Version="17.3.3" />
+    <PackageReference Include="Umbraco.Cms.DevelopmentMode.Backoffice" Version="17.3.3" />
+    <PackageReference Include="Umbraco.AI.Core" Version="1.8.0" />
+    <PackageReference Include="Umbraco.AI.Anthropic" Version="1.3.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver.AI\Umbraco.Community.SchemeWeaver.AI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
