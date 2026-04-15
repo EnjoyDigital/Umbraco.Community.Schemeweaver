@@ -1442,4 +1442,61 @@ public class SchemaAutoMapperTests
     }
 
     #endregion
+
+    #region RankSchemaProperties
+
+    [Fact]
+    public void RankSchemaProperties_UnknownType_ReturnsEmpty()
+    {
+        // Registry returns empty for an unknown type — ranking should mirror that
+        // without throwing.
+        _schemaTypeRegistry.GetProperties("DoesNotExist").Returns(Array.Empty<SchemaPropertyInfo>());
+
+        var result = _sut.RankSchemaProperties("DoesNotExist");
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RankSchemaProperties_SortsPopularBeforeOthers()
+    {
+        // "Product.review" is in PopularSchemaDefaults → 100
+        // "name" is in GlobalPopularPropertyNames → 80
+        // "nutrition" is complex for Product (not a popular default for Product) → 60
+        // "color" is plain text, not popular → 30
+        _schemaTypeRegistry.GetProperties("Product").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "color", PropertyType = "Text", IsComplexType = false },
+            new SchemaPropertyInfo { Name = "nutrition", PropertyType = "NutritionInformation", IsComplexType = true },
+            new SchemaPropertyInfo { Name = "name", PropertyType = "Text", IsComplexType = false },
+            new SchemaPropertyInfo { Name = "review", PropertyType = "Review", IsComplexType = true },
+        });
+
+        var result = _sut.RankSchemaProperties("Product").ToList();
+
+        result.Should().HaveCount(4);
+        result.Select(r => r.Name).Should().ContainInOrder("review", "name", "nutrition", "color");
+        result.Select(r => r.Confidence).Should().ContainInOrder(100, 80, 60, 30);
+    }
+
+    [Fact]
+    public void RankSchemaProperties_IsPopular_TrueFor60AndAbove()
+    {
+        _schemaTypeRegistry.GetProperties("Product").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "review", PropertyType = "Review", IsComplexType = true },           // 100
+            new SchemaPropertyInfo { Name = "name", PropertyType = "Text", IsComplexType = false },              // 80
+            new SchemaPropertyInfo { Name = "nutrition", PropertyType = "NutritionInformation", IsComplexType = true }, // 60
+            new SchemaPropertyInfo { Name = "color", PropertyType = "Text", IsComplexType = false },             // 30
+        });
+
+        var result = _sut.RankSchemaProperties("Product").ToList();
+
+        result.Single(r => r.Name == "review").IsPopular.Should().BeTrue();
+        result.Single(r => r.Name == "name").IsPopular.Should().BeTrue();
+        result.Single(r => r.Name == "nutrition").IsPopular.Should().BeTrue();
+        result.Single(r => r.Name == "color").IsPopular.Should().BeFalse();
+    }
+
+    #endregion
 }
