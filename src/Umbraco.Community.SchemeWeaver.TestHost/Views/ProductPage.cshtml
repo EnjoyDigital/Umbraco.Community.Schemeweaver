@@ -9,7 +9,11 @@
 }
 
 @{
-    var heroImg = Model.HeroImage;
+    var heroImg = Model.HeroImage is Umbraco.Cms.Core.Models.MediaWithCrops singleHero
+        ? singleHero
+        : Model.HeroImage is IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops> heroCollection
+            ? heroCollection.FirstOrDefault()
+            : null;
 }
 @if (heroImg != null)
 {
@@ -53,18 +57,18 @@
     <h2>Customer Reviews</h2>
     @foreach (var block in Model.Reviews)
     {
-        if (block.Content is not ReviewItem reviewItem)
-        {
-            continue;
-        }
+        var author = block.Content.Value("author") as string;
+        var ratingValue = block.Content.Value("ratingValue");
+        var datePublished = block.Content.Value<DateTime?>("datePublished");
+        var reviewBody = block.Content.Value("reviewBody") as string;
         <div class="card review-card">
-            <strong>@reviewItem.Author</strong>
-            <span> &middot; Rating: @reviewItem.RatingValue/5</span>
-            @if (reviewItem.DatePublished != default)
+            <strong>@author</strong>
+            <span> &middot; Rating: @ratingValue/5</span>
+            @if (datePublished.HasValue && datePublished.Value != default)
             {
-                <span> &middot; @(reviewItem.DatePublished.ToString("d MMMM yyyy"))</span>
+                <span> &middot; @(datePublished.Value.ToString("d MMMM yyyy"))</span>
             }
-            <p>@reviewItem.ReviewBody</p>
+            <p>@reviewBody</p>
         </div>
     }
 }

@@ -1,4 +1,5 @@
 using Umbraco.Cms.Core.Models.PublishedContent;
+
 namespace Umbraco.Community.SchemeWeaver.TestHost;
 
 public static class PublishedContentExtensions

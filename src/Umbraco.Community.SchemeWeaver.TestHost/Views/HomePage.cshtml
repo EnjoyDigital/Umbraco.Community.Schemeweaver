@@ -22,7 +22,11 @@
             <div class="grid-item grid-item--@item.Content.ContentType.Alias">
                 @if (item.Content is HeroBlock heroBlock)
                 {
-                    var blockHero = heroBlock.HeroImage?.FirstOrDefault();
+                    var blockHero = heroBlock.HeroImage is Umbraco.Cms.Core.Models.MediaWithCrops singleBlockHero
+                        ? singleBlockHero
+                        : heroBlock.HeroImage is IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops> blockHeroCollection
+                            ? blockHeroCollection.FirstOrDefault()
+                            : null;
                     if (blockHero is not null)
                     {
                         <img src="@blockHero.MediaUrl()" alt="@heroBlock.Title" class="block-hero-image" />
@@ -32,7 +36,11 @@
                 }
                 else if (item.Content is FeatureBlock featureBlock)
                 {
-                    var blockImg = featureBlock.FeatureImage?.FirstOrDefault();
+                    var blockImg = featureBlock.FeatureImage is Umbraco.Cms.Core.Models.MediaWithCrops singleBlockImg
+                        ? singleBlockImg
+                        : featureBlock.FeatureImage is IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops> blockImgCollection
+                            ? blockImgCollection.FirstOrDefault()
+                            : null;
                     if (blockImg is not null)
                     {
                         <img src="@blockImg.MediaUrl()" alt="@featureBlock.Title" class="block-feature-image" />

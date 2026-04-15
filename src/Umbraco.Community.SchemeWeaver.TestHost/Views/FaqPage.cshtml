@@ -8,7 +8,11 @@
     <p class="lead">@Model.Description</p>
 }
 @{
-    var heroImg = Model.HeroImage;
+    var heroImg = Model.HeroImage is Umbraco.Cms.Core.Models.MediaWithCrops singleHero
+        ? singleHero
+        : Model.HeroImage is IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops> heroCollection
+            ? heroCollection.FirstOrDefault()
+            : null;
 }
 @if (heroImg != null)
 {
