@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Umbraco.Community.SchemeWeaver.TestHost;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Integration.Fixtures;
 
@@ -71,6 +73,21 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.AddTransient<IPolicyEvaluator, TestPolicyEvaluator>();
+
+            // Integration tests seed their own data via UmbracoIntegrationTestBase.
+            // The TestHost's TestDataSeeder exists for the E2E/dev experience (it
+            // builds 140+ mappings, 145+ nodes and imports media from disk) and
+            // adds 5+ minutes to host startup on CI Linux runners, which was
+            // causing every HTTP request to fail with 500 after boot. Remove the
+            // hosted-service registration for the integration suite.
+            var seederDescriptors = services
+                .Where(d => d.ServiceType == typeof(IHostedService)
+                    && d.ImplementationType == typeof(TestDataSeeder))
+                .ToList();
+            foreach (var descriptor in seederDescriptors)
+            {
+                services.Remove(descriptor);
+            }
         });
     }
 

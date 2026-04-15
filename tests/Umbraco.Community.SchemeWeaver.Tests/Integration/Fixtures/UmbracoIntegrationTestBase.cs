@@ -48,16 +48,34 @@ public abstract class UmbracoIntegrationTestBase : IAsyncLifetime
     /// <summary>
     /// Deletes every row from the SchemeWeaver tables. Umbraco's own bootstrap
     /// content is left intact so the backoffice stays usable between tests.
+    /// Retries briefly on "no such table" because the SchemeWeaver package migration
+    /// runs via Umbraco's background migration runner, which can still be completing
+    /// when the first test's InitializeAsync fires.
     /// </summary>
     protected void ResetSchemeWeaverTables()
     {
-        using var scope = CreateServiceScope();
-        var scopeProvider = scope.ServiceProvider.GetRequiredService<IScopeProvider>();
+        const int maxAttempts = 50;
+        const int delayMs = 100;
 
-        using var dbScope = scopeProvider.CreateScope();
-        dbScope.Database.Execute($"DELETE FROM {SchemeWeaverConstants.Tables.PropertyMapping}");
-        dbScope.Database.Execute($"DELETE FROM {SchemeWeaverConstants.Tables.SchemaMapping}");
-        dbScope.Complete();
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                using var scope = CreateServiceScope();
+                var scopeProvider = scope.ServiceProvider.GetRequiredService<IScopeProvider>();
+
+                using var dbScope = scopeProvider.CreateScope();
+                dbScope.Database.Execute($"DELETE FROM {SchemeWeaverConstants.Tables.PropertyMapping}");
+                dbScope.Database.Execute($"DELETE FROM {SchemeWeaverConstants.Tables.SchemaMapping}");
+                dbScope.Complete();
+                return;
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException ex)
+                when (attempt < maxAttempts && ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase))
+            {
+                Thread.Sleep(delayMs);
+            }
+        }
     }
 
     /// <summary>
