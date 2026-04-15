@@ -683,7 +683,12 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   }
 
   private _renderMappingTable(rows: Array<{ mapping: NestedMappingEntry; index: number }>) {
-    const blockProperties = this._selectedBlockType?.properties || [];
+    // Prefer the pinned block type's properties; otherwise aggregate properties
+    // from every block type the data type allows so multi-block resolver configs
+    // (e.g. the home contentGrid spans hero / feature / quote blocks) can pick
+    // from a real dropdown instead of falling back to free-text.
+    const blockProperties = this._selectedBlockType?.properties
+      ?? Array.from(new Set(this._blockElementTypes.flatMap((bt) => bt.properties))).sort();
 
     return html`
       <uui-table aria-label=${this.localize.term('schemeWeaver_nestedMappings')}>
