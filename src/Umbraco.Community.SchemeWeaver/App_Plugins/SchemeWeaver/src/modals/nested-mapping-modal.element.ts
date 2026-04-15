@@ -601,12 +601,22 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   }
 
   private _renderMappings() {
+    // When the resolver config doesn't pin a specific block alias (the mapping
+    // applies to every block type that exposes a matching property — e.g. the
+    // home page contentGrid spans hero / feature / quote blocks), fall back to
+    // listing the available block aliases so the source tag never renders empty.
+    const sourceLabel = this._selectedBlockType?.name
+      || this._selectedBlockType?.alias
+      || (this._blockElementTypes.length > 0
+        ? this._blockElementTypes.map((bt) => bt.name || bt.alias).join(', ')
+        : this.localize.term('schemeWeaver_fromAnyBlock'));
+
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_nestedMappings')}>
         <div class="mapping-header-info">
           <uui-tag color="primary">${this.data?.nestedSchemaTypeName}</uui-tag>
           <span>${this.localize.term('schemeWeaver_from')}</span>
-          <uui-tag color="default">${this._selectedBlockType?.name || this._selectedBlockType?.alias}</uui-tag>
+          <uui-tag color="default">${sourceLabel}</uui-tag>
 
           <uui-button
             class="auto-map-button"

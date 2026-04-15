@@ -98,6 +98,7 @@ export default {
     nestedMappings: 'Nested Mappings',
     hideUnmapped: 'Hide unmapped properties',
     unmappedProperties: 'unmapped properties',
+    fromAnyBlock: 'any block type',
     showMoreProperties: 'Show {0} more properties',
     showFewerProperties: 'Show fewer properties',
     noMappedProperties: 'No properties mapped yet. Use the dropdown below to add schema properties, or click Auto-map.',
