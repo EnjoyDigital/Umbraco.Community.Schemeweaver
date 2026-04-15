@@ -19,7 +19,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template; the tag helper reads the current culture from Umbraco's `IVariationContextAccessor` automatically
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
-- **AI-powered mapping (optional)** -- install the companion [`Umbraco.Community.SchemeWeaver.AI`](docs/ai-integration.md) package for AI schema type suggestions, bulk analysis across all content types, and Umbraco Copilot integration
+- **AI-powered mapping (experimental)** -- install the companion [`Umbraco.Community.SchemeWeaver.AI`](docs/ai-integration.md) package for AI schema type suggestions, bulk analysis across all content types, and Umbraco Copilot integration. Not yet smoke-tested end-to-end — feedback welcome, but don't rely on it in production
 
 ## Requirements
 
@@ -34,7 +34,9 @@ dotnet add package Umbraco.Community.SchemeWeaver
 
 No additional configuration needed. The package registers all services, creates its database tables on first run, and adds the backoffice UI automatically.
 
-### Optional: AI-Powered Mapping
+### Optional: AI-Powered Mapping (experimental)
+
+> ⚠️ **Experimental.** The AI companion hasn't been smoke-tested end-to-end against the current main-package contracts yet. It is shipped for early feedback only — expect rough edges and don't rely on it in production.
 
 For AI-assisted schema type suggestions and property mapping, install the companion package:
 
@@ -152,7 +154,7 @@ The generated output:
 
 - **Block content nested types** -- complex Schema.org properties (e.g. `acceptedAnswer`, `reviewRating`) require a wrapper type. The auto-mapper pre-configures this for common patterns (FAQ, Product, Recipe). For custom types, see the [`wrapInType` guide](docs/block-content.md#wrapintype-configuration).
 - **Media picker edge cases** -- complex multi-crop scenarios with specific crop aliases may need manual URL configuration. See [Property Mappings](docs/property-mappings.md#property-value-resolvers).
-- **AI package** -- the `Umbraco.Community.SchemeWeaver.AI` companion is optional and requires a configured Umbraco.AI chat provider. Without it, the heuristic auto-mapper handles all suggestions.
+- **AI package** -- the `Umbraco.Community.SchemeWeaver.AI` companion is **experimental** and not yet smoke-tested end-to-end. It requires a configured Umbraco.AI chat provider. Without it, the heuristic auto-mapper handles all suggestions.
 
 ## Releasing
 
