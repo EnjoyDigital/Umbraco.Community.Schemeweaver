@@ -47,6 +47,51 @@ public class SchemeWeaverApiControllerTests : UmbracoIntegrationTestBase
     }
 
     [Fact]
+    public async Task GetSchemaTypeProperties_DefaultResponse_MatchesLegacyShape()
+    {
+        // Back-compat guardrail: the default (no-query-param) response is consumed
+        // by the existing frontend and MUST NOT gain new fields. If we want to ship
+        // ranking, it has to live behind ?ranked=true.
+        var response = await Client.GetAsync($"{BaseRoute}/schema-types/Article/properties");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+        doc.RootElement.GetArrayLength().Should().BeGreaterThan(0);
+
+        var firstItem = doc.RootElement.EnumerateArray().First();
+        firstItem.TryGetProperty("confidence", out _).Should().BeFalse(
+            "legacy response must not expose confidence");
+        firstItem.TryGetProperty("isPopular", out _).Should().BeFalse(
+            "legacy response must not expose isPopular");
+    }
+
+    [Fact]
+    public async Task GetSchemaTypeProperties_RankedTrue_ReturnsRankedShape()
+    {
+        var response = await Client.GetAsync($"{BaseRoute}/schema-types/Article/properties?ranked=true");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+        doc.RootElement.GetArrayLength().Should().BeGreaterThan(0);
+
+        var items = doc.RootElement.EnumerateArray().ToList();
+        var firstItem = items.First();
+        firstItem.TryGetProperty("confidence", out _).Should().BeTrue(
+            "ranked response must expose confidence");
+        firstItem.TryGetProperty("isPopular", out _).Should().BeTrue(
+            "ranked response must expose isPopular");
+
+        var firstConfidence = items.First().GetProperty("confidence").GetInt32();
+        var lastConfidence = items.Last().GetProperty("confidence").GetInt32();
+        firstConfidence.Should().BeGreaterThanOrEqualTo(lastConfidence,
+            "results must be sorted by confidence descending");
+    }
+
+    [Fact]
     public async Task GetSchemaTypes_WithSearchQuery_FiltersResults()
     {
         var response = await Client.GetAsync($"{BaseRoute}/schema-types?search=BlogPosting");

@@ -25,6 +25,7 @@ public class SchemeWeaverApiController : ControllerBase
     private readonly ISchemeWeaverService _service;
     private readonly IContentTypeService _contentTypeService;
     private readonly IContentTypeGenerator _contentTypeGenerator;
+    private readonly ISchemaAutoMapper _schemaAutoMapper;
     private readonly IUmbracoContextAccessor _umbracoContextAccessor;
     private readonly ILogger<SchemeWeaverApiController> _logger;
 
@@ -32,12 +33,14 @@ public class SchemeWeaverApiController : ControllerBase
         ISchemeWeaverService service,
         IContentTypeService contentTypeService,
         IContentTypeGenerator contentTypeGenerator,
+        ISchemaAutoMapper schemaAutoMapper,
         IUmbracoContextAccessor umbracoContextAccessor,
         ILogger<SchemeWeaverApiController> logger)
     {
         _service = service;
         _contentTypeService = contentTypeService;
         _contentTypeGenerator = contentTypeGenerator;
+        _schemaAutoMapper = schemaAutoMapper;
         _umbracoContextAccessor = umbracoContextAccessor;
         _logger = logger;
     }
@@ -65,10 +68,17 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpGet("schema-types/{name}/properties")]
     [ProducesResponseType(typeof(IEnumerable<SchemaPropertyInfo>), StatusCodes.Status200OK)]
-    public IActionResult GetSchemaTypeProperties(string name)
+    [ProducesResponseType(typeof(IEnumerable<RankedSchemaPropertyInfo>), StatusCodes.Status200OK)]
+    public IActionResult GetSchemaTypeProperties(string name, [FromQuery] bool ranked = false)
     {
         try
         {
+            if (ranked)
+            {
+                var rankedResults = _schemaAutoMapper.RankSchemaProperties(name);
+                return Ok(rankedResults);
+            }
+
             var properties = _service.GetSchemaProperties(name);
             return Ok(properties);
         }

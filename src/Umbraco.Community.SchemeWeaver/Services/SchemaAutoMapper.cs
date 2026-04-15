@@ -21,6 +21,24 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     };
 
     /// <summary>
+    /// Schema.org property names that are broadly useful across most types. Used by
+    /// <see cref="RankSchemaProperties"/> as the tier-2 scoring bucket (confidence 80).
+    /// </summary>
+    private static readonly HashSet<string> GlobalPopularPropertyNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "name",
+        "description",
+        "image",
+        "url",
+        "headline",
+        "author",
+        "datePublished",
+        "dateModified",
+        "sku",
+        "price",
+    };
+
+    /// <summary>
     /// Synonym dictionary mapping Schema.org property names to common Umbraco property aliases.
     /// Expanded from BaseSchemaModel.GetCommonPropertyNames.
     /// </summary>
@@ -381,6 +399,75 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         }
 
         return suggestions;
+    }
+
+    public IEnumerable<RankedSchemaPropertyInfo> RankSchemaProperties(string schemaTypeName)
+    {
+        if (string.IsNullOrWhiteSpace(schemaTypeName))
+            return [];
+
+        var properties = _schemaTypeRegistry.GetProperties(schemaTypeName)?.ToList();
+        if (properties is null || properties.Count == 0)
+            return [];
+
+        // Pre-compute the set of property names considered "popular" for this exact
+        // schema type via PopularSchemaDefaults. Keys look like "Product.review" —
+        // we extract the substring after the first "." for membership tests.
+        var typePopularNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in PopularSchemaDefaults.Keys)
+        {
+            var dotIndex = key.IndexOf('.');
+            if (dotIndex <= 0 || dotIndex >= key.Length - 1)
+                continue;
+
+            var typePart = key.AsSpan(0, dotIndex);
+            if (!typePart.Equals(schemaTypeName.AsSpan(), StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            typePopularNames.Add(key[(dotIndex + 1)..]);
+        }
+
+        var ranked = new List<RankedSchemaPropertyInfo>(properties.Count);
+        foreach (var prop in properties)
+        {
+            int confidence;
+            if (typePopularNames.Contains(prop.Name))
+            {
+                // Tier 1 — baked-in popular default for this exact type
+                confidence = 100;
+            }
+            else if (GlobalPopularPropertyNames.Contains(prop.Name))
+            {
+                // Tier 2 — in the globally-popular property list
+                confidence = 80;
+            }
+            else if (prop.IsComplexType)
+            {
+                // Tier 3 — structural/complex properties are often meaningful for nested mapping
+                confidence = 60;
+            }
+            else
+            {
+                // Tier 4 — everything else
+                confidence = 30;
+            }
+
+            ranked.Add(new RankedSchemaPropertyInfo
+            {
+                Name = prop.Name,
+                PropertyType = prop.PropertyType,
+                IsRequired = prop.IsRequired,
+                AcceptedTypes = prop.AcceptedTypes,
+                IsComplexType = prop.IsComplexType,
+                Confidence = confidence,
+                IsPopular = confidence >= 60,
+            });
+        }
+
+        return ranked
+            .OrderByDescending(p => p.Confidence)
+            .ThenBy(p => p.Name, StringComparer.Ordinal)
+            .ToList();
     }
 
     /// <summary>
