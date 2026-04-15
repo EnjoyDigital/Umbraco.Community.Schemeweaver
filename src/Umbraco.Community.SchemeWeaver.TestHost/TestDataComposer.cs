@@ -181,6 +181,27 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("closes", "Closes", textboxDataType),
         }, cancellationToken);
 
+        // 1c. Block Grid element types (landing page demo)
+        var heroBlockEl = await CreateElementType("heroBlock", "Hero Block", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("subtitle", "Subtitle", textboxDataType),
+            ("heroImage", "Hero Image", mediaPickerDataType ?? textboxDataType),
+        }, cancellationToken);
+
+        var featureBlockEl = await CreateElementType("featureBlock", "Feature Block", new[]
+        {
+            ("title", "Title", textboxDataType),
+            ("description", "Description", richtextDataType ?? textareaDataType ?? textboxDataType),
+            ("featureImage", "Feature Image", mediaPickerDataType ?? textboxDataType),
+        }, cancellationToken);
+
+        var quoteBlockEl = await CreateElementType("quoteBlock", "Quote Block", new[]
+        {
+            ("quote", "Quote", textboxDataType),
+            ("attribution", "Attribution", textboxDataType),
+        }, cancellationToken);
+
         // 2. Create BlockList data types
         var faqBlockList = await CreateBlockListDataType("FAQ Items Block List", [faqItem], cancellationToken);
         var reviewsBlockList = await CreateBlockListDataType("Reviews Block List", [reviewItem], cancellationToken);
@@ -189,6 +210,12 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         var howToStepsBlockList = await CreateBlockListDataType("HowTo Steps Block List", [howToStepEl], cancellationToken);
         var howToToolsBlockList = await CreateBlockListDataType("HowTo Tools Block List", [howToToolEl], cancellationToken);
         var openingHoursBlockList = await CreateBlockListDataType("Opening Hours Block List", [openingHoursEl], cancellationToken);
+
+        // 2b. Create BlockGrid data type (landing page demo)
+        var contentGridDataType = await CreateBlockGridDataType(
+            "Content Grid",
+            [heroBlockEl, featureBlockEl, quoteBlockEl],
+            cancellationToken);
 
         // 3. Create content types — existing
         var blogArticleCt = await CreateBlogArticle(textboxDataType, descDataType, bodyDataType, dateTimeDataType, mediaPickerDataType, cancellationToken);
@@ -1547,6 +1574,15 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("description", "Description", descDataType),
         }, cancellationToken);
 
+        // 3c-landing. Landing Page — exercises BlockGrid + nested ImageObject mapping
+        var landingPageCt = await CreateContentType("landingPage", "Landing Page", "icon-presentation", new (string, string, IDataType?)[]
+        {
+            ("pageTitle", "Page Title", textboxDataType),
+            ("metaDescription", "Meta Description", textareaDataType ?? textboxDataType),
+            ("heroImage", "Hero Image", mediaPickerDataType ?? textboxDataType),
+            ("contentGrid", "Content Grid", contentGridDataType),
+        }, cancellationToken);
+
         // 3d. Variant article — culture-varying content type for multi-language testing
         var variantArticleCt = await CreateVariantArticle(textboxDataType!, bodyDataType!, cancellationToken);
 
@@ -1610,6 +1646,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             // New subtypes — Property (Real Estate)
             propertyListingCt, singleFamilyResidencePageCt, apartmentComplexPageCt, residencePageCt, suitePageCt, gatedResidenceCommunityPageCt, accommodationPageCt,
             organisationParentCt, localBusinessChildCt, departmentPageCt,
+            // Landing page (BlockGrid demo)
+            landingPageCt,
             // Variant (culture-varying) content type
             variantArticleCt,
         };
@@ -1637,6 +1675,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await CreateSampleContent(
             faqItem, reviewItem, recipeIngredient, recipeStep,
             howToStepEl, howToToolEl, openingHoursEl,
+            heroBlockEl, featureBlockEl, quoteBlockEl,
             cancellationToken);
 
         // 4a. Assign domain/culture routing on the home page (/en → en-US, /de → de-DE)
@@ -1706,6 +1745,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             realEstateListingPageCt,
             propertyListingCt, singleFamilyResidencePageCt, apartmentComplexPageCt, residencePageCt, suitePageCt, gatedResidenceCommunityPageCt, accommodationPageCt,
             organisationParentCt, localBusinessChildCt, departmentPageCt,
+            // Landing page (BlockGrid demo — WebPage + nested ImageObject + BlockGrid mainEntity)
+            landingPageCt,
             // Variant (culture-varying)
             variantArticleCt);
     }
@@ -1913,6 +1954,50 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             DatabaseType = ValueStorageType.Ntext,
             ConfigurationData = configData,
             EditorUiAlias = "Umb.PropertyEditorUi.BlockList",
+        };
+
+        await _dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey).ConfigureAwait(false);
+        return dataType;
+    }
+
+    /// <summary>
+    /// Creates a BlockGrid data type with a single 12-column root area allowing the supplied element types.
+    /// Mirrors <see cref="CreateBlockListDataType"/> for the BlockGrid editor (Umbraco.BlockGrid).
+    /// </summary>
+    private async Task<IDataType> CreateBlockGridDataType(
+        string name,
+        IContentType[] elementTypes,
+        CancellationToken cancellationToken)
+    {
+        if (!_propertyEditors.TryGet(Constants.PropertyEditors.Aliases.BlockGrid, out var blockGridEditor))
+        {
+            _logger.LogError("TestDataSeeder: BlockGrid property editor not found — cannot create {Name}", name);
+            throw new InvalidOperationException($"BlockGrid property editor '{Constants.PropertyEditors.Aliases.BlockGrid}' not found");
+        }
+
+        // Every block is allowed at root; no per-block areas configured (minimal setup).
+        var blocks = elementTypes.Select(et => (object)new Dictionary<string, object?>
+        {
+            ["contentElementTypeKey"] = et.Key.ToString(),
+            ["label"] = et.Name,
+            ["allowAtRoot"] = true,
+            ["allowInAreas"] = false,
+            ["areas"] = Array.Empty<object>(),
+        }).ToList();
+
+        var configData = new Dictionary<string, object>
+        {
+            ["blocks"] = blocks,
+            ["validationLimit"] = new Dictionary<string, object?> { ["min"] = null, ["max"] = null },
+            ["gridColumns"] = 12,
+        };
+
+        var dataType = new DataType(blockGridEditor, _configSerializer, -1)
+        {
+            Name = name,
+            DatabaseType = ValueStorageType.Ntext,
+            ConfigurationData = configData,
+            EditorUiAlias = "Umb.PropertyEditorUi.BlockGrid",
         };
 
         await _dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey).ConfigureAwait(false);
@@ -2247,6 +2332,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType howToStepType,
         IContentType howToToolType,
         IContentType openingHoursType,
+        IContentType heroBlockType,
+        IContentType featureBlockType,
+        IContentType quoteBlockType,
         CancellationToken cancellationToken)
     {
         // Create home page as site root (culture-variant)
@@ -2262,6 +2350,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         home.SetValue("organisationTelephone", "+44 113 357 0000");
         home.SetValue("sameAs", "https://twitter.com/enjoydigital,https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver");
         await SaveAndPublishVariantAsync(home);
+
+        // Landing page at root — demonstrates BlockGrid + nested ImageObject
+        await CreateLandingPageContent(heroBlockType, featureBlockType, quoteBlockType, cancellationToken);
 
         // ── Top-level pages under home (nav order: Blog, Categories, About Us, FAQs) ──
         var blogListing = CreateAndPublishSimple("Blog", home.Id, "blogListing", "Blog", "Articles about Schema.org, structured data, and SEO.", cancellationToken);
@@ -2699,6 +2790,66 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         TrySetHeroImage(content, "umbraco-uk-festival-2026");
 
         await SaveAndPublishVariantAsync(content);
+    }
+
+    private async Task CreateLandingPageContent(
+        IContentType heroBlockType,
+        IContentType featureBlockType,
+        IContentType quoteBlockType,
+        CancellationToken cancellationToken)
+    {
+        var content = _contentService.Create("Welcome to SchemeWeaver", Constants.System.Root, "landingPage");
+        content.SetValue("pageTitle", "Welcome to SchemeWeaver");
+        content.SetValue("metaDescription", "Map Umbraco content types to Schema.org structured data.");
+
+        // Hero image: reuse a seeded media asset so we exercise MediaPicker3 + ImageObject ranking.
+        TrySetHeroImage(content, "getting-started-with-schema-org");
+
+        // Build reusable media picker values for block-level images.
+        var featureImageA = BuildMediaPickerValue("about-this-site");
+        var featureImageB = BuildMediaPickerValue("breaking-news-schema-org-v26-released");
+        var heroBlockImage = BuildMediaPickerValue("getting-started-with-schema-org");
+
+        var heroValues = new Dictionary<string, object>
+        {
+            ["title"] = "Map. Weave. Ship.",
+            ["subtitle"] = "Schema.org structured data, bolted onto Umbraco with zero fuss.",
+        };
+        if (heroBlockImage is not null)
+            heroValues["heroImage"] = heroBlockImage;
+
+        var feature1Values = new Dictionary<string, object>
+        {
+            ["title"] = "One-click mappings",
+            ["description"] = "<p>Auto-map any content type to a Schema.org type — the registry knows over 800 of them.</p>",
+        };
+        if (featureImageA is not null)
+            feature1Values["featureImage"] = featureImageA;
+
+        var feature2Values = new Dictionary<string, object>
+        {
+            ["title"] = "Live JSON-LD preview",
+            ["description"] = "<p>Inspect the generated JSON-LD for any content item, validated against the published spec.</p>",
+        };
+        if (featureImageB is not null)
+            feature2Values["featureImage"] = featureImageB;
+
+        var quoteValues = new Dictionary<string, object>
+        {
+            ["quote"] = "SchemeWeaver turned structured data from a chore into a feature we actually ship.",
+            ["attribution"] = "A very satisfied Umbraco developer",
+        };
+
+        var contentGrid = BuildBlockGridJson(new (Guid, Dictionary<string, object>)[]
+        {
+            (heroBlockType.Key, heroValues),
+            (featureBlockType.Key, feature1Values),
+            (featureBlockType.Key, feature2Values),
+            (quoteBlockType.Key, quoteValues),
+        });
+        content.SetValue("contentGrid", contentGrid);
+
+        await SaveAndPublishAsync(content);
     }
 
     private async Task SaveAndPublishAsync(IContent content)
@@ -4499,6 +4650,70 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         });
     }
 
+    /// <summary>
+    /// Builds a Block Grid JSON value string. Each item in <paramref name="blocks"/> pairs an
+    /// element type key with the block's property values. Layout uses a single 12-column row
+    /// per block (simple vertical stack, sufficient for seeding demo content).
+    /// </summary>
+    private static string BuildBlockGridJson(IEnumerable<(Guid elementTypeKey, Dictionary<string, object> values)> blocks)
+    {
+        var layoutItems = new List<object>();
+        var contentDataItems = new List<object>();
+        var exposeItems = new List<object>();
+
+        foreach (var (elementTypeKey, values) in blocks)
+        {
+            var blockKey = Guid.NewGuid();
+
+            layoutItems.Add(new
+            {
+                contentKey = blockKey,
+                settingsKey = (Guid?)null,
+                columnSpan = 12,
+                rowSpan = 1,
+                areas = Array.Empty<object>(),
+            });
+
+            var blockValues = values.Select(kvp => new
+            {
+                alias = kvp.Key,
+                value = kvp.Value,
+                culture = (string?)null,
+                segment = (string?)null,
+            }).ToList();
+
+            contentDataItems.Add(new
+            {
+                key = blockKey,
+                contentTypeKey = elementTypeKey,
+                values = blockValues,
+            });
+
+            exposeItems.Add(new
+            {
+                contentKey = blockKey,
+                culture = (string?)null,
+                segment = (string?)null,
+            });
+        }
+
+        var blockValue = new
+        {
+            layout = new Dictionary<string, object>
+            {
+                ["Umbraco.BlockGrid"] = layoutItems,
+            },
+            contentData = contentDataItems,
+            settingsData = Array.Empty<object>(),
+            expose = exposeItems,
+        };
+
+        return JsonSerializer.Serialize(blockValue, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        });
+    }
+
     // ──────────────────────────────────────────────────────────────
     // Schema mapping seeding
     // ──────────────────────────────────────────────────────────────
@@ -4553,6 +4768,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType realEstateListingPageCt,
         IContentType propertyListingCt, IContentType singleFamilyResidencePageCt, IContentType apartmentComplexPageCt, IContentType residencePageCt, IContentType suitePageCt, IContentType gatedResidenceCommunityPageCt, IContentType accommodationPageCt,
         IContentType organisationParentCt, IContentType localBusinessChildCt, IContentType departmentPageCt,
+        // Landing page (BlockGrid demo)
+        IContentType landingPageCt,
         // Variant (culture-varying)
         IContentType variantArticleCt)
     {
@@ -4764,6 +4981,17 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         SeedSimpleMapping(repo, organisationParentCt, "Organization", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
 
+        // Landing page — WebPage with nested ImageObject (primaryImageOfPage) + BlockGrid mainEntity
+        try
+        {
+            SeedLandingPageMapping(landingPageCt, repo);
+            _logger.LogInformation("TestDataSeeder: Landing page mapping seeded successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "TestDataSeeder: Failed to seed Landing page mapping");
+        }
+
         // Hierarchy mappings (parent/ancestor/sibling)
         SeedLocalBusinessChildMapping(localBusinessChildCt, repo);
         SeedDepartmentPageMapping(departmentPageCt, repo);
@@ -4788,7 +5016,74 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         AddCategoryMapping(repo, "theaterEventPage", "eventListing");
         AddCategoryMapping(repo, "screeningEventPage", "eventListing");
 
-        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 142);
+        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 143);
+    }
+
+    private void SeedLandingPageMapping(IContentType ct, ISchemaMappingRepository repo)
+    {
+        var mapping = repo.Save(new SchemaMapping
+        {
+            ContentTypeAlias = ct.Alias,
+            ContentTypeKey = ct.Key,
+            SchemaTypeName = "WebPage",
+            IsEnabled = true,
+        });
+
+        repo.SavePropertyMappings(mapping.Id, new[]
+        {
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Name",
+                SourceType = "property",
+                ContentTypePropertyAlias = "pageTitle",
+            },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Description",
+                SourceType = "property",
+                ContentTypePropertyAlias = "metaDescription",
+            },
+            // Complex type — nested ImageObject wrapping the Media Picker value.
+            // Exercises the nested ranking UX from Part A; resolver expands the media
+            // into an ImageObject with URL, caption, width, and height.
+            new PropertyMapping
+            {
+                SchemaPropertyName = "PrimaryImageOfPage",
+                SourceType = "property",
+                ContentTypePropertyAlias = "heroImage",
+                NestedSchemaTypeName = "ImageObject",
+            },
+            new PropertyMapping
+            {
+                SchemaPropertyName = "Url",
+                SourceType = "property",
+                ContentTypePropertyAlias = "__url",
+            },
+            // BlockGrid content — emits each block as its own nested entity on mainEntity.
+            // The blockContent resolver walks contentData and applies the nested mappings
+            // per block type. The schemeWeaver blockContent source handles BlockGrid JSON
+            // the same way it handles BlockList (both formats share the contentData shape).
+            new PropertyMapping
+            {
+                SchemaPropertyName = "MainEntity",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "contentGrid",
+                NestedSchemaTypeName = "WebPageElement",
+                ResolverConfig = JsonSerializer.Serialize(new
+                {
+                    nestedMappings = new object[]
+                    {
+                        new { schemaProperty = "Name", contentProperty = "title" },
+                        new { schemaProperty = "Headline", contentProperty = "subtitle" },
+                        new { schemaProperty = "Description", contentProperty = "description" },
+                        new { schemaProperty = "Image", contentProperty = "heroImage" },
+                        new { schemaProperty = "Image", contentProperty = "featureImage" },
+                        new { schemaProperty = "Text", contentProperty = "quote" },
+                        new { schemaProperty = "Author", contentProperty = "attribution", wrapInType = "Person", wrapInProperty = "Name" },
+                    }
+                }),
+            },
+        });
     }
 
     private void SeedHowToMapping(IContentType ct, ISchemaMappingRepository repo)
