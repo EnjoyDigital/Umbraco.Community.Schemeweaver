@@ -160,6 +160,10 @@ a:hover { color: #7fff5e; text-shadow: 0 0 6px rgba(110, 212, 88, 0.5); }
   margin-bottom: 1rem;
   box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
 }
+/* Trim stacked margins from the first/last child so the card's own padding
+   controls the visible gap — otherwise a leading <h2> or <p> doubles up. */
+.card > :first-child { margin-top: 0; }
+.card > :last-child { margin-bottom: 0; }
 
 /* --- Definition Lists --- */
 dl { display: grid; grid-template-columns: 10rem 1fr; gap: 0.5rem; }
