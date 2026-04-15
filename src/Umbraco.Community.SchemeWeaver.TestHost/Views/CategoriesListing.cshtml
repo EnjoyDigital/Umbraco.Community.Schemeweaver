@@ -19,9 +19,12 @@
         {
             <div class="card category-card">
                 <h3><a href="@child.Url()">@child.Name</a></h3>
-                @if (child.HasValue("description"))
+                @{
+                    var childDescription = child.GetTypedDescription();
+                }
+                @if (!string.IsNullOrWhiteSpace(childDescription))
                 {
-                    <p>@child.Value("description")</p>
+                    <p>@childDescription</p>
                 }
                 <p class="article-meta">@child.Children?.Count() items</p>
             </div>
@@ -37,9 +40,12 @@
         {
             <div class="card">
                 <h3><a href="@child.Url()">@child.Name</a></h3>
-                @if (child.HasValue("description"))
+                @{
+                    var childDescription = child.GetTypedDescription();
+                }
+                @if (!string.IsNullOrWhiteSpace(childDescription))
                 {
-                    <p>@child.Value("description")</p>
+                    <p>@childDescription</p>
                 }
             </div>
         }

@@ -15,7 +15,7 @@
 }
 
 @{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+    var heroImg = Model.HeroImage;
 }
 @if (heroImg != null)
 {
@@ -70,7 +70,11 @@
         <ul class="ingredient-list">
             @foreach (var block in Model.Ingredients)
             {
-                <li>@block.Content.Value("ingredient")</li>
+                if (block.Content is not RecipeIngredient recipeIngredient)
+                {
+                    continue;
+                }
+                <li>@recipeIngredient.Ingredient</li>
             }
         </ul>
     </div>
@@ -83,12 +87,16 @@
         <ol class="instruction-list">
             @foreach (var block in Model.Instructions)
             {
+                if (block.Content is not RecipeStep recipeStep)
+                {
+                    continue;
+                }
                 <li>
-                    @if (block.Content.HasValue("stepName"))
+                    @if (!string.IsNullOrWhiteSpace(recipeStep.StepName))
                     {
-                        <strong>@block.Content.Value("stepName")</strong><br />
+                        <strong>@recipeStep.StepName</strong><br />
                     }
-                    @block.Content.Value("stepText")
+                    @recipeStep.StepText
                 </li>
             }
         </ol>

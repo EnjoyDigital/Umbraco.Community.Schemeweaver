@@ -8,7 +8,7 @@
     <p class="lead">@Model.Description</p>
 }
 @{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+    var heroImg = Model.HeroImage;
 }
 @if (heroImg != null)
 {
@@ -21,9 +21,13 @@
     <div class="faq-list">
         @foreach (var block in Model.FaqItems)
         {
+            if (block.Content is not FaqItem faqItem)
+            {
+                continue;
+            }
             <div class="card faq-item">
-                <h3 class="faq-question">@block.Content.Value("question")</h3>
-                <div class="faq-answer">@block.Content.Value("answer")</div>
+                <h3 class="faq-question">@faqItem.Question</h3>
+                <div class="faq-answer">@faqItem.Answer</div>
             </div>
         }
     </div>

@@ -9,7 +9,7 @@
     <p class="lead">@Model.Description</p>
 }
 @{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+    var heroImg = Model.HeroImage;
 }
 @if (heroImg != null)
 {
@@ -92,9 +92,13 @@
         <h2>Opening Hours</h2>
         @foreach (var block in Model.OpeningHours)
         {
+            if (block.Content is not OpeningHoursItem openingHoursItem)
+            {
+                continue;
+            }
             <p>
-                <strong>@block.Content.Value("dayOfWeek")</strong>:
-                @block.Content.Value("opens") &ndash; @block.Content.Value("closes")
+                <strong>@openingHoursItem.DayOfWeek</strong>:
+                @openingHoursItem.Opens &ndash; @openingHoursItem.Closes
             </p>
         }
     </div>

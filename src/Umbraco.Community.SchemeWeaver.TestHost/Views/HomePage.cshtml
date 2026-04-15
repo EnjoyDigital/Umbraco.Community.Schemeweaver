@@ -1,10 +1,10 @@
 ﻿@using Umbraco.Cms.Core.Models.Blocks
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<HomePage>
 @{
     Layout = "Master.cshtml";
-    var siteName = Model.Value<string>("siteName");
-    var siteDescription = Model.Value<string>("siteDescription");
-    var contentGrid = Model.Value<BlockGridModel>("contentGrid");
+    var siteName = Model.SiteName;
+    var siteDescription = Model.SiteDescription;
+    var contentGrid = Model.ContentGrid;
 }
 
 <h1>@siteName</h1>
@@ -19,37 +19,32 @@
     <section class="content-grid">
         @foreach (var item in contentGrid)
         {
-            var block = item.Content;
-            var alias = block.ContentType.Alias;
-            var title = (block.Value("title") as string) ?? string.Empty;
-            <div class="grid-item grid-item--@alias">
-                @if (alias == "heroBlock")
+            <div class="grid-item grid-item--@item.Content.ContentType.Alias">
+                @if (item.Content is HeroBlock heroBlock)
                 {
-                    var blockHero = block.Value<IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops>>("heroImage")?.FirstOrDefault();
+                    var blockHero = heroBlock.HeroImage?.FirstOrDefault();
                     if (blockHero is not null)
                     {
-                        <img src="@blockHero.MediaUrl()" alt="@title" class="block-hero-image" />
+                        <img src="@blockHero.MediaUrl()" alt="@heroBlock.Title" class="block-hero-image" />
                     }
-                    <h2>@title</h2>
-                    <p>@(block.Value("subtitle"))</p>
+                    <h2>@heroBlock.Title</h2>
+                    <p>@heroBlock.Subtitle</p>
                 }
-                else if (alias == "featureBlock")
+                else if (item.Content is FeatureBlock featureBlock)
                 {
-                    var blockImg = block.Value<IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops>>("featureImage")?.FirstOrDefault();
+                    var blockImg = featureBlock.FeatureImage?.FirstOrDefault();
                     if (blockImg is not null)
                     {
-                        <img src="@blockImg.MediaUrl()" alt="@title" class="block-feature-image" />
+                        <img src="@blockImg.MediaUrl()" alt="@featureBlock.Title" class="block-feature-image" />
                     }
-                    <h3>@title</h3>
-                    <div class="feature-description">@(block.Value("description"))</div>
+                    <h3>@featureBlock.Title</h3>
+                    <div class="feature-description">@featureBlock.Description</div>
                 }
-                else if (alias == "quoteBlock")
+                else if (item.Content is QuoteBlock quoteBlock)
                 {
-                    var quote = (block.Value("quote") as string) ?? string.Empty;
-                    var attribution = (block.Value("attribution") as string) ?? string.Empty;
                     <blockquote>
-                        <p>&ldquo;@quote&rdquo;</p>
-                        <cite>&mdash; @attribution</cite>
+                        <p>&ldquo;@quoteBlock.Quote&rdquo;</p>
+                        <cite>&mdash; @quoteBlock.Attribution</cite>
                     </blockquote>
                 }
             </div>
@@ -68,9 +63,12 @@
         {
             <div class="card">
                 <h3><a href="@child.Url()">@child.Name</a></h3>
-                @if (child.HasValue("description"))
+                @{
+                    var childDescription = child.GetTypedDescription();
+                }
+                @if (!string.IsNullOrWhiteSpace(childDescription))
                 {
-                    <p>@child.Value("description")</p>
+                    <p>@childDescription</p>
                 }
                 else
                 {

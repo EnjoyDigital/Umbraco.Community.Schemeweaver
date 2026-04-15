@@ -9,7 +9,7 @@
     <p class="lead">@Model.Description</p>
 }
 @{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+    var heroImg = Model.HeroImage;
 }
 @if (heroImg != null)
 {
@@ -44,14 +44,18 @@
         <ol class="instruction-list">
             @foreach (var block in Model.HowToSteps)
             {
+                if (block.Content is not HowToStep howToStep)
+                {
+                    continue;
+                }
                 <li>
-                    @if (block.Content.HasValue("stepName"))
+                    @if (!string.IsNullOrWhiteSpace(howToStep.StepName))
                     {
-                        <h3>@block.Content.Value("stepName")</h3>
+                        <h3>@howToStep.StepName</h3>
                     }
-                    @if (block.Content.HasValue("stepText"))
+                    @if (!string.IsNullOrWhiteSpace(howToStep.StepText))
                     {
-                        <p>@block.Content.Value("stepText")</p>
+                        <p>@howToStep.StepText</p>
                     }
                 </li>
             }
@@ -66,7 +70,11 @@
         <ul class="ingredient-list">
             @foreach (var block in Model.HowToTools)
             {
-                <li>@block.Content.Value("toolName")</li>
+                if (block.Content is not HowToTool howToTool)
+                {
+                    continue;
+                }
+                <li>@howToTool.ToolName</li>
             }
         </ul>
     </div>

@@ -9,7 +9,7 @@
     <p class="lead">@Model.Description</p>
 }
 @{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+    var heroImg = Model.HeroImage;
 }
 @if (heroImg != null)
 {
@@ -70,9 +70,12 @@
         {
             <div class="card">
                 <h3><a href="@child.Url()">@child.Name</a></h3>
-                @if (child.HasValue("description"))
+                @{
+                    var childDescription = child.GetTypedDescription();
+                }
+                @if (!string.IsNullOrWhiteSpace(childDescription))
                 {
-                    <p>@child.Value("description")</p>
+                    <p>@childDescription</p>
                 }
                 else
                 {

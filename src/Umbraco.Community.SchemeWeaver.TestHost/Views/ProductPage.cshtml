@@ -9,7 +9,7 @@
 }
 
 @{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
+    var heroImg = Model.HeroImage;
 }
 @if (heroImg != null)
 {
@@ -41,7 +41,7 @@
     </dl>
 </div>
 
-@if (Model.HasValue("bodyText"))
+@if (Model.BodyText is not null)
 {
     <div class="card">
         @Model.BodyText
@@ -53,14 +53,18 @@
     <h2>Customer Reviews</h2>
     @foreach (var block in Model.Reviews)
     {
+        if (block.Content is not ReviewItem reviewItem)
+        {
+            continue;
+        }
         <div class="card review-card">
-            <strong>@block.Content.Value("author")</strong>
-            <span> &middot; Rating: @block.Content.Value("ratingValue")/5</span>
-            @if (block.Content.HasValue("datePublished"))
+            <strong>@reviewItem.Author</strong>
+            <span> &middot; Rating: @reviewItem.RatingValue/5</span>
+            @if (reviewItem.DatePublished != default)
             {
-                <span> &middot; @(((DateTime)block.Content.Value("datePublished")).ToString("d MMMM yyyy"))</span>
+                <span> &middot; @(reviewItem.DatePublished.ToString("d MMMM yyyy"))</span>
             }
-            <p>@block.Content.Value("reviewBody")</p>
+            <p>@reviewItem.ReviewBody</p>
         </div>
     }
 }
