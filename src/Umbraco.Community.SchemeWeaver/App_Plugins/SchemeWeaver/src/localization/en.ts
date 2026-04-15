@@ -172,7 +172,7 @@ export default {
     complexTypeProperties: 'Complex Types',
     otherProperties: 'Other',
     removeProperty: 'Remove',
-    showMoreProperties: 'Show {0} more properties',
+    // showMoreProperties is defined above and shared with the nested-type modal disclosure.
     hideAdditionalProperties: 'Hide additional properties',
 
     // AI features (require SchemeWeaver.AI satellite package)
