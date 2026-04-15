@@ -14,6 +14,7 @@ type ContextHost = UmbControllerHost & {
 import type {
   SchemaTypeInfo,
   SchemaPropertyInfo,
+  RankedSchemaPropertyInfo,
   ContentTypeInfo,
   ContentTypeProperty,
   SchemaMappingDto,
@@ -90,8 +91,17 @@ export class SchemeWeaverServerDataSource {
     return fetchApi<SchemaTypeInfo[]>(this.#host, `/schema-types${query}`);
   }
 
-  async getSchemaTypeProperties(name: string): Promise<SchemaPropertyInfo[] | undefined> {
-    return fetchApi<SchemaPropertyInfo[]>(this.#host, `/schema-types/${encodeURIComponent(name)}/properties`);
+  getSchemaTypeProperties(name: string): Promise<SchemaPropertyInfo[] | undefined>;
+  getSchemaTypeProperties(name: string, ranked: true): Promise<RankedSchemaPropertyInfo[] | undefined>;
+  async getSchemaTypeProperties(
+    name: string,
+    ranked?: boolean,
+  ): Promise<SchemaPropertyInfo[] | RankedSchemaPropertyInfo[] | undefined> {
+    const query = ranked ? '?ranked=true' : '';
+    return fetchApi<SchemaPropertyInfo[] | RankedSchemaPropertyInfo[]>(
+      this.#host,
+      `/schema-types/${encodeURIComponent(name)}/properties${query}`,
+    );
   }
 
   async getContentTypes(): Promise<ContentTypeInfo[] | undefined> {

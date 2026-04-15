@@ -1060,6 +1060,9 @@ class SchemeWeaverMockDb {
       { name: 'url', propertyType: 'URL', isRequired: false, acceptedTypes: ['Uri'], isComplexType: false },
       { name: 'logo', propertyType: 'ImageObject', isRequired: false, acceptedTypes: ['ImageObject'], isComplexType: true },
       { name: 'contactPoint', propertyType: 'ContactPoint', isRequired: false, acceptedTypes: ['ContactPoint'], isComplexType: true },
+      { name: 'email', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },
+      { name: 'telephone', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },
+      { name: 'taxID', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },
     ],
     Question: [
       { name: 'name', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },

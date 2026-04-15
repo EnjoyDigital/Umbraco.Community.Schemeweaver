@@ -20,6 +20,12 @@ export interface SchemaPropertyInfo {
   isComplexType: boolean;
 }
 
+/** Matches C# RankedSchemaPropertyInfo — returned by GET /schema-types/{name}/properties?ranked=true */
+export interface RankedSchemaPropertyInfo extends SchemaPropertyInfo {
+  confidence: number;
+  isPopular: boolean;
+}
+
 /** Matches anonymous type from GET /content-types */
 export interface ContentTypeInfo {
   alias: string;

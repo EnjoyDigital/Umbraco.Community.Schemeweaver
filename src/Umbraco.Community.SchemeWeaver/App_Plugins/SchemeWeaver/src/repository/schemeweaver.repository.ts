@@ -4,6 +4,8 @@ import { SchemeWeaverServerDataSource } from './schemeweaver.server-data-source.
 import type {
   SchemaMappingDto,
   ContentTypeGenerationRequest,
+  SchemaPropertyInfo,
+  RankedSchemaPropertyInfo,
 } from '../api/types.js';
 
 export class SchemeWeaverRepository extends UmbControllerBase {
@@ -18,8 +20,12 @@ export class SchemeWeaverRepository extends UmbControllerBase {
     return this.#dataSource.getSchemaTypes(search);
   }
 
-  async requestSchemaTypeProperties(name: string) {
-    return this.#dataSource.getSchemaTypeProperties(name);
+  requestSchemaTypeProperties(name: string): Promise<SchemaPropertyInfo[] | undefined>;
+  requestSchemaTypeProperties(name: string, ranked: true): Promise<RankedSchemaPropertyInfo[] | undefined>;
+  async requestSchemaTypeProperties(name: string, ranked?: boolean) {
+    return ranked
+      ? this.#dataSource.getSchemaTypeProperties(name, true)
+      : this.#dataSource.getSchemaTypeProperties(name);
   }
 
   async requestContentTypes() {

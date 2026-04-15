@@ -5,7 +5,7 @@ import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-modal.token.js';
-import type { SchemaPropertyInfo } from '../api/types.js';
+import type { RankedSchemaPropertyInfo } from '../api/types.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import type { ComplexTypeMappingModalData, ComplexTypeMappingModalValue } from './complex-type-mapping-modal.token.js';
 import { filterOutPrimitiveSchemaTypes } from '../utils/schema-primitives.js';
@@ -22,6 +22,7 @@ interface ComplexSubMapping {
   acceptedTypes: string[];
   isComplexType: boolean;
   resolverConfig: string | null;
+  isPopular: boolean;
 }
 
 type WizardStep = 'type-selection' | 'mappings' | 'preview';
@@ -49,6 +50,9 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
 
   @state()
   private _autoMapping = false;
+
+  @state()
+  private _showAdditional = false;
 
   /** `data.acceptedTypes` minus Schema.org primitives (Text, URL, Number, etc.).
    *  Primitives have no sub-properties to map, so they are hidden from the type picker —
@@ -132,6 +136,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
               ? m.resolverConfig as string
               : JSON.stringify(m.resolverConfig))
             : null,
+          isPopular: true,
         }));
       }
     } catch {
@@ -140,20 +145,28 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
   }
 
   private async _loadSubTypeProperties(typeName: string) {
-    const props = await this.#repository.requestSchemaTypeProperties(typeName);
+    const props = await this.#repository.requestSchemaTypeProperties(typeName, true);
     if (!props) return;
 
     // Merge with existing mappings, preserving user data
     const existingMap = new Map(this._subMappings.map(m => [m.schemaProperty.toLowerCase(), m]));
 
-    this._subMappings = props.map((prop: SchemaPropertyInfo) => {
+    this._subMappings = props.map((prop: RankedSchemaPropertyInfo) => {
       const existing = existingMap.get(prop.name.toLowerCase());
+      // Properties the user has already configured stay in the popular section
+      // so toggling the disclosure never hides an active mapping.
+      const userConfigured = !!existing && (
+        !!existing.contentTypePropertyAlias ||
+        !!existing.staticValue ||
+        !!existing.resolverConfig
+      );
       if (existing) {
         return {
           ...existing,
           schemaPropertyType: prop.propertyType,
           acceptedTypes: prop.acceptedTypes || [],
           isComplexType: prop.isComplexType || false,
+          isPopular: prop.isPopular || userConfigured,
         };
       }
       return {
@@ -167,6 +180,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         acceptedTypes: prop.acceptedTypes || [],
         isComplexType: prop.isComplexType || false,
         resolverConfig: null,
+        isPopular: prop.isPopular,
       };
     });
 
@@ -565,44 +579,93 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
           </uui-button>
         </div>
 
-        ${this._subMappings.length === 0
-          ? html`<p class="primitive-type-hint">${this.localize.term('schemeWeaver_noPropertiesToMap')}</p>`
-          : html`
-              <uui-table aria-label=${this.localize.term('schemeWeaver_complexTypeMappings')}>
-                <uui-table-head>
-                  <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
-                  <uui-table-head-cell>${this.localize.term('schemeWeaver_source')}</uui-table-head-cell>
-                  <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
-                </uui-table-head>
-
-                ${this._subMappings.map((mapping, index) => html`
-                  <uui-table-row>
-                    <uui-table-cell>
-                      <div>
-                        <strong>${mapping.schemaProperty}</strong>
-                        <small class="type-label">${mapping.schemaPropertyType}</small>
-                      </div>
-                    </uui-table-cell>
-                    <uui-table-cell>
-                      <uui-button
-                        compact
-                        look="outline"
-                        class="source-chip"
-                        label=${this.localize.term(this._getSourceLabelKey(mapping.sourceType))}
-                        @click=${() => this._handlePickSourceOrigin(index)}
-                      >
-                        <uui-icon name=${this._getSourceIcon(mapping.sourceType)}></uui-icon>
-                        ${this.localize.term(this._getSourceLabelKey(mapping.sourceType))}
-                      </uui-button>
-                    </uui-table-cell>
-                    <uui-table-cell>
-                      ${this._renderSubMappingValue(mapping, index)}
-                    </uui-table-cell>
-                  </uui-table-row>
-                `)}
-              </uui-table>
-            `}
+        ${this._renderMappingSections()}
       </uui-box>
+    `;
+  }
+
+  private _renderMappingSections() {
+    if (this._subMappings.length === 0) {
+      return html`<p class="primitive-type-hint">${this.localize.term('schemeWeaver_noPropertiesToMap')}</p>`;
+    }
+
+    // Partition while preserving the original index so mutation handlers keep working.
+    const popular: Array<{ mapping: ComplexSubMapping; index: number }> = [];
+    const other: Array<{ mapping: ComplexSubMapping; index: number }> = [];
+    this._subMappings.forEach((mapping, index) => {
+      (mapping.isPopular ? popular : other).push({ mapping, index });
+    });
+
+    return html`
+      ${popular.length > 0
+        ? html`
+            <div class="section-header">
+              <uui-icon name="icon-wand"></uui-icon>
+              <span>${this.localize.term('schemeWeaver_popularProperties')}</span>
+              <uui-tag look="secondary" size="s">${popular.length}</uui-tag>
+            </div>
+            ${this._renderMappingTable(popular)}
+          `
+        : nothing}
+
+      ${other.length > 0
+        ? html`
+            <div class="disclosure-wrap">
+              <uui-button
+                look="secondary"
+                class="disclosure-toggle"
+                @click=${() => { this._showAdditional = !this._showAdditional; }}
+                label=${this._showAdditional
+                  ? this.localize.term('schemeWeaver_hideAdditionalProperties')
+                  : this.localize.term('schemeWeaver_showMoreProperties', other.length)}
+              >
+                <uui-icon name=${this._showAdditional ? 'icon-navigation-up' : 'icon-navigation-down'}></uui-icon>
+                ${this._showAdditional
+                  ? this.localize.term('schemeWeaver_hideAdditionalProperties')
+                  : this.localize.term('schemeWeaver_showMoreProperties', other.length)}
+              </uui-button>
+            </div>
+            ${this._showAdditional ? this._renderMappingTable(other) : nothing}
+          `
+        : nothing}
+    `;
+  }
+
+  private _renderMappingTable(rows: Array<{ mapping: ComplexSubMapping; index: number }>) {
+    return html`
+      <uui-table aria-label=${this.localize.term('schemeWeaver_complexTypeMappings')}>
+        <uui-table-head>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_source')}</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
+        </uui-table-head>
+
+        ${rows.map(({ mapping, index }) => html`
+          <uui-table-row>
+            <uui-table-cell>
+              <div>
+                <strong>${mapping.schemaProperty}</strong>
+                <small class="type-label">${mapping.schemaPropertyType}</small>
+              </div>
+            </uui-table-cell>
+            <uui-table-cell>
+              <uui-button
+                compact
+                look="outline"
+                class="source-chip"
+                label=${this.localize.term(this._getSourceLabelKey(mapping.sourceType))}
+                @click=${() => this._handlePickSourceOrigin(index)}
+              >
+                <uui-icon name=${this._getSourceIcon(mapping.sourceType)}></uui-icon>
+                ${this.localize.term(this._getSourceLabelKey(mapping.sourceType))}
+              </uui-button>
+            </uui-table-cell>
+            <uui-table-cell>
+              ${this._renderSubMappingValue(mapping, index)}
+            </uui-table-cell>
+          </uui-table-row>
+        `)}
+      </uui-table>
     `;
   }
 
@@ -856,6 +919,30 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         font-style: italic;
         text-align: center;
         padding: var(--uui-size-space-6);
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        margin: var(--uui-size-space-4) 0 var(--uui-size-space-2);
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--uui-color-text-alt);
+      }
+
+      .section-header uui-icon {
+        color: var(--uui-color-interactive);
+      }
+
+      .disclosure-wrap {
+        display: flex;
+        justify-content: center;
+        margin: var(--uui-size-space-4) 0 var(--uui-size-space-2);
+      }
+
+      .disclosure-toggle uui-icon {
+        margin-right: var(--uui-size-space-1);
       }
     `,
   ];

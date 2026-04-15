@@ -39,9 +39,24 @@ export const handlers = [
     return HttpResponse.json(schemeWeaverDb.getSchemaTypes(search));
   }),
 
-  http.get(`${BASE}/schema-types/:name/properties`, ({ params }) => {
+  http.get(`${BASE}/schema-types/:name/properties`, ({ params, request }) => {
     const name = params.name as string;
-    return HttpResponse.json(schemeWeaverDb.getSchemaTypeProperties(name));
+    const url = new URL(request.url);
+    const ranked = url.searchParams.get('ranked') === 'true';
+    const props = schemeWeaverDb.getSchemaTypeProperties(name);
+    if (!ranked) return HttpResponse.json(props);
+
+    // Mirror C# ranking tiers (see SchemaAutoMapper.RankSchemaProperties):
+    // 80 for globally-popular names, 60 for complex types, 30 for the long tail.
+    const globalPopular = new Set(['name', 'description', 'image', 'url', 'headline']);
+    const ranked_props = props.map((p) => {
+      let confidence = 30;
+      if (globalPopular.has(p.name.toLowerCase())) confidence = 80;
+      else if (p.isComplexType) confidence = 60;
+      return { ...p, confidence, isPopular: confidence >= 60 };
+    });
+    ranked_props.sort((a, b) => b.confidence - a.confidence || a.name.localeCompare(b.name));
+    return HttpResponse.json(ranked_props);
   }),
 
   http.post(`${BASE}/mappings`, async ({ request }) => {

@@ -172,6 +172,8 @@ export default {
     complexTypeProperties: 'Complex Types',
     otherProperties: 'Other',
     removeProperty: 'Remove',
+    showMoreProperties: 'Show {0} more properties',
+    hideAdditionalProperties: 'Hide additional properties',
 
     // AI features (require SchemeWeaver.AI satellite package)
     aiAnalyse: 'AI Analyse',
