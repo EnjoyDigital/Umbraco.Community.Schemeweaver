@@ -48,9 +48,9 @@ public abstract class UmbracoIntegrationTestBase : IAsyncLifetime
     /// <summary>
     /// Deletes every row from the SchemeWeaver tables. Umbraco's own bootstrap
     /// content is left intact so the backoffice stays usable between tests.
-    /// Retries briefly on "no such table" because the SchemeWeaver package migration
-    /// runs via Umbraco's background migration runner, which can still be completing
-    /// when the first test's InitializeAsync fires.
+    /// Retries briefly on transient SQLite startup races ("no such table" while
+    /// package migrations are still completing, or temporary nested-transaction
+    /// collisions during host bootstrap).
     /// </summary>
     protected void ResetSchemeWeaverTables()
     {
@@ -71,11 +71,20 @@ public abstract class UmbracoIntegrationTestBase : IAsyncLifetime
                 return;
             }
             catch (Microsoft.Data.Sqlite.SqliteException ex)
-                when (attempt < maxAttempts && ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase))
+                when (attempt < maxAttempts && IsTransientSqliteStartupError(ex))
             {
                 Thread.Sleep(delayMs);
             }
         }
+    }
+
+    private static bool IsTransientSqliteStartupError(Microsoft.Data.Sqlite.SqliteException exception)
+    {
+        var message = exception.Message;
+        return
+            message.Contains("no such table", StringComparison.OrdinalIgnoreCase) ||
+            // Umbraco/NPoco occasionally overlaps startup scopes on CI runners.
+            message.Contains("cannot start a transaction within a transaction", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
