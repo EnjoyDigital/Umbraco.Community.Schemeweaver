@@ -64,12 +64,18 @@ describe('NestedMappingModalElement', () => {
     expect(mappingInfo).to.exist;
   });
 
-  it('renders schema properties as rows', async () => {
+  it('renders all 3 schema property rows once the Other disclosure is expanded', async () => {
     const el = createElement();
     await waitForLoad(el);
-    const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    // Question has 3 properties: name, acceptedAnswer, text
-    expect(rows.length).to.equal(3);
+    // Question has 3 properties: name (popular), acceptedAnswer (complex/popular), text (other).
+    // The "other" row sits behind the Show-more disclosure by default.
+    const collapsedRows = el.shadowRoot!.querySelectorAll('uui-table-row');
+    expect(collapsedRows.length).to.equal(2);
+
+    el._showAdditional = true;
+    await el.updateComplete;
+    const expandedRows = el.shadowRoot!.querySelectorAll('uui-table-row');
+    expect(expandedRows.length).to.equal(3);
   });
 
   it('has Back and Preview buttons on mappings step', async () => {

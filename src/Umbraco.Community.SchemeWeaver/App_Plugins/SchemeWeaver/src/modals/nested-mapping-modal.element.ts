@@ -2,7 +2,7 @@ import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffic
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
-import type { SchemaPropertyInfo, BlockElementTypeInfo } from '../api/types.js';
+import type { SchemaPropertyInfo, RankedSchemaPropertyInfo, BlockElementTypeInfo } from '../api/types.js';
 
 import type { NestedMappingModalData, NestedMappingModalValue } from './nested-mapping-modal.token.js';
 
@@ -16,6 +16,8 @@ interface NestedMappingEntry {
   /** Accepted types for wrap-in picker */
   acceptedTypes: string[];
   isComplexType: boolean;
+  /** True when the row belongs in the Popular section of the mapping table. */
+  isPopular: boolean;
 }
 
 type WizardStep = 'block-type' | 'mappings' | 'preview';
@@ -38,7 +40,10 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   private _selectedBlockType: BlockElementTypeInfo | null = null;
 
   @state()
-  private _schemaProperties: SchemaPropertyInfo[] = [];
+  private _schemaProperties: RankedSchemaPropertyInfo[] = [];
+
+  @state()
+  private _showAdditional = false;
 
   @state()
   private _nestedMappings: NestedMappingEntry[] = [];
@@ -74,9 +79,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       const contentTypeAlias = this.data?.contentTypeAlias || '';
       const propertyAlias = this.data?.contentTypePropertyAlias || '';
 
-      // Fetch schema type properties and block element types in parallel
+      // Fetch schema type properties (ranked — popular-first) and block element types in parallel
       const [schemaProps, blockTypes] = await Promise.all([
-        this.#repository.requestSchemaTypeProperties(schemaTypeName),
+        this.#repository.requestSchemaTypeProperties(schemaTypeName, true),
         propertyAlias
           ? this.#repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
@@ -129,11 +134,14 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           }
         }
 
-        // Rebuild mappings from schema properties, preserving existing values
+        // Rebuild mappings from schema properties, preserving existing values.
+        // User-configured rows always count as popular so toggling the disclosure
+        // never hides an active mapping.
         this._nestedMappings = this._schemaProperties.map((prop) => {
           const existing = config.nestedMappings.find(
             (m: Record<string, string>) => m.schemaProperty === prop.name
           );
+          const userConfigured = !!existing?.contentProperty;
           return {
             schemaProperty: prop.name,
             contentProperty: existing?.contentProperty || '',
@@ -142,6 +150,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
             schemaPropertyType: prop.propertyType,
             acceptedTypes: prop.acceptedTypes,
             isComplexType: prop.isComplexType,
+            isPopular: prop.isPopular || userConfigured,
           };
         });
       }
@@ -182,6 +191,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         schemaPropertyType: prop.propertyType,
         acceptedTypes: prop.acceptedTypes,
         isComplexType: prop.isComplexType,
+        isPopular: prop.isPopular,
       }));
       await this._autoMapMappings();
       this._ensureSingleTypeWrapping();
@@ -193,7 +203,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   private async _handleContentPropertyChange(index: number, value: string) {
     const updated = [...this._nestedMappings];
     const mapping = updated[index];
-    updated[index] = { ...mapping, contentProperty: value };
+    // Setting a content property promotes the row to popular so it stays
+    // visible even if the user later collapses the disclosure.
+    updated[index] = { ...mapping, contentProperty: value, isPopular: value ? true : mapping.isPopular };
 
     // Auto-detect wrapping for complex types when a property is selected
     if (mapping.isComplexType && value && mapping.acceptedTypes.length > 0) {
@@ -297,6 +309,14 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           updated[i] = { ...mapping, ...complexResult };
           usedBlockProps.add(complexResult.contentProperty);
         }
+      }
+    }
+
+    // Anything that just got a content property is now an active mapping —
+    // promote to popular so the disclosure can't hide it.
+    for (let i = 0; i < updated.length; i++) {
+      if (updated[i].contentProperty) {
+        updated[i] = { ...updated[i], isPopular: true };
       }
     }
 
@@ -581,8 +601,6 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   }
 
   private _renderMappings() {
-    const blockProperties = this._selectedBlockType?.properties || [];
-
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_nestedMappings')}>
         <div class="mapping-header-info">
@@ -602,53 +620,108 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           </uui-button>
         </div>
 
-        <uui-table aria-label=${this.localize.term('schemeWeaver_nestedMappings')}>
-          <uui-table-head>
-            <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
-            <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
-            <uui-table-head-cell>${this.localize.term('schemeWeaver_wrapInType')}</uui-table-head-cell>
-          </uui-table-head>
-
-          ${this._nestedMappings.map((mapping, index) => html`
-            <uui-table-row>
-              <uui-table-cell>
-                <div>
-                  <strong>${mapping.schemaProperty}</strong>
-                  <small class="type-label">${mapping.schemaPropertyType}</small>
-                </div>
-              </uui-table-cell>
-              <uui-table-cell>
-                ${blockProperties.length > 0
-                  ? html`
-                      <uui-select
-                        label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
-                        .options=${[
-                          { name: this.localize.term('schemeWeaver_none'), value: '', selected: !mapping.contentProperty },
-                          ...blockProperties.map((p) => ({
-                            name: p,
-                            value: p,
-                            selected: mapping.contentProperty === p,
-                          })),
-                        ]}
-                        @change=${(e: Event) => this._handleContentPropertyChange(index, (e.target as HTMLSelectElement).value)}
-                      ></uui-select>
-                    `
-                  : html`
-                      <uui-input
-                        .value=${mapping.contentProperty}
-                        @input=${(e: Event) => this._handleContentPropertyChange(index, (e.target as HTMLInputElement).value)}
-                        placeholder=${this.localize.term('schemeWeaver_blockPropertyPlaceholder')}
-                        label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
-                      ></uui-input>
-                    `}
-              </uui-table-cell>
-              <uui-table-cell>
-                ${this._renderWrapColumn(mapping, index)}
-              </uui-table-cell>
-            </uui-table-row>
-          `)}
-        </uui-table>
+        ${this._renderMappingSections()}
       </uui-box>
+    `;
+  }
+
+  private _renderMappingSections() {
+    if (this._nestedMappings.length === 0) {
+      return nothing;
+    }
+
+    // Partition while preserving the original index so mutation handlers keep working.
+    const popular: Array<{ mapping: NestedMappingEntry; index: number }> = [];
+    const other: Array<{ mapping: NestedMappingEntry; index: number }> = [];
+    this._nestedMappings.forEach((mapping, index) => {
+      (mapping.isPopular ? popular : other).push({ mapping, index });
+    });
+
+    return html`
+      ${popular.length > 0
+        ? html`
+            <div class="section-header">
+              <uui-icon name="icon-wand"></uui-icon>
+              <span>${this.localize.term('schemeWeaver_popularProperties')}</span>
+              <uui-tag look="secondary" size="s">${popular.length}</uui-tag>
+            </div>
+            ${this._renderMappingTable(popular)}
+          `
+        : nothing}
+
+      ${other.length > 0
+        ? html`
+            <div class="disclosure-wrap">
+              <uui-button
+                look="secondary"
+                class="disclosure-toggle"
+                @click=${() => { this._showAdditional = !this._showAdditional; }}
+                label=${this._showAdditional
+                  ? this.localize.term('schemeWeaver_hideAdditionalProperties')
+                  : this.localize.term('schemeWeaver_showMoreProperties', other.length)}
+              >
+                <uui-icon name=${this._showAdditional ? 'icon-navigation-up' : 'icon-navigation-down'}></uui-icon>
+                ${this._showAdditional
+                  ? this.localize.term('schemeWeaver_hideAdditionalProperties')
+                  : this.localize.term('schemeWeaver_showMoreProperties', other.length)}
+              </uui-button>
+            </div>
+            ${this._showAdditional ? this._renderMappingTable(other) : nothing}
+          `
+        : nothing}
+    `;
+  }
+
+  private _renderMappingTable(rows: Array<{ mapping: NestedMappingEntry; index: number }>) {
+    const blockProperties = this._selectedBlockType?.properties || [];
+
+    return html`
+      <uui-table aria-label=${this.localize.term('schemeWeaver_nestedMappings')}>
+        <uui-table-head>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
+          <uui-table-head-cell>${this.localize.term('schemeWeaver_wrapInType')}</uui-table-head-cell>
+        </uui-table-head>
+
+        ${rows.map(({ mapping, index }) => html`
+          <uui-table-row>
+            <uui-table-cell>
+              <div>
+                <strong>${mapping.schemaProperty}</strong>
+                <small class="type-label">${mapping.schemaPropertyType}</small>
+              </div>
+            </uui-table-cell>
+            <uui-table-cell>
+              ${blockProperties.length > 0
+                ? html`
+                    <uui-select
+                      label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
+                      .options=${[
+                        { name: this.localize.term('schemeWeaver_none'), value: '', selected: !mapping.contentProperty },
+                        ...blockProperties.map((p) => ({
+                          name: p,
+                          value: p,
+                          selected: mapping.contentProperty === p,
+                        })),
+                      ]}
+                      @change=${(e: Event) => this._handleContentPropertyChange(index, (e.target as HTMLSelectElement).value)}
+                    ></uui-select>
+                  `
+                : html`
+                    <uui-input
+                      .value=${mapping.contentProperty}
+                      @input=${(e: Event) => this._handleContentPropertyChange(index, (e.target as HTMLInputElement).value)}
+                      placeholder=${this.localize.term('schemeWeaver_blockPropertyPlaceholder')}
+                      label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
+                    ></uui-input>
+                  `}
+            </uui-table-cell>
+            <uui-table-cell>
+              ${this._renderWrapColumn(mapping, index)}
+            </uui-table-cell>
+          </uui-table-row>
+        `)}
+      </uui-table>
     `;
   }
 
@@ -971,6 +1044,30 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         font-size: 0.8rem;
         overflow-x: auto;
         white-space: pre;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        margin: var(--uui-size-space-4) 0 var(--uui-size-space-2);
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--uui-color-text-alt);
+      }
+
+      .section-header uui-icon {
+        color: var(--uui-color-interactive);
+      }
+
+      .disclosure-wrap {
+        display: flex;
+        justify-content: center;
+        margin: var(--uui-size-space-4) 0 var(--uui-size-space-2);
+      }
+
+      .disclosure-toggle uui-icon {
+        margin-right: var(--uui-size-space-1);
       }
     `,
   ];
