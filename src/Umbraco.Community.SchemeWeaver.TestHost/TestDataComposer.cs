@@ -234,6 +234,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("organisationEmail", "Organisation Email", textboxDataType),
             ("organisationTelephone", "Organisation Telephone", textboxDataType),
             ("sameAs", "Social Links", descDataType),
+            // BlockGrid showcase on the home page — features + quote blocks that demonstrate
+            // Schema.org WebSite.mainEntity resolution plus nested ImageObject ranking.
+            ("contentGrid", "Content Grid", contentGridDataType),
         }, cancellationToken);
 
         // Make homePage culture-variant (siteName + siteDescription vary by culture)
@@ -2349,11 +2352,8 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         home.SetValue("organisationEmail", "hello@enjoy-digital.co.uk");
         home.SetValue("organisationTelephone", "+44 113 357 0000");
         home.SetValue("sameAs", "https://twitter.com/enjoydigital,https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver");
+        home.SetValue("contentGrid", BuildHomePageContentGrid(heroBlockType, featureBlockType, quoteBlockType));
         await SaveAndPublishVariantAsync(home);
-
-        // Landing page — child of home so it shows up in the site nav.
-        // Demonstrates BlockGrid + nested ImageObject (WebPage.primaryImageOfPage).
-        await CreateLandingPageContent(home.Id, heroBlockType, featureBlockType, quoteBlockType, cancellationToken);
 
         // ── Top-level pages under home (nav order: Blog, Categories, About Us, FAQs) ──
         var blogListing = CreateAndPublishSimple("Blog", home.Id, "blogListing", "Blog", "Articles about Schema.org, structured data, and SEO.", cancellationToken);
@@ -2793,24 +2793,20 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         await SaveAndPublishVariantAsync(content);
     }
 
-    private async Task CreateLandingPageContent(
-        int parentId,
+    /// <summary>
+    /// Builds the BlockGrid value applied to the home page's <c>contentGrid</c> property.
+    /// Features two feature blocks + one testimonial quote, plus a hero block at the top
+    /// — exercises the BlockGrid resolver (for Schema.org WebSite.mainEntity) and the
+    /// nested ImageObject ranking UX when editors map the blocks' images.
+    /// </summary>
+    private string BuildHomePageContentGrid(
         IContentType heroBlockType,
         IContentType featureBlockType,
-        IContentType quoteBlockType,
-        CancellationToken cancellationToken)
+        IContentType quoteBlockType)
     {
-        var content = _contentService.Create("Welcome to SchemeWeaver", parentId, "landingPage");
-        content.SetValue("pageTitle", "Welcome to SchemeWeaver");
-        content.SetValue("metaDescription", "Map Umbraco content types to Schema.org structured data.");
-
-        // Hero image: reuse a seeded media asset so we exercise MediaPicker3 + ImageObject ranking.
-        TrySetHeroImage(content, "getting-started-with-schema-org");
-
-        // Build reusable media picker values for block-level images.
+        var heroBlockImage = BuildMediaPickerValue("getting-started-with-schema-org");
         var featureImageA = BuildMediaPickerValue("about-this-site");
         var featureImageB = BuildMediaPickerValue("breaking-news-schema-org-v26-released");
-        var heroBlockImage = BuildMediaPickerValue("getting-started-with-schema-org");
 
         var heroValues = new Dictionary<string, object>
         {
@@ -2842,16 +2838,13 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ["attribution"] = "A very satisfied Umbraco developer",
         };
 
-        var contentGrid = BuildBlockGridJson(new (Guid, Dictionary<string, object>)[]
+        return BuildBlockGridJson(new (Guid, Dictionary<string, object>)[]
         {
             (heroBlockType.Key, heroValues),
             (featureBlockType.Key, feature1Values),
             (featureBlockType.Key, feature2Values),
             (quoteBlockType.Key, quoteValues),
         });
-        content.SetValue("contentGrid", contentGrid);
-
-        await SaveAndPublishAsync(content);
     }
 
     private async Task SaveAndPublishAsync(IContent content)
