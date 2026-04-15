@@ -74,6 +74,9 @@ jobs:
       - name: Pack
         run: dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release --output ./artifacts -p:Version=${{ steps.version.outputs.value }}
 
+      - name: Pack uSync satellite
+        run: dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release --output ./artifacts -p:Version=${{ steps.version.outputs.value }}
+
       - name: Upload NuGet package
         uses: actions/upload-artifact@v5
         with:
