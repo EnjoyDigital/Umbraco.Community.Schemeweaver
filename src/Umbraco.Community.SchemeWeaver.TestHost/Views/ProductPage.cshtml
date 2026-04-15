@@ -41,7 +41,7 @@
     </dl>
 </div>
 
-@if (Model.BodyText != null)
+@if (Model.HasValue("bodyText"))
 {
     <div class="card">
         @Model.BodyText
