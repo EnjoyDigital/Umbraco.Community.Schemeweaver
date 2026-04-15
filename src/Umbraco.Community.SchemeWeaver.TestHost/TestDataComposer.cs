@@ -2351,8 +2351,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         home.SetValue("sameAs", "https://twitter.com/enjoydigital,https://github.com/EnjoyDigital/Umbraco.Community.SchemeWeaver");
         await SaveAndPublishVariantAsync(home);
 
-        // Landing page at root — demonstrates BlockGrid + nested ImageObject
-        await CreateLandingPageContent(heroBlockType, featureBlockType, quoteBlockType, cancellationToken);
+        // Landing page — child of home so it shows up in the site nav.
+        // Demonstrates BlockGrid + nested ImageObject (WebPage.primaryImageOfPage).
+        await CreateLandingPageContent(home.Id, heroBlockType, featureBlockType, quoteBlockType, cancellationToken);
 
         // ── Top-level pages under home (nav order: Blog, Categories, About Us, FAQs) ──
         var blogListing = CreateAndPublishSimple("Blog", home.Id, "blogListing", "Blog", "Articles about Schema.org, structured data, and SEO.", cancellationToken);
@@ -2793,12 +2794,13 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     }
 
     private async Task CreateLandingPageContent(
+        int parentId,
         IContentType heroBlockType,
         IContentType featureBlockType,
         IContentType quoteBlockType,
         CancellationToken cancellationToken)
     {
-        var content = _contentService.Create("Welcome to SchemeWeaver", Constants.System.Root, "landingPage");
+        var content = _contentService.Create("Welcome to SchemeWeaver", parentId, "landingPage");
         content.SetValue("pageTitle", "Welcome to SchemeWeaver");
         content.SetValue("metaDescription", "Map Umbraco content types to Schema.org structured data.");
 
