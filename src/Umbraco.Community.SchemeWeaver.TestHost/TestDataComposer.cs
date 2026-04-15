@@ -4782,7 +4782,9 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         SeedSimpleMapping(repo, variantArticleCt, "Article", ("Name", "title"), ("ArticleBody", "bodyText"), ("Url", "__url"));
 
         // New mappings — simple property types
-        SeedInheritedMapping(repo, homePageCt, "WebSite", ("Name", "siteName"), ("Description", "siteDescription"), ("Url", "__url"));
+        // Home page gets a custom seed (not SeedInheritedMapping) so we can add the
+        // BlockGrid mainEntity wiring that promotes the home content grid into JSON-LD.
+        SeedHomePageMapping(homePageCt, repo);
         SeedSimpleMapping(repo, aboutPageCt, "AboutPage", ("Name", "title"), ("Description", "description"), ("Url", "__url"), ("DateModified", "__updateDate"));
         SeedSimpleMapping(repo, newsArticleCt, "NewsArticle", ("Headline", "title"), ("Description", "description"), ("ArticleBody", "bodyText"), ("DatePublished", "publishDate"), ("Keywords", "keywords"), ("Dateline", "dateline"), ("Url", "__url"));
         SeedSimpleMapping(repo, techArticleCt, "TechArticle", ("Headline", "title"), ("Description", "description"), ("ArticleBody", "bodyText"), ("DatePublished", "publishDate"), ("ProficiencyLevel", "proficiencyLevel"), ("Url", "__url"));
@@ -5058,6 +5060,52 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             // The blockContent resolver walks contentData and applies the nested mappings
             // per block type. The schemeWeaver blockContent source handles BlockGrid JSON
             // the same way it handles BlockList (both formats share the contentData shape).
+            new PropertyMapping
+            {
+                SchemaPropertyName = "MainEntity",
+                SourceType = "blockContent",
+                ContentTypePropertyAlias = "contentGrid",
+                NestedSchemaTypeName = "WebPageElement",
+                ResolverConfig = JsonSerializer.Serialize(new
+                {
+                    nestedMappings = new object[]
+                    {
+                        new { schemaProperty = "Name", contentProperty = "title" },
+                        new { schemaProperty = "Headline", contentProperty = "subtitle" },
+                        new { schemaProperty = "Description", contentProperty = "description" },
+                        new { schemaProperty = "Image", contentProperty = "heroImage" },
+                        new { schemaProperty = "Image", contentProperty = "featureImage" },
+                        new { schemaProperty = "Text", contentProperty = "quote" },
+                        new { schemaProperty = "Author", contentProperty = "attribution", wrapInType = "Person", wrapInProperty = "Name" },
+                    }
+                }),
+            },
+        });
+    }
+
+    /// <summary>
+    /// Home page → WebSite mapping with the BlockGrid promoted to mainEntity. Seeds the same
+    /// property mappings the legacy <c>SeedInheritedMapping</c> call produced (Name, Description,
+    /// Url, plus the universal heroImage → Image fallback) and adds the BlockContent resolver so
+    /// each contentGrid block becomes a WebPageElement on the JSON-LD output.
+    /// </summary>
+    private void SeedHomePageMapping(IContentType ct, ISchemaMappingRepository repo)
+    {
+        var mapping = repo.Save(new SchemaMapping
+        {
+            ContentTypeAlias = ct.Alias,
+            ContentTypeKey = ct.Key,
+            SchemaTypeName = "WebSite",
+            IsEnabled = true,
+            IsInherited = true,
+        });
+
+        repo.SavePropertyMappings(mapping.Id, new[]
+        {
+            new PropertyMapping { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "siteName" },
+            new PropertyMapping { SchemaPropertyName = "Description", SourceType = "property", ContentTypePropertyAlias = "siteDescription" },
+            new PropertyMapping { SchemaPropertyName = "Url", SourceType = "property", ContentTypePropertyAlias = "__url" },
+            new PropertyMapping { SchemaPropertyName = "Image", SourceType = "property", ContentTypePropertyAlias = "heroImage" },
             new PropertyMapping
             {
                 SchemaPropertyName = "MainEntity",
