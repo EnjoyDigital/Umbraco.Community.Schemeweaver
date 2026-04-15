@@ -1,0 +1,102 @@
+name: Release to NuGet
+
+# Publishes Umbraco.Community.SchemeWeaver to nuget.org. The Umbraco Marketplace
+# discovers packages automatically from nuget.org that carry the "umbraco-marketplace"
+# tag (already set in the csproj), so pushing here is all that is required for the
+# listing to appear on marketplace.umbraco.com within ~24 hours.
+#
+# Trigger by pushing a tag like `v1.0.0-beta.4` or `v1.0.0`, or by dispatching
+# manually from the Actions tab. The leading `v` is stripped before pack so
+# `v1.2.3` -> package version `1.2.3`.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (without leading v, e.g. 1.0.0-beta.4)'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # needed to create the GitHub release
+
+jobs:
+  release:
+    name: Pack & Push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            # Strip the leading 'v' from the tag ref (refs/tags/v1.2.3 -> 1.2.3)
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/package-lock.json
+
+      # The backend project embeds the built frontend as static web assets, so
+      # the Vite output has to exist before `dotnet build` runs.
+      - name: Install frontend dependencies
+        working-directory: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
+        run: npm run build
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release -p:Version=${{ steps.version.outputs.value }}
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+      - name: Pack
+        run: dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release --output ./artifacts -p:Version=${{ steps.version.outputs.value }}
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v5
+        with:
+          name: nuget-package-${{ steps.version.outputs.value }}
+          path: ./artifacts/*.nupkg
+
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::NUGET_API_KEY secret is not set. Add it in Settings → Secrets and variables → Actions before releasing."
+            exit 1
+          fi
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Create GitHub release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ./artifacts/*.nupkg

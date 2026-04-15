@@ -154,6 +154,17 @@ The generated output:
 - **Media picker edge cases** -- complex multi-crop scenarios with specific crop aliases may need manual URL configuration. See [Property Mappings](docs/property-mappings.md#property-value-resolvers).
 - **AI package** -- the `Umbraco.Community.SchemeWeaver.AI` companion is optional and requires a configured Umbraco.AI chat provider. Without it, the heuristic auto-mapper handles all suggestions.
 
+## Releasing
+
+Maintainer notes — shipping a new version to NuGet and the [Umbraco Marketplace](https://marketplace.umbraco.com/):
+
+1. Ensure `NUGET_API_KEY` is set in **Settings → Secrets and variables → Actions** (a single API key with "Push new packages and package versions" scope on `Umbraco.Community.SchemeWeaver*`).
+2. Tag the commit you want to ship: `git tag v1.0.0-beta.4 && git push origin v1.0.0-beta.4`.
+3. The `Release to NuGet` workflow builds, tests, packs and pushes the package to nuget.org, and opens a matching GitHub release.
+4. The Umbraco Marketplace listing is automatic — it discovers packages on nuget.org that carry the `umbraco-marketplace` tag (already set in the csproj) and usually updates within 24 hours.
+
+To publish an out-of-band build without tagging, use the workflow's "Run workflow" button on the Actions tab and type the version explicitly.
+
 ## Contributing
 
 Contributions are very welcome — bug reports, fixes, docs, new property resolvers, extra auto-mapper synonyms, whole new features. Small PRs are fine.
