@@ -1,6 +1,19 @@
-# Umbraco.Community.SchemeWeaver
+<p align="center">
+  <img src="icon.png" alt="SchemeWeaver" width="128" />
+</p>
 
-Map Umbraco Content Types to [Schema.org](https://schema.org) types and automatically generate [JSON-LD](https://json-ld.org/) structured data for your pages. SchemeWeaver provides a document type editor UI for configuring mappings, an auto-mapper that suggests property assignments, and runtime JSON-LD generation that works with both server-rendered templates and the headless Delivery API.
+<h1 align="center">Umbraco.Community.SchemeWeaver</h1>
+
+<p align="center">
+  Map Umbraco Content Types to <a href="https://schema.org">Schema.org</a> types and automatically generate <a href="https://json-ld.org/">JSON-LD</a> structured data for your pages.
+</p>
+
+<p align="center">
+  <a href="https://www.nuget.org/packages/Umbraco.Community.SchemeWeaver"><img src="https://img.shields.io/nuget/vpre/Umbraco.Community.SchemeWeaver" alt="NuGet" /></a>
+  <a href="https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/blob/main/LICENSE"><img src="https://img.shields.io/github/license/EnjoyDigital/Umbraco.Community.Schemeweaver" alt="License" /></a>
+</p>
+
+SchemeWeaver provides a document type editor UI for configuring mappings, an auto-mapper that suggests property assignments, and runtime JSON-LD generation that works with both server-rendered templates and the headless Delivery API.
 
 ## Why structured data?
 
