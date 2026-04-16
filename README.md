@@ -205,6 +205,8 @@ npm run test:screenshots         # regenerate the docs screenshots (opt-in)
 dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
 ```
 
+> **Note:** The TestHost is purely for testing schema mappings and structured data generation. It is not intended as a base site or starter kit.
+
 #### Running the TestHost with AI features
 
 The companion `Umbraco.Community.SchemeWeaver.AI` package is referenced by the TestHost and its Anthropic provider is wired up so you can exercise the AI schema-mapping flows end-to-end. The API key lives in [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets) so it stays off disk and out of git:
