@@ -31,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="uSync.Core" Version="17.0.4" />
+    <PackageReference Include="uSync.BackOffice" Version="17.3.0" />
   </ItemGroup>
 
 </Project>

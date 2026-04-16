@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -11,18 +12,27 @@ namespace Umbraco.Community.SchemeWeaver.uSync;
 /// <summary>
 /// uSync serializer for SchemeWeaver schema mappings.
 /// Exports and imports SchemaMapping + PropertyMapping entities to/from XML.
+/// Uses <see cref="IServiceScopeFactory"/> to resolve the scoped
+/// <see cref="ISchemaMappingRepository"/> on demand, because uSync registers
+/// serializers as singletons.
 /// </summary>
 [SyncSerializer("D6F5E8A2-3B4C-4D5E-9F6A-7B8C9D0E1F2A", "SchemeWeaver Mapping Serializer", SchemeWeaverMappingConstants.ItemType)]
 public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncSerializer<SchemaMapping>
 {
-    private readonly ISchemaMappingRepository _repository;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public SchemaMappingSerializer(
-        ISchemaMappingRepository repository,
+        IServiceScopeFactory scopeFactory,
         ILogger<SchemaMappingSerializer> logger)
         : base(logger)
     {
-        _repository = repository;
+        _scopeFactory = scopeFactory;
+    }
+
+    private ISchemaMappingRepository CreateRepository()
+    {
+        var scope = _scopeFactory.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
     }
 
     public override string ItemAlias(SchemaMapping item) => item.ContentTypeAlias;
@@ -31,6 +41,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
 
     protected override Task<SyncAttempt<XElement>> SerializeCoreAsync(SchemaMapping item, SyncSerializerOptions options)
     {
+        var repository = CreateRepository();
         var node = InitializeBaseNode(item, item.ContentTypeAlias);
 
         var info = new XElement("Info",
@@ -42,7 +53,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
 
         node.Add(info);
 
-        var propertyMappings = _repository.GetPropertyMappings(item.Id);
+        var propertyMappings = repository.GetPropertyMappings(item.Id);
         var propertyMappingsNode = new XElement("PropertyMappings");
 
         foreach (var pm in propertyMappings)
@@ -84,6 +95,8 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
 
     protected override Task<SyncAttempt<SchemaMapping>> DeserializeCoreAsync(XElement node, SyncSerializerOptions options)
     {
+        var repository = CreateRepository();
+
         var info = node.Element("Info");
         if (info is null)
             return Task.FromResult(SyncAttempt<SchemaMapping>.Fail(
@@ -96,7 +109,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
         var isInherited = bool.Parse(info.Element("IsInherited")?.Value ?? "false");
 
         // Find existing or create new
-        var existing = _repository.GetByContentTypeAlias(alias);
+        var existing = repository.GetByContentTypeAlias(alias);
         var mapping = existing ?? new SchemaMapping();
 
         mapping.ContentTypeAlias = alias;
@@ -105,7 +118,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
         mapping.IsEnabled = isEnabled;
         mapping.IsInherited = isInherited;
 
-        var saved = _repository.Save(mapping);
+        var saved = repository.Save(mapping);
 
         // Deserialize property mappings
         var propertyMappingsNode = node.Element("PropertyMappings");
@@ -129,7 +142,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
             }));
         }
 
-        _repository.SavePropertyMappings(saved.Id, propertyMappings);
+        repository.SavePropertyMappings(saved.Id, propertyMappings);
 
         return Task.FromResult(SyncAttempt<SchemaMapping>.Succeed(
             alias, saved, ChangeType.Import, new List<uSyncChange>()));
@@ -137,26 +150,30 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
 
     public override Task<SchemaMapping?> FindItemAsync(Guid key)
     {
-        var all = _repository.GetAll();
+        var repository = CreateRepository();
+        var all = repository.GetAll();
         var item = all.FirstOrDefault(m => m.ContentTypeKey == key);
         return Task.FromResult(item);
     }
 
     public override Task<SchemaMapping?> FindItemAsync(string alias)
     {
-        var item = _repository.GetByContentTypeAlias(alias);
+        var repository = CreateRepository();
+        var item = repository.GetByContentTypeAlias(alias);
         return Task.FromResult(item);
     }
 
     public override Task SaveItemAsync(SchemaMapping item)
     {
-        _repository.Save(item);
+        var repository = CreateRepository();
+        repository.Save(item);
         return Task.CompletedTask;
     }
 
     public override Task DeleteItemAsync(SchemaMapping item)
     {
-        _repository.Delete(item.Id);
+        var repository = CreateRepository();
+        repository.Delete(item.Id);
         return Task.CompletedTask;
     }
 }
