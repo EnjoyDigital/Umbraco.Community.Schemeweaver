@@ -55,9 +55,9 @@
             @{
                 var trail = Model.AncestorsOrSelf().Reverse().ToList();
             }
-            @if (trail.Count > 1)
-            {
-                <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <nav class="breadcrumbs" aria-label="Breadcrumb">
+                @if (trail.Count > 1)
+                {
                     <ol>
                         @for (var i = 0; i < trail.Count; i++)
                         {
@@ -79,8 +79,8 @@
                             </li>
                         }
                     </ol>
-                </nav>
-            }
+                }
+            </nav>
             @RenderBody()
         </div>
     </main>
