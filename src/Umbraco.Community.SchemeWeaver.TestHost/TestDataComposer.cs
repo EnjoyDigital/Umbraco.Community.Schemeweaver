@@ -1756,7 +1756,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         // Read committed seed assets from the project tree (NOT Umbraco's runtime wwwroot/media
         // ULID dirs, which are per-session and not in git). The .csproj copies SeedAssets/Media
         // to the output directory via <Content CopyToOutputDirectory="PreserveNewest" />.
-        var seedDir = Path.Combine(_webHostEnvironment.ContentRootPath, "SeedAssets", "Media");
+        var seedDir = Path.Join(_webHostEnvironment.ContentRootPath, "SeedAssets", "Media");
         if (!Directory.Exists(seedDir))
         {
             _logger.LogWarning("TestDataSeeder: Seed media directory missing at {Path}", seedDir);

@@ -64,14 +64,11 @@ public class BlockContentResolver : IPropertyValueResolver
             return null;
         }
 
-        var things = new List<Thing>();
-
-        foreach (var blockContent in blockItems)
-        {
-            var thing = MapBlockToThing(blockContent, nestedSchemaTypeName, resolverConfig, context);
-            if (thing is not null)
-                things.Add(thing);
-        }
+        var things = blockItems
+            .Select(blockContent => MapBlockToThing(blockContent, nestedSchemaTypeName, resolverConfig, context))
+            .Where(thing => thing is not null)
+            .Cast<Thing>()
+            .ToList();
 
         return things.Count > 0 ? things : null;
     }

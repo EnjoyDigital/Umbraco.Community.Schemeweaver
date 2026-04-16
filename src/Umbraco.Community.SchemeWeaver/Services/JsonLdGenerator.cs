@@ -438,27 +438,23 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
     private IPublishedContent? ResolveAncestorNode(IPublishedContent content, PropertyMapping propMapping)
     {
-        var ancestors = content.Ancestors(_navigationQueryService, _publishedStatusFilteringService);
+        var ancestors = content.Ancestors(_navigationQueryService, _publishedStatusFilteringService)
+            .Where(node => string.IsNullOrEmpty(propMapping.SourceContentTypeAlias)
+                || string.Equals(node.ContentType.Alias, propMapping.SourceContentTypeAlias, StringComparison.OrdinalIgnoreCase));
 
         foreach (var node in ancestors)
         {
-            if (!string.IsNullOrEmpty(propMapping.SourceContentTypeAlias)
-                && !string.Equals(node.ContentType.Alias, propMapping.SourceContentTypeAlias, StringComparison.OrdinalIgnoreCase))
-            {
+            if (string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
                 continue;
-            }
 
-            if (!string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
-            {
-                // Built-in properties always exist on content nodes
-                if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
-                    return node;
+            // Built-in properties always exist on content nodes
+            if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
+                return node;
 
-                // Invariant probe: check existence without culture so we find the node
-                // regardless of which language variant has a value
-                if (node.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
-                    return node;
-            }
+            // Invariant probe: check existence without culture so we find the node
+            // regardless of which language variant has a value
+            if (node.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
+                return node;
         }
 
         return null;
@@ -471,28 +467,24 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (siblings is null)
             return null;
 
-        foreach (var sibling in siblings)
+        var candidates = siblings
+            .Where(sibling => sibling.Id != content.Id)
+            .Where(sibling => string.IsNullOrEmpty(propMapping.SourceContentTypeAlias)
+                || string.Equals(sibling.ContentType.Alias, propMapping.SourceContentTypeAlias, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var sibling in candidates)
         {
-            if (sibling.Id == content.Id)
+            if (string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
                 continue;
 
-            if (!string.IsNullOrEmpty(propMapping.SourceContentTypeAlias)
-                && !string.Equals(sibling.ContentType.Alias, propMapping.SourceContentTypeAlias, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
+            // Built-in properties always exist on content nodes
+            if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
+                return sibling;
 
-            if (!string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
-            {
-                // Built-in properties always exist on content nodes
-                if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propMapping.ContentTypePropertyAlias))
-                    return sibling;
-
-                // Invariant probe: check existence without culture so we find the node
-                // regardless of which language variant has a value
-                if (sibling.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
-                    return sibling;
-            }
+            // Invariant probe: check existence without culture so we find the node
+            // regardless of which language variant has a value
+            if (sibling.GetProperty(propMapping.ContentTypePropertyAlias)?.GetValue() is not null)
+                return sibling;
         }
 
         return null;
@@ -560,7 +552,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             {
                 return JsonSerializer.Serialize<object>(thing, _deduplicatingOptions);
             }
-            catch (Exception inner)
+            catch (JsonException inner)
             {
                 _logger.LogWarning(inner,
                     "Fallback serialisation also failed for {SchemaType} (content {ContentId})",
@@ -625,23 +617,17 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (currentMapping is not null)
         {
             var currentPropertyMappings = _repository.GetPropertyMappings(currentMapping.Id);
-            foreach (var pm in currentPropertyMappings)
+            foreach (var pm in currentPropertyMappings
+                .Where(pm => pm.SourceType == "blockContent" && !string.IsNullOrEmpty(pm.ContentTypePropertyAlias)))
             {
-                if (pm.SourceType == "blockContent" && !string.IsNullOrEmpty(pm.ContentTypePropertyAlias))
-                    explicitBlockProperties.Add(pm.ContentTypePropertyAlias);
+                explicitBlockProperties.Add(pm.ContentTypePropertyAlias!);
             }
         }
 
-        foreach (var property in content.Properties)
+        foreach (var property in content.Properties
+            .Where(p => p.PropertyType?.EditorAlias is "Umbraco.BlockList" or "Umbraco.BlockGrid")
+            .Where(p => !explicitBlockProperties.Contains(p.Alias)))
         {
-            var editorAlias = property.PropertyType?.EditorAlias;
-            if (editorAlias is not ("Umbraco.BlockList" or "Umbraco.BlockGrid"))
-                continue;
-
-            // Skip properties already explicitly mapped as blockContent
-            if (explicitBlockProperties.Contains(property.Alias))
-                continue;
-
             var value = property.GetValue(culture: culture);
             if (value is null)
                 continue;

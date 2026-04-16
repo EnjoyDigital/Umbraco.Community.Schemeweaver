@@ -70,8 +70,8 @@ public partial class ContentTypeGenerator : IContentTypeGenerator
 
     public async Task<Guid> GenerateContentTypeAsync(ContentTypeGenerationRequest request, CancellationToken cancellationToken = default)
     {
-        var schemaType = _registry.GetType(request.SchemaTypeName)
-            ?? throw new ArgumentException($"Schema type '{request.SchemaTypeName}' not found.");
+        if (_registry.GetType(request.SchemaTypeName) is null)
+            throw new ArgumentException($"Schema type '{request.SchemaTypeName}' not found.");
 
         var existing = _contentTypeService.Get(request.DocumentTypeAlias);
         if (existing is not null)

@@ -218,22 +218,16 @@ public class SchemeWeaverService : ISchemeWeaverService
         if (elementTypeKeys.Count == 0)
             return [];
 
-        var results = new List<BlockElementTypeInfo>();
-        foreach (var key in elementTypeKeys)
-        {
-            var elementType = _contentTypeService.Get(key);
-            if (elementType is null)
-                continue;
-
-            results.Add(new BlockElementTypeInfo
+        return elementTypeKeys
+            .Select(key => _contentTypeService.Get(key))
+            .Where(elementType => elementType is not null)
+            .Select(elementType => new BlockElementTypeInfo
             {
-                Alias = elementType.Alias,
+                Alias = elementType!.Alias,
                 Name = elementType.Name ?? elementType.Alias,
                 Properties = elementType.PropertyTypes.Select(p => p.Alias).ToList()
-            });
-        }
-
-        return results;
+            })
+            .ToList();
     }
 
     /// <summary>

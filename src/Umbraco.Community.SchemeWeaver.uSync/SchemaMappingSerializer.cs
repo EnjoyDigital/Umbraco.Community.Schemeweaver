@@ -113,25 +113,20 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
 
         if (propertyMappingsNode is not null)
         {
-            foreach (var pmNode in propertyMappingsNode.Elements("PropertyMapping"))
+            propertyMappings.AddRange(propertyMappingsNode.Elements("PropertyMapping").Select(pmNode => new PropertyMapping
             {
-                var pm = new PropertyMapping
-                {
-                    SchemaMappingId = saved.Id,
-                    SchemaPropertyName = pmNode.Element("SchemaPropertyName")?.Value ?? string.Empty,
-                    SourceType = pmNode.Element("SourceType")?.Value ?? "property",
-                    ContentTypePropertyAlias = pmNode.Element("ContentTypePropertyAlias")?.Value,
-                    SourceContentTypeAlias = pmNode.Element("SourceContentTypeAlias")?.Value,
-                    TransformType = pmNode.Element("TransformType")?.Value,
-                    IsAutoMapped = bool.Parse(pmNode.Element("IsAutoMapped")?.Value ?? "false"),
-                    StaticValue = pmNode.Element("StaticValue")?.Value,
-                    NestedSchemaTypeName = pmNode.Element("NestedSchemaTypeName")?.Value,
-                    ResolverConfig = pmNode.Element("ResolverConfig")?.Value,
-                    DynamicRootConfig = pmNode.Element("DynamicRootConfig")?.Value,
-                };
-
-                propertyMappings.Add(pm);
-            }
+                SchemaMappingId = saved.Id,
+                SchemaPropertyName = pmNode.Element("SchemaPropertyName")?.Value ?? string.Empty,
+                SourceType = pmNode.Element("SourceType")?.Value ?? "property",
+                ContentTypePropertyAlias = pmNode.Element("ContentTypePropertyAlias")?.Value,
+                SourceContentTypeAlias = pmNode.Element("SourceContentTypeAlias")?.Value,
+                TransformType = pmNode.Element("TransformType")?.Value,
+                IsAutoMapped = bool.Parse(pmNode.Element("IsAutoMapped")?.Value ?? "false"),
+                StaticValue = pmNode.Element("StaticValue")?.Value,
+                NestedSchemaTypeName = pmNode.Element("NestedSchemaTypeName")?.Value,
+                ResolverConfig = pmNode.Element("ResolverConfig")?.Value,
+                DynamicRootConfig = pmNode.Element("DynamicRootConfig")?.Value,
+            }));
         }
 
         _repository.SavePropertyMappings(saved.Id, propertyMappings);

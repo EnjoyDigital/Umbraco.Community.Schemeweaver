@@ -55,16 +55,14 @@ public class ContentPickerResolver : IPropertyValueResolver
 
         var propertyMappings = context.MappingRepository.GetPropertyMappings(nestedMapping.Id);
 
-        foreach (var propMapping in propertyMappings)
+        foreach (var propMapping in propertyMappings
+            .Where(pm => !string.IsNullOrEmpty(pm.ContentTypePropertyAlias)))
         {
-            if (string.IsNullOrEmpty(propMapping.ContentTypePropertyAlias))
-                continue;
-
             // Use the resolver pipeline when available so nested content pickers,
             // media pickers, etc. are resolved correctly with depth/cycle tracking
             if (context.ResolverFactory is not null)
             {
-                var publishedProperty = content.GetProperty(propMapping.ContentTypePropertyAlias);
+                var publishedProperty = content.GetProperty(propMapping.ContentTypePropertyAlias!);
                 var editorAlias = publishedProperty?.PropertyType?.EditorAlias;
                 var resolver = context.ResolverFactory.GetResolver(editorAlias);
 
@@ -72,7 +70,7 @@ public class ContentPickerResolver : IPropertyValueResolver
                 {
                     Content = content,
                     Mapping = propMapping,
-                    PropertyAlias = propMapping.ContentTypePropertyAlias,
+                    PropertyAlias = propMapping.ContentTypePropertyAlias!,
                     SchemaTypeRegistry = context.SchemaTypeRegistry,
                     MappingRepository = context.MappingRepository,
                     HttpContextAccessor = context.HttpContextAccessor,
@@ -94,7 +92,7 @@ public class ContentPickerResolver : IPropertyValueResolver
             {
                 // Fallback: simple value extraction without the resolver pipeline
                 var resolvedValue = SchemaPropertySetter.ResolveElementPropertyValue(
-                    content, propMapping.ContentTypePropertyAlias, context.HttpContextAccessor);
+                    content, propMapping.ContentTypePropertyAlias!, context.HttpContextAccessor);
                 if (resolvedValue is null)
                     continue;
 

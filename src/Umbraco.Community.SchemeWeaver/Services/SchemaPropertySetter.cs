@@ -50,32 +50,24 @@ public static class SchemaPropertySetter
         }
 
         // Handle IEnumerable<Thing> for collection properties (e.g., block content results)
-        if (value is IEnumerable<Thing> things)
-        {
-            if (TrySetCollectionValue(property, instance, targetType, things))
-                return;
-        }
+        if (value is IEnumerable<Thing> things
+            && TrySetCollectionValue(property, instance, targetType, things))
+            return;
 
         // Handle IEnumerable<string> for string array properties (e.g., recipeIngredient)
-        if (value is IEnumerable<string> strings)
-        {
-            if (TrySetStringCollectionValue(property, instance, targetType, strings))
-                return;
-        }
+        if (value is IEnumerable<string> strings
+            && TrySetStringCollectionValue(property, instance, targetType, strings))
+            return;
 
         // Handle OneOrMany<T> types from Schema.NET by building from inside out
-        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany"))
-        {
-            if (TrySetOneOrManyValue(property, instance, targetType, value))
-                return;
-        }
+        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany")
+            && TrySetOneOrManyValue(property, instance, targetType, value))
+            return;
 
         // Handle Values<T1, T2, ...> types directly (e.g., Image is Values<IImageObject, Uri>)
-        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("Values"))
-        {
-            if (TrySetValuesValue(property, instance, targetType, value))
-                return;
-        }
+        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("Values")
+            && TrySetValuesValue(property, instance, targetType, value))
+            return;
 
         // Simple string assignment
         if (targetType == typeof(string) && value is string strVal)
@@ -309,7 +301,11 @@ public static class SchemaPropertySetter
             property.SetValue(instance, oneOrMany);
             return true;
         }
-        catch (Exception)
+        catch (MissingMethodException)
+        {
+            return false;
+        }
+        catch (TargetInvocationException)
         {
             return false;
         }
@@ -356,7 +352,11 @@ public static class SchemaPropertySetter
             property.SetValue(instance, oneOrManyInstance);
             return true;
         }
-        catch (Exception)
+        catch (MissingMethodException)
+        {
+            return false;
+        }
+        catch (TargetInvocationException)
         {
             return false;
         }
@@ -410,7 +410,11 @@ public static class SchemaPropertySetter
                     property.SetValue(instance, oneOrManyInstance);
                     return true;
                 }
-                catch (Exception)
+                catch (MissingMethodException)
+                {
+                    // Fall through
+                }
+                catch (TargetInvocationException)
                 {
                     // Fall through
                 }
@@ -482,19 +486,16 @@ public static class SchemaPropertySetter
 
         // Search for op_Implicit on the target type
         var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name == "op_Implicit" && m.GetParameters().Length == 1);
+            .Where(m => m.Name == "op_Implicit" && m.GetParameters().Length == 1
+                && m.GetParameters()[0].ParameterType.IsAssignableFrom(value.GetType()));
 
         foreach (var method in methods)
         {
-            var paramType = method.GetParameters()[0].ParameterType;
-            if (!paramType.IsAssignableFrom(value.GetType()))
-                continue;
-
             try
             {
                 return method.Invoke(null, [value]);
             }
-            catch (Exception)
+            catch (TargetInvocationException)
             {
                 // Continue trying other conversions
             }
@@ -502,19 +503,16 @@ public static class SchemaPropertySetter
 
         // Also search on the source type for op_Implicit returning targetType
         var sourceMethods = value.GetType().GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name == "op_Implicit" && m.ReturnType == targetType && m.GetParameters().Length == 1);
+            .Where(m => m.Name == "op_Implicit" && m.ReturnType == targetType && m.GetParameters().Length == 1
+                && m.GetParameters()[0].ParameterType.IsAssignableFrom(value.GetType()));
 
         foreach (var method in sourceMethods)
         {
-            var paramType = method.GetParameters()[0].ParameterType;
-            if (!paramType.IsAssignableFrom(value.GetType()))
-                continue;
-
             try
             {
                 return method.Invoke(null, [value]);
             }
-            catch (Exception)
+            catch (TargetInvocationException)
             {
                 // Continue trying other conversions
             }

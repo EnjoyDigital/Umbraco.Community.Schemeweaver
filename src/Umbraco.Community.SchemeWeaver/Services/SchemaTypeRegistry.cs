@@ -115,31 +115,20 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
 
     private static List<SchemaPropertyInfo> GetSchemaProperties(Type type)
     {
-        var properties = new List<SchemaPropertyInfo>();
-
-        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+        return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p is { CanRead: true, CanWrite: true })
             .GroupBy(p => p.Name)
-            .Select(g => g.First());
-
-        foreach (var prop in props)
-        {
-            // Skip non-schema properties
-            if (prop.Name is "Context" or "Type" or "Id") continue;
-
-            var propertyType = GetFriendlyTypeName(prop.PropertyType);
-            var acceptedTypes = GetAcceptedTypes(prop.PropertyType);
-            properties.Add(new SchemaPropertyInfo
+            .Select(g => g.First())
+            .Where(p => p.Name is not ("Context" or "Type" or "Id"))
+            .Select(prop => new SchemaPropertyInfo
             {
                 Name = prop.Name,
-                PropertyType = propertyType,
+                PropertyType = GetFriendlyTypeName(prop.PropertyType),
                 IsRequired = false,
-                AcceptedTypes = acceptedTypes,
+                AcceptedTypes = GetAcceptedTypes(prop.PropertyType),
                 // IsComplexType set in second pass
-            });
-        }
-
-        return properties;
+            })
+            .ToList();
     }
 
     private static List<string> GetAcceptedTypes(Type type)

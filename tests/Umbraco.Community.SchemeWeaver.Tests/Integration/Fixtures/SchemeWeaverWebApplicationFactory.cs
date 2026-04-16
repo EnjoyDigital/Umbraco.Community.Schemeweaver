@@ -36,12 +36,12 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>
     public SchemeWeaverWebApplicationFactory()
     {
         // Unique per-factory temp directory so parallel test classes don't share state.
-        _dataDirectory = Path.Combine(
+        _dataDirectory = Path.Join(
             Path.GetTempPath(),
             $"schemeweaver-it-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_dataDirectory);
 
-        _databasePath = Path.Combine(_dataDirectory, "Umbraco.sqlite.db");
+        _databasePath = Path.Join(_dataDirectory, "Umbraco.sqlite.db");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

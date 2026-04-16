@@ -47,7 +47,7 @@ internal sealed class DeduplicatingTypeInfoResolver : IJsonTypeInfoResolver
                 propInfo.Set = prop.CanWrite ? prop.SetValue : null;
                 typeInfo.Properties.Add(propInfo);
             }
-            catch
+            catch (InvalidOperationException)
             {
                 // Skip properties that can't be configured
             }

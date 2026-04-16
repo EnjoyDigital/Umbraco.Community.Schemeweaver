@@ -97,11 +97,12 @@ public class BuiltInPropertyResolverTests
         content.CreateDate.Returns(new DateTime(2024, 3, 15, 10, 30, 0, DateTimeKind.Utc));
 
         var context = CreateContext(content, SchemeWeaverConstants.BuiltInProperties.CreateDate);
-        var result = _sut.Resolve(context) as string;
+        var result = _sut.Resolve(context);
 
-        result.Should().NotBeNull();
-        result.Should().Contain("2024-03-15");
-        result.Should().Contain("10:30:00");
+        result.Should().NotBeNull().And.BeOfType<string>();
+        var resultString = (string)result!;
+        resultString.Should().Contain("2024-03-15");
+        resultString.Should().Contain("10:30:00");
     }
 
     [Fact]
@@ -111,11 +112,12 @@ public class BuiltInPropertyResolverTests
         content.UpdateDate.Returns(new DateTime(2024, 6, 20, 14, 45, 0, DateTimeKind.Utc));
 
         var context = CreateContext(content, SchemeWeaverConstants.BuiltInProperties.UpdateDate);
-        var result = _sut.Resolve(context) as string;
+        var result = _sut.Resolve(context);
 
-        result.Should().NotBeNull();
-        result.Should().Contain("2024-06-20");
-        result.Should().Contain("14:45:00");
+        result.Should().NotBeNull().And.BeOfType<string>();
+        var resultString = (string)result!;
+        resultString.Should().Contain("2024-06-20");
+        resultString.Should().Contain("14:45:00");
     }
 
     [Fact]

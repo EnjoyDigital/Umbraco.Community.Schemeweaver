@@ -202,8 +202,9 @@ public class JsonLdGeneratorTests
         var result = _sut.GenerateJsonLd(content);
 
         result.Should().NotBeNull();
+        result.Should().BeOfType<Schema.NET.Article>();
         // The Article Headline should have HTML stripped
-        var article = result as Schema.NET.Article;
+        var article = (Schema.NET.Article)result!;
         article.Should().NotBeNull();
     }
 
