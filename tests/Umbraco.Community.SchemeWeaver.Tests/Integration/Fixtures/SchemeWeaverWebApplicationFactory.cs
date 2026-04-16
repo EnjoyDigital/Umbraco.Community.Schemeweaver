@@ -4,8 +4,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Umbraco.Community.SchemeWeaver.TestHost;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Integration.Fixtures;
 
@@ -64,6 +62,11 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>
                 ["Umbraco:CMS:Unattended:UnattendedUserPassword"] = "IntegrationTest1234!",
                 ["Umbraco:CMS:Unattended:UnattendedTelemetryLevel"] = "Minimal",
                 ["Umbraco:CMS:Global:Id"] = Guid.NewGuid().ToString(),
+                // Suppress uSync first-boot import — integration tests seed their own
+                // data via UmbracoIntegrationTestBase and don't need the full TestHost
+                // content tree.
+                ["uSync:Settings:ImportOnFirstBoot"] = "false",
+                ["uSync:Settings:ImportAtStartup"] = "None",
             });
         });
 
@@ -73,21 +76,6 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.AddTransient<IPolicyEvaluator, TestPolicyEvaluator>();
-
-            // Integration tests seed their own data via UmbracoIntegrationTestBase.
-            // The TestHost's TestDataSeeder exists for the E2E/dev experience (it
-            // builds 140+ mappings, 145+ nodes and imports media from disk) and
-            // adds 5+ minutes to host startup on CI Linux runners, which was
-            // causing every HTTP request to fail with 500 after boot. Remove the
-            // hosted-service registration for the integration suite.
-            var seederDescriptors = services
-                .Where(d => d.ServiceType == typeof(IHostedService)
-                    && d.ImplementationType == typeof(TestDataSeeder))
-                .ToList();
-            foreach (var descriptor in seederDescriptors)
-            {
-                services.Remove(descriptor);
-            }
         });
     }
 

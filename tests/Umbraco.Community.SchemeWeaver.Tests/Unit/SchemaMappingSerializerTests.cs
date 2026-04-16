@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -19,7 +20,16 @@ public class SchemaMappingSerializerTests
 
     public SchemaMappingSerializerTests()
     {
-        _sut = new SchemaMappingSerializer(_repository, _logger);
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(ISchemaMappingRepository)).Returns(_repository);
+
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+
+        _sut = new SchemaMappingSerializer(scopeFactory, _logger);
     }
 
     private static SchemaMapping CreateTestMapping(bool isInherited = false) => new()
