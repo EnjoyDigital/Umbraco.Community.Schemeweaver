@@ -38,10 +38,6 @@
             <dd>@Model.Weight</dd>
         }
     </dl>
-    @if (Model.ProductImage != null)
-    {
-        <img src="@Model.ProductImage.MediaUrl()" alt="@Model.ProductImage.Name" class="content-image" />
-    }
 </div>
 
 @if (Model.BodyText != null)
