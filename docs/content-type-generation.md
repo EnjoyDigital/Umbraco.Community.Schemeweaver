@@ -22,10 +22,10 @@ The generated document type is a starting point. It is **not** automatically map
 Content type generation is available as an entity action on the **Document Types** tree in the Umbraco backoffice Settings section.
 
 1. Navigate to **Settings > Document Types**
-2. Right-click on any document type (or the Document Types root node) to open the context menu
+2. Hover over any document type (or the Document Types root node) and click the **actions menu** (`...`) to open the action list
 3. Select **Generate from Schema.org**
 
-This opens the generation modal. The entity action resolves the document type's GUID to an alias internally, but the generation process creates a brand new document type -- it does not modify the one you right-clicked on.
+This opens the generation modal. The entity action resolves the document type's GUID to an alias internally, but the generation process creates a brand new document type -- it does not modify the one you selected.
 
 ---
 

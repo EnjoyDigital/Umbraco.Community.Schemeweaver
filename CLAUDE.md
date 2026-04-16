@@ -57,7 +57,7 @@ E2E tests require `.env` with `UMBRACO_URL`, `UMBRACO_USER_LOGIN`, `UMBRACO_USER
 - **context/** — `SchemeWeaverContext` with Umbraco observables
 - **modals/** — Schema picker, property mapping, generate doctype (each has `.element.ts` + `.token.ts`)
 - **components/** — `property-mapping-table` (editable rows), `jsonld-preview` (formatted JSON-LD with validation)
-- **entity-actions/** — "Map to Schema.org", "Delete Schema.org Mapping", and "Generate from Schema.org" on the document type context menu
+- **entity-actions/** — "Map to Schema.org", "Delete Schema.org Mapping", and "Generate from Schema.org" on the document type actions menu
 - **workspace-views/** — Schema.org tab on the document type editor and JSON-LD preview tab on content items
 - **mocks/** — MSW handlers + in-memory mock DB for component tests
 

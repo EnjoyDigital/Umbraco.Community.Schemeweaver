@@ -34,7 +34,7 @@ No additional SchemeWeaver configuration is needed. The `SchemeWeaverAIComposer`
 
 ### AI Schema Type Suggestions
 
-When you open the schema picker modal (**Map to Schema.org** on a document type), the AI package adds an **AI Analyse** entity action to the document type context menu. This action:
+When you open the schema picker modal (**Map to Schema.org** on a document type), the AI package adds an **AI Analyse** entity action to the document type actions menu. This action:
 
 1. Analyses the content type's name, property names, editor types, and descriptions
 2. Returns up to 3 ranked Schema.org type suggestions with confidence scores and reasoning

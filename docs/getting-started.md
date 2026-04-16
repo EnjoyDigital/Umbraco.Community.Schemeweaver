@@ -44,7 +44,7 @@ When the application starts for the first time after installation, SchemeWeaver 
 
 3. **Scans Schema.org types** -- the `SchemaTypeRegistry` singleton scans the Schema.NET.Pending assembly at startup and discovers all available Schema.org types (780) with their properties, parent types, and descriptions.
 
-4. **Registers the backoffice UI** -- the package's static web assets (built Lit web components) are served from `App_Plugins/SchemeWeaver`, adding a Schema.org workspace view tab to the document type editor and entity actions to the document type context menu.
+4. **Registers the backoffice UI** -- the package's static web assets (built Lit web components) are served from `App_Plugins/SchemeWeaver`, adding a Schema.org workspace view tab to the document type editor and entity actions to the document type actions menu.
 
 No configuration in `appsettings.json` is needed. There are no feature flags to enable.
 

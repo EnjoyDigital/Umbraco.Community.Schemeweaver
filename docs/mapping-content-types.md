@@ -132,7 +132,7 @@ This is useful for organisation-level schemas. For example, you might map your "
 
 ## Deleting mappings
 
-To delete a mapping, open the document type's context menu in **Settings > Document Types** and click **Delete Schema.org Mapping**. The mapping and all its property mappings are removed from the database immediately. A success notification ("Mapping deleted successfully") confirms the action, and the Schema.org tab refreshes to show the content type as unmapped.
+To delete a mapping, navigate to the document type in **Settings > Document Types**, click the **actions menu** (`...`), and select **Delete Schema.org Mapping**. The mapping and all its property mappings are removed from the database immediately. A success notification ("Mapping deleted successfully") confirms the action, and the Schema.org tab refreshes to show the content type as unmapped.
 
 Deleting a mapping means published pages of that content type will no longer output JSON-LD for that schema type on their next render. Already-cached pages may still show the old output until they are re-rendered or the cache expires.
 
