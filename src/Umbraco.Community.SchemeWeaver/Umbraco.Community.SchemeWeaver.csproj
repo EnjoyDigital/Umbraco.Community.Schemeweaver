@@ -6,8 +6,8 @@
 		<IsPackable>true</IsPackable>
 		<PackageId>Umbraco.Community.SchemeWeaver</PackageId>
 		<Product>Umbraco.Community.SchemeWeaver</Product>
-		<Title>Schema.org mapping for Umbraco Content Types</Title>
-		<Description>Maps Umbraco Content Types to Schema.org types and generates JSON-LD output. Auto-maps existing properties, supports manual mapping, and can generate Content Types from Schema.org models.</Description>
+		<Title>SchemeWeaver — Schema.org JSON-LD Structured Data for Umbraco</Title>
+		<Description>Map Umbraco Content Types to any of 780+ Schema.org types and automatically generate JSON-LD structured data. Features confidence-scored auto-mapping, a backoffice UI for manual fine-tuning, seven property source types (property, static, parent, ancestor, sibling, block content, complex), HTML/URL/date transforms, culture-aware variant support, Delivery API integration, and a Razor tag helper for server-rendered templates. Can also scaffold new Umbraco document types from Schema.org models.</Description>
 		<PackageTags>umbraco plugin package umbraco-marketplace schema.org json-ld structured-data seo schema-mapping</PackageTags>
 		<StaticWebAssetBasePath>App_Plugins/SchemeWeaver</StaticWebAssetBasePath>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
@@ -16,7 +16,7 @@
 		<Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
 		<PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</RepositoryUrl>
-		<PackageReleaseNotes>v1.0.0-beta.9: Backoffice auth adapted to Umbraco 17's lowercase `token` on UmbOpenApiConfiguration so the Authorization header is correctly populated. Fixed ManifestLocalization import path (now imports from @umbraco-cms/backoffice/localization). Minor TypeScript cleanup: removed deprecated tsconfig baseUrl, added ImportMeta env shim, tightened nested mapping modal undefined guard, dropped unused state. Example TestHost site tightened up — strongly-typed ModelsBuilder views throughout, fixed broken reviews block on product pages, added missing content-specific image rendering on event/recipe/blog/product views. The TestHost project is an example/demo site only and is not part of the distributable NuGet package. Full documentation at https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/tree/main/docs</PackageReleaseNotes>
+		<PackageReleaseNotes>Full changelog and documentation at https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageReleaseNotes>
 		<RepositoryType>git</RepositoryType>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
