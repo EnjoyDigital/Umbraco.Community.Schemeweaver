@@ -216,7 +216,7 @@ public class SchemaMappingRepositoryTests : UmbracoIntegrationTestBase
     public void GetInheritedMappings_ReturnsOnlyEnabledInheritedRows()
     {
         SeedMapping("homePage", "WebSite", isInherited: true, isEnabled: true);
-        SeedMapping("landingPage", "WebPage", isInherited: true, isEnabled: false);
+        SeedMapping("archivePage", "WebPage", isInherited: true, isEnabled: false);
         SeedMapping("blogPost", "BlogPosting", isInherited: false, isEnabled: true);
         SeedMapping("newsPage", "NewsArticle", isInherited: true, isEnabled: true);
 

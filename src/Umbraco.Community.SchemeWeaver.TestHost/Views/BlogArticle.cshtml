@@ -14,16 +14,17 @@
             <span> &middot; @(Model.PublishDate.ToString("d MMMM yyyy"))</span>
         }
     </div>
-    @{
-        var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
-    }
-    @if (heroImg != null)
+    @if (Model.HeroImage != null)
     {
-        <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
+        <img src="@Model.HeroImage.MediaUrl()" alt="@Model.HeroImage.Name" class="featured-image" />
     }
     @if (!string.IsNullOrEmpty(Model.Description))
     {
         <p class="lead">@Model.Description</p>
+    }
+    @if (Model.FeaturedImage != null)
+    {
+        <img src="@Model.FeaturedImage.MediaUrl()" alt="@Model.FeaturedImage.Name" class="content-image" />
     }
     <div class="card">
         @Model.BodyText

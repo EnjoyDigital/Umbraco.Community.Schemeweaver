@@ -139,8 +139,8 @@ describe('NestedMappingModalElement', () => {
     const el = createElement();
     await waitForLoad(el);
     // Currently on mappings step. Click Back to go to block-type step
-    const backButton = Array.from(el.shadowRoot!.querySelectorAll('uui-button'))
-      .find((b: Element) => b.getAttribute('label') === 'Back') as HTMLElement;
+    const backButton = (Array.from(el.shadowRoot!.querySelectorAll('uui-button')) as HTMLElement[])
+      .find((b) => b.getAttribute('label') === 'Back') as HTMLElement;
     expect(backButton).to.exist;
     backButton?.click();
     await el.updateComplete;
@@ -161,16 +161,16 @@ describe('NestedMappingModalElement', () => {
     const el = createElement('Question', config);
     await waitForLoad(el);
     // Click Preview button
-    const previewButton = Array.from(el.shadowRoot!.querySelectorAll('uui-button'))
-      .find((b: Element) => b.getAttribute('label') === 'Preview') as HTMLElement;
+    const previewButton = (Array.from(el.shadowRoot!.querySelectorAll('uui-button')) as HTMLElement[])
+      .find((b) => b.getAttribute('label') === 'Preview') as HTMLElement;
     expect(previewButton).to.exist;
     previewButton?.click();
     await el.updateComplete;
     await new Promise((r) => requestAnimationFrame(r));
     await el.updateComplete;
     // Should be on preview step with Save button
-    const buttons = Array.from(el.shadowRoot!.querySelectorAll('uui-button'));
-    const labels = buttons.map((b: Element) => b.getAttribute('label'));
+    const buttons = (Array.from(el.shadowRoot!.querySelectorAll('uui-button')) as HTMLElement[]);
+    const labels = buttons.map((b) => b.getAttribute('label'));
     expect(labels).to.include('Save Mapping');
     // Should show preview content
     const previewSummary = el.shadowRoot!.querySelector('.preview-summary');
@@ -186,8 +186,8 @@ describe('NestedMappingModalElement', () => {
     const el = createElement('Question', config);
     await waitForLoad(el);
     // Advance to preview
-    const previewButton = Array.from(el.shadowRoot!.querySelectorAll('uui-button'))
-      .find((b: Element) => b.getAttribute('label') === 'Preview') as HTMLElement;
+    const previewButton = (Array.from(el.shadowRoot!.querySelectorAll('uui-button')) as HTMLElement[])
+      .find((b) => b.getAttribute('label') === 'Preview') as HTMLElement;
     previewButton?.click();
     await el.updateComplete;
     await new Promise((r) => requestAnimationFrame(r));

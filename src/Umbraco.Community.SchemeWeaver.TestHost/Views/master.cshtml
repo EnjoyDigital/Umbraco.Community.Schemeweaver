@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/css/c64-theme.css" />
 </head>
 <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
     <header>
         <div class="container">
             @{
@@ -49,8 +50,37 @@
             </nav>
         </div>
     </header>
-    <main>
+    <main id="main">
         <div class="container">
+            @{
+                var trail = Model.AncestorsOrSelf().Reverse().ToList();
+            }
+            @if (trail.Count > 1)
+            {
+                <nav class="breadcrumbs" aria-label="Breadcrumb">
+                    <ol>
+                        @for (var i = 0; i < trail.Count; i++)
+                        {
+                            var crumb = trail[i];
+                            var isLast = i == trail.Count - 1;
+                            <li>
+                                @if (i > 0)
+                                {
+                                    <span class="breadcrumb-separator" aria-hidden="true">&gt;</span>
+                                }
+                                @if (isLast)
+                                {
+                                    <span aria-current="page">@crumb.Name</span>
+                                }
+                                else
+                                {
+                                    <a href="@crumb.Url()">@crumb.Name</a>
+                                }
+                            </li>
+                        }
+                    </ol>
+                </nav>
+            }
             @RenderBody()
         </div>
     </main>

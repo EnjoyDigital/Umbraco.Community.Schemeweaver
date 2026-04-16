@@ -37,9 +37,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
   private _availableProperties: string[] = [];
 
   @state()
-  private _saving = false;
-
-  @state()
   private _allSchemaProperties: SchemaPropertyInfo[] = [];
 
   @state()
@@ -271,7 +268,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
   private async _handleSave() {
     if (!this._mapping) return;
 
-    this._saving = true;
     try {
       const dto: SchemaMappingDto = {
         ...this._mapping,
@@ -307,8 +303,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToSave'),
         },
       });
-    } finally {
-      this._saving = false;
     }
   }
 

@@ -85,7 +85,7 @@ describe('PropertyMappingTableElement', () => {
     const ancestorMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'name', schemaPropertyType: 'Text', sourceType: 'ancestor', contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
     ];
-    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${ancestorMapping} .availableProperties=${['title', 'name']}></schemeweaver-property-mapping-table>`);
+    await fixture(html`<schemeweaver-property-mapping-table .mappings=${ancestorMapping} .availableProperties=${['title', 'name']}></schemeweaver-property-mapping-table>`);
     // Should show a placeholder button to pick content type, not render in mapped section
     // The row is unmapped (no alias set) so it's in the unmapped section by default
   });

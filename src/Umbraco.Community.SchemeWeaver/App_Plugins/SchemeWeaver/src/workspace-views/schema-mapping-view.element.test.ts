@@ -1,25 +1,10 @@
-import { expect, fixture, html, waitUntil } from '@open-wc/testing';
-import { http, HttpResponse } from 'msw';
+import { expect, fixture, html } from '@open-wc/testing';
 import { startMockServiceWorker, stopMockServiceWorker } from '../mocks/setup.js';
-import type { SetupWorker } from 'msw/browser';
 import './schema-mapping-view.element.js';
 
-const BASE = '/umbraco/management/api/v1/schemeweaver';
-
-// Helper to wait for loading to finish
-async function waitForLoad(el: Element): Promise<void> {
-  await waitUntil(
-    () => !el.shadowRoot!.querySelector('uui-loader-circle'),
-    'Loading did not complete',
-    { timeout: 5000 }
-  );
-}
-
 describe('SchemaMappingViewElement', () => {
-  let worker: SetupWorker;
-
   before(async () => {
-    worker = await startMockServiceWorker();
+    await startMockServiceWorker();
   });
 
   after(() => {

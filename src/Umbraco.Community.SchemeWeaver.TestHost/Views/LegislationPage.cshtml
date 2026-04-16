@@ -8,12 +8,9 @@
 {
     <p class="lead">@Model.Description</p>
 }
-@{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
-}
-@if (heroImg != null)
+@if (Model.HeroImage != null)
 {
-    <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
+    <img src="@Model.HeroImage.MediaUrl()" alt="@Model.HeroImage.Name" class="featured-image" />
 }
 
 
@@ -25,10 +22,10 @@
             <dt>Identifier</dt>
             <dd>@Model.LegislationIdentifier</dd>
         }
-        @if (Model.LegislationDate != null)
+        @if (Model.LegislationDate != default(DateTime))
         {
             <dt>Date</dt>
-            <dd>@Model.LegislationDate.Value.ToString("d MMMM yyyy")</dd>
+            <dd>@Model.LegislationDate.ToString("d MMMM yyyy")</dd>
         }
         @if (!string.IsNullOrEmpty(Model.LegislationJurisdiction))
         {

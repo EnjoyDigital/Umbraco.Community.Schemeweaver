@@ -307,7 +307,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         const complexResult = await this._findComplexTypeMatch(mapping, blockProps, usedBlockProps);
         if (complexResult) {
           updated[i] = { ...mapping, ...complexResult };
-          usedBlockProps.add(complexResult.contentProperty);
+          if (complexResult.contentProperty) {
+            usedBlockProps.add(complexResult.contentProperty);
+          }
         }
       }
     }

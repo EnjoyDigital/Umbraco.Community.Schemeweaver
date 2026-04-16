@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -42,6 +43,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
     private readonly IFileService _fileService;
     private readonly ITemplateService _templateService;
     private readonly IMediaImportService _mediaImportService;
+    private readonly IMediaService _mediaService;
     private readonly IWebHostEnvironment _webHostEnvironment;
     private readonly ILanguageService _languageService;
     private readonly IDomainService _domainService;
@@ -65,6 +67,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IFileService fileService,
         ITemplateService templateService,
         IMediaImportService mediaImportService,
+        IMediaService mediaService,
         IWebHostEnvironment webHostEnvironment,
         ILanguageService languageService,
         IDomainService domainService,
@@ -81,6 +84,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         _fileService = fileService;
         _templateService = templateService;
         _mediaImportService = mediaImportService;
+        _mediaService = mediaService;
         _webHostEnvironment = webHostEnvironment;
         _languageService = languageService;
         _domainService = domainService;
@@ -1577,15 +1581,6 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             ("description", "Description", descDataType),
         }, cancellationToken);
 
-        // 3c-landing. Landing Page — exercises BlockGrid + nested ImageObject mapping
-        var landingPageCt = await CreateContentType("landingPage", "Landing Page", "icon-presentation", new (string, string, IDataType?)[]
-        {
-            ("pageTitle", "Page Title", textboxDataType),
-            ("metaDescription", "Meta Description", textareaDataType ?? textboxDataType),
-            ("heroImage", "Hero Image", mediaPickerDataType ?? textboxDataType),
-            ("contentGrid", "Content Grid", contentGridDataType),
-        }, cancellationToken);
-
         // 3d. Variant article — culture-varying content type for multi-language testing
         var variantArticleCt = await CreateVariantArticle(textboxDataType!, bodyDataType!, cancellationToken);
 
@@ -1649,8 +1644,6 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             // New subtypes — Property (Real Estate)
             propertyListingCt, singleFamilyResidencePageCt, apartmentComplexPageCt, residencePageCt, suitePageCt, gatedResidenceCommunityPageCt, accommodationPageCt,
             organisationParentCt, localBusinessChildCt, departmentPageCt,
-            // Landing page (BlockGrid demo)
-            landingPageCt,
             // Variant (culture-varying) content type
             variantArticleCt,
         };
@@ -1748,8 +1741,6 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             realEstateListingPageCt,
             propertyListingCt, singleFamilyResidencePageCt, apartmentComplexPageCt, residencePageCt, suitePageCt, gatedResidenceCommunityPageCt, accommodationPageCt,
             organisationParentCt, localBusinessChildCt, departmentPageCt,
-            // Landing page (BlockGrid demo — WebPage + nested ImageObject + BlockGrid mainEntity)
-            landingPageCt,
             // Variant (culture-varying)
             variantArticleCt);
     }
@@ -1794,6 +1785,17 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
                     Constants.Security.SuperUserKey);
 
                 _mediaKeys[key] = result.Key;
+
+                // Give the media item a humanised name so it doubles as alt text in views.
+                // Editors see the friendly phrase in the Media library; consumers read it via
+                // `@Model.HeroImage.Content?.Name`.
+                var media = _mediaService.GetById(result.Key);
+                if (media is not null)
+                {
+                    media.Name = SlugToAltText(key);
+                    _mediaService.Save(media);
+                }
+
                 _logger.LogInformation("TestDataSeeder: Imported '{Key}' ({Id}) from {File}",
                     key, result.Key, fileName);
             }
@@ -4763,8 +4765,6 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         IContentType realEstateListingPageCt,
         IContentType propertyListingCt, IContentType singleFamilyResidencePageCt, IContentType apartmentComplexPageCt, IContentType residencePageCt, IContentType suitePageCt, IContentType gatedResidenceCommunityPageCt, IContentType accommodationPageCt,
         IContentType organisationParentCt, IContentType localBusinessChildCt, IContentType departmentPageCt,
-        // Landing page (BlockGrid demo)
-        IContentType landingPageCt,
         // Variant (culture-varying)
         IContentType variantArticleCt)
     {
@@ -4978,17 +4978,6 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
 
         SeedSimpleMapping(repo, organisationParentCt, "Organization", ("Name", "title"), ("Description", "description"), ("Telephone", "telephone"), ("Email", "email"), ("Url", "__url"));
 
-        // Landing page — WebPage with nested ImageObject (primaryImageOfPage) + BlockGrid mainEntity
-        try
-        {
-            SeedLandingPageMapping(landingPageCt, repo);
-            _logger.LogInformation("TestDataSeeder: Landing page mapping seeded successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "TestDataSeeder: Failed to seed Landing page mapping");
-        }
-
         // Hierarchy mappings (parent/ancestor/sibling)
         SeedLocalBusinessChildMapping(localBusinessChildCt, repo);
         SeedDepartmentPageMapping(departmentPageCt, repo);
@@ -5013,74 +5002,7 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
         AddCategoryMapping(repo, "theaterEventPage", "eventListing");
         AddCategoryMapping(repo, "screeningEventPage", "eventListing");
 
-        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 143);
-    }
-
-    private void SeedLandingPageMapping(IContentType ct, ISchemaMappingRepository repo)
-    {
-        var mapping = repo.Save(new SchemaMapping
-        {
-            ContentTypeAlias = ct.Alias,
-            ContentTypeKey = ct.Key,
-            SchemaTypeName = "WebPage",
-            IsEnabled = true,
-        });
-
-        repo.SavePropertyMappings(mapping.Id, new[]
-        {
-            new PropertyMapping
-            {
-                SchemaPropertyName = "Name",
-                SourceType = "property",
-                ContentTypePropertyAlias = "pageTitle",
-            },
-            new PropertyMapping
-            {
-                SchemaPropertyName = "Description",
-                SourceType = "property",
-                ContentTypePropertyAlias = "metaDescription",
-            },
-            // Complex type — nested ImageObject wrapping the Media Picker value.
-            // Exercises the nested ranking UX from Part A; resolver expands the media
-            // into an ImageObject with URL, caption, width, and height.
-            new PropertyMapping
-            {
-                SchemaPropertyName = "PrimaryImageOfPage",
-                SourceType = "property",
-                ContentTypePropertyAlias = "heroImage",
-                NestedSchemaTypeName = "ImageObject",
-            },
-            new PropertyMapping
-            {
-                SchemaPropertyName = "Url",
-                SourceType = "property",
-                ContentTypePropertyAlias = "__url",
-            },
-            // BlockGrid content — emits each block as its own nested entity on mainEntity.
-            // The blockContent resolver walks contentData and applies the nested mappings
-            // per block type. The schemeWeaver blockContent source handles BlockGrid JSON
-            // the same way it handles BlockList (both formats share the contentData shape).
-            new PropertyMapping
-            {
-                SchemaPropertyName = "MainEntity",
-                SourceType = "blockContent",
-                ContentTypePropertyAlias = "contentGrid",
-                NestedSchemaTypeName = "WebPageElement",
-                ResolverConfig = JsonSerializer.Serialize(new
-                {
-                    nestedMappings = new object[]
-                    {
-                        new { schemaProperty = "Name", contentProperty = "title" },
-                        new { schemaProperty = "Headline", contentProperty = "subtitle" },
-                        new { schemaProperty = "Description", contentProperty = "description" },
-                        new { schemaProperty = "Image", contentProperty = "heroImage" },
-                        new { schemaProperty = "Image", contentProperty = "featureImage" },
-                        new { schemaProperty = "Text", contentProperty = "quote" },
-                        new { schemaProperty = "Author", contentProperty = "attribution", wrapInType = "Person", wrapInProperty = "Name" },
-                    }
-                }),
-            },
-        });
+        _logger.LogInformation("TestDataSeeder: seeded {Count} schema mappings", 142);
     }
 
     /// <summary>
@@ -5637,4 +5559,74 @@ public class TestDataSeeder : Microsoft.Extensions.Hosting.IHostedService
             },
         });
     }
+
+    /// <summary>
+    /// Humanises a media asset slug into a descriptive phrase suitable for alt text.
+    /// Hyphen-separated slugs become sentence-case ("wireless-headphones-v1" -> "Wireless
+    /// headphones v1"). Slugs where auto-derivation reads poorly (acronyms, brand names,
+    /// places that need extra context) are covered by <see cref="_altTextOverrides"/>.
+    /// </summary>
+    private static string SlugToAltText(string slug)
+    {
+        if (string.IsNullOrWhiteSpace(slug)) return "Image";
+        if (_altTextOverrides.TryGetValue(slug, out var curated)) return curated;
+
+        var words = slug.Replace('_', '-').Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return "Image";
+
+        var sb = new StringBuilder();
+        for (var i = 0; i < words.Length; i++)
+        {
+            if (i > 0) sb.Append(' ');
+            var word = words[i];
+            if (i == 0 && char.IsLetter(word[0]))
+            {
+                sb.Append(char.ToUpperInvariant(word[0]));
+                if (word.Length > 1) sb.Append(word.AsSpan(1));
+            }
+            else
+            {
+                sb.Append(word);
+            }
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Hand-curated alt text for seed media whose slug alone reads awkwardly — proper
+    /// nouns, acronyms, branded products. Any slug not listed here falls through to the
+    /// sentence-case derivation in <see cref="SlugToAltText"/>.
+    /// </summary>
+    private static readonly Dictionary<string, string> _altTextOverrides = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["2023-triumph-street-triple"] = "A 2023 Triumph Street Triple motorcycle",
+        ["2024-volkswagen-golf"] = "A 2024 Volkswagen Golf car",
+        ["bdo-leeds"] = "BDO Leeds accountancy office",
+        ["berry-s-jewellers-leeds"] = "Berry's Jewellers storefront in Leeds",
+        ["bettys-tea-rooms"] = "Betty's tea rooms exterior",
+        ["boots-pharmacy-briggate"] = "Boots pharmacy on Briggate",
+        ["currys-leeds"] = "Currys electronics store in Leeds",
+        ["dacre-son-hartley"] = "Dacre, Son & Hartley estate agent branch",
+        ["direct-line-leeds"] = "Direct Line insurance office in Leeds",
+        ["dr-sarah-mitchell"] = "Portrait of Dr. Sarah Mitchell",
+        ["elland-road"] = "Elland Road football stadium",
+        ["flight-fr2045"] = "Ryanair flight FR2045 at the gate",
+        ["flybe-airways"] = "Flybe Airways aircraft on the tarmac",
+        ["harvey-nichols-leeds"] = "Harvey Nichols department store in Leeds",
+        ["heal-s-leeds"] = "Heal's furniture showroom in Leeds",
+        ["ibuprofen-400mg"] = "Ibuprofen 400mg tablets",
+        ["jct600-leeds"] = "JCT600 car dealership in Leeds",
+        ["kaiser-chiefs"] = "The Kaiser Chiefs band performing live",
+        ["kwik-fit-leeds-central"] = "Kwik Fit tyre and service centre, central Leeds",
+        ["laynes-espresso"] = "Laynes Espresso coffee shop interior",
+        ["leeds-bradford-to-malaga"] = "Leeds Bradford to Málaga flight route",
+        ["leeds-rhinos"] = "Leeds Rhinos rugby team",
+        ["marks-spencer-leeds"] = "Marks & Spencer store in Leeds",
+        ["nuffield-health-leeds"] = "Nuffield Health hospital in Leeds",
+        ["oliver-picton"] = "Portrait of Oliver Picton",
+        ["techcorp-plc"] = "TechCorp PLC corporate headquarters",
+        ["walker-morris-llp"] = "Walker Morris LLP law firm offices",
+        ["whitehall-legal-partners"] = "Whitehall Legal Partners offices",
+        ["xscape-yorkshire-ski-slope"] = "Xscape Yorkshire indoor ski slope",
+    };
 }

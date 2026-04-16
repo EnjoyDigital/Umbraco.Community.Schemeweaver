@@ -22,7 +22,7 @@
       "command": "cmd",
       "args": ["/c", "npx", "-y", "figma-developer-mcp", "--stdio"],
       "env": {
-        "FIGMA_API_KEY": "figd_kwCCHjt1IqKRPerJ5X05q4ylpP4rM1UboAlgpIjq"
+        "FIGMA_API_KEY": "${FIGMA_API_KEY}"
       }
     }
 

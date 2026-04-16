@@ -14,16 +14,9 @@
     <p>By <strong>@Model.AuthorName</strong></p>
 }
 
-@{
-    var heroImg = Model.HeroImage is Umbraco.Cms.Core.Models.MediaWithCrops singleHero
-        ? singleHero
-        : Model.HeroImage is IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops> heroCollection
-            ? heroCollection.FirstOrDefault()
-            : null;
-}
-@if (heroImg != null)
+@if (Model.HeroImage != null)
 {
-    <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
+    <img src="@Model.HeroImage.MediaUrl()" alt="@Model.HeroImage.Name" class="featured-image" />
 }
 
 <div class="card">
@@ -66,6 +59,11 @@
         }
     </dl>
 </div>
+
+@if (Model.RecipeImage != null)
+{
+    <img src="@Model.RecipeImage.MediaUrl()" alt="@Model.RecipeImage.Name" class="content-image" />
+}
 
 @if (Model.Ingredients?.Any() == true)
 {

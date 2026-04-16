@@ -9,12 +9,9 @@
     <p class="lead">@Model.Description</p>
 }
 
-@{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
-}
-@if (heroImg != null)
+@if (Model.HeroImage != null)
 {
-    <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
+    <img src="@Model.HeroImage.MediaUrl()" alt="@Model.HeroImage.Name" class="featured-image" />
 }
 
 <div class="card">
@@ -31,6 +28,10 @@
             <dd>@(Model.EndDate.ToString("d MMMM yyyy 'at' HH:mm"))</dd>
         }
     </dl>
+    @if (Model.EventImage != null)
+    {
+        <img src="@Model.EventImage.MediaUrl()" alt="@Model.EventImage.Name" class="content-image" />
+    }
 </div>
 
 <div class="card">

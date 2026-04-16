@@ -1,4 +1,4 @@
-import type { ManifestLocalization } from '@umbraco-cms/backoffice/localization-api';
+import type { ManifestLocalization } from '@umbraco-cms/backoffice/localization';
 
 export const manifests: ManifestLocalization[] = [
   {

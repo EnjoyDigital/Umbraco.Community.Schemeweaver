@@ -1,5 +1,4 @@
 import { expect } from '@open-wc/testing';
-import type { SetupWorker } from 'msw/browser';
 import { startMockServiceWorker, stopMockServiceWorker } from '../mocks/setup.js';
 import { SchemeWeaverContext } from './schemeweaver.context.js';
 import type { SchemaMappingDto } from '../api/types.js';
@@ -10,12 +9,10 @@ import type { SchemaMappingDto } from '../api/types.js';
  * and asserts on the observable state the UI actually subscribes to.
  */
 describe('SchemeWeaverContext', () => {
-  let worker: SetupWorker;
-
   const createHost = () => document.createElement('div') as unknown as never;
 
   before(async () => {
-    worker = await startMockServiceWorker();
+    await startMockServiceWorker();
   });
 
   after(() => {
@@ -39,7 +36,7 @@ describe('SchemeWeaverContext', () => {
 
       await context.loadMappings();
 
-      const value = (context.mappings as { getValue: () => SchemaMappingDto[] }).getValue();
+      const value = (context.mappings as unknown as { getValue: () => SchemaMappingDto[] }).getValue();
       expect(value).to.be.an('array');
       expect(value.length).to.be.greaterThan(0);
       expect(value.some((m) => m.contentTypeAlias === 'blogArticle')).to.be.true;
@@ -65,7 +62,7 @@ describe('SchemeWeaverContext', () => {
 
       await context.loadSchemaTypes();
 
-      const value = (context.schemaTypes as { getValue: () => unknown[] }).getValue();
+      const value = (context.schemaTypes as unknown as { getValue: () => unknown[] }).getValue();
       expect(value).to.be.an('array');
       expect(value.length).to.be.greaterThan(0);
     });
@@ -77,7 +74,7 @@ describe('SchemeWeaverContext', () => {
 
       await context.loadContentTypes();
 
-      const value = (context.contentTypes as { getValue: () => unknown[] }).getValue();
+      const value = (context.contentTypes as unknown as { getValue: () => unknown[] }).getValue();
       expect(value).to.be.an('array');
       expect(value.length).to.be.greaterThan(0);
     });
@@ -98,12 +95,12 @@ describe('SchemeWeaverContext', () => {
 
       await context.saveMapping(dto);
 
-      let mappings = (context.mappings as { getValue: () => SchemaMappingDto[] }).getValue();
+      let mappings = (context.mappings as unknown as { getValue: () => SchemaMappingDto[] }).getValue();
       expect(mappings.some((m) => m.contentTypeAlias === 'contextTestMapping')).to.be.true;
 
       await context.deleteMapping('contextTestMapping');
 
-      mappings = (context.mappings as { getValue: () => SchemaMappingDto[] }).getValue();
+      mappings = (context.mappings as unknown as { getValue: () => SchemaMappingDto[] }).getValue();
       expect(mappings.some((m) => m.contentTypeAlias === 'contextTestMapping')).to.be.false;
     });
   });

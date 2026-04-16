@@ -22,28 +22,18 @@
             <div class="grid-item grid-item--@item.Content.ContentType.Alias">
                 @if (item.Content is HeroBlock heroBlock)
                 {
-                    var blockHero = heroBlock.HeroImage is Umbraco.Cms.Core.Models.MediaWithCrops singleBlockHero
-                        ? singleBlockHero
-                        : heroBlock.HeroImage is IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops> blockHeroCollection
-                            ? blockHeroCollection.FirstOrDefault()
-                            : null;
-                    if (blockHero is not null)
+                    if (heroBlock.HeroImage != null)
                     {
-                        <img src="@blockHero.MediaUrl()" alt="@heroBlock.Title" class="block-hero-image" />
+                        <img src="@heroBlock.HeroImage.MediaUrl()" alt="@heroBlock.HeroImage.Name" class="block-hero-image" />
                     }
                     <h2>@heroBlock.Title</h2>
                     <p>@heroBlock.Subtitle</p>
                 }
                 else if (item.Content is FeatureBlock featureBlock)
                 {
-                    var blockImg = featureBlock.FeatureImage is Umbraco.Cms.Core.Models.MediaWithCrops singleBlockImg
-                        ? singleBlockImg
-                        : featureBlock.FeatureImage is IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops> blockImgCollection
-                            ? blockImgCollection.FirstOrDefault()
-                            : null;
-                    if (blockImg is not null)
+                    if (featureBlock.FeatureImage != null)
                     {
-                        <img src="@blockImg.MediaUrl()" alt="@featureBlock.Title" class="block-feature-image" />
+                        <img src="@featureBlock.FeatureImage.MediaUrl()" alt="@featureBlock.FeatureImage.Name" class="block-feature-image" />
                     }
                     <h3>@featureBlock.Title</h3>
                     <div class="feature-description">@featureBlock.Description</div>
@@ -62,7 +52,7 @@
 
 <h2>Explore Our Site</h2>
 @{
-    var children = Model.Children?.Where(c => c.ContentType.Alias != "landingPage").ToList();
+    var children = Model.Children?.ToList();
 }
 @if (children != null && children.Any())
 {

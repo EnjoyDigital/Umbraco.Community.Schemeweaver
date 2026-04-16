@@ -113,7 +113,7 @@ describe('ComplexTypeMappingModalElement', () => {
   it('renders the Popular section above the Other disclosure in DOM order', async () => {
     const el = createElementWithSelectedType('Organization');
     await waitForLoad(el);
-    const nodes = Array.from(el.shadowRoot!.querySelectorAll('.section-header, .disclosure-wrap'));
+    const nodes = Array.from(el.shadowRoot!.querySelectorAll('.section-header, .disclosure-wrap')) as Element[];
     expect(nodes.length).to.be.greaterThan(1);
     expect(nodes[0].classList.contains('section-header')).to.equal(true);
   });

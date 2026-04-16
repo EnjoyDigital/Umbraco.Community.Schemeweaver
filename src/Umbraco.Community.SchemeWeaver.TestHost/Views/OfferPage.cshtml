@@ -9,16 +9,9 @@
     <p class="lead">@Model.Description</p>
 }
 
-@{
-    var heroImg = Model.Value<Umbraco.Cms.Core.Models.MediaWithCrops>("heroImage");
-    if (heroImg != null)
-    {
-        var imageUrl = heroImg.MediaUrl();
-        if (!string.IsNullOrEmpty(imageUrl))
-        {
-            <img src="@imageUrl" alt="@Model.Title" class="featured-image" />
-        }
-    }
+@if (Model.HeroImage != null)
+{
+    <img src="@Model.HeroImage.MediaUrl()" alt="@Model.HeroImage.Name" class="featured-image" />
 }
 
 @if (!string.IsNullOrEmpty(Model.Price) || !string.IsNullOrEmpty(Model.PriceCurrency) || !string.IsNullOrEmpty(Model.Availability))

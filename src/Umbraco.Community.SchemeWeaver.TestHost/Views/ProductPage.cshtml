@@ -8,16 +8,9 @@
     <p class="lead">@Model.Description</p>
 }
 
-@{
-    var heroImg = Model.HeroImage is Umbraco.Cms.Core.Models.MediaWithCrops singleHero
-        ? singleHero
-        : Model.HeroImage is IEnumerable<Umbraco.Cms.Core.Models.MediaWithCrops> heroCollection
-            ? heroCollection.FirstOrDefault()
-            : null;
-}
-@if (heroImg != null)
+@if (Model.HeroImage != null)
 {
-    <img src="@heroImg.MediaUrl()" alt="@Model.Name" class="featured-image" />
+    <img src="@Model.HeroImage.MediaUrl()" alt="@Model.HeroImage.Name" class="featured-image" />
 }
 
 <div class="card">
@@ -57,18 +50,15 @@
     <h2>Customer Reviews</h2>
     @foreach (var block in Model.Reviews)
     {
-        var author = block.Content.Value("author") as string;
-        var ratingValue = block.Content.Value("ratingValue");
-        var datePublished = block.Content.Value<DateTime?>("datePublished");
-        var reviewBody = block.Content.Value("reviewBody") as string;
+        if (block.Content is not ReviewItem review) { continue; }
         <div class="card review-card">
-            <strong>@author</strong>
-            <span> &middot; Rating: @ratingValue/5</span>
-            @if (datePublished.HasValue && datePublished.Value != default)
+            <strong>@review.ReviewAuthor</strong>
+            <span> &middot; Rating: @review.RatingValue/5</span>
+            @if (review.ReviewDate != default(DateTime))
             {
-                <span> &middot; @(datePublished.Value.ToString("d MMMM yyyy"))</span>
+                <span> &middot; @(review.ReviewDate.ToString("d MMMM yyyy"))</span>
             }
-            <p>@reviewBody</p>
+            <p>@review.ReviewBody</p>
         </div>
     }
 }

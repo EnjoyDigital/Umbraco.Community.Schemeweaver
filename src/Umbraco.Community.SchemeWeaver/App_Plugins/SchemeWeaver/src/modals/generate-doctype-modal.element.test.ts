@@ -51,7 +51,7 @@ describe('GenerateDoctypeModalElement', () => {
   it('shows loading state initially', async () => {
     const el = createElement();
     await el.updateComplete;
-    const loading = el.shadowRoot!.querySelector('.loading');
+    el.shadowRoot!.querySelector('.loading');
     // Loading may have already completed if the mock responds quickly,
     // so we just check the shadow root rendered
     expect(el.shadowRoot).to.exist;

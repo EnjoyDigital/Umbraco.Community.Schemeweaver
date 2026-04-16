@@ -1,5 +1,5 @@
 import type { UmbControllerHost } from '@umbraco-cms/backoffice/controller-api';
-import type { UmbContextToken } from '@umbraco-cms/backoffice/context-api';
+import type { UmbContextToken, UmbContextMinimal } from '@umbraco-cms/backoffice/context-api';
 import { tryExecute } from '@umbraco-cms/backoffice/resources';
 import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
 
@@ -9,7 +9,7 @@ import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
  * interface itself does not surface it — this intersection avoids a `as any`.
  */
 type ContextHost = UmbControllerHost & {
-  getContext<TContext>(token: UmbContextToken<TContext>): Promise<TContext>;
+  getContext<TContext extends UmbContextMinimal>(token: UmbContextToken<TContext>): Promise<TContext>;
 };
 import type {
   SchemaTypeInfo,
@@ -32,9 +32,7 @@ async function getAuthHeaders(host: UmbControllerHost): Promise<Record<string, s
   try {
     const authContext = await (host as ContextHost).getContext(UMB_AUTH_CONTEXT);
     const config = authContext.getOpenApiConfiguration();
-    const token = typeof config.TOKEN === 'function'
-      ? await config.TOKEN({ url: API_BASE })
-      : config.TOKEN;
+    const token = typeof config.token === 'function' ? await config.token() : undefined;
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
     return {};

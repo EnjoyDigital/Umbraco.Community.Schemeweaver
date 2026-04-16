@@ -1,13 +1,8 @@
-﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ProductModelPage>
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<VariantArticle>
 @{
     Layout = "Master.cshtml";
 }
 <h1>@Model.Title</h1>
-
-@if (!string.IsNullOrEmpty(Model.Description))
-{
-    <p class="lead">@Model.Description</p>
-}
 
 @if (Model.HeroImage != null)
 {
