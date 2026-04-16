@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -31,6 +32,17 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     private readonly IVariationContextAccessor _variationContextAccessor;
     private readonly ILogger<JsonLdGenerator> _logger;
     private readonly SchemeWeaverOptions _options;
+
+    /// <summary>
+    /// Fallback serialiser options for Schema.NET types that have property name collisions
+    /// (e.g. Drug, MedicalCondition, Physician — ~83 types in Schema.NET 13.0.0).
+    /// Only used when <see cref="Thing.ToString()"/> throws.
+    /// </summary>
+    private static readonly JsonSerializerOptions _deduplicatingOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+        TypeInfoResolver = new DeduplicatingTypeInfoResolver()
+    };
 
     public JsonLdGenerator(
         ISchemaMappingRepository repository,
@@ -139,7 +151,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
     public string? GenerateJsonLdString(IPublishedContent content, string? culture = null)
     {
-        return GenerateJsonLd(content, culture)?.ToString();
+        var thing = GenerateJsonLd(content, culture);
+        return SafeSerialize(thing, content.Id);
     }
 
     public string? GenerateBreadcrumbJsonLd(IPublishedContent content, string? culture = null)
@@ -198,7 +211,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         }
 
         breadcrumb.ItemListElement = items;
-        return breadcrumb.ToString();
+        return SafeSerialize(breadcrumb);
     }
 
     /// <summary>
@@ -522,6 +535,48 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         return StripHtmlRegex().Replace(html, string.Empty).Trim();
     }
 
+    /// <summary>
+    /// Serialises a Schema.NET Thing to JSON-LD, working around property name collisions
+    /// in Schema.NET's interface hierarchy (e.g. IDrug.Funding, IArchiveOrganization.Address).
+    /// Uses <see cref="Thing.ToString()"/> for the 697 types that serialise cleanly, and
+    /// falls back to a <see cref="DeduplicatingTypeInfoResolver"/> for the ~83 that don't.
+    /// </summary>
+    private string? SafeSerialize(Thing? thing, int? contentId = null)
+    {
+        if (thing is null)
+            return null;
+
+        try
+        {
+            return thing.ToString();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("collides with another property"))
+        {
+            _logger.LogDebug(ex,
+                "Schema.NET type {SchemaType} has a property collision — using fallback serialiser",
+                thing.GetType().Name);
+
+            try
+            {
+                return JsonSerializer.Serialize<object>(thing, _deduplicatingOptions);
+            }
+            catch (Exception inner)
+            {
+                _logger.LogWarning(inner,
+                    "Fallback serialisation also failed for {SchemaType} (content {ContentId})",
+                    thing.GetType().Name, contentId);
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to serialise Schema.NET type {SchemaType} for content {ContentId}",
+                thing.GetType().Name, contentId);
+            return null;
+        }
+    }
+
     [GeneratedRegex("<[^>]+>")]
     private static partial Regex StripHtmlRegex();
 
@@ -609,7 +664,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 var thing = GenerateThingFromElement(element, mapping);
                 if (thing is not null)
                 {
-                    var jsonLd = thing.ToString();
+                    var jsonLd = SafeSerialize(thing);
                     if (!string.IsNullOrEmpty(jsonLd))
                         yield return jsonLd;
                 }

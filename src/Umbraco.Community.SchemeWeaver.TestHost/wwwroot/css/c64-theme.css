@@ -96,6 +96,7 @@ header {
   font-size: 1.1rem;
   letter-spacing: 0.12em;
   border-right: 1px solid #4a3a9e;
+  border-bottom: 2px solid transparent;
   transition: background 0.15s, color 0.15s;
 }
 
