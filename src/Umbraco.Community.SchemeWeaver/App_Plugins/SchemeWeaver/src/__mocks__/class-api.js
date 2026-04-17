@@ -1,3 +1,5 @@
+import { __mockContextRegistry } from './context-api.js';
+
 export class UmbControllerBase {
   constructor(host) {
     this._host = host;
@@ -8,10 +10,18 @@ export class UmbControllerBase {
   }
 
   async getContext(token) {
-    return {};
+    return __mockContextRegistry.consume(token);
   }
 
-  provideContext(token, instance) {}
+  consumeContext(token, callback) {
+    const instance = __mockContextRegistry.consume(token);
+    if (instance) callback(instance);
+    return { destroy() {} };
+  }
+
+  provideContext(token, instance) {
+    __mockContextRegistry.provide(token, instance);
+  }
 
   destroy() {}
 }

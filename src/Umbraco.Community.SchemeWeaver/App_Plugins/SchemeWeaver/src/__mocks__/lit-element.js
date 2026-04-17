@@ -1,4 +1,5 @@
 import { LitElement } from 'lit';
+import { __mockContextRegistry } from './context-api.js';
 
 /** Flat translation map mirroring src/localization/en.ts */
 const translations = {
@@ -85,12 +86,18 @@ export class UmbLitElement extends LitElement {
   }
 
   async getContext(token) {
-    return {};
+    return __mockContextRegistry.consume(token);
   }
 
-  consumeContext(token, callback) {}
+  consumeContext(token, callback) {
+    const instance = __mockContextRegistry.consume(token);
+    if (instance) callback(instance);
+    return { destroy() {} };
+  }
 
-  provideContext(token, instance) {}
+  provideContext(token, instance) {
+    __mockContextRegistry.provide(token, instance);
+  }
 }
 
 /** Minimal <umb-localize> stub that renders translation text in light DOM. */

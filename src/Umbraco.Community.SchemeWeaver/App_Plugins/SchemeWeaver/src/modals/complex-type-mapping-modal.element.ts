@@ -2,7 +2,8 @@ import { css, html, customElement, state, nothing, repeat } from '@umbraco-cms/b
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-modal.token.js';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
@@ -29,7 +30,7 @@ type WizardStep = 'type-selection' | 'mappings' | 'preview';
 
 @customElement('schemeweaver-complex-type-mapping-modal')
 export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexTypeMappingModalData, ComplexTypeMappingModalValue> {
-  #repository = new SchemeWeaverRepository(this);
+  #context?: SchemeWeaverContext;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
   #modalManagerContext?: typeof UMB_MODAL_MANAGER_CONTEXT.TYPE;
 
@@ -63,6 +64,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
 
   constructor() {
     super();
+    this.consumeContext(SCHEMEWEAVER_CONTEXT, (ctx) => { this.#context = ctx; });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => { this.#notificationContext = ctx; });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (ctx) => { this.#modalManagerContext = ctx; });
   }
@@ -145,7 +147,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
   }
 
   private async _loadSubTypeProperties(typeName: string) {
-    const props = await this.#repository.requestSchemaTypeProperties(typeName, true);
+    const props = await this.#context?.repository.requestSchemaTypeProperties(typeName, true);
     if (!props) return;
 
     // Merge with existing mappings, preserving user data
@@ -191,7 +193,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         .map(m => m.sourceContentTypeAlias)
     )];
     for (const alias of sourceAliases) {
-      const sourceProps = await this.#repository.requestContentTypeProperties(alias);
+      const sourceProps = await this.#context?.repository.requestContentTypeProperties(alias);
       if (sourceProps) {
         const propAliases = sourceProps.map(p => p.alias);
         this._subMappings = this._subMappings.map(m =>
@@ -287,7 +289,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
 
     if (!result?.contentTypeAlias) return;
 
-    const props = await this.#repository.requestContentTypeProperties(result.contentTypeAlias);
+    const props = await this.#context?.repository.requestContentTypeProperties(result.contentTypeAlias);
     const propertyAliases = props?.map(p => p.alias) || [];
 
     const updated = [...this._subMappings];

@@ -1,5 +1,6 @@
 import { LitElement } from 'lit';
 import { resolveLocalizationKey } from './lit-element.js';
+import { __mockContextRegistry } from './context-api.js';
 
 const localize = {
   term: (key) => resolveLocalizationKey(key),
@@ -26,12 +27,18 @@ export class UmbModalBaseElement extends LitElement {
   }
 
   async getContext(token) {
-    return {};
+    return __mockContextRegistry.consume(token);
   }
 
-  consumeContext(token, callback) {}
+  consumeContext(token, callback) {
+    const instance = __mockContextRegistry.consume(token);
+    if (instance) callback(instance);
+    return { destroy() {} };
+  }
 
-  provideContext(token, instance) {}
+  provideContext(token, instance) {
+    __mockContextRegistry.provide(token, instance);
+  }
 }
 
 export const UMB_MODAL_MANAGER_CONTEXT = Symbol('UMB_MODAL_MANAGER_CONTEXT');

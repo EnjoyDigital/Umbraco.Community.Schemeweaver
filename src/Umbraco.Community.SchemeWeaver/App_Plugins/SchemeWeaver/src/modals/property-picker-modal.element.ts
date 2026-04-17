@@ -2,13 +2,14 @@ import { css, html, customElement, state } from '@umbraco-cms/backoffice/externa
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import type { UmbNotificationContext } from '@umbraco-cms/backoffice/notification';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 import type { ContentTypeProperty } from '../api/types.js';
 import type { PropertyPickerModalData, PropertyPickerModalValue } from './property-picker-modal.token.js';
 
 @customElement('schemeweaver-property-picker-modal')
 export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPickerModalData, PropertyPickerModalValue> {
-  #repository = new SchemeWeaverRepository(this);
+  #context?: SchemeWeaverContext;
   #notificationContext?: UmbNotificationContext;
 
   @state()
@@ -25,6 +26,9 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
 
   constructor() {
     super();
+    this.consumeContext(SCHEMEWEAVER_CONTEXT, (ctx) => {
+      this.#context = ctx;
+    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => {
       this.#notificationContext = ctx;
     });
@@ -44,7 +48,7 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
         return;
       }
 
-      const properties = await this.#repository.requestContentTypeProperties(contentTypeAlias);
+      const properties = await this.#context?.repository.requestContentTypeProperties(contentTypeAlias);
       if (properties) {
         this._properties = properties;
       }
