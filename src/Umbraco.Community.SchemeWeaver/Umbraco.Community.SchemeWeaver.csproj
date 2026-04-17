@@ -6,8 +6,8 @@
 		<IsPackable>true</IsPackable>
 		<PackageId>Umbraco.Community.SchemeWeaver</PackageId>
 		<Product>Umbraco.Community.SchemeWeaver</Product>
-		<Title>SchemeWeaver — Schema.org JSON-LD Structured Data for Umbraco</Title>
-		<Description>Map Umbraco Content Types to any of 780+ Schema.org types and automatically generate JSON-LD structured data. Features confidence-scored auto-mapping, a backoffice UI for manual fine-tuning, seven property source types (property, static, parent, ancestor, sibling, block content, complex), HTML/URL/date transforms, culture-aware variant support, Delivery API integration, and a Razor tag helper for server-rendered templates. Can also scaffold new Umbraco document types from Schema.org models.</Description>
+		<Title>SchemeWeaver</Title>
+		<Description>Map Umbraco Content Types to Schema.org types and automatically generate JSON-LD structured data for your pages. Backoffice UI, auto-mapping, Delivery API integration, and a Razor tag helper.</Description>
 		<PackageTags>umbraco plugin package umbraco-marketplace schema.org json-ld structured-data seo schema-mapping</PackageTags>
 		<StaticWebAssetBasePath>App_Plugins/SchemeWeaver</StaticWebAssetBasePath>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
@@ -19,13 +19,13 @@
 		<PackageReleaseNotes>Full changelog and documentation at https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageReleaseNotes>
 		<RepositoryType>git</RepositoryType>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
 		<PackageIcon>icon.png</PackageIcon>
 		<RootNamespace>Umbraco.Community.SchemeWeaver</RootNamespace>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\..\NUGET_README.md" Pack="true" PackagePath="\" />
 		<None Include="..\..\icon.png" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
