@@ -4,7 +4,8 @@ import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from './nested-mapping-modal.token.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
@@ -15,7 +16,7 @@ import type { PropertyMappingModalData, PropertyMappingModalValue } from './prop
 
 @customElement('schemeweaver-property-mapping-modal')
 export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMappingModalData, PropertyMappingModalValue> {
-  #repository = new SchemeWeaverRepository(this);
+  #context?: SchemeWeaverContext;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
   #modalManagerContext?: typeof UMB_MODAL_MANAGER_CONTEXT.TYPE;
 
@@ -42,6 +43,9 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
   constructor() {
     super();
+    this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
+      this.#context = context;
+    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
@@ -58,7 +62,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
   private async _checkAIStatus() {
     try {
-      const status = await this.#repository.requestAIStatus();
+      const status = await this.#context?.repository.requestAIStatus();
       this._aiAvailable = status?.available === true;
     } catch {
       this._aiAvailable = false;
@@ -68,7 +72,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   private async _handleAIAutoMap() {
     this._aiLoading = true;
     try {
-      const suggestions = await this.#repository.requestAIAutoMap(
+      const suggestions = await this.#context?.repository.requestAIAutoMap(
         this.data?.contentTypeAlias || '',
         this.data?.schemaType || '',
       );
@@ -88,7 +92,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     this._loading = true;
     try {
       // Auto-map returns a flat array of PropertyMappingSuggestion
-      const suggestions = await this.#repository.requestAutoMap(
+      const suggestions = await this.#context?.repository.requestAutoMap(
         this.data?.contentTypeAlias || '',
         this.data?.schemaType || ''
       );
@@ -98,8 +102,8 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       }
 
       const [props, schemaProps] = await Promise.all([
-        this.#repository.requestContentTypeProperties(this.data?.contentTypeAlias || ''),
-        this.#repository.requestSchemaTypeProperties(this.data?.schemaType || ''),
+        this.#context?.repository.requestContentTypeProperties(this.data?.contentTypeAlias || ''),
+        this.#context?.repository.requestSchemaTypeProperties(this.data?.schemaType || ''),
       ]);
       if (props) {
         this._availableProperties = props.map((p) => p.alias);
@@ -191,11 +195,11 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     const { index, documentTypeUnique } = e.detail;
     if (!documentTypeUnique) return;
 
-    const contentTypes = await this.#repository.requestContentTypes();
+    const contentTypes = await this.#context?.repository.requestContentTypes();
     const match = contentTypes?.find((ct) => ct.key === documentTypeUnique);
     if (!match) return;
 
-    const props = await this.#repository.requestContentTypeProperties(match.alias);
+    const props = await this.#context?.repository.requestContentTypeProperties(match.alias);
     const propertyAliases = props?.map((p) => p.alias) || [];
 
     const updated = [...this._mappings];
@@ -249,7 +253,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     this._saving = true;
 
     try {
-      await this.#repository.saveMapping({
+      await this.#context?.repository.saveMapping({
         contentTypeAlias: this.data?.contentTypeAlias || '',
         contentTypeKey: this.data?.contentTypeKey ?? '',
         schemaTypeName: this.data?.schemaType || '',

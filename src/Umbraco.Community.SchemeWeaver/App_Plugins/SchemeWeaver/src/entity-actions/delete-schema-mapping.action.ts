@@ -3,18 +3,24 @@ import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from '@umbraco-cms/backo
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { UmbLocalizationController } from '@umbraco-cms/backoffice/localization-api';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 
 export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
   #localize = new UmbLocalizationController(this);
 
   async execute() {
-    const repository = new SchemeWeaverRepository(this);
+    const context = await this.getContext(SCHEMEWEAVER_CONTEXT);
     const notificationContext = await this.getContext(UMB_NOTIFICATION_CONTEXT);
-    const contentTypeAlias = await repository.resolveContentTypeAlias(this.args.unique ?? '') ?? this.args.unique ?? '';
+    if (!context) {
+      notificationContext?.peek('danger', {
+        data: { message: this.#localize.term('schemeWeaver_failedToDeleteMapping') },
+      });
+      return;
+    }
+    const contentTypeAlias = await context.resolveContentTypeAlias(this.args.unique ?? '') ?? this.args.unique ?? '';
 
     // Check if a mapping exists
-    const mapping = await repository.requestMapping(contentTypeAlias);
+    const mapping = await context.requestMapping(contentTypeAlias);
     if (!mapping) {
       notificationContext?.peek('warning', {
         data: { message: this.#localize.term('schemeWeaver_noMappingExists') },
@@ -44,7 +50,7 @@ export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
 
     // Delete the mapping
     try {
-      await repository.deleteMapping(contentTypeAlias);
+      await context.deleteMapping(contentTypeAlias);
 
       notificationContext?.peek('positive', {
         data: { message: this.#localize.term('schemeWeaver_mappingDeleted') },

@@ -3,7 +3,7 @@ import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UmbLocalizationController } from '@umbraco-cms/backoffice/localization-api';
 import { SCHEMEWEAVER_GENERATE_DOCTYPE_MODAL } from '../modals/generate-doctype-modal.token.js';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 
 export class GenerateFromSchemaAction extends UmbEntityActionBase<never> {
   async execute() {
@@ -16,8 +16,9 @@ export class GenerateFromSchemaAction extends UmbEntityActionBase<never> {
     // Resolve GUID to alias — entity actions receive unique (GUID), but the API expects alias
     let contentTypeAlias: string;
     try {
-      const repository = new SchemeWeaverRepository(this);
-      contentTypeAlias = await repository.resolveContentTypeAlias(this.args.unique ?? '') ?? this.args.unique ?? '';
+      const context = await this.getContext(SCHEMEWEAVER_CONTEXT);
+      if (!context) throw new Error('SchemeWeaverContext not provided');
+      contentTypeAlias = await context.resolveContentTypeAlias(this.args.unique ?? '') ?? this.args.unique ?? '';
     } catch {
       notificationContext?.peek('danger', {
         data: {

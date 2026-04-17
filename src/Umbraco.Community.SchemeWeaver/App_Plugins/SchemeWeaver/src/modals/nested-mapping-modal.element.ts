@@ -1,7 +1,8 @@
 import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 import type { SchemaPropertyInfo, RankedSchemaPropertyInfo, BlockElementTypeInfo } from '../api/types.js';
 
 import type { NestedMappingModalData, NestedMappingModalValue } from './nested-mapping-modal.token.js';
@@ -24,7 +25,7 @@ type WizardStep = 'block-type' | 'mappings' | 'preview';
 
 @customElement('schemeweaver-nested-mapping-modal')
 export class NestedMappingModalElement extends UmbModalBaseElement<NestedMappingModalData, NestedMappingModalValue> {
-  #repository = new SchemeWeaverRepository(this);
+  #context?: SchemeWeaverContext;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
@@ -62,6 +63,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
   constructor() {
     super();
+    this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
+      this.#context = context;
+    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
@@ -81,9 +85,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
       // Fetch schema type properties (ranked — popular-first) and block element types in parallel
       const [schemaProps, blockTypes] = await Promise.all([
-        this.#repository.requestSchemaTypeProperties(schemaTypeName, true),
+        this.#context?.repository.requestSchemaTypeProperties(schemaTypeName, true),
         propertyAlias
-          ? this.#repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
+          ? this.#context?.repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
       ]);
 
@@ -414,7 +418,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   /** Fetch and cache schema type properties */
   private async _getTypeProperties(typeName: string): Promise<SchemaPropertyInfo[]> {
     if (!this._typePropsCache[typeName]) {
-      const props = await this.#repository.requestSchemaTypeProperties(typeName);
+      const props = await this.#context?.repository.requestSchemaTypeProperties(typeName);
       this._typePropsCache[typeName] = props || [];
     }
     return this._typePropsCache[typeName];

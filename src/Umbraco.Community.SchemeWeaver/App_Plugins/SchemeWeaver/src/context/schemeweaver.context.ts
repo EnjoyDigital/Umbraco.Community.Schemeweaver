@@ -14,6 +14,13 @@ import type {
 export class SchemeWeaverContext extends UmbControllerBase {
   #repository: SchemeWeaverRepository;
 
+  /** Direct access to the underlying repository for callers (modals, entity
+   *  actions, workspace views) that need endpoints not already surfaced as
+   *  context methods — e.g. AI status, AI auto-map, AI schema suggestions. */
+  public get repository(): SchemeWeaverRepository {
+    return this.#repository;
+  }
+
   #schemaTypes = new UmbArrayState<SchemaTypeInfo>([], (x) => x.name);
   public readonly schemaTypes = this.#schemaTypes.asObservable();
 

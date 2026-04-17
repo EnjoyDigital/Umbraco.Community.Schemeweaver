@@ -1,7 +1,8 @@
 import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
-import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 import type { SchemaTypeInfo, SchemaTypeSuggestion } from '../api/types.js';
 import type { SchemaPickerModalData, SchemaPickerModalValue } from './schema-picker-modal.token.js';
 
@@ -12,12 +13,15 @@ interface SchemaTypeGroup {
 
 @customElement('schemeweaver-schema-picker-modal')
 export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerModalData, SchemaPickerModalValue> {
-  #repository = new SchemeWeaverRepository(this);
+  #context?: SchemeWeaverContext;
   #searchTimer?: ReturnType<typeof setTimeout>;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   constructor() {
     super();
+    this.consumeContext(SCHEMEWEAVER_CONTEXT, (ctx) => {
+      this.#context = ctx;
+    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => {
       this.#notificationContext = ctx;
     });
@@ -62,7 +66,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
 
   private async _checkAIStatus() {
     try {
-      const status = await this.#repository.requestAIStatus();
+      const status = await this.#context?.repository.requestAIStatus();
       this._aiAvailable = status?.available === true;
     } catch {
       this._aiAvailable = false;
@@ -76,7 +80,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     this._aiLoading = true;
     this._aiSuggestions = [];
     try {
-      const suggestions = await this.#repository.requestAISuggestSchemaType(contentTypeAlias);
+      const suggestions = await this.#context?.repository.requestAISuggestSchemaType(contentTypeAlias);
       if (suggestions && suggestions.length > 0) {
         this._aiSuggestions = suggestions.slice(0, 3);
       } else {
@@ -100,7 +104,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   private async _fetchSchemaTypes() {
     this._loading = true;
     try {
-      const types = await this.#repository.requestSchemaTypes();
+      const types = await this.#context?.repository.requestSchemaTypes();
       if (types) {
         this._schemaTypes = types;
       }
@@ -123,7 +127,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   private async _doSearch() {
     this._loading = true;
     try {
-      const types = await this.#repository.requestSchemaTypes(this._searchTerm || undefined);
+      const types = await this.#context?.repository.requestSchemaTypes(this._searchTerm || undefined);
       if (types) {
         this._schemaTypes = types;
       }

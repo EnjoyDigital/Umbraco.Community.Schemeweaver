@@ -7,7 +7,8 @@ import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { UmbRequestReloadStructureForEntityEvent } from '@umbraco-cms/backoffice/entity-action';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import '../components/property-mapping-table.element.js';
-import { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from '../modals/source-origin-picker-modal.token.js';
@@ -19,10 +20,12 @@ import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChan
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
-  // Per-view context instance — each workspace view scope has its own,
-  // which is fine because the workspace views never run on the same controller chain.
-  #context = new SchemeWeaverContext(this);
+  // The shared SchemeWeaverContext is provided at the app root by the
+  // backoffice entry point (see src/entry-point.ts) — consume it rather than
+  // build another per-view instance.
+  #context?: SchemeWeaverContext;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
+  #modalManagerContext?: typeof UMB_MODAL_MANAGER_CONTEXT.TYPE;
 
   @state()
   private _loading = true;
@@ -47,8 +50,14 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
   constructor() {
     super();
+    this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
+      this.#context = context;
+    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
+    });
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManagerContext = context;
     });
 
     // Auto-save schema mapping when *this* document type is saved.
@@ -113,7 +122,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
     this._loading = true;
 
     try {
-      const mapping = await this.#context.requestMapping(this._contentTypeAlias);
+      const mapping = await this.#context?.requestMapping(this._contentTypeAlias);
 
       if (!mapping) {
         this._mapping = null;
@@ -126,7 +135,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       this._rows = sortMappingRows(mapping.propertyMappings.map(dtoToRow));
 
       // Enrich rows with schema property info (acceptedTypes, isComplexType)
-      const schemaProps = await this.#context.requestSchemaTypeProperties(mapping.schemaTypeName);
+      const schemaProps = await this.#context?.requestSchemaTypeProperties(mapping.schemaTypeName);
       if (schemaProps) {
         this._allSchemaProperties = schemaProps;
         this._rows = this._rows.map(row => {
@@ -163,7 +172,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
         this._rows = sortMappingRows(this._rows);
       }
 
-      const props = await this.#context.requestContentTypeProperties(this._contentTypeAlias);
+      const props = await this.#context?.requestContentTypeProperties(this._contentTypeAlias);
       if (props) {
         this._availableProperties = props.map((p: ContentTypeProperty) => p.alias);
       }
@@ -179,7 +188,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
         const sourcePropsMap = new Map<string, string[]>();
         await Promise.all(
           sourceAliases.map(async (alias) => {
-            const sourceProps = await this.#context.requestContentTypeProperties(alias);
+            const sourceProps = await this.#context?.requestContentTypeProperties(alias);
             if (sourceProps) {
               sourcePropsMap.set(alias, sourceProps.map((p) => p.alias));
             }
@@ -187,7 +196,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
         );
 
         // Fetch content types to reconstruct sourceDocumentTypeUnique from alias
-        const contentTypes = await this.#context.requestContentTypes();
+        const contentTypes = await this.#context?.requestContentTypes();
 
         this._rows = this._rows.map((row) => {
           if (row.sourceContentTypeAlias && sourcePropsMap.has(row.sourceContentTypeAlias)) {
@@ -213,10 +222,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
   }
 
   private async _handleMapToSchema() {
-    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
-    if (!modalManager) return;
+    if (!this.#modalManagerContext) return;
 
-    const pickerResult = await modalManager
+    const pickerResult = await this.#modalManagerContext
       .open(this, SCHEMEWEAVER_SCHEMA_PICKER_MODAL, {
         data: { contentTypeAlias: this._contentTypeAlias },
       })
@@ -225,7 +233,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
     if (!pickerResult?.schemaType) return;
 
-    const mappingResult = await modalManager
+    const mappingResult = await this.#modalManagerContext
       .open(this, SCHEMEWEAVER_PROPERTY_MAPPING_MODAL, {
         data: {
           contentTypeAlias: this._contentTypeAlias,
@@ -246,7 +254,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
     this._loading = true;
     try {
-      const suggestions = await this.#context.autoMap(
+      const suggestions = await this.#context?.autoMap(
         this._contentTypeAlias,
         this._mapping.schemaTypeName
       );
@@ -292,7 +300,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
             dynamicRootConfig: row.dynamicRootConfig ? JSON.stringify(row.dynamicRootConfig) : null,
           })),
       };
-      await this.#context.saveMapping(dto);
+      await this.#context?.saveMapping(dto);
       this.#notificationContext?.peek('positive', {
         data: { message: this.localize.term('schemeWeaver_mappingSaved') },
       });
@@ -323,11 +331,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
     if (!documentTypeUnique) return;
 
     // Look up the content type by its unique key to get the alias
-    const contentTypes = await this.#context.requestContentTypes();
+    const contentTypes = await this.#context?.requestContentTypes();
     const match = contentTypes?.find((ct) => ct.key === documentTypeUnique);
     if (!match) return;
 
-    const props = await this.#context.requestContentTypeProperties(match.alias);
+    const props = await this.#context?.requestContentTypeProperties(match.alias);
     const propertyAliases = props?.map((p) => p.alias) || [];
 
     const updated = [...this._rows];
@@ -342,10 +350,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
   private async _handlePickSourceOrigin(e: CustomEvent) {
     const { index, editorAlias, isComplexType, currentSourceType } = e.detail;
-    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
-    if (!modalManager) return;
+    if (!this.#modalManagerContext) return;
 
-    const result = await modalManager
+    const result = await this.#modalManagerContext
       .open(this, SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL, {
         data: { editorAlias, isComplexType, currentSourceType },
       })
@@ -377,10 +384,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
       return;
     }
 
-    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
-    if (!modalManager) return;
+    if (!this.#modalManagerContext) return;
 
-    const modalHandler = modalManager.open(this, SCHEMEWEAVER_NESTED_MAPPING_MODAL, {
+    const modalHandler = this.#modalManagerContext.open(this, SCHEMEWEAVER_NESTED_MAPPING_MODAL, {
       data: {
         nestedSchemaTypeName: mapping.nestedSchemaTypeName,
         contentTypePropertyAlias: mapping.contentTypePropertyAlias,
@@ -403,10 +409,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
   private async _handleConfigureComplexTypeMapping(e: CustomEvent) {
     const { index, schemaPropertyName, acceptedTypes, selectedSubType, resolverConfig } = e.detail;
-    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
-    if (!modalManager) return;
+    if (!this.#modalManagerContext) return;
 
-    const modalHandler = modalManager.open(this, SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL, {
+    const modalHandler = this.#modalManagerContext.open(this, SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL, {
       data: {
         schemaPropertyName,
         acceptedTypes: acceptedTypes || [],

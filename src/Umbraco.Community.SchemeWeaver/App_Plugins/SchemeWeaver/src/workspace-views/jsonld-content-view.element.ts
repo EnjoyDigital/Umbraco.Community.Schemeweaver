@@ -4,13 +4,14 @@ import { UMB_DOCUMENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/document
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import '../components/jsonld-preview.element.js';
 import type { JsonLdPreviewElement } from '../components/jsonld-preview.element.js';
-import { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 import type { JsonLdPreviewResponse } from '../api/types.js';
 
 @customElement('schemeweaver-jsonld-content-view')
 export class JsonLdContentViewElement extends UmbLitElement {
-  // Per-view context instance — see schema-mapping-view for rationale.
-  #context = new SchemeWeaverContext(this);
+  // Consumed from the root backoffice entry point — see src/entry-point.ts.
+  #context?: SchemeWeaverContext;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
@@ -36,6 +37,9 @@ export class JsonLdContentViewElement extends UmbLitElement {
 
   constructor() {
     super();
+    this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
+      this.#context = context;
+    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
@@ -66,7 +70,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
         workspaceContext.contentTypeUnique,
         async (contentTypeId) => {
           if (!contentTypeId) return;
-          const alias = await this.#context.resolveContentTypeAlias(contentTypeId);
+          const alias = await this.#context?.resolveContentTypeAlias(contentTypeId);
           if (alias) {
             this._contentTypeAlias = alias;
             await this._checkMapping();
@@ -88,7 +92,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
 
   private async _checkMapping() {
     if (this._contentTypeAlias) {
-      const mapping = await this.#context.requestMapping(this._contentTypeAlias);
+      const mapping = await this.#context?.requestMapping(this._contentTypeAlias);
       this._hasMapping = !!mapping;
       if (this._hasMapping) {
         await this._generatePreview();
@@ -107,7 +111,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
     this._generating = true;
     this._unpublished = false;
     try {
-      const result = await this.#context.requestPreview(this._contentTypeAlias, this._contentKey, this._culture);
+      const result = await this.#context?.requestPreview(this._contentTypeAlias, this._contentKey, this._culture);
       if (result) {
         this._preview = result;
       } else {
