@@ -94,13 +94,16 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
       <umb-body-layout headline=${this.localize.term('schemeWeaver_selectProperty')}>
         <uui-box>
           <uui-input
+            type="search"
             placeholder=${this.localize.term('schemeWeaver_searchProperties')}
             @input=${this._handleSearch}
             .value=${this._searchTerm}
             class="search-input"
             label=${this.localize.term('schemeWeaver_searchProperties')}
           >
-            <uui-icon name="icon-search" slot="prepend"></uui-icon>
+            <div slot="prepend" class="search-prepend">
+              <uui-icon name="icon-search"></uui-icon>
+            </div>
           </uui-input>
 
           ${this._loading
@@ -150,8 +153,8 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
           <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
             ${this.localize.term('schemeWeaver_cancel')}
           </uui-button>
-          <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedProperty} label=${this.localize.term('general_select')}>
-            ${this.localize.term('general_select')}
+          <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedProperty} label=${this.localize.term('buttons_select')}>
+            ${this.localize.term('buttons_select')}
           </uui-button>
         </div>
       </umb-body-layout>
@@ -167,6 +170,13 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
       .search-input {
         width: 100%;
         margin-bottom: var(--uui-size-space-4);
+      }
+
+      .search-prepend {
+        display: flex;
+        align-items: center;
+        padding: 0 var(--uui-size-space-3);
+        color: var(--uui-color-text-alt);
       }
 
       .loading {
@@ -197,6 +207,14 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
       .property-item.selected {
         background-color: var(--uui-color-selected);
         border-color: var(--uui-color-focus);
+        color: var(--uui-color-selected-contrast);
+      }
+
+      .property-item.selected .property-name,
+      .property-item.selected .property-editor,
+      .property-item.selected .property-description {
+        color: var(--uui-color-selected-contrast);
+        opacity: 0.85;
       }
 
       .property-item-header {

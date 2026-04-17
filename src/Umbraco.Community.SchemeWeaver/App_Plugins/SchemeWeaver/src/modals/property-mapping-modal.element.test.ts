@@ -65,4 +65,27 @@ describe('PropertyMappingModalElement', () => {
     expect(headline).to.exist;
     expect(headline!.getAttribute('headline')).to.contain('Article');
   });
+
+  // Regression guard — two modals opened concurrently for different doc
+  // types must each reflect only their own assigned contentTypeAlias in
+  // `_mappings`, not the other's. Shared-context refactors that break
+  // isolation should fail here.
+  it('two modals opened concurrently for different doc types do not cross-contaminate', async () => {
+    const elA = createElement('blogArticle', 'Article');
+    const elB = createElement('homePage', 'WebSite');
+
+    await Promise.all([waitForLoad(elA), waitForLoad(elB)]);
+
+    const aliasesA: string[] = elA._mappings
+      .map((m: { contentTypePropertyAlias: string }) => m.contentTypePropertyAlias)
+      .filter(Boolean);
+    const aliasesB: string[] = elB._mappings
+      .map((m: { contentTypePropertyAlias: string }) => m.contentTypePropertyAlias)
+      .filter(Boolean);
+
+    expect(aliasesA).to.not.include('siteName');
+    expect(aliasesB).to.not.include('title');
+    expect(aliasesB).to.not.include('authorName');
+    expect(aliasesB).to.not.include('publishDate');
+  });
 });

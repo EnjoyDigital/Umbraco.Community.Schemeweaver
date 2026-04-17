@@ -226,13 +226,16 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
           ` : ''}
 
           <uui-input
+            type="search"
             placeholder=${this.localize.term('schemeWeaver_searchSchemaTypes')}
             @input=${this._handleSearch}
             .value=${this._searchTerm}
             class="search-input"
             label=${this.localize.term('schemeWeaver_searchSchemaTypes')}
           >
-            <uui-icon name="icon-search" slot="prepend"></uui-icon>
+            <div slot="prepend" class="search-prepend">
+              <uui-icon name="icon-search"></uui-icon>
+            </div>
           </uui-input>
 
           ${this._loading
@@ -286,8 +289,8 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
           <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
             ${this.localize.term('schemeWeaver_cancel')}
           </uui-button>
-          <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedType} label=${this.localize.term('general_select')}>
-            ${this.localize.term('general_select')}
+          <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedType} label=${this.localize.term('buttons_select')}>
+            ${this.localize.term('buttons_select')}
           </uui-button>
           ${!this._selectedType
             ? html`<small class="disabled-hint">${this.localize.term('schemeWeaver_selectASchemaType')}</small>`
@@ -306,6 +309,13 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
       .search-input {
         width: 100%;
         margin-bottom: var(--uui-size-space-4);
+      }
+
+      .search-prepend {
+        display: flex;
+        align-items: center;
+        padding: 0 var(--uui-size-space-3);
+        color: var(--uui-color-text-alt);
       }
 
       .loading {
@@ -350,6 +360,14 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
       .schema-item.selected {
         background-color: var(--uui-color-selected);
         border-color: var(--uui-color-focus);
+        color: var(--uui-color-selected-contrast);
+      }
+
+      .schema-item.selected .parent-label,
+      .schema-item.selected .schema-description,
+      .schema-item.selected .property-count {
+        color: var(--uui-color-selected-contrast);
+        opacity: 0.85;
       }
 
       .schema-item-header {
@@ -420,6 +438,12 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
       .ai-suggestion-card.selected {
         background-color: var(--uui-color-selected);
         border-color: var(--uui-color-focus);
+        color: var(--uui-color-selected-contrast);
+      }
+
+      .ai-suggestion-card.selected .ai-suggestion-reasoning {
+        color: var(--uui-color-selected-contrast);
+        opacity: 0.85;
       }
 
       .ai-suggestion-header {
