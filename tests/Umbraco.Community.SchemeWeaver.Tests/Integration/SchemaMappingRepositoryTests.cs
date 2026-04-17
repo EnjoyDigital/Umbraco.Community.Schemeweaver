@@ -123,9 +123,10 @@ public class SchemaMappingRepositoryTests : UmbracoIntegrationTestBase
             updated.SchemaTypeName.Should().Be("HowTo");
             updated.UpdatedDate.Should().BeOnOrAfter(originalCreated);
 
-            var all = repository.GetAll().ToList();
-            all.Should().HaveCount(1);
-            all[0].SchemaTypeName.Should().Be("HowTo");
+            var roundTrip = repository.GetByContentTypeAlias("recipe");
+            roundTrip.Should().NotBeNull();
+            roundTrip!.Id.Should().Be(seeded.Id);
+            roundTrip.SchemaTypeName.Should().Be("HowTo");
         }
     }
 
