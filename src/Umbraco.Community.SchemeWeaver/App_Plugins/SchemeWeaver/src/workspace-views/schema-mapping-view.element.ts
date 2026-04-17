@@ -14,6 +14,7 @@ import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from '../modals/source-origin
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from '../modals/nested-mapping-modal.token.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from '../modals/complex-type-mapping-modal.token.js';
 import type { SchemaMappingDto, ContentTypeProperty, SchemaPropertyInfo } from '../api/types.js';
+import { SourceType } from '../constants/source-type.js';
 
 import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange } from '../utils/mapping-converters.js';
 
@@ -141,7 +142,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
               isComplexType: schemaProp.isComplexType || false,
             };
             // Restore sub-mappings from saved resolverConfig for complexType rows
-            if (enriched.sourceType === 'complexType' && enriched.resolverConfig) {
+            if (enriched.sourceType === SourceType.ComplexType && enriched.resolverConfig) {
               try {
                 const config = JSON.parse(enriched.resolverConfig);
                 if (config.complexTypeMappings?.length) {
@@ -149,7 +150,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
                   enriched.subMappings = config.complexTypeMappings.map((m: Record<string, string>) => ({
                     schemaProperty: m.schemaProperty || '',
                     schemaPropertyType: '',
-                    sourceType: m.sourceType || 'property',
+                    sourceType: (m.sourceType as typeof SourceType[keyof typeof SourceType]) || SourceType.Property,
                     contentTypePropertyAlias: m.contentTypePropertyAlias || '',
                     staticValue: m.staticValue || '',
                   }));
@@ -171,7 +172,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       // Fetch properties for any existing parent/ancestor/sibling source content types
       const sourceAliases = [...new Set(
         this._rows
-          .filter((r) => r.sourceContentTypeAlias && ['parent', 'ancestor', 'sibling'].includes(r.sourceType))
+          .filter((r) => r.sourceContentTypeAlias && [SourceType.Parent, SourceType.Ancestor, SourceType.Sibling].includes(r.sourceType))
           .map((r) => r.sourceContentTypeAlias)
       )];
 
@@ -274,9 +275,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
         contentTypeKey: this._contentTypeKey || this._mapping.contentTypeKey,
         propertyMappings: this._rows
           .filter((row) => {
-            if (row.sourceType === 'static') return !!row.staticValue;
-            if (row.sourceType === 'complexType') return !!row.resolverConfig;
-            if (row.sourceType === 'blockContent') return !!row.contentTypePropertyAlias;
+            if (row.sourceType === SourceType.Static) return !!row.staticValue;
+            if (row.sourceType === SourceType.ComplexType) return !!row.resolverConfig;
+            if (row.sourceType === SourceType.BlockContent) return !!row.contentTypePropertyAlias;
             return !!row.contentTypePropertyAlias;
           })
           .map((row) => ({

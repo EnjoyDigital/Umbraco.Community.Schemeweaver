@@ -1,5 +1,6 @@
 import type { PropertyMappingDto, PropertyMappingSuggestion } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
+import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
 
 /** Popular Schema.org properties shown first in sorted order */
 export const POPULAR_PROPERTIES = [
@@ -12,7 +13,7 @@ export function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
   return {
     schemaPropertyName: dto.schemaPropertyName || '',
     schemaPropertyType: '',
-    sourceType: dto.sourceType || 'property',
+    sourceType: dto.sourceType || SourceType.Property,
     contentTypePropertyAlias: dto.contentTypePropertyAlias || '',
     sourceContentTypeAlias: dto.sourceContentTypeAlias || '',
     staticValue: dto.staticValue || '',
@@ -122,8 +123,8 @@ export function mergeAutoMapSuggestions(
  * Apply a source type change to a mapping row, resetting dependent fields.
  * Shared between property-mapping-table, schema-mapping-view, and property-mapping-modal.
  */
-export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: string): PropertyMappingRow {
-  const needsRelated = newSourceType === 'parent' || newSourceType === 'ancestor' || newSourceType === 'sibling';
+export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: SourceTypeValue): PropertyMappingRow {
+  const needsRelated = newSourceType === SourceType.Parent || newSourceType === SourceType.Ancestor || newSourceType === SourceType.Sibling;
   return {
     ...row,
     sourceType: newSourceType,
@@ -133,13 +134,13 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: st
     sourceContentTypeProperties: needsRelated ? row.sourceContentTypeProperties : [],
     dynamicRootConfig: needsRelated ? row.dynamicRootConfig : undefined,
     sourceDocumentTypeUnique: needsRelated ? row.sourceDocumentTypeUnique : undefined,
-    nestedSchemaTypeName: (newSourceType === 'blockContent' || newSourceType === 'complexType')
+    nestedSchemaTypeName: (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
       ? row.nestedSchemaTypeName : '',
-    resolverConfig: (newSourceType === 'blockContent' || newSourceType === 'complexType')
+    resolverConfig: (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
       ? row.resolverConfig : null,
-    expanded: newSourceType === 'complexType' ? row.expanded : false,
-    subMappings: newSourceType === 'complexType' ? row.subMappings : [],
-    selectedSubType: newSourceType === 'complexType' ? row.selectedSubType : '',
+    expanded: newSourceType === SourceType.ComplexType ? row.expanded : false,
+    subMappings: newSourceType === SourceType.ComplexType ? row.subMappings : [],
+    selectedSubType: newSourceType === SourceType.ComplexType ? row.selectedSubType : '',
   };
 }
 

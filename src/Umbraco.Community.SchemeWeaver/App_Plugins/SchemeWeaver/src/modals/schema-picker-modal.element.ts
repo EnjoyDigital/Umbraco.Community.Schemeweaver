@@ -39,6 +39,9 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   private _aiAvailable = false;
 
   @state()
+  private _aiChecking = true;
+
+  @state()
   private _aiLoading = false;
 
   @state()
@@ -61,11 +64,14 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   }
 
   private async _checkAIStatus() {
+    this._aiChecking = true;
     try {
       const status = await this.#repository.requestAIStatus();
       this._aiAvailable = status?.available === true;
     } catch {
       this._aiAvailable = false;
+    } finally {
+      this._aiChecking = false;
     }
   }
 
@@ -171,7 +177,11 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     return html`
       <umb-body-layout headline=${this.localize.term('schemeWeaver_selectSchemaType')}>
         <uui-box>
-          ${this._aiAvailable ? html`
+          ${this._aiChecking ? html`
+            <div class="ai-section">
+              <uui-loader-bar></uui-loader-bar>
+            </div>
+          ` : this._aiAvailable ? html`
             <div class="ai-section">
               ${this._aiSuggestions.length === 0 ? html`
                 <uui-button

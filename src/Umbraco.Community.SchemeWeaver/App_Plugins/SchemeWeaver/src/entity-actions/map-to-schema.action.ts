@@ -7,8 +7,9 @@ import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 
 export class MapToSchemaAction extends UmbEntityActionBase<never> {
+  #localize = new UmbLocalizationController(this);
+
   async execute() {
-    const localize = new UmbLocalizationController(this);
     const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
     if (!modalManager) return;
 
@@ -22,8 +23,8 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
     } catch {
       notificationContext?.peek('danger', {
         data: {
-          headline: localize.term('schemeWeaver_mapToSchema'),
-          message: localize.term('schemeWeaver_failedToResolveContentType'),
+          headline: this.#localize.term('schemeWeaver_mapToSchema'),
+          message: this.#localize.term('schemeWeaver_failedToResolveContentType'),
         },
       });
       return;
@@ -55,7 +56,7 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
 
     if (mappingResult !== null) {
       notificationContext?.peek('positive', {
-        data: { message: localize.term('schemeWeaver_mappingSaved') },
+        data: { message: this.#localize.term('schemeWeaver_mappingSaved') },
       });
     }
   }

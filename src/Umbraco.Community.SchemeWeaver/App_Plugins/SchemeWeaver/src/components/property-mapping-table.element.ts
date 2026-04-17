@@ -2,6 +2,7 @@ import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { POPULAR_PROPERTIES } from '../utils/mapping-converters.js';
 import type { SchemaPropertyInfo } from '../api/types.js';
+import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
 import './property-combobox.element.js';
 
 /** Local shape for uui-combobox events — search/value are exposed by the web component. */
@@ -21,7 +22,7 @@ interface DynamicRootConfig {
 export interface SubPropertyMapping {
   schemaProperty: string;
   schemaPropertyType: string;
-  sourceType: string;
+  sourceType: SourceTypeValue;
   contentTypePropertyAlias: string;
   staticValue: string;
 }
@@ -33,7 +34,7 @@ export interface SubPropertyMapping {
 export interface PropertyMappingRow {
   schemaPropertyName: string;
   schemaPropertyType: string;
-  sourceType: string;
+  sourceType: SourceTypeValue;
   contentTypePropertyAlias: string;
   sourceContentTypeAlias: string;
   staticValue: string;
@@ -65,8 +66,12 @@ export class PropertyMappingTableElement extends UmbLitElement {
   connectedCallback() {
     super.connectedCallback();
     // Dynamically import Umbraco picker components to register custom elements.
-    import('@umbraco-cms/backoffice/content-picker').catch(() => {});
-    import('@umbraco-cms/backoffice/document-type').catch(() => {});
+    import('@umbraco-cms/backoffice/content-picker').catch((err) =>
+      console.warn('[SchemeWeaver] Failed to load @umbraco-cms/backoffice/content-picker:', err),
+    );
+    import('@umbraco-cms/backoffice/document-type').catch((err) =>
+      console.warn('[SchemeWeaver] Failed to load @umbraco-cms/backoffice/document-type:', err),
+    );
   }
 
   @property({ type: Array })
@@ -94,13 +99,13 @@ export class PropertyMappingTableElement extends UmbLitElement {
   /** Source type icon mapping */
   private _getSourceIcon(sourceType: string): string {
     switch (sourceType) {
-      case 'property': return 'icon-document';
-      case 'static': return 'icon-edit';
-      case 'parent': return 'icon-arrow-up';
-      case 'ancestor': return 'icon-hierarchy';
-      case 'sibling': return 'icon-split-alt';
-      case 'blockContent': return 'icon-grid';
-      case 'complexType': return 'icon-brackets';
+      case SourceType.Property: return 'icon-document';
+      case SourceType.Static: return 'icon-edit';
+      case SourceType.Parent: return 'icon-arrow-up';
+      case SourceType.Ancestor: return 'icon-hierarchy';
+      case SourceType.Sibling: return 'icon-split-alt';
+      case SourceType.BlockContent: return 'icon-grid';
+      case SourceType.ComplexType: return 'icon-brackets';
       default: return 'icon-document';
     }
   }
@@ -108,13 +113,13 @@ export class PropertyMappingTableElement extends UmbLitElement {
   /** Source type label key mapping */
   private _getSourceLabelKey(sourceType: string): string {
     switch (sourceType) {
-      case 'property': return 'schemeWeaver_sourceCurrentNode';
-      case 'static': return 'schemeWeaver_sourceStaticValue';
-      case 'parent': return 'schemeWeaver_sourceParentNode';
-      case 'ancestor': return 'schemeWeaver_sourceAncestorNode';
-      case 'sibling': return 'schemeWeaver_sourceSiblingNode';
-      case 'blockContent': return 'schemeWeaver_sourceBlockContent';
-      case 'complexType': return 'schemeWeaver_sourceComplexType';
+      case SourceType.Property: return 'schemeWeaver_sourceCurrentNode';
+      case SourceType.Static: return 'schemeWeaver_sourceStaticValue';
+      case SourceType.Parent: return 'schemeWeaver_sourceParentNode';
+      case SourceType.Ancestor: return 'schemeWeaver_sourceAncestorNode';
+      case SourceType.Sibling: return 'schemeWeaver_sourceSiblingNode';
+      case SourceType.BlockContent: return 'schemeWeaver_sourceBlockContent';
+      case SourceType.ComplexType: return 'schemeWeaver_sourceComplexType';
       default: return 'schemeWeaver_sourceCurrentNode';
     }
   }
@@ -161,7 +166,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   /** Whether this source type uses the dynamic root + document type picker */
   private _needsSourceContentType(sourceType: string): boolean {
-    return sourceType === 'parent' || sourceType === 'ancestor' || sourceType === 'sibling';
+    return sourceType === SourceType.Parent || sourceType === SourceType.Ancestor || sourceType === SourceType.Sibling;
   }
 
   private _handleDynamicRootChange(index: number, e: Event) {
@@ -222,7 +227,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   /** Confidence is an integer 0-100 from C# auto-mapper */
   private _renderConfidenceTag(mapping: PropertyMappingRow) {
-    if (!mapping.contentTypePropertyAlias && mapping.sourceType !== 'static') return nothing;
+    if (!mapping.contentTypePropertyAlias && mapping.sourceType !== SourceType.Static) return nothing;
     const confidence = mapping.confidence;
     if (confidence === null) return nothing;
     if (confidence >= 80) return html`<uui-tag look="secondary" color="positive" class="confidence-tag">${this.localize.term('schemeWeaver_confidenceHigh')}</uui-tag>`;
@@ -295,7 +300,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
     const newRow: PropertyMappingRow = {
       schemaPropertyName: schemaProp.name,
       schemaPropertyType: schemaProp.propertyType || '',
-      sourceType: schemaProp.isComplexType ? 'complexType' : 'property',
+      sourceType: schemaProp.isComplexType ? SourceType.ComplexType : SourceType.Property,
       contentTypePropertyAlias: '',
       sourceContentTypeAlias: '',
       staticValue: '',
@@ -354,7 +359,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
         <uui-table-cell>
           <div class="value-cell">
             ${this.readonly
-              ? html`<span>${mapping.sourceType === 'static' ? mapping.staticValue : mapping.contentTypePropertyAlias}</span>`
+              ? html`<span>${mapping.sourceType === SourceType.Static ? mapping.staticValue : mapping.contentTypePropertyAlias}</span>`
               : this._renderValueInput(mapping, index)}
             ${this._renderConfidenceTag(mapping)}
           </div>
@@ -464,7 +469,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
   }
 
   private _renderValueInput(mapping: PropertyMappingRow, index: number) {
-    if (mapping.sourceType === 'static') {
+    if (mapping.sourceType === SourceType.Static) {
       return html`
         <uui-input
           .value=${mapping.staticValue}
@@ -475,7 +480,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
       `;
     }
 
-    if (mapping.sourceType === 'complexType') {
+    if (mapping.sourceType === SourceType.ComplexType) {
       return html`
         <div class="block-actions">
           <uui-button
@@ -494,7 +499,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
       `;
     }
 
-    if (mapping.sourceType === 'blockContent') {
+    if (mapping.sourceType === SourceType.BlockContent) {
       return this._renderBlockContentInput(mapping, index);
     }
 
