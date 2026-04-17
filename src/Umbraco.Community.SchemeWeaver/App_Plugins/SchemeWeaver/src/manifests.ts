@@ -3,7 +3,7 @@ import { manifests as entityActionManifests } from './entity-actions/manifests.j
 import { manifests as modalManifests } from './modals/manifests.js';
 import { manifests as localizationManifests } from './localization/manifests.js';
 
-export const manifests = [
+export const manifests: Array<UmbExtensionManifest> = [
   ...workspaceViewManifests,
   ...entityActionManifests,
   ...modalManifests,

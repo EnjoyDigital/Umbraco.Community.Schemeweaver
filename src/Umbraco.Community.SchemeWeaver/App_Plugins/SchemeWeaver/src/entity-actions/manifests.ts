@@ -1,4 +1,6 @@
-export const manifests = [
+import type { ManifestEntityAction } from '@umbraco-cms/backoffice/entity-action';
+
+export const manifests: ManifestEntityAction[] = [
   {
     type: 'entityAction',
     kind: 'default',

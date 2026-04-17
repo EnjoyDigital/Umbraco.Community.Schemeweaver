@@ -1,4 +1,6 @@
-export const manifests = [
+import type { ManifestModal } from '@umbraco-cms/backoffice/modal';
+
+export const manifests: ManifestModal[] = [
   {
     type: 'modal',
     alias: 'SchemeWeaver.Modal.SchemaPicker',
