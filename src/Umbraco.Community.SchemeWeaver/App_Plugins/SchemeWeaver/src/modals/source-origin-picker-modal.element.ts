@@ -3,6 +3,7 @@ import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import type { SourceOriginPickerModalData, SourceOriginPickerModalValue } from './source-origin-picker-modal.token.js';
 
 import { BLOCK_EDITOR_ALIASES } from '../constants.js';
+import { SourceType } from '../constants/source-type.js';
 
 interface OriginOption {
   sourceType: string;
@@ -23,13 +24,13 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
 
     const options: OriginOption[] = [
       {
-        sourceType: 'property',
+        sourceType: SourceType.Property,
         icon: 'icon-document',
         labelKey: 'schemeWeaver_sourceCurrentNode',
         descriptionKey: 'schemeWeaver_originCurrentNodeDescription',
       },
       {
-        sourceType: 'static',
+        sourceType: SourceType.Static,
         icon: 'icon-edit',
         labelKey: 'schemeWeaver_sourceStaticValue',
         descriptionKey: 'schemeWeaver_originStaticValueDescription',
@@ -47,7 +48,7 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
 
     if (!restrictToSimple && (BLOCK_EDITOR_ALIASES.includes(editorAlias) || isComplexType)) {
       options.push({
-        sourceType: 'blockContent',
+        sourceType: SourceType.BlockContent,
         icon: 'icon-grid',
         labelKey: 'schemeWeaver_sourceBlockContent',
         descriptionKey: 'schemeWeaver_originBlockContentDescription',
@@ -56,7 +57,7 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
 
     if (isComplexType) {
       options.push({
-        sourceType: 'complexType',
+        sourceType: SourceType.ComplexType,
         icon: 'icon-brackets',
         labelKey: 'schemeWeaver_sourceComplexType',
         descriptionKey: 'schemeWeaver_originComplexTypeDescription',
@@ -68,19 +69,19 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
 
   private _relatedOptions: OriginOption[] = [
     {
-      sourceType: 'parent',
+      sourceType: SourceType.Parent,
       icon: 'icon-arrow-up',
       labelKey: 'schemeWeaver_sourceParentNode',
       descriptionKey: 'schemeWeaver_originParentDescription',
     },
     {
-      sourceType: 'ancestor',
+      sourceType: SourceType.Ancestor,
       icon: 'icon-hierarchy',
       labelKey: 'schemeWeaver_sourceAncestorNode',
       descriptionKey: 'schemeWeaver_originAncestorDescription',
     },
     {
-      sourceType: 'sibling',
+      sourceType: SourceType.Sibling,
       icon: 'icon-split-alt',
       labelKey: 'schemeWeaver_sourceSiblingNode',
       descriptionKey: 'schemeWeaver_originSiblingDescription',

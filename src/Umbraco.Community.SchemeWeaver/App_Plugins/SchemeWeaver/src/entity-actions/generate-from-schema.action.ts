@@ -6,8 +6,9 @@ import { SCHEMEWEAVER_GENERATE_DOCTYPE_MODAL } from '../modals/generate-doctype-
 import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 
 export class GenerateFromSchemaAction extends UmbEntityActionBase<never> {
+  #localize = new UmbLocalizationController(this);
+
   async execute() {
-    const localize = new UmbLocalizationController(this);
     const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
     if (!modalManager) return;
 
@@ -22,8 +23,8 @@ export class GenerateFromSchemaAction extends UmbEntityActionBase<never> {
     } catch {
       notificationContext?.peek('danger', {
         data: {
-          headline: localize.term('schemeWeaver_generateFromSchema'),
-          message: localize.term('schemeWeaver_failedToResolveContentType'),
+          headline: this.#localize.term('schemeWeaver_generateFromSchema'),
+          message: this.#localize.term('schemeWeaver_failedToResolveContentType'),
         },
       });
       return;
@@ -40,7 +41,7 @@ export class GenerateFromSchemaAction extends UmbEntityActionBase<never> {
 
     if (result !== null) {
       notificationContext?.peek('positive', {
-        data: { message: localize.term('schemeWeaver_contentTypeGenerated') },
+        data: { message: this.#localize.term('schemeWeaver_contentTypeGenerated') },
       });
     }
   }

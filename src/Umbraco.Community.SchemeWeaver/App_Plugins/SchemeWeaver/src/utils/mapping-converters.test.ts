@@ -1,12 +1,13 @@
 import { expect } from '@open-wc/testing';
 import type { PropertyMappingDto, PropertyMappingSuggestion } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
+import { SourceType } from '../constants/source-type.js';
 import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, applySourceTypeChange } from './mapping-converters.js';
 
 /** Helper to create a minimal PropertyMappingDto */
 function makeDto(overrides: Partial<PropertyMappingDto> & { schemaPropertyName: string }): PropertyMappingDto {
   return {
-    sourceType: 'property',
+    sourceType: SourceType.Property,
     contentTypePropertyAlias: null,
     sourceContentTypeAlias: null,
     transformType: null,
@@ -23,7 +24,7 @@ function makeDto(overrides: Partial<PropertyMappingDto> & { schemaPropertyName: 
 function makeRow(overrides: Partial<PropertyMappingRow> & { schemaPropertyName: string }): PropertyMappingRow {
   return {
     schemaPropertyType: '',
-    sourceType: 'property',
+    sourceType: SourceType.Property,
     contentTypePropertyAlias: '',
     sourceContentTypeAlias: '',
     staticValue: '',
@@ -46,7 +47,7 @@ function makeSuggestion(overrides: Partial<PropertyMappingSuggestion> & { schema
   return {
     schemaPropertyType: null,
     suggestedContentTypePropertyAlias: null,
-    suggestedSourceType: 'property',
+    suggestedSourceType: SourceType.Property,
     confidence: 0,
     isAutoMapped: true,
     editorAlias: null,
@@ -252,7 +253,7 @@ describe('mergeAutoMapSuggestions', () => {
         confidence: 60,
         isComplexType: true,
         suggestedNestedSchemaTypeName: 'Offer',
-        suggestedSourceType: 'complexType',
+        suggestedSourceType: SourceType.ComplexType,
       }),
     ];
     const result = mergeAutoMapSuggestions(existing, suggestions);
@@ -276,7 +277,7 @@ describe('dtoToRow', () => {
   it('parses dynamicRootConfig JSON into an object', () => {
     const dto = makeDto({
       schemaPropertyName: 'author',
-      sourceType: 'parent',
+      sourceType: SourceType.Parent,
       dynamicRootConfig: '{"originAlias":"Root","querySteps":[]}',
     });
     const row = dtoToRow(dto);
@@ -298,7 +299,7 @@ describe('applySourceTypeChange', () => {
     const row: PropertyMappingRow = {
       schemaPropertyName: 'author',
       schemaPropertyType: '',
-      sourceType: 'parent',
+      sourceType: SourceType.Parent,
       contentTypePropertyAlias: '',
       sourceContentTypeAlias: 'parentDocType',
       staticValue: '',
@@ -314,7 +315,7 @@ describe('applySourceTypeChange', () => {
       sourceContentTypeProperties: [],
       dynamicRootConfig: { originAlias: 'Root' },
     };
-    const result = applySourceTypeChange(row, 'property');
+    const result = applySourceTypeChange(row, SourceType.Property);
     expect(result.dynamicRootConfig).to.equal(undefined);
   });
 
@@ -322,7 +323,7 @@ describe('applySourceTypeChange', () => {
     const row: PropertyMappingRow = {
       schemaPropertyName: 'author',
       schemaPropertyType: '',
-      sourceType: 'parent',
+      sourceType: SourceType.Parent,
       contentTypePropertyAlias: '',
       sourceContentTypeAlias: 'parentDocType',
       staticValue: '',
@@ -338,7 +339,7 @@ describe('applySourceTypeChange', () => {
       sourceContentTypeProperties: [],
       dynamicRootConfig: { originAlias: 'Root' },
     };
-    const result = applySourceTypeChange(row, 'ancestor');
+    const result = applySourceTypeChange(row, SourceType.Ancestor);
     expect(result.dynamicRootConfig).to.deep.equal({ originAlias: 'Root' });
   });
 });

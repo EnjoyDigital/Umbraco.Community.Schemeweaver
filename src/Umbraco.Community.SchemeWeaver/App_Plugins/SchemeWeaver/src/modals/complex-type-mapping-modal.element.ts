@@ -7,6 +7,7 @@ import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { SCHEMEWEAVER_CONTENT_TYPE_PICKER_MODAL } from './content-type-picker-modal.token.js';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
+import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import type { ComplexTypeMappingModalData, ComplexTypeMappingModalValue } from './complex-type-mapping-modal.token.js';
 import { filterOutPrimitiveSchemaTypes } from '../utils/schema-primitives.js';
@@ -15,7 +16,7 @@ import '../components/property-combobox.element.js';
 interface ComplexSubMapping {
   schemaProperty: string;
   schemaPropertyType: string;
-  sourceType: string;
+  sourceType: SourceTypeValue;
   contentTypePropertyAlias: string;
   staticValue: string;
   sourceContentTypeAlias: string;
@@ -126,7 +127,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         this._subMappings = config.complexTypeMappings.map((m: Record<string, unknown>) => ({
           schemaProperty: (m.schemaProperty as string) || '',
           schemaPropertyType: '',
-          sourceType: (m.sourceType as string) || 'property',
+          sourceType: (m.sourceType as SourceTypeValue) || SourceType.Property,
           contentTypePropertyAlias: (m.contentTypePropertyAlias as string) || '',
           staticValue: (m.staticValue as string) || '',
           sourceContentTypeAlias: (m.sourceContentTypeAlias as string) || '',
@@ -174,7 +175,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
       return {
         schemaProperty: prop.name,
         schemaPropertyType: prop.propertyType,
-        sourceType: 'property',
+        sourceType: SourceType.Property,
         contentTypePropertyAlias: '',
         staticValue: '',
         sourceContentTypeAlias: '',
@@ -189,7 +190,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
     // Load properties for any existing source content types
     const sourceAliases = [...new Set(
       this._subMappings
-        .filter(m => m.sourceContentTypeAlias && ['parent', 'ancestor', 'sibling'].includes(m.sourceType))
+        .filter(m => m.sourceContentTypeAlias && [SourceType.Parent, SourceType.Ancestor, SourceType.Sibling].includes(m.sourceType))
         .map(m => m.sourceContentTypeAlias)
     )];
     for (const alias of sourceAliases) {
@@ -219,30 +220,30 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
 
   private _getSourceIcon(sourceType: string): string {
     switch (sourceType) {
-      case 'property': return 'icon-document';
-      case 'static': return 'icon-edit';
-      case 'parent': return 'icon-arrow-up';
-      case 'ancestor': return 'icon-hierarchy';
-      case 'sibling': return 'icon-split-alt';
-      case 'complexType': return 'icon-brackets';
+      case SourceType.Property: return 'icon-document';
+      case SourceType.Static: return 'icon-edit';
+      case SourceType.Parent: return 'icon-arrow-up';
+      case SourceType.Ancestor: return 'icon-hierarchy';
+      case SourceType.Sibling: return 'icon-split-alt';
+      case SourceType.ComplexType: return 'icon-brackets';
       default: return 'icon-document';
     }
   }
 
   private _getSourceLabelKey(sourceType: string): string {
     switch (sourceType) {
-      case 'property': return 'schemeWeaver_sourceCurrentNode';
-      case 'static': return 'schemeWeaver_sourceStaticValue';
-      case 'parent': return 'schemeWeaver_sourceParentNode';
-      case 'ancestor': return 'schemeWeaver_sourceAncestorNode';
-      case 'sibling': return 'schemeWeaver_sourceSiblingNode';
-      case 'complexType': return 'schemeWeaver_sourceComplexType';
+      case SourceType.Property: return 'schemeWeaver_sourceCurrentNode';
+      case SourceType.Static: return 'schemeWeaver_sourceStaticValue';
+      case SourceType.Parent: return 'schemeWeaver_sourceParentNode';
+      case SourceType.Ancestor: return 'schemeWeaver_sourceAncestorNode';
+      case SourceType.Sibling: return 'schemeWeaver_sourceSiblingNode';
+      case SourceType.ComplexType: return 'schemeWeaver_sourceComplexType';
       default: return 'schemeWeaver_sourceCurrentNode';
     }
   }
 
   private _needsSourceContentType(sourceType: string): boolean {
-    return sourceType === 'parent' || sourceType === 'ancestor' || sourceType === 'sibling';
+    return sourceType === SourceType.Parent || sourceType === SourceType.Ancestor || sourceType === SourceType.Sibling;
   }
 
   // ── Mapping handlers ──────────────────────────────────────────────
@@ -361,7 +362,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         updated[index] = {
           ...updated[index],
           resolverConfig: result.resolverConfig,
-          sourceType: 'complexType',
+          sourceType: SourceType.ComplexType,
           contentTypePropertyAlias: '',
           staticValue: '',
         };
@@ -691,7 +692,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
       `;
     }
 
-    if (mapping.sourceType === 'static') {
+    if (mapping.sourceType === SourceType.Static) {
       return html`
         <uui-input
           .value=${mapping.staticValue}
@@ -771,7 +772,7 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
               <span>${m.schemaProperty}</span>
               <span class="preview-arrow">&larr;</span>
               <uui-tag look="secondary" class="source-tag">${this.localize.term(this._getSourceLabelKey(m.sourceType))}</uui-tag>
-              <span>${m.sourceType === 'static' ? m.staticValue : m.resolverConfig ? this.localize.term('schemeWeaver_complexTypeConfigured') : m.contentTypePropertyAlias}</span>
+              <span>${m.sourceType === SourceType.Static ? m.staticValue : m.resolverConfig ? this.localize.term('schemeWeaver_complexTypeConfigured') : m.contentTypePropertyAlias}</span>
               ${m.sourceContentTypeAlias
                 ? html`<small class="type-label">(${m.sourceContentTypeAlias})</small>`
                 : nothing}

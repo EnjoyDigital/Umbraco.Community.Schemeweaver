@@ -3,6 +3,8 @@
  * See: Models/Api/*.cs
  */
 
+import type { SourceTypeValue } from '../constants/source-type.js';
+
 /** Matches C# SchemaTypeInfo — returned by GET /schema-types */
 export interface SchemaTypeInfo {
   name: string;
@@ -45,7 +47,7 @@ export interface ContentTypeProperty {
 /** Matches C# PropertyMappingDto */
 export interface PropertyMappingDto {
   schemaPropertyName: string;
-  sourceType: string;
+  sourceType: SourceTypeValue;
   contentTypePropertyAlias: string | null;
   sourceContentTypeAlias: string | null;
   transformType: string | null;
@@ -71,7 +73,7 @@ export interface PropertyMappingSuggestion {
   schemaPropertyName: string;
   schemaPropertyType: string | null;
   suggestedContentTypePropertyAlias: string | null;
-  suggestedSourceType: string;
+  suggestedSourceType: SourceTypeValue;
   confidence: number;
   isAutoMapped: boolean;
   editorAlias: string | null;

@@ -1,5 +1,5 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
-import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, state, query, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UMB_DOCUMENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/document';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import '../components/jsonld-preview.element.js';
@@ -34,6 +34,9 @@ export class JsonLdContentViewElement extends UmbLitElement {
 
   @state()
   private _culture: string | undefined = undefined;
+
+  @query('schemeweaver-jsonld-preview')
+  private _previewEl?: JsonLdPreviewElement;
 
   constructor() {
     super();
@@ -131,8 +134,7 @@ export class JsonLdContentViewElement extends UmbLitElement {
   }
 
   private _handleCopy(): void {
-    const previewEl = this.shadowRoot?.querySelector<JsonLdPreviewElement>('schemeweaver-jsonld-preview');
-    const text = previewEl?.formattedJson ?? '';
+    const text = this._previewEl?.formattedJson ?? '';
     navigator.clipboard.writeText(text).then(
       () => {
         this.#notificationContext?.peek('positive', {

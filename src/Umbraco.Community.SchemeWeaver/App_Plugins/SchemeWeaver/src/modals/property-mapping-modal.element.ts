@@ -12,6 +12,7 @@ import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-
 import { mergeAutoMapSuggestions, applySourceTypeChange } from '../utils/mapping-converters.js';
 
 import type { SchemaPropertyInfo } from '../api/types.js';
+import { SourceType } from '../constants/source-type.js';
 import type { PropertyMappingModalData, PropertyMappingModalValue } from './property-mapping-modal.token.js';
 
 @customElement('schemeweaver-property-mapping-modal')
@@ -39,6 +40,9 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   private _aiAvailable = false;
 
   @state()
+  private _aiChecking = true;
+
+  @state()
   private _aiLoading = false;
 
   constructor() {
@@ -61,11 +65,14 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   }
 
   private async _checkAIStatus() {
+    this._aiChecking = true;
     try {
       const status = await this.#context?.repository.requestAIStatus();
       this._aiAvailable = status?.available === true;
     } catch {
       this._aiAvailable = false;
+    } finally {
+      this._aiChecking = false;
     }
   }
 
@@ -262,9 +269,9 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         propertyMappings: this._mappings
           .filter((row) => {
             // Only save rows that are actually configured
-            if (row.sourceType === 'static') return !!row.staticValue;
-            if (row.sourceType === 'complexType') return !!row.resolverConfig;
-            if (row.sourceType === 'blockContent') return !!row.contentTypePropertyAlias;
+            if (row.sourceType === SourceType.Static) return !!row.staticValue;
+            if (row.sourceType === SourceType.ComplexType) return !!row.resolverConfig;
+            if (row.sourceType === SourceType.BlockContent) return !!row.contentTypePropertyAlias;
             // property/parent/ancestor/sibling: need a content property alias
             return !!row.contentTypePropertyAlias;
           })
@@ -315,7 +322,9 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
                   <uui-tag color="primary">${this.data?.schemaType}</uui-tag>
                   <span>${this.localize.term('schemeWeaver_mappedTo')}</span>
                   <uui-tag color="default">${this.data?.contentTypeAlias}</uui-tag>
-                  ${this._aiAvailable ? html`
+                  ${this._aiChecking
+                    ? html`<uui-loader-bar class="ai-checking"></uui-loader-bar>`
+                    : this._aiAvailable ? html`
                     <uui-button
                       look="outline"
                       color="positive"
