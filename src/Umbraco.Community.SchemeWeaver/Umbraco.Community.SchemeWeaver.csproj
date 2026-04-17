@@ -11,7 +11,7 @@
 		<PackageTags>umbraco plugin package umbraco-marketplace schema.org json-ld structured-data seo schema-mapping</PackageTags>
 		<StaticWebAssetBasePath>App_Plugins/SchemeWeaver</StaticWebAssetBasePath>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-		<Version>1.0.0</Version>
+		<Version>1.1.0</Version>
 		<Authors>Oliver Picton</Authors>
 		<Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
 		<PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>

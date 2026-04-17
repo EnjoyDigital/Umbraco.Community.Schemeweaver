@@ -102,6 +102,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
         var hasExplicitInLanguage = false;
+        var hasExplicitId = false;
 
         foreach (var propMapping in propertyMappings)
         {
@@ -126,6 +127,19 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 if (value is null or string { Length: 0 })
                     continue;
 
+                // @id is Uri-typed on Schema.NET Thing; SchemaPropertySetter can't convert a
+                // string to Uri generically, so we handle it here. Setting via mapping
+                // suppresses the default {url}#{type} convention below.
+                if (string.Equals(propMapping.SchemaPropertyName, "Id", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (TryCoerceToUri(value, out var idUri))
+                    {
+                        instance.Id = idUri;
+                        hasExplicitId = true;
+                    }
+                    continue;
+                }
+
                 SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
             }
             catch (Exception ex)
@@ -139,11 +153,18 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (culture is not null && !hasExplicitInLanguage)
             SchemaPropertySetter.SetPropertyValue(instance, "InLanguage", culture);
 
-        // Set @id from content URL for AI agent discoverability
-        var contentUrl = ResolveAbsoluteUrl(content);
-        if (!string.IsNullOrEmpty(contentUrl))
+        // Default @id to {absoluteUrl}#{schemaTypeLowercase} so each entity on a page
+        // has a distinct, stable identifier. The schema type disambiguates the page
+        // (WebPage) from any other entity it describes (Organization, Article, …) so
+        // they don't collide on the bare URL. Mapping the "Id" property explicitly
+        // overrides this default — see the loop above.
+        if (!hasExplicitId)
         {
-            instance.Id = new Uri(contentUrl, UriKind.Absolute);
+            var contentUrl = ResolveAbsoluteUrl(content);
+            if (!string.IsNullOrEmpty(contentUrl))
+            {
+                instance.Id = new Uri($"{contentUrl}#{mapping.SchemaTypeName.ToLowerInvariant()}", UriKind.Absolute);
+            }
         }
 
         return instance;
@@ -217,6 +238,29 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// <summary>
     /// Resolves an absolute URL for content using the URL provider with a request-context fallback.
     /// </summary>
+    /// <summary>
+    /// Coerces a resolved mapping value to a Uri suitable for Schema.NET Thing.Id.
+    /// Accepts Uri directly or any string parseable as relative-or-absolute URI.
+    /// Relative Uris (e.g. "#organization") are preserved as-is so users can express
+    /// fragment-only identifiers.
+    /// </summary>
+    private static bool TryCoerceToUri(object value, out Uri uri)
+    {
+        switch (value)
+        {
+            case Uri u:
+                uri = u;
+                return true;
+            case string s when !string.IsNullOrWhiteSpace(s)
+                               && Uri.TryCreate(s, UriKind.RelativeOrAbsolute, out var parsed):
+                uri = parsed;
+                return true;
+            default:
+                uri = null!;
+                return false;
+        }
+    }
+
     private string? ResolveAbsoluteUrl(IPublishedContent content)
     {
         var url = _urlProvider.GetUrl(content, UrlMode.Absolute);

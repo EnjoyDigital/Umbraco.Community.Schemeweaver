@@ -1103,7 +1103,7 @@ public class JsonLdGeneratorTests
     #region @id and BreadcrumbList Tests
 
     [Fact]
-    public void GenerateJsonLd_SetsIdFromContentUrl()
+    public void GenerateJsonLd_DefaultId_IsContentUrlWithSchemaTypeFragment()
     {
         var content = CreateContent("article", new Dictionary<string, object?>
         {
@@ -1121,8 +1121,58 @@ public class JsonLdGeneratorTests
 
         result.Should().NotBeNull();
         result!.Id.Should().NotBeNull();
+        // The fragment disambiguates the page (WebPage) from the entity it describes
+        // (Article, Organization, …) so two entities on the same URL get distinct @ids.
         var jsonLd = result.ToString();
-        jsonLd.Should().Contain("\"@id\":\"https://example.com/articles/test\"");
+        jsonLd.Should().Contain("\"@id\":\"https://example.com/articles/test#article\"");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_ExplicitIdMappingWithStaticValue_OverridesDefault()
+    {
+        var content = CreateContent("organization", new Dictionary<string, object?>
+        {
+            ["orgName"] = "Acme Ltd"
+        });
+        var mapping = CreateMapping("organization", "Organization");
+        _repository.GetByContentTypeAlias("organization").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "orgName" },
+            new() { SchemaPropertyName = "Id", SourceType = "static", StaticValue = "https://acme.example/#org" },
+        });
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("https://example.com/about");
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("\"@id\":\"https://acme.example/#org\"");
+        jsonLd.Should().NotContain("\"@id\":\"https://example.com/about#organization\"");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_ExplicitIdMappingWithPropertyValue_OverridesDefault()
+    {
+        var content = CreateContent("organization", new Dictionary<string, object?>
+        {
+            ["orgName"] = "Acme Ltd",
+            ["canonicalId"] = "https://acme.example/#org"
+        });
+        var mapping = CreateMapping("organization", "Organization");
+        _repository.GetByContentTypeAlias("organization").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "orgName" },
+            new() { SchemaPropertyName = "Id", SourceType = "property", ContentTypePropertyAlias = "canonicalId" },
+        });
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("https://example.com/about");
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        var jsonLd = result!.ToString();
+        jsonLd.Should().Contain("\"@id\":\"https://acme.example/#org\"");
     }
 
     [Fact]
@@ -1175,7 +1225,7 @@ public class JsonLdGeneratorTests
 
         result.Should().NotBeNull();
         var jsonLd = result!.ToString();
-        jsonLd.Should().Contain("\"@id\":\"https://example.com/articles/test\"");
+        jsonLd.Should().Contain("\"@id\":\"https://example.com/articles/test#article\"");
     }
 
     [Fact]
