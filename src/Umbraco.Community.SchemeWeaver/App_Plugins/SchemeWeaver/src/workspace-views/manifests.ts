@@ -1,6 +1,7 @@
+import type { ManifestWorkspaceView } from '@umbraco-cms/backoffice/workspace';
 import { UMB_WORKSPACE_CONDITION_ALIAS } from '@umbraco-cms/backoffice/workspace';
 
-export const manifests = [
+export const manifests: ManifestWorkspaceView[] = [
   {
     type: 'workspaceView',
     alias: 'SchemeWeaver.WorkspaceView.SchemaMapping',

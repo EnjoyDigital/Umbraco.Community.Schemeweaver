@@ -3,14 +3,14 @@ import { manifests as entityActionManifests } from './entity-actions/manifests.j
 import { manifests as modalManifests } from './modals/manifests.js';
 import { manifests as localizationManifests } from './localization/manifests.js';
 
-const entryPointManifest = {
+const entryPointManifest: UmbExtensionManifest = {
   type: 'backofficeEntryPoint',
   alias: 'Umbraco.Community.SchemeWeaver.EntryPoint',
   name: 'SchemeWeaver Entry Point',
   js: () => import('./entry-point.js'),
 };
 
-export const manifests = [
+export const manifests: Array<UmbExtensionManifest> = [
   entryPointManifest,
   ...workspaceViewManifests,
   ...entityActionManifests,
