@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.DeliveryApi;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Web;
@@ -15,15 +16,18 @@ public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IUmbracoContextAccessor _umbracoContextAccessor;
     private readonly ILogger<SchemaJsonLdContentIndexHandler> _logger;
+    private readonly SchemeWeaverOptions _options;
 
     public SchemaJsonLdContentIndexHandler(
         IServiceScopeFactory scopeFactory,
         IUmbracoContextAccessor umbracoContextAccessor,
-        ILogger<SchemaJsonLdContentIndexHandler> logger)
+        ILogger<SchemaJsonLdContentIndexHandler> logger,
+        IOptions<SchemeWeaverOptions> options)
     {
         _scopeFactory = scopeFactory;
         _umbracoContextAccessor = umbracoContextAccessor;
         _logger = logger;
+        _options = options.Value;
     }
 
     public IEnumerable<IndexFieldValue> GetFieldValues(IContent content, string? culture)
@@ -48,6 +52,16 @@ public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
 
             // Inherited schemas from ancestor nodes (root-first order)
             allJsonLd.AddRange(generator.GenerateInheritedJsonLdStrings(published, culture));
+
+            // BreadcrumbList derived from the content tree ancestry. Opt out via
+            // SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi if your headless
+            // front-end builds its own breadcrumb from its routing layer.
+            if (_options.EmitBreadcrumbsInDeliveryApi)
+            {
+                var breadcrumbJson = generator.GenerateBreadcrumbJsonLd(published, culture);
+                if (!string.IsNullOrEmpty(breadcrumbJson))
+                    allJsonLd.Add(breadcrumbJson);
+            }
 
             // Main schema for the current content
             var jsonLd = generator.GenerateJsonLdString(published, culture);
