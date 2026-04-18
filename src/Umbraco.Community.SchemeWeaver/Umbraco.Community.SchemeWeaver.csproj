@@ -54,4 +54,48 @@
 		<None Remove="umbraco-package-schema.json" />
 
 	</ItemGroup>
+
+	<!--
+	Ensures the frontend bundle in wwwroot/dist is in sync with the TypeScript
+	source before a Release pack. Without this, `npm run build` and `dotnet pack`
+	can drift out of sync: the SDK's static-web-assets cache in
+	obj/Release/ references old hashed filenames from a previous frontend build,
+	and pack fails with NU5019 ("File not found: <name>-<oldHash>.js").
+
+	The target only fires when any TypeScript source is newer than the built
+	bundle. MSBuild's Inputs/Outputs incremental check means a pack of
+	unchanged sources is still a no-op.
+
+	Set SchemeWeaverSkipFrontendBuild=true on the command line to bypass — useful
+	in CI pipelines that run `npm run build` as a separate step.
+	-->
+	<ItemGroup>
+		<_FrontendSourceInputs Include="App_Plugins/SchemeWeaver/src/**/*.ts" />
+		<_FrontendSourceInputs Include="App_Plugins/SchemeWeaver/package.json" />
+		<_FrontendSourceInputs Include="App_Plugins/SchemeWeaver/package-lock.json" />
+		<_FrontendSourceInputs Include="App_Plugins/SchemeWeaver/vite.config.ts" />
+		<_FrontendSourceInputs Include="App_Plugins/SchemeWeaver/tsconfig.json" />
+		<_FrontendDistOutputs Include="wwwroot/dist/index.js" />
+	</ItemGroup>
+	<Target Name="EnsureFrontendBuiltBeforePack"
+	        BeforeTargets="Pack"
+	        Condition="'$(Configuration)' == 'Release' AND '$(SchemeWeaverSkipFrontendBuild)' != 'true'"
+	        Inputs="@(_FrontendSourceInputs)"
+	        Outputs="@(_FrontendDistOutputs)">
+		<Message Text="Frontend source is newer than wwwroot/dist — running 'npm run build' in App_Plugins/SchemeWeaver." Importance="high" />
+		<Exec Command="npm run build" WorkingDirectory="App_Plugins/SchemeWeaver" />
+		<!-- Invalidate the SDK's static-web-assets cache so pack re-collects the
+		     fresh hashed filenames instead of reading stale manifest entries. -->
+		<ItemGroup>
+			<_StaleStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets.*.json" />
+			<_StaleStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/*.dswa.cache.json" />
+			<_StaleStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets.build.json.cache" />
+			<_StaleStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/swae.build.ex.cache" />
+		</ItemGroup>
+		<Delete Files="@(_StaleStaticAssetsFiles)" />
+		<RemoveDir Directories="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets"
+		           Condition="Exists('$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets')" />
+		<!-- Re-run Build so the SDK regenerates the manifests before Pack reads them. -->
+		<MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Build" Properties="Configuration=$(Configuration);SchemeWeaverSkipFrontendBuild=true" />
+	</Target>
 </Project>
