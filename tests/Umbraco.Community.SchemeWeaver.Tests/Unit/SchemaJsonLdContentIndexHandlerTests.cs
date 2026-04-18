@@ -1,7 +1,5 @@
 using FluentAssertions;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -13,29 +11,19 @@ using Xunit;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 
+/// <summary>
+/// The handler now delegates all schema-block generation to
+/// <see cref="IJsonLdBlocksProvider"/> (see <see cref="JsonLdBlocksProviderTests"/> for the
+/// ordering / opt-out coverage). These tests focus on the Examine-index surface: how the
+/// handler responds to missing context, absent published content, and empty provider output.
+/// </summary>
 public class SchemaJsonLdContentIndexHandlerTests
 {
-    private readonly IJsonLdGenerator _generator = Substitute.For<IJsonLdGenerator>();
     private readonly IUmbracoContextAccessor _umbracoContextAccessor = Substitute.For<IUmbracoContextAccessor>();
-    private readonly ILogger<SchemaJsonLdContentIndexHandler> _logger = Substitute.For<ILogger<SchemaJsonLdContentIndexHandler>>();
+    private readonly IJsonLdBlocksProvider _blocksProvider = Substitute.For<IJsonLdBlocksProvider>();
 
-    private SchemaJsonLdContentIndexHandler CreateHandler(SchemeWeaverOptions? options = null)
-    {
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(IJsonLdGenerator)).Returns(_generator);
-
-        var scope = Substitute.For<IServiceScope>();
-        scope.ServiceProvider.Returns(serviceProvider);
-
-        var scopeFactory = Substitute.For<IServiceScopeFactory>();
-        scopeFactory.CreateScope().Returns(scope);
-
-        return new SchemaJsonLdContentIndexHandler(
-            scopeFactory,
-            _umbracoContextAccessor,
-            _logger,
-            Options.Create(options ?? new SchemeWeaverOptions()));
-    }
+    private SchemaJsonLdContentIndexHandler CreateHandler() =>
+        new(_umbracoContextAccessor, _blocksProvider, NullLogger<SchemaJsonLdContentIndexHandler>.Instance);
 
     private (IContent content, IPublishedContent published) WireContent(Guid? key = null)
     {
@@ -44,7 +32,6 @@ public class SchemaJsonLdContentIndexHandlerTests
         content.Key.Returns(contentKey);
 
         var published = Substitute.For<IPublishedContent>();
-
         var contentCache = Substitute.For<IPublishedContentCache>();
         contentCache.GetById(contentKey).Returns(published);
 
@@ -62,90 +49,39 @@ public class SchemaJsonLdContentIndexHandlerTests
     }
 
     [Fact]
-    public void GetFieldValues_DefaultOptions_EmitsBreadcrumbBetweenInheritedAndMain()
+    public void GetFieldValues_DelegatesToProviderAndYieldsSchemaOrgField()
     {
         var handler = CreateHandler();
         var (content, published) = WireContent();
+        _blocksProvider.GetBlocks(published, "en-gb").Returns(["{\"@type\":\"WebSite\"}"]);
 
-        _generator.GenerateInheritedJsonLdStrings(published, Arg.Any<string?>())
-            .Returns(["{\"@type\":\"WebSite\"}"]);
-        _generator.GenerateBreadcrumbJsonLd(published, Arg.Any<string?>())
-            .Returns("{\"@type\":\"BreadcrumbList\"}");
-        _generator.GenerateJsonLdString(published, Arg.Any<string?>())
-            .Returns("{\"@type\":\"Article\"}");
-        _generator.GenerateBlockElementJsonLdStrings(published, Arg.Any<string?>())
-            .Returns([]);
-
-        var result = handler.GetFieldValues(content, culture: null).ToList();
+        var result = handler.GetFieldValues(content, "en-gb").ToList();
 
         result.Should().HaveCount(1);
         result[0].FieldName.Should().Be("schemaOrg");
-        result[0].Values.Should().ContainInOrder(
-            "{\"@type\":\"WebSite\"}",
-            "{\"@type\":\"BreadcrumbList\"}",
-            "{\"@type\":\"Article\"}");
+        result[0].Values.Should().ContainSingle().Which.Should().Be("{\"@type\":\"WebSite\"}");
     }
 
     [Fact]
-    public void GetFieldValues_OptOut_SkipsBreadcrumbButKeepsEverythingElse()
-    {
-        var handler = CreateHandler(new SchemeWeaverOptions { EmitBreadcrumbsInDeliveryApi = false });
-        var (content, published) = WireContent();
-
-        _generator.GenerateInheritedJsonLdStrings(published, Arg.Any<string?>())
-            .Returns(["{\"@type\":\"WebSite\"}"]);
-        _generator.GenerateJsonLdString(published, Arg.Any<string?>())
-            .Returns("{\"@type\":\"Article\"}");
-        _generator.GenerateBlockElementJsonLdStrings(published, Arg.Any<string?>())
-            .Returns([]);
-
-        var result = handler.GetFieldValues(content, culture: null).ToList();
-
-        result.Should().HaveCount(1);
-        result[0].Values.Should().BeEquivalentTo(new[]
-        {
-            "{\"@type\":\"WebSite\"}",
-            "{\"@type\":\"Article\"}",
-        });
-
-        // Asserting the generator is *not* called is the real opt-out guarantee — a
-        // buggy implementation could still pick up a breadcrumb via a stale cache.
-        _generator.DidNotReceiveWithAnyArgs().GenerateBreadcrumbJsonLd(default!, default);
-    }
-
-    [Fact]
-    public void GetFieldValues_RootNode_NoBreadcrumbStringEvenWithOptOn()
+    public void GetFieldValues_EmptyProviderOutput_YieldsNothing()
     {
         var handler = CreateHandler();
         var (content, published) = WireContent();
-
-        // A root node legitimately produces no breadcrumb (fewer than 2 ancestors).
-        _generator.GenerateInheritedJsonLdStrings(published, Arg.Any<string?>())
-            .Returns([]);
-        _generator.GenerateBreadcrumbJsonLd(published, Arg.Any<string?>())
-            .Returns((string?)null);
-        _generator.GenerateJsonLdString(published, Arg.Any<string?>())
-            .Returns("{\"@type\":\"WebPage\"}");
-        _generator.GenerateBlockElementJsonLdStrings(published, Arg.Any<string?>())
-            .Returns([]);
+        _blocksProvider.GetBlocks(published, Arg.Any<string?>()).Returns([]);
 
         var result = handler.GetFieldValues(content, culture: null).ToList();
 
-        result.Should().HaveCount(1);
-        result[0].Values.Should().ContainSingle().Which.Should().Be("{\"@type\":\"WebPage\"}");
+        result.Should().BeEmpty();
     }
 
     [Fact]
     public void GetFieldValues_NoPublishedContent_YieldsNothing()
     {
         var handler = CreateHandler();
-
         var content = Substitute.For<IContent>();
         content.Key.Returns(Guid.NewGuid());
-
         var contentCache = Substitute.For<IPublishedContentCache>();
         contentCache.GetById(Arg.Any<Guid>()).Returns((IPublishedContent?)null);
-
         var umbracoContext = Substitute.For<IUmbracoContext>();
         umbracoContext.Content.Returns(contentCache);
         _umbracoContextAccessor.TryGetUmbracoContext(out Arg.Any<IUmbracoContext?>())
@@ -154,6 +90,20 @@ public class SchemaJsonLdContentIndexHandlerTests
                 call[0] = umbracoContext;
                 return true;
             });
+
+        var result = handler.GetFieldValues(content, culture: null).ToList();
+
+        result.Should().BeEmpty();
+        _blocksProvider.DidNotReceiveWithAnyArgs().GetBlocks(default!, default);
+    }
+
+    [Fact]
+    public void GetFieldValues_NoUmbracoContext_YieldsNothing()
+    {
+        var handler = CreateHandler();
+        _umbracoContextAccessor.TryGetUmbracoContext(out Arg.Any<IUmbracoContext?>()).Returns(false);
+        var content = Substitute.For<IContent>();
+        content.Key.Returns(Guid.NewGuid());
 
         var result = handler.GetFieldValues(content, culture: null).ToList();
 

@@ -21,7 +21,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Transforms** -- strip HTML, convert to absolute URL, or format dates before output
 - **Content Type generation** -- scaffold a new Umbraco document type from any Schema.org type
 - **Language variants** -- culture-aware JSON-LD generation for multi-language sites. When content varies by culture, SchemeWeaver pulls the correct localised values and auto-populates `inLanguage` with the BCP 47 culture code. Works across server-rendered templates, the Delivery API, and the backoffice preview
-- **Delivery API integration** -- JSON-LD is automatically indexed per culture and available via the `schemaOrg` field
+- **Delivery API integration** -- dedicated `/umbraco/delivery/api/v2/schemeweaver/json-ld` endpoint returns the per-page JSON-LD blocks, culture-aware, cached in-process with event-driven invalidation on publish/unpublish/move/delete
 - **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template; the tag helper reads the current culture from Umbraco's `IVariationContextAccessor` automatically
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
@@ -87,13 +87,19 @@ In your master layout (e.g. `_Layout.cshtml`):
 
 ### 3. Headless / Delivery API
 
-JSON-LD is automatically indexed when content is published:
+JSON-LD is served from a dedicated endpoint — fetch it in parallel with your content request and inject the strings as `<script type="application/ld+json">` tags:
 
 ```typescript
-const response = await fetch('/umbraco/delivery/api/v2/content/item/my-blog-post');
-const data = await response.json();
-const jsonLd = data.properties.schemaOrg;
+const response = await fetch(
+  '/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route?route=/my-blog-post',
+  { headers: { 'Api-Key': process.env.UMBRACO_DELIVERY_API_KEY! } },
+);
+const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 ```
+
+Responses are cached in-process and invalidated automatically by publish/unpublish/move/delete notifications, so the cache stays fresh without manual busting. The array is ordered: inherited ancestor schemas → `BreadcrumbList` → main page schema → block-element schemas. See [Delivery API docs](docs/delivery-api.md) for the full endpoint surface, Next.js example, and the opt-out for `BreadcrumbList` when your front-end builds its own.
+
+> Pre-1.3 consumers who read `schemaOrg` from `properties.schemaOrg` on the content response: that was never actually wired up (index handlers feed Examine, not the response body). Use the dedicated endpoint above.
 
 ### 4. Language variants
 

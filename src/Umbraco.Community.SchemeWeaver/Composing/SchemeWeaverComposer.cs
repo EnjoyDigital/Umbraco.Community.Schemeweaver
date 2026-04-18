@@ -2,8 +2,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DeliveryApi;
 using Umbraco.Cms.Core.DependencyInjection;
+using Umbraco.Cms.Core.Notifications;
 using Umbraco.Community.SchemeWeaver;
 using Umbraco.Community.SchemeWeaver.DeliveryApi;
+using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
@@ -29,7 +31,25 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<ISchemaAutoMapper, SchemaAutoMapper>();
         builder.Services.AddScoped<IJsonLdGenerator, JsonLdGenerator>();
         builder.Services.AddScoped<IContentTypeGenerator, ContentTypeGenerator>();
+
+        // JSON-LD blocks are cached in-process, keyed on (contentKey, culture). Singleton
+        // so the per-content CancellationTokenSource dictionary persists across requests;
+        // the generator itself is resolved per-call via IServiceScopeFactory because it's
+        // scoped.
+        builder.Services.AddSingleton<IJsonLdBlocksProvider, JsonLdBlocksProvider>();
+
+        // Existing index-time pipeline. Refactored to delegate to the provider so the
+        // cached blocks drive both the Examine index field and the dedicated endpoint.
         builder.Services.AddSingleton<IContentIndexHandler, SchemaJsonLdContentIndexHandler>();
+
+        // Cache invalidation. Each handler evicts the target content + all descendants —
+        // inherited schemas ripple from ancestor to every descendant, so touching any node
+        // dirties the cache for the subtree.
+        builder.AddNotificationHandler<ContentPublishedNotification, InvalidateJsonLdCacheOnPublish>();
+        builder.AddNotificationHandler<ContentUnpublishedNotification, InvalidateJsonLdCacheOnUnpublish>();
+        builder.AddNotificationHandler<ContentMovedNotification, InvalidateJsonLdCacheOnMove>();
+        builder.AddNotificationHandler<ContentMovedToRecycleBinNotification, InvalidateJsonLdCacheOnMove>();
+        builder.AddNotificationHandler<ContentDeletedNotification, InvalidateJsonLdCacheOnDelete>();
 
         // Property value resolvers — extensible via DI
         builder.Services.AddScoped<IPropertyValueResolver, DefaultPropertyValueResolver>();

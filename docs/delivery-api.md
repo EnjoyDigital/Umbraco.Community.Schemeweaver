@@ -1,181 +1,205 @@
 # Delivery API Integration
 
-SchemeWeaver automatically indexes JSON-LD structured data into Umbraco's Delivery API when content is published. This allows headless and decoupled front-ends to consume Schema.org data without any server-side rendering.
+SchemeWeaver exposes JSON-LD structured data to headless consumers through a dedicated
+Delivery API endpoint, alongside writing the same data into Umbraco's Examine-backed content
+index (useful for filter/sort/search).
+
+> **⚠️ Breaking change in 1.3.0**
+>
+> Earlier versions of this document claimed `schemaOrg` appeared on standard Delivery API
+> content responses under `properties.schemaOrg`. That was never surfaced — `IContentIndexHandler`
+> feeds the Examine index only; Umbraco builds the response body's `properties` dict from
+> `IPublishedContent.Properties`, so index-handler fields never reach the API consumer.
+>
+> As of 1.3.0 `schemaOrg` is served from a dedicated endpoint instead:
+> `GET /umbraco/delivery/api/v2/schemeweaver/json-ld`.
+> Consumers fetch it in parallel with their content fetch and inject the strings into
+> `<script type="application/ld+json">` tags. See the Next.js example below.
 
 ## Overview
 
-When you install SchemeWeaver and map your content types to Schema.org types, the package hooks into Umbraco's content indexing pipeline. Every time content is published, SchemeWeaver generates the JSON-LD and stores it as a `schemaOrg` field on the indexed content. Your front-end can then fetch this field via the Delivery API and inject it into the page's `<head>`.
+When you map a doc type to a Schema.org type, SchemeWeaver generates JSON-LD at request time
+via `IJsonLdBlocksProvider` and caches the result in-process. The provider is invalidated by
+publish / unpublish / move / delete notifications, so the cache stays fresh without any
+manual busting.
 
-No additional configuration is required -- if a mapping exists and is enabled, the JSON-LD is indexed automatically.
+Each response contains a string array in the documented order:
 
-## How It Works
+1. Inherited schemas from ancestor nodes (root-first). E.g. a `WebSite` mapping on Home with
+   `IsInherited = true` appears on every descendant.
+2. `BreadcrumbList` derived from the content tree (opt-out via config — see below).
+3. The current page's own schema.
+4. Schemas from mapped block elements (BlockList / BlockGrid).
 
-SchemeWeaver registers a `SchemaJsonLdContentIndexHandler` that implements Umbraco's `IContentIndexHandler` interface. This handler is called during content indexing and performs the following steps:
+## Endpoints
 
-1. **Resolves the published content** from the Umbraco content cache using the content's key.
-2. **Generates inherited schemas** -- walks up the ancestor chain from the parent node, collecting JSON-LD from any content types marked as "inherited" (e.g. a `WebSite` schema on the home page). These are returned in root-first order.
-3. **Generates the main page schema** -- produces the JSON-LD for the current content node based on its mapping.
-4. **Generates block element schemas** -- scans BlockList and BlockGrid properties for block elements that have their own schema mappings, and generates JSON-LD for each.
+Both endpoints return:
 
-All generated JSON-LD strings are stored in a single indexed field:
+```json
+{
+  "schemaOrg": [
+    "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",...}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"BreadcrumbList\",...}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"Article\",...}"
+  ]
+}
+```
 
-| Field | Type | Description |
-|---|---|---|
-| `schemaOrg` | `StringRaw` | Array of JSON-LD strings (one per schema block). Not analysed or tokenised -- stored as raw strings. |
+### `GET /umbraco/delivery/api/v2/schemeweaver/json-ld?id={guid}[&culture={string}]`
 
-The `StringRaw` field type ensures the JSON-LD is stored verbatim without any search index processing, so it is returned exactly as generated.
+Resolves by content key. Use when your consumer already has the Delivery API content
+response (and therefore the `id`).
 
-### What Is Included
+### `GET /umbraco/delivery/api/v2/schemeweaver/json-ld/by-route?route={string}[&culture={string}]`
 
-- Inherited schemas from ancestor nodes (e.g. `WebSite`, `Organization`) in root-first order
-- `BreadcrumbList` derived from the content tree (opt-out — see below)
-- The current page's own schema (if mapped and enabled)
-- Schemas from mapped block elements within BlockList/BlockGrid properties
+Resolves by route path. Convenient for SSR consumers that know the URL but not the key yet.
+`route` is normalised to start with `/`.
 
-### Opting out of `BreadcrumbList`
+### Auth
 
-The `BreadcrumbList` is derived from Umbraco's content tree and uses `IPublishedUrlProvider` to build each `ListItem.item` URL. If your headless front-end has a URL structure that diverges from the Umbraco tree (e.g. a flat URL scheme on top of a nested content model), the server-side breadcrumb URLs will point to the Umbraco-hosted paths, not your consumer URLs.
+The endpoint honours the same Api-Key protection as the rest of the Delivery API — when
+`Umbraco:CMS:DeliveryApi:PublicAccess` is `false`, callers must send the `Api-Key` header.
+Preview requests additionally require preview access.
 
-Disable emission with `SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi`:
+- `200 OK` with payload on success.
+- `400 Bad Request` for a missing or empty `route`/`id`.
+- `401 Unauthorized` when Api-Key is missing or invalid.
+- `404 Not Found` when the key or route doesn't resolve to published content.
+
+## Configuration
 
 ```json
 {
   "SchemeWeaver": {
-    "EmitBreadcrumbsInDeliveryApi": false
+    "EmitBreadcrumbsInDeliveryApi": true,
+    "CacheDuration": "00:30:00"
   }
 }
 ```
 
-The server-rendered tag helper (`<scheme-weaver content="@Model" />`) always emits breadcrumbs regardless of this setting — the opt-out is Delivery API–only.
+- **`EmitBreadcrumbsInDeliveryApi`** (default `true`) — when `false`, the `BreadcrumbList`
+  block is not included. Useful when your headless front-end has a URL structure that
+  diverges from the Umbraco content tree, so you'd rather build the breadcrumb client-side
+  from your routing data.
+- **`CacheDuration`** (default `00:30:00`) — absolute cache expiration per `(content key,
+  culture)` entry. Acts as a safety-net only; real invalidation is event-driven via
+  `ContentPublished` / `ContentUnpublished` / `ContentMoved` / `ContentMovedToRecycleBin` /
+  `ContentDeleted` notifications. Tune longer if your publish cadence is high and you're
+  confident the invalidation handlers cover your use cases.
 
-## Consuming via the Delivery API
+## Examine index field
 
-The `schemaOrg` field is available on Delivery API content responses. Here is how to fetch and use it.
+SchemeWeaver also writes the same block array into the Delivery API Examine content index
+under the `schemaOrg` field. This is **only** useful if you want to filter / sort / search
+content by its JSON-LD payload at the Delivery API query layer (e.g.
+`/content?filter=schemaOrg:\"@type:WebSite\"`). The response body of that query will still
+not include the field — use the dedicated endpoint described above to read the data.
 
-### Fetching Content with JSON-LD
+## Consuming the endpoint
+
+### Vanilla fetch
 
 ```typescript
-// Fetch a content item by route
 const response = await fetch(
-  'https://your-site.com/umbraco/delivery/api/v2/content/item/about-us',
+  '/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route?route=/about',
   {
     headers: {
       'Accept': 'application/json',
+      'Api-Key': process.env.UMBRACO_DELIVERY_API_KEY!,
     },
   }
 );
 
-const data = await response.json();
+if (!response.ok) return; // 401/404 etc. — render page without JSON-LD
 
-// The schemaOrg field contains an array of JSON-LD strings
-const jsonLdBlocks: string[] = data.properties?.schemaOrg ?? [];
+const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 ```
 
-### JavaScript: Injecting into the DOM
+### JavaScript: injecting into the DOM
 
 ```javascript
-function injectJsonLd(jsonLdBlocks) {
-  for (const jsonLd of jsonLdBlocks) {
+function injectJsonLd(blocks) {
+  for (const jsonLd of blocks) {
     const script = document.createElement('script');
     script.type = 'application/ld+json';
     script.textContent = jsonLd;
     document.head.appendChild(script);
   }
 }
-
-// Usage
-const response = await fetch('/umbraco/delivery/api/v2/content/item/about-us');
-const data = await response.json();
-injectJsonLd(data.properties?.schemaOrg ?? []);
 ```
 
-### TypeScript: Typed Fetch Helper
+## Next.js (App Router) integration
 
-```typescript
-interface DeliveryApiContent {
-  name: string;
-  route: { path: string };
-  properties: {
-    schemaOrg?: string[];
-    [key: string]: unknown;
-  };
-}
-
-async function fetchContentWithSchema(path: string): Promise<DeliveryApiContent> {
-  const response = await fetch(
-    `/umbraco/delivery/api/v2/content/item${path}`
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch content: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-// Usage
-const content = await fetchContentWithSchema('/about-us');
-const schemas = content.properties.schemaOrg ?? [];
-console.log(`Found ${schemas.length} JSON-LD block(s)`);
-```
-
-## Next.js Integration
-
-In a Next.js application, you can render the JSON-LD as `<script>` tags in the document head. Below is an example using the App Router.
-
-### Page Component with JSON-LD
+The endpoint is ISR-friendly. Fetch the content and the JSON-LD in parallel from a server
+component; render `<script type="application/ld+json">` tags inline.
 
 ```tsx
 // app/[[...slug]]/page.tsx
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 
-interface UmbracoContent {
+interface ContentResponse {
+  id: string;
   name: string;
-  properties: {
-    schemaOrg?: string[];
-    [key: string]: unknown;
-  };
+  properties: Record<string, unknown>;
+}
+interface SchemaOrgResponse {
+  schemaOrg: string[];
 }
 
-async function getContent(slug: string[]): Promise<UmbracoContent> {
-  const path = '/' + (slug?.join('/') ?? '');
+async function getContent(path: string): Promise<ContentResponse> {
   const res = await fetch(
-    `${process.env.UMBRACO_URL}/umbraco/delivery/api/v2/content/item${path}`,
-    { next: { revalidate: 60 } }
+    `${process.env.UMBRACO_URL}/umbraco/delivery/api/v2/content/item/${path.replace(/^\//, '')}`,
+    {
+      headers: { 'Api-Key': process.env.UMBRACO_DELIVERY_API_KEY! },
+      next: { revalidate: 60, tags: ['umbraco:all'] },
+    },
   );
-
-  if (!res.ok) throw new Error('Content not found');
+  if (!res.ok) throw new Error('content-not-found');
   return res.json();
 }
 
+async function getSchemaOrg(path: string): Promise<string[]> {
+  const res = await fetch(
+    `${process.env.UMBRACO_URL}/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route?route=${encodeURIComponent(path)}`,
+    {
+      headers: { 'Api-Key': process.env.UMBRACO_DELIVERY_API_KEY! },
+      next: { revalidate: 60, tags: ['umbraco:all'] },
+    },
+  );
+  if (!res.ok) return []; // degrade gracefully when schemaOrg is unavailable
+  const data: SchemaOrgResponse = await res.json();
+  return data.schemaOrg ?? [];
+}
+
 export default async function Page({ params }: { params: { slug?: string[] } }) {
-  const content = await getContent(params.slug ?? []);
-  const jsonLdBlocks = content.properties.schemaOrg ?? [];
+  const path = '/' + (params.slug?.join('/') ?? '');
+
+  const [content, schemaOrg] = await Promise.all([
+    getContent(path).catch(() => null),
+    getSchemaOrg(path),
+  ]);
+  if (!content) notFound();
 
   return (
     <>
-      {/* Inject JSON-LD into the head */}
-      {jsonLdBlocks.map((jsonLd, index) => (
+      {schemaOrg.map((jsonLd, i) => (
         <script
-          key={`jsonld-${index}`}
+          key={`jsonld-${i}`}
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLd }}
         />
       ))}
-
-      {/* Page content */}
       <main>
         <h1>{content.name}</h1>
-        {/* ... render your content ... */}
+        {/* ... render blocks ... */}
       </main>
     </>
   );
 }
 ```
 
-### Dedicated JSON-LD Component
-
-For reuse across layouts, extract a component:
+### Reusable component
 
 ```tsx
 // components/JsonLd.tsx
@@ -185,12 +209,11 @@ interface JsonLdProps {
 
 export function JsonLd({ blocks }: JsonLdProps) {
   if (blocks.length === 0) return null;
-
   return (
     <>
-      {blocks.map((jsonLd, index) => (
+      {blocks.map((jsonLd, i) => (
         <script
-          key={`jsonld-${index}`}
+          key={`jsonld-${i}`}
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLd }}
         />
@@ -200,35 +223,32 @@ export function JsonLd({ blocks }: JsonLdProps) {
 }
 ```
 
+### Site-level JSON-LD for non-CMS routes
+
+Pages that aren't backed by a CMS node (custom listing pages, forms, etc.) can still render
+the inherited site schemas by fetching the root:
+
 ```tsx
-// In your layout or page:
-import { JsonLd } from '@/components/JsonLd';
-
-// ...
-<JsonLd blocks={content.properties.schemaOrg ?? []} />
+// app/layout.tsx
+const siteBlocks = await getSchemaOrg('/');
+// render <JsonLd blocks={siteBlocks} /> in the document shell
 ```
 
-### Handling Inherited Schemas in Layouts
+CMS pages that call `getSchemaOrg(path)` for their own route automatically include the
+inherited Website block already, so you need to dedupe across the layout + page boundary (a
+simple string-set equality works — SchemeWeaver serializes deterministically).
 
-Inherited schemas (e.g. `WebSite` or `Organization` on the root node) are already included in every descendant page's `schemaOrg` field. You do not need to fetch the root content separately -- SchemeWeaver walks the ancestor chain at indexing time and includes inherited schemas in the correct order.
+## BreadcrumbList considerations
 
-## BreadcrumbList Considerations
+`BreadcrumbList` is derived from the Umbraco content tree and uses `IPublishedUrlProvider`
+to build each `ListItem.item` URL. If your front-end has its own routing on top of a flatter
+URL scheme, those URLs will point to the Umbraco-hosted paths, not your consumer URLs. Two
+options:
 
-`BreadcrumbList` is emitted in the Delivery API by default, derived from Umbraco's content tree using `IPublishedUrlProvider` to build each `ListItem.item` URL.
-
-If your front-end uses a URL structure that matches (or closely matches) the Umbraco content tree, you can consume the breadcrumb as-is. If your front-end has its own routing on top of a flatter or remapped URL scheme, the server-generated URLs will point to the Umbraco-hosted paths and probably won't match your consumer URLs.
-
-In that case, disable emission:
-
-```json
-{
-  "SchemeWeaver": {
-    "EmitBreadcrumbsInDeliveryApi": false
-  }
-}
-```
-
-…and build the breadcrumb client-side from your routing data:
+1. Keep emission on and rewrite the URLs client-side (parse the block, replace the
+   `item` URLs, serialize back).
+2. Turn emission off (`SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi = false`) and build
+   the breadcrumb client-side from your own routing data:
 
 ```typescript
 function buildBreadcrumbJsonLd(crumbs: { name: string; url: string }[]) {
@@ -244,18 +264,3 @@ function buildBreadcrumbJsonLd(crumbs: { name: string; url: string }[]) {
   });
 }
 ```
-
-## Example Output
-
-The Delivery API returns the same JSON-LD content as raw strings in the `schemaOrg` field.
-
-## Field Ordering
-
-The `schemaOrg` array follows a consistent order:
-
-1. **Inherited schemas** (root-first) -- e.g. `WebSite` from home page, then any intermediate inherited schemas
-2. **`BreadcrumbList`** -- derived from the content tree (unless opted out via `EmitBreadcrumbsInDeliveryApi: false`)
-3. **Main page schema** -- the schema for the current content node
-4. **Block element schemas** -- schemas from mapped BlockList/BlockGrid elements
-
-This ordering ensures that broader context (site-level schemas) appears before page-specific detail, which is the recommended pattern for structured data.

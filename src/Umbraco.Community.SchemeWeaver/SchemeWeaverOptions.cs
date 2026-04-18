@@ -13,7 +13,7 @@ public class SchemeWeaverOptions
 
     /// <summary>
     /// Whether <see cref="Schema.NET.BreadcrumbList"/> JSON-LD is included in the Delivery API
-    /// index under the <c>schemaOrg</c> field. Default is <c>true</c>.
+    /// output under the <c>schemaOrg</c> field. Default is <c>true</c>.
     ///
     /// Set to <c>false</c> if your headless front-end has a URL structure that diverges from the
     /// Umbraco content tree and you want to generate the breadcrumb client-side from your own
@@ -21,4 +21,12 @@ public class SchemeWeaverOptions
     /// of this setting.
     /// </summary>
     public bool EmitBreadcrumbsInDeliveryApi { get; set; } = true;
+
+    /// <summary>
+    /// Absolute cache duration for the per-content JSON-LD blocks served by the Delivery API
+    /// endpoint (<c>GET /umbraco/delivery/api/v2/schemeweaver/json-ld</c>). Acts only as a
+    /// safety-net — the real cache invalidation is event-driven, triggered by content publish,
+    /// unpublish, move and delete notifications. Default is 30 minutes.
+    /// </summary>
+    public TimeSpan CacheDuration { get; set; } = TimeSpan.FromMinutes(30);
 }

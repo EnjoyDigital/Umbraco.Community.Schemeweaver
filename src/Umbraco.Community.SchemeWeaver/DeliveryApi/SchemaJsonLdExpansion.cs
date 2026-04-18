@@ -1,6 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.DeliveryApi;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Web;
@@ -9,25 +7,27 @@ using Umbraco.Community.SchemeWeaver.Services;
 namespace Umbraco.Community.SchemeWeaver.DeliveryApi;
 
 /// <summary>
-/// Adds schemaOrg JSON-LD data to the Delivery API content index.
+/// Adds the <c>schemaOrg</c> field to Umbraco's Delivery API Examine content index, enabling
+/// filter / sort / search on JSON-LD values via the search endpoint. The response body of
+/// <c>/content/item/*</c> is NOT sourced from this index — consumers reading <c>schemaOrg</c>
+/// should hit the dedicated
+/// <c>/umbraco/delivery/api/v2/schemeweaver/json-ld</c> endpoint instead, which reads from the
+/// same <see cref="IJsonLdBlocksProvider"/> cache.
 /// </summary>
 public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
 {
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IUmbracoContextAccessor _umbracoContextAccessor;
+    private readonly IJsonLdBlocksProvider _blocksProvider;
     private readonly ILogger<SchemaJsonLdContentIndexHandler> _logger;
-    private readonly SchemeWeaverOptions _options;
 
     public SchemaJsonLdContentIndexHandler(
-        IServiceScopeFactory scopeFactory,
         IUmbracoContextAccessor umbracoContextAccessor,
-        ILogger<SchemaJsonLdContentIndexHandler> logger,
-        IOptions<SchemeWeaverOptions> options)
+        IJsonLdBlocksProvider blocksProvider,
+        ILogger<SchemaJsonLdContentIndexHandler> logger)
     {
-        _scopeFactory = scopeFactory;
         _umbracoContextAccessor = umbracoContextAccessor;
+        _blocksProvider = blocksProvider;
         _logger = logger;
-        _options = options.Value;
     }
 
     public IEnumerable<IndexFieldValue> GetFieldValues(IContent content, string? culture)
@@ -38,64 +38,39 @@ public class SchemaJsonLdContentIndexHandler : IContentIndexHandler
         }
 
         var published = umbracoContext.Content?.GetById(content.Key);
-        if (published == null)
+        if (published is null)
         {
             yield break;
         }
 
-        var allJsonLd = new List<string>();
-
+        string[] blocks;
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var generator = scope.ServiceProvider.GetRequiredService<IJsonLdGenerator>();
-
-            // Inherited schemas from ancestor nodes (root-first order)
-            allJsonLd.AddRange(generator.GenerateInheritedJsonLdStrings(published, culture));
-
-            // BreadcrumbList derived from the content tree ancestry. Opt out via
-            // SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi if your headless
-            // front-end builds its own breadcrumb from its routing layer.
-            if (_options.EmitBreadcrumbsInDeliveryApi)
-            {
-                var breadcrumbJson = generator.GenerateBreadcrumbJsonLd(published, culture);
-                if (!string.IsNullOrEmpty(breadcrumbJson))
-                    allJsonLd.Add(breadcrumbJson);
-            }
-
-            // Main schema for the current content
-            var jsonLd = generator.GenerateJsonLdString(published, culture);
-            if (!string.IsNullOrEmpty(jsonLd))
-                allJsonLd.Add(jsonLd);
-
-            // Schemas from mapped block elements
-            allJsonLd.AddRange(generator.GenerateBlockElementJsonLdStrings(published, culture));
+            blocks = _blocksProvider.GetBlocks(published, culture);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to generate JSON-LD for content {ContentKey}", content.Key);
+            _logger.LogWarning(ex, "Failed to resolve JSON-LD blocks for content {ContentKey}", content.Key);
+            yield break;
         }
 
-        if (allJsonLd.Count > 0)
+        if (blocks.Length > 0)
         {
             yield return new IndexFieldValue
             {
                 FieldName = "schemaOrg",
-                Values = allJsonLd.ToArray()
+                Values = blocks,
             };
         }
     }
 
-    public IEnumerable<IndexField> GetFields()
-    {
-        return
-        [
-            new IndexField
-            {
-                FieldName = "schemaOrg",
-                FieldType = FieldType.StringRaw,
-                VariesByCulture = true
-            }
-        ];
-    }
+    public IEnumerable<IndexField> GetFields() =>
+    [
+        new IndexField
+        {
+            FieldName = "schemaOrg",
+            FieldType = FieldType.StringRaw,
+            VariesByCulture = true,
+        },
+    ];
 }
