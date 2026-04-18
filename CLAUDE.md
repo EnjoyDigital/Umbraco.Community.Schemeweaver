@@ -118,3 +118,22 @@ once upstream ships the real API. See the harness README for the exact
 - Use **Umbraco backoffice skills** for UI/extension work (workspace views, modals, property editors, etc.)
 - Run the **review agent** (`umbraco-extension-reviewer`) when finished with UI changes
 - Run **E2E tests** (`npm run test:e2e`) to close the loop on UI changes before considering work complete
+
+## Releasing
+The release workflow (`.github/workflows/release.yml`) uses `generate_release_notes: true`, which produces **empty or near-useless notes** because most commits land directly on `main` rather than via PRs. When cutting a release — or any time a version tag has just been pushed — **overwrite the auto-generated body with hand-crafted notes** before moving on.
+
+Procedure:
+1. After the tag is pushed and the release exists, run `git log --pretty=format:'%h %s' <previous-tag>..<this-tag>` to list what actually changed.
+2. Group into **Features / Fixes / Refactors / Docs / Build / Chores** (omit empty sections). Lead each bullet with the user-visible effect, not the commit subject.
+3. Call out **compatibility notes** explicitly — breaking changes, new defaults users will see, new config keys and their defaults. If there are none, say so in one line.
+4. For any fix that changes behaviour (even subtly, like the `@id` change in v1.1.0), explain **what was wrong before** so users can judge whether it affects them.
+5. Publish with:
+   ```bash
+   gh release edit vX.Y.Z --notes "$(cat <<'EOF'
+   ...notes...
+   EOF
+   )"
+   ```
+6. Keep the trailing `**Full Changelog**: https://github.com/.../compare/<prev>...<this>` link — it's how people drill into the diff.
+
+Do **not** leave a release with only the auto-generated "Full Changelog" line. Treat that as a bug to fix before the release is considered shipped.
