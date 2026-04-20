@@ -118,6 +118,8 @@ export default {
     preConfigure: 'Pre-configured',
     inherited: 'Inherited',
     inheritedDescription: 'When enabled, this schema will also be output on all descendant pages.',
+    idOverrideLabel: 'Custom @id template (optional)',
+    idOverrideHint: 'Leave blank for the default {url}#{type}. Tokens: {url}, {type}, {key}, {culture}, {siteUrl}.',
     next: 'Next',
     noBlockTypesHint: 'No block element types found for this property. Enter an alias manually:',
     selectBlockTypeHint: 'Select the block element type that contains the content for each',

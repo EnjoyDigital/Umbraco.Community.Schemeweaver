@@ -51,6 +51,9 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
             new XElement("IsEnabled", item.IsEnabled),
             new XElement("IsInherited", item.IsInherited));
 
+        if (!string.IsNullOrEmpty(item.IdOverride))
+            info.Add(new XElement("IdOverride", item.IdOverride));
+
         node.Add(info);
 
         var propertyMappings = repository.GetPropertyMappings(item.Id);
@@ -83,6 +86,9 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
 
             if (!string.IsNullOrEmpty(pm.DynamicRootConfig))
                 pmNode.Add(new XElement("DynamicRootConfig", new XCData(pm.DynamicRootConfig)));
+
+            if (!string.IsNullOrEmpty(pm.TargetPieceKey))
+                pmNode.Add(new XElement("TargetPieceKey", pm.TargetPieceKey));
 
             propertyMappingsNode.Add(pmNode);
         }
@@ -117,6 +123,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
         mapping.SchemaTypeName = schemaTypeName;
         mapping.IsEnabled = isEnabled;
         mapping.IsInherited = isInherited;
+        mapping.IdOverride = info.Element("IdOverride")?.Value;
 
         var saved = repository.Save(mapping);
 
@@ -139,6 +146,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
                 NestedSchemaTypeName = pmNode.Element("NestedSchemaTypeName")?.Value,
                 ResolverConfig = pmNode.Element("ResolverConfig")?.Value,
                 DynamicRootConfig = pmNode.Element("DynamicRootConfig")?.Value,
+                TargetPieceKey = pmNode.Element("TargetPieceKey")?.Value,
             }));
         }
 

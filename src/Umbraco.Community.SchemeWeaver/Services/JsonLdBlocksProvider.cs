@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Community.SchemeWeaver.Graph;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
 
@@ -94,11 +95,28 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
 
     private string[] Generate(IPublishedContent content, string? culture)
     {
-        var all = new List<string>();
         try
         {
             using var scope = _scopeFactory.CreateScope();
+
+            // v1.4+ pieces-based @graph output. A single string element carrying
+            // the full graph, which is what headless consumers render directly
+            // into one <script type="application/ld+json"> tag. Pre-v1.4
+            // callers that expected many blocks still get a string array — just
+            // with one element — so no client-side refactor is required beyond
+            // rendering the single entry.
+            if (_options.UseGraphModel)
+            {
+                var graphGenerator = scope.ServiceProvider.GetRequiredService<IGraphGenerator>();
+                var graphJson = graphGenerator.GenerateGraphJson(content, culture);
+                return string.IsNullOrEmpty(graphJson)
+                    ? Array.Empty<string>()
+                    : [graphJson];
+            }
+
+            // Legacy fallback — one JSON-LD block per piece of source data.
             var generator = scope.ServiceProvider.GetRequiredService<IJsonLdGenerator>();
+            var all = new List<string>();
 
             all.AddRange(generator.GenerateInheritedJsonLdStrings(content, culture));
 
@@ -112,13 +130,13 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
             if (!string.IsNullOrEmpty(main)) all.Add(main);
 
             all.AddRange(generator.GenerateBlockElementJsonLdStrings(content, culture));
+
+            return all.ToArray();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to generate JSON-LD for content {ContentKey}", content.Key);
             return Array.Empty<string>();
         }
-
-        return all.ToArray();
     }
 }

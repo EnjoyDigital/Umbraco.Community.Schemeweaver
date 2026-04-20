@@ -17,5 +17,7 @@ public class SchemeWeaverMigrationPlan : PackageMigrationPlan
         To<AddResolverConfigMigration>("schemeweaver-add-resolver-config-v2");
         To<AddIsInheritedMigration>("schemeweaver-add-is-inherited-v3");
         To<AddDynamicRootConfigMigration>("schemeweaver-add-dynamic-root-config-v4");
+        To<AddIdOverrideMigration>("schemeweaver-add-id-override-v5");
+        To<AddTargetPieceKeyMigration>("schemeweaver-add-target-piece-key-v6");
     }
 }

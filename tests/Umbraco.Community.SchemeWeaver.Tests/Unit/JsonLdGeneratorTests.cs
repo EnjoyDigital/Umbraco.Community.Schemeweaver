@@ -1736,4 +1736,102 @@ public class JsonLdGeneratorTests
     }
 
     #endregion
+
+    #region @id override
+
+    [Fact]
+    public void ExpandIdTokens_ExpandsAllKnownTokens()
+    {
+        var key = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
+        var result = JsonLdGenerator.ExpandIdTokens(
+            "{siteUrl}/{culture}/entity/{key}#{type}",
+            contentUrl: "https://example.com/about/",
+            siteUrl: "https://example.com",
+            schemaTypeName: "RealEstateAgent",
+            contentKey: key,
+            culture: "en-gb");
+
+        result.Should().Be("https://example.com/en-gb/entity/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee#realestateagent");
+    }
+
+    [Fact]
+    public void ExpandIdTokens_MissingContextValues_ExpandToEmptyString()
+    {
+        var result = JsonLdGenerator.ExpandIdTokens(
+            "{siteUrl}#{type}",
+            contentUrl: null,
+            siteUrl: null,
+            schemaTypeName: "Organization",
+            contentKey: Guid.Empty,
+            culture: null);
+
+        result.Should().Be("#organization");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_WithIdOverride_UsesExpandedOverride()
+    {
+        var content = CreateContent("siteSettings");
+        content.Key.Returns(Guid.Parse("11111111-2222-3333-4444-555555555555"));
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("https://example.com/about/");
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("example.com");
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var mapping = CreateMapping("siteSettings", "Organization");
+        mapping.IdOverride = "{siteUrl}#organization";
+        _repository.GetByContentTypeAlias("siteSettings").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>());
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result!.Id.Should().NotBeNull();
+        result.Id!.ToString().Should().Be("https://example.com/#organization");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_WithoutIdOverride_FallsBackToDefault()
+    {
+        var content = CreateContent("article");
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("https://example.com/blog/post/");
+
+        var mapping = CreateMapping("article", "Article");
+        mapping.IdOverride = null;
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>());
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result!.Id!.ToString().Should().Be("https://example.com/blog/post/#article");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_ExplicitIdPropertyMapping_BeatsIdOverride()
+    {
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["customId"] = "https://example.com/explicit/#thing"
+        });
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("https://example.com/blog/post/");
+
+        var mapping = CreateMapping("article", "Article");
+        mapping.IdOverride = "{url}#override-wins-over-default-but-not-over-explicit";
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Id", SourceType = "property", ContentTypePropertyAlias = "customId" }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        result!.Id!.ToString().Should().Be("https://example.com/explicit/#thing");
+    }
+
+    #endregion
 }

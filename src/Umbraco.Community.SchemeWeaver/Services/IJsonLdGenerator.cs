@@ -1,4 +1,5 @@
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Community.SchemeWeaver.Graph;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
 
@@ -7,7 +8,18 @@ namespace Umbraco.Community.SchemeWeaver.Services;
 /// </summary>
 public interface IJsonLdGenerator
 {
-    Schema.NET.Thing? GenerateJsonLd(IPublishedContent content, string? culture = null);
+    /// <summary>
+    /// Builds a Schema.NET <see cref="Schema.NET.Thing"/> for the content's
+    /// mapped schema type. When <paramref name="graphContext"/> is non-null,
+    /// property mappings with source type <c>reference</c> resolve their @id
+    /// from <see cref="GraphPieceContext.Ids"/> so the emitted Thing carries
+    /// cross-piece references; otherwise <c>reference</c> mappings are
+    /// silently skipped.
+    /// </summary>
+    Schema.NET.Thing? GenerateJsonLd(
+        IPublishedContent content,
+        string? culture = null,
+        GraphPieceContext? graphContext = null);
     string? GenerateJsonLdString(IPublishedContent content, string? culture = null);
 
     /// <summary>

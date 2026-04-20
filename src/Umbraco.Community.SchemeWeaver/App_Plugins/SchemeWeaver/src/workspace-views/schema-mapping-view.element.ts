@@ -281,6 +281,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       const dto: SchemaMappingDto = {
         ...this._mapping,
         contentTypeKey: this._contentTypeKey || this._mapping.contentTypeKey,
+        idOverride: this._mapping.idOverride ?? null,
         propertyMappings: this._rows
           .filter((row) => {
             if (row.sourceType === SourceType.Static) return !!row.staticValue;
@@ -324,6 +325,15 @@ export class SchemaMappingViewElement extends UmbLitElement {
     this._mapping = {
       ...this._mapping,
       isInherited: (e.target as HTMLInputElement).checked,
+    };
+  }
+
+  private _handleIdOverrideInput(e: Event) {
+    if (!this._mapping) return;
+    const raw = (e.target as HTMLInputElement).value;
+    this._mapping = {
+      ...this._mapping,
+      idOverride: raw.trim() === '' ? null : raw,
     };
   }
 
@@ -487,6 +497,20 @@ export class SchemaMappingViewElement extends UmbLitElement {
             </uui-toggle>
             <small>${this.localize.term('schemeWeaver_inheritedDescription')}</small>
           </div>
+          <div class="id-override">
+            <label for="id-override-input" class="id-override-label">
+              ${this.localize.term('schemeWeaver_idOverrideLabel')}
+            </label>
+            <uui-input
+              id="id-override-input"
+              type="text"
+              .value=${this._mapping.idOverride ?? ''}
+              placeholder="{url}#{type}"
+              @input=${this._handleIdOverrideInput}
+              label=${this.localize.term('schemeWeaver_idOverrideLabel')}
+            ></uui-input>
+            <small>${this.localize.term('schemeWeaver_idOverrideHint')}</small>
+          </div>
         </uui-box>
 
         <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
@@ -562,6 +586,28 @@ export class SchemaMappingViewElement extends UmbLitElement {
       }
 
       .inherited-toggle small {
+        color: var(--uui-color-text-alt);
+      }
+
+      .id-override {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+        margin-top: var(--uui-size-space-4);
+        padding-top: var(--uui-size-space-4);
+        border-top: 1px solid var(--uui-color-border);
+      }
+
+      .id-override uui-input {
+        width: 100%;
+        max-width: 560px;
+      }
+
+      .id-override-label {
+        font-weight: 600;
+      }
+
+      .id-override small {
         color: var(--uui-color-text-alt);
       }
 

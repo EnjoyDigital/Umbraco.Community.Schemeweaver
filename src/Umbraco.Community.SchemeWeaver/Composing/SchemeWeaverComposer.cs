@@ -5,6 +5,8 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Community.SchemeWeaver;
 using Umbraco.Community.SchemeWeaver.DeliveryApi;
+using Umbraco.Community.SchemeWeaver.Graph;
+using Umbraco.Community.SchemeWeaver.Graph.Pieces;
 using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
@@ -67,5 +69,17 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<IPropertyValueResolver, ColorPickerResolver>();
         builder.Services.AddScoped<IPropertyValueResolver, MultiUrlPickerResolver>();
         builder.Services.AddScoped<IPropertyValueResolverFactory, PropertyValueResolverFactory>();
+
+        // Graph (pieces) model (Yoast-style).
+        builder.Services.AddScoped<IGraphGenerator, GraphGenerator>();
+        builder.Services.AddScoped<ISiteSettingsResolver, SiteSettingsResolver>();
+
+        // Built-in pieces. Order is set on each piece (100-spaced) so custom
+        // pieces can slot between them; registration order here doesn't matter.
+        builder.Services.AddSchemeWeaverGraphPiece<OrganizationPiece>();
+        builder.Services.AddSchemeWeaverGraphPiece<WebSitePiece>();
+        builder.Services.AddSchemeWeaverGraphPiece<MainEntityPiece>();
+        builder.Services.AddSchemeWeaverGraphPiece<BreadcrumbListPiece>();
+        builder.Services.AddSchemeWeaverGraphPiece<PrimaryImagePiece>();
     }
 }

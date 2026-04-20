@@ -1,10 +1,13 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Xunit;
 using NSubstitute;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
+using Umbraco.Community.SchemeWeaver;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -17,15 +20,25 @@ public class SchemeWeaverServiceTests
     private readonly ISchemaTypeRegistry _registry = Substitute.For<ISchemaTypeRegistry>();
     private readonly ISchemaAutoMapper _autoMapper = Substitute.For<ISchemaAutoMapper>();
     private readonly IJsonLdGenerator _generator = Substitute.For<IJsonLdGenerator>();
+    private readonly IGraphGenerator _graphGenerator = Substitute.For<IGraphGenerator>();
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly IContentTypeService _contentTypeService = Substitute.For<IContentTypeService>();
     private readonly IDataTypeService _dataTypeService = Substitute.For<IDataTypeService>();
     private readonly ILogger<SchemeWeaverService> _logger = Substitute.For<ILogger<SchemeWeaverService>>();
+
+    // Existing preview tests assert against the legacy single-Thing string;
+    // keep the graph model off so their assertions stay meaningful. A
+    // dedicated @graph preview test below flips this on.
+    private readonly SchemeWeaverOptions _options = new() { UseGraphModel = false };
+
     private readonly SchemeWeaverService _sut;
 
     public SchemeWeaverServiceTests()
     {
-        _sut = new SchemeWeaverService(_registry, _autoMapper, _generator, _repository, _contentTypeService, _dataTypeService, _logger);
+        _sut = new SchemeWeaverService(
+            _registry, _autoMapper, _generator, _graphGenerator,
+            _repository, _contentTypeService, _dataTypeService,
+            Options.Create(_options), _logger);
     }
 
     [Fact]
@@ -87,6 +100,21 @@ public class SchemeWeaverServiceTests
         result.IsValid.Should().BeTrue();
         result.JsonLd.Should().Contain("Article");
         _generator.Received(1).GenerateJsonLdString(content);
+    }
+
+    [Fact]
+    public void GeneratePreview_GraphModelEnabled_RoutesThroughGraphGenerator()
+    {
+        _options.UseGraphModel = true;
+        var content = Substitute.For<IPublishedContent>();
+        _graphGenerator.GenerateGraphJson(content, null).Returns("{\"@graph\":[{\"@type\":\"Organization\"}]}");
+
+        var result = _sut.GeneratePreview(content);
+
+        result.IsValid.Should().BeTrue();
+        result.JsonLd.Should().Contain("@graph");
+        _graphGenerator.Received(1).GenerateGraphJson(content, null);
+        _generator.DidNotReceive().GenerateJsonLdString(Arg.Any<IPublishedContent>(), Arg.Any<string?>());
     }
 
     [Fact]

@@ -30,10 +30,16 @@ public class JsonLdBlocksProviderTests
         services.AddSingleton(_generator);
         var provider = services.BuildServiceProvider();
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+
+        // These tests exercise the legacy multi-block path. The v1.4 graph-model
+        // behaviour is covered by GraphGeneratorTests, so opt out of it here.
+        var effective = options ?? new SchemeWeaverOptions();
+        effective.UseGraphModel = false;
+
         return new JsonLdBlocksProvider(
             scopeFactory,
             cache ?? new MemoryCache(new MemoryCacheOptions()),
-            Options.Create(options ?? new SchemeWeaverOptions()),
+            Options.Create(effective),
             NullLogger<JsonLdBlocksProvider>.Instance);
     }
 

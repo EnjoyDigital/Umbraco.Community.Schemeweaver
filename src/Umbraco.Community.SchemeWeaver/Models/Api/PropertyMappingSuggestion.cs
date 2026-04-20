@@ -16,4 +16,10 @@ public class PropertyMappingSuggestion
     public bool IsComplexType { get; set; }
     public string? SuggestedNestedSchemaTypeName { get; set; }
     public string? SuggestedResolverConfig { get; set; }
+
+    /// <summary>
+    /// For <c>reference</c> source type: the graph piece key the suggestion
+    /// points at (e.g. <c>"organization"</c>). Null for every other source type.
+    /// </summary>
+    public string? SuggestedTargetPieceKey { get; set; }
 }

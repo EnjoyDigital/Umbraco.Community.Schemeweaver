@@ -56,6 +56,11 @@ export interface PropertyMappingDto {
   nestedSchemaTypeName: string | null;
   resolverConfig: string | null;
   dynamicRootConfig: string | null;
+  /**
+   * For `reference` source type: the graph piece key (e.g. "organization")
+   * whose @id this property resolves to.
+   */
+  targetPieceKey?: string | null;
 }
 
 /** Matches C# SchemaMappingDto */
@@ -65,6 +70,11 @@ export interface SchemaMappingDto {
   schemaTypeName: string;
   isEnabled: boolean;
   isInherited: boolean;
+  /**
+   * Optional @id template. Tokens: {url}, {type}, {key}, {culture}, {siteUrl}.
+   * When null/omitted the generator falls back to {url}#{type}.
+   */
+  idOverride?: string | null;
   propertyMappings: PropertyMappingDto[];
 }
 
@@ -81,6 +91,8 @@ export interface PropertyMappingSuggestion {
   isComplexType: boolean;
   suggestedNestedSchemaTypeName?: string;
   suggestedResolverConfig?: string;
+  /** For `reference` source-type suggestions: the piece key (e.g. "organization") to ref. */
+  suggestedTargetPieceKey?: string;
 }
 
 /** Matches C# BlockElementTypeInfo — returned by GET /content-types/{alias}/properties/{propertyAlias}/block-types */

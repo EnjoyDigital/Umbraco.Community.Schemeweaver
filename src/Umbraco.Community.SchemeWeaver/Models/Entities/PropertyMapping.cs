@@ -56,4 +56,13 @@ public class PropertyMapping
     [NullSetting(NullSetting = NullSettings.Null)]
     [SpecialDbType(SpecialDbTypes.NVARCHARMAX)]
     public string? DynamicRootConfig { get; set; }
+
+    /// <summary>
+    /// For <c>reference</c> source type: the <see cref="Graph.IGraphPiece.Key"/>
+    /// of the piece whose @id this property should resolve to (e.g. <c>"organization"</c>).
+    /// Null for all other source types.
+    /// </summary>
+    [Column("TargetPieceKey")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? TargetPieceKey { get; set; }
 }

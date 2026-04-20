@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PublishedCache;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Services;
 
 namespace Umbraco.Community.SchemeWeaver.TagHelpers;
@@ -14,16 +16,22 @@ namespace Umbraco.Community.SchemeWeaver.TagHelpers;
 public class SchemeWeaverTagHelper : TagHelper
 {
     private readonly IJsonLdGenerator _generator;
+    private readonly IGraphGenerator _graphGenerator;
     private readonly IVariationContextAccessor _variationContextAccessor;
+    private readonly SchemeWeaverOptions _options;
     private readonly ILogger<SchemeWeaverTagHelper> _logger;
 
     public SchemeWeaverTagHelper(
         IJsonLdGenerator generator,
+        IGraphGenerator graphGenerator,
         IVariationContextAccessor variationContextAccessor,
+        IOptions<SchemeWeaverOptions> options,
         ILogger<SchemeWeaverTagHelper> logger)
     {
         _generator = generator;
+        _graphGenerator = graphGenerator;
         _variationContextAccessor = variationContextAccessor;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -42,10 +50,25 @@ public class SchemeWeaverTagHelper : TagHelper
 
         try
         {
-            var hasOutput = false;
             var culture = _variationContextAccessor.VariationContext?.Culture;
 
-            // 1. Inherited schemas from ancestor nodes (root-first order)
+            if (_options.UseGraphModel)
+            {
+                // v1.4+: a single Yoast-style @graph script carries every piece
+                // (Organization, WebSite, WebPage, Breadcrumb, main entity, …).
+                var graphJson = _graphGenerator.GenerateGraphJson(Content, culture);
+                if (!string.IsNullOrEmpty(graphJson))
+                {
+                    output.Content.AppendHtml($"<script type=\"application/ld+json\">{graphJson}</script>");
+                    return;
+                }
+                output.SuppressOutput();
+                return;
+            }
+
+            // Legacy path — one script tag per piece of source data.
+            var hasOutput = false;
+
             foreach (var inheritedJsonLd in _generator.GenerateInheritedJsonLdStrings(Content, culture))
             {
                 var prefix = hasOutput ? "\n" : "";
@@ -53,7 +76,6 @@ public class SchemeWeaverTagHelper : TagHelper
                 hasOutput = true;
             }
 
-            // 2. BreadcrumbList as a separate JSON-LD block
             var breadcrumbJson = _generator.GenerateBreadcrumbJsonLd(Content, culture);
             if (!string.IsNullOrEmpty(breadcrumbJson))
             {
@@ -62,7 +84,6 @@ public class SchemeWeaverTagHelper : TagHelper
                 hasOutput = true;
             }
 
-            // 3. Main page schema
             var jsonLd = _generator.GenerateJsonLdString(Content, culture);
             if (!string.IsNullOrEmpty(jsonLd))
             {
@@ -71,7 +92,6 @@ public class SchemeWeaverTagHelper : TagHelper
                 hasOutput = true;
             }
 
-            // 4. Schemas from mapped block elements
             foreach (var blockJsonLd in _generator.GenerateBlockElementJsonLdStrings(Content, culture))
             {
                 var prefix = hasOutput ? "\n" : "";

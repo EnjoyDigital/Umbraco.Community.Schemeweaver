@@ -2,9 +2,12 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Xunit;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PublishedCache;
+using Umbraco.Community.SchemeWeaver;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.TagHelpers;
 
@@ -13,12 +16,23 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 public class SchemeWeaverTagHelperTests
 {
     private readonly IJsonLdGenerator _generator = Substitute.For<IJsonLdGenerator>();
+    private readonly IGraphGenerator _graphGenerator = Substitute.For<IGraphGenerator>();
     private readonly IVariationContextAccessor _variationContextAccessor = Substitute.For<IVariationContextAccessor>();
     private readonly ILogger<SchemeWeaverTagHelper> _logger = Substitute.For<ILogger<SchemeWeaverTagHelper>>();
 
+    // Default existing tests to the legacy path so their assertions about
+    // multiple <script> tags remain valid. v1.4 dedicated graph-model tests
+    // live in GraphGeneratorTests / MainEntityPieceTests.
+    private readonly SchemeWeaverOptions _options = new() { UseGraphModel = false };
+
     private SchemeWeaverTagHelper CreateTagHelper()
     {
-        return new SchemeWeaverTagHelper(_generator, _variationContextAccessor, _logger);
+        return new SchemeWeaverTagHelper(
+            _generator,
+            _graphGenerator,
+            _variationContextAccessor,
+            Options.Create(_options),
+            _logger);
     }
 
     private static (TagHelperContext context, TagHelperOutput output) CreateTagHelperContextAndOutput()

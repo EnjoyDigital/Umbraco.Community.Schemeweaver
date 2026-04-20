@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -16,26 +18,32 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly ISchemaTypeRegistry _registry;
     private readonly ISchemaAutoMapper _autoMapper;
     private readonly IJsonLdGenerator _generator;
+    private readonly IGraphGenerator _graphGenerator;
     private readonly ISchemaMappingRepository _repository;
     private readonly IContentTypeService _contentTypeService;
     private readonly IDataTypeService _dataTypeService;
+    private readonly SchemeWeaverOptions _options;
     private readonly ILogger<SchemeWeaverService> _logger;
 
     public SchemeWeaverService(
         ISchemaTypeRegistry registry,
         ISchemaAutoMapper autoMapper,
         IJsonLdGenerator generator,
+        IGraphGenerator graphGenerator,
         ISchemaMappingRepository repository,
         IContentTypeService contentTypeService,
         IDataTypeService dataTypeService,
+        IOptions<SchemeWeaverOptions> options,
         ILogger<SchemeWeaverService> logger)
     {
         _registry = registry;
         _autoMapper = autoMapper;
         _generator = generator;
+        _graphGenerator = graphGenerator;
         _repository = repository;
         _contentTypeService = contentTypeService;
         _dataTypeService = dataTypeService;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -76,6 +84,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         entity.SchemaTypeName = dto.SchemaTypeName;
         entity.IsEnabled = dto.IsEnabled;
         entity.IsInherited = dto.IsInherited;
+        entity.IdOverride = string.IsNullOrWhiteSpace(dto.IdOverride) ? null : dto.IdOverride.Trim();
 
         var saved = _repository.Save(entity);
 
@@ -91,7 +100,8 @@ public class SchemeWeaverService : ISchemeWeaverService
             StaticValue = p.StaticValue,
             NestedSchemaTypeName = p.NestedSchemaTypeName,
             ResolverConfig = p.ResolverConfig,
-            DynamicRootConfig = p.DynamicRootConfig
+            DynamicRootConfig = p.DynamicRootConfig,
+            TargetPieceKey = string.IsNullOrWhiteSpace(p.TargetPieceKey) ? null : p.TargetPieceKey.Trim()
         });
 
         _repository.SavePropertyMappings(saved.Id, propertyEntities);
@@ -121,7 +131,14 @@ public class SchemeWeaverService : ISchemeWeaverService
 
         try
         {
-            var jsonLd = _generator.GenerateJsonLdString(content, culture);
+            // v1.4+ default: the backoffice preview matches what the Delivery
+            // API and tag helper actually emit — a single Yoast-style @graph.
+            // Legacy per-mapping string is only used when UseGraphModel is
+            // explicitly disabled so editors don't see a different shape in
+            // the preview tab than the live site renders.
+            var jsonLd = _options.UseGraphModel
+                ? _graphGenerator.GenerateGraphJson(content, culture)
+                : _generator.GenerateJsonLdString(content, culture);
             if (jsonLd is not null)
             {
                 response.JsonLd = jsonLd;
@@ -276,6 +293,7 @@ public class SchemeWeaverService : ISchemeWeaverService
             SchemaTypeName = mapping.SchemaTypeName,
             IsEnabled = mapping.IsEnabled,
             IsInherited = mapping.IsInherited,
+            IdOverride = mapping.IdOverride,
             PropertyMappings = propertyMappings.Select(p => new PropertyMappingDto
             {
                 SchemaPropertyName = p.SchemaPropertyName,
@@ -287,7 +305,8 @@ public class SchemeWeaverService : ISchemeWeaverService
                 StaticValue = p.StaticValue,
                 NestedSchemaTypeName = p.NestedSchemaTypeName,
                 ResolverConfig = p.ResolverConfig,
-                DynamicRootConfig = p.DynamicRootConfig
+                DynamicRootConfig = p.DynamicRootConfig,
+                TargetPieceKey = p.TargetPieceKey
             }).ToList()
         };
 }

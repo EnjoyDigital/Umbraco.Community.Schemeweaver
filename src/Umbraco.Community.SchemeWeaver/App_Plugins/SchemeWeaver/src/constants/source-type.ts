@@ -14,6 +14,7 @@ export const SourceType = {
   Sibling: 'sibling',
   BlockContent: 'blockContent',
   ComplexType: 'complexType',
+  Reference: 'reference',
 } as const;
 
 export type SourceTypeValue = (typeof SourceType)[keyof typeof SourceType];

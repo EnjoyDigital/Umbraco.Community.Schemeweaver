@@ -35,4 +35,12 @@ public class SchemaMapping
 
     [Column("IsInherited")]
     public bool IsInherited { get; set; }
+
+    /// <summary>
+    /// Optional @id template. When set, overrides the default {url}#{type} convention.
+    /// Supports tokens: {url}, {type}, {key}, {culture}, {siteUrl}.
+    /// </summary>
+    [Column("IdOverride")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? IdOverride { get; set; }
 }

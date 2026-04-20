@@ -8,6 +8,7 @@ using Schema.NET;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services.Navigation;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Cms.Core.PublishedCache;
@@ -68,7 +69,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         _options = options.Value;
     }
 
-    public Thing? GenerateJsonLd(IPublishedContent content, string? culture = null)
+    public Thing? GenerateJsonLd(
+        IPublishedContent content,
+        string? culture = null,
+        GraphPieceContext? graphContext = null)
     {
         var previousContext = _variationContextAccessor.VariationContext;
         if (culture is not null)
@@ -76,7 +80,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         try
         {
-            return GenerateJsonLdCore(content, culture);
+            return GenerateJsonLdCore(content, culture, graphContext);
         }
         finally
         {
@@ -84,7 +88,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         }
     }
 
-    private Thing? GenerateJsonLdCore(IPublishedContent content, string? culture)
+    private Thing? GenerateJsonLdCore(IPublishedContent content, string? culture, GraphPieceContext? graphContext = null)
     {
         var mapping = _repository.GetByContentTypeAlias(content.ContentType.Alias);
         if (mapping is not { IsEnabled: true })
@@ -110,6 +114,31 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             {
                 if (string.Equals(propMapping.SchemaPropertyName, "InLanguage", StringComparison.OrdinalIgnoreCase))
                     hasExplicitInLanguage = true;
+
+                // `reference` source type: cross-piece @id ref. Only resolvable
+                // when called inside the graph pipeline (graphContext != null).
+                // Outside that pipeline (legacy single-Thing callers) we can't
+                // know what to point at, so the mapping is skipped.
+                if (string.Equals(propMapping.SourceType, "reference", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (graphContext is null || string.IsNullOrWhiteSpace(propMapping.TargetPieceKey))
+                        continue;
+
+                    var refId = graphContext.IdFor(propMapping.TargetPieceKey);
+                    if (string.IsNullOrWhiteSpace(refId)
+                        || !Uri.TryCreate(refId, UriKind.Absolute, out var refUri))
+                        continue;
+
+                    // Thing shell with only @id — GraphGenerator's ref-collapse
+                    // will reduce the serialised form to {"@id": "..."}. Works
+                    // for any target property that accepts a Thing-typed value,
+                    // which covers all cross-entity links in Schema.org.
+                    SchemaPropertySetter.SetPropertyValue(
+                        instance,
+                        propMapping.SchemaPropertyName,
+                        new Thing { Id = refUri });
+                    continue;
+                }
 
                 var value = ResolveValue(propMapping, content, culture);
                 if (value is null)
@@ -153,17 +182,20 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (culture is not null && !hasExplicitInLanguage)
             SchemaPropertySetter.SetPropertyValue(instance, "InLanguage", culture);
 
-        // Default @id to {absoluteUrl}#{schemaTypeLowercase} so each entity on a page
-        // has a distinct, stable identifier. The schema type disambiguates the page
-        // (WebPage) from any other entity it describes (Organization, Article, …) so
-        // they don't collide on the bare URL. Mapping the "Id" property explicitly
-        // overrides this default — see the loop above.
+        // @id precedence:
+        //   1. Explicit "Id" property mapping (handled in the loop above, sets hasExplicitId).
+        //   2. Mapping-level IdOverride template with token expansion.
+        //   3. Default {absoluteUrl}#{schemaTypeLowercase} — disambiguates the page
+        //      (WebPage) from any other entity it describes (Organization, Article, …)
+        //      that would otherwise collide on the bare URL.
         if (!hasExplicitId)
         {
             var contentUrl = ResolveAbsoluteUrl(content);
-            if (!string.IsNullOrEmpty(contentUrl))
+            var expandedId = ResolveIdFromOverrideOrDefault(mapping, content, contentUrl, culture);
+            if (!string.IsNullOrEmpty(expandedId)
+                && Uri.TryCreate(expandedId, UriKind.Absolute, out var idUri))
             {
-                instance.Id = new Uri($"{contentUrl}#{mapping.SchemaTypeName.ToLowerInvariant()}", UriKind.Absolute);
+                instance.Id = idUri;
             }
         }
 
@@ -277,6 +309,61 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             return null;
 
         return $"{request.Scheme}://{request.Host}{relativeUrl}";
+    }
+
+    private string? ResolveSiteUrl()
+    {
+        var request = _httpContextAccessor.HttpContext?.Request;
+        if (request is not null)
+            return $"{request.Scheme}://{request.Host}";
+        return null;
+    }
+
+    private string? ResolveIdFromOverrideOrDefault(
+        SchemaMapping mapping,
+        IPublishedContent content,
+        string? contentUrl,
+        string? culture)
+    {
+        if (!string.IsNullOrWhiteSpace(mapping.IdOverride))
+        {
+            var expanded = ExpandIdTokens(
+                mapping.IdOverride,
+                contentUrl,
+                ResolveSiteUrl(),
+                mapping.SchemaTypeName,
+                content.Key,
+                culture);
+            if (!string.IsNullOrWhiteSpace(expanded))
+                return expanded;
+        }
+
+        if (!string.IsNullOrEmpty(contentUrl))
+            return $"{contentUrl}#{mapping.SchemaTypeName.ToLowerInvariant()}";
+
+        return null;
+    }
+
+    /// <summary>
+    /// Expands @id template tokens. Supported: {url}, {type}, {key}, {culture},
+    /// {siteUrl}. Missing context values expand to empty strings so a template
+    /// like "{siteUrl}#{type}" still works when the site URL isn't resolvable
+    /// at test time.
+    /// </summary>
+    internal static string ExpandIdTokens(
+        string template,
+        string? contentUrl,
+        string? siteUrl,
+        string schemaTypeName,
+        Guid contentKey,
+        string? culture)
+    {
+        return template
+            .Replace("{url}", contentUrl ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("{type}", schemaTypeName.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{key}", contentKey.ToString("D"), StringComparison.OrdinalIgnoreCase)
+            .Replace("{culture}", culture ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("{siteUrl}", siteUrl ?? string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

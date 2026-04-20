@@ -10,6 +10,14 @@ public class SchemaMappingDto
     public string SchemaTypeName { get; set; } = string.Empty;
     public bool IsEnabled { get; set; }
     public bool IsInherited { get; set; }
+
+    /// <summary>
+    /// Optional @id template for this mapping. Tokens: {url}, {type}, {key},
+    /// {culture}, {siteUrl}. When null the generator uses the default
+    /// {url}#{type} convention.
+    /// </summary>
+    public string? IdOverride { get; set; }
+
     public List<PropertyMappingDto> PropertyMappings { get; set; } = [];
 }
 
@@ -28,4 +36,10 @@ public class PropertyMappingDto
     public string? NestedSchemaTypeName { get; set; }
     public string? ResolverConfig { get; set; }
     public string? DynamicRootConfig { get; set; }
+
+    /// <summary>
+    /// For <c>reference</c> source type: the key of the graph piece whose @id
+    /// this property should resolve to (e.g. <c>"organization"</c>).
+    /// </summary>
+    public string? TargetPieceKey { get; set; }
 }

@@ -157,12 +157,53 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["acceptsReservations"] = ["acceptsReservations", "reservations", "bookingAvailable"],
 
         // Person (additional)
-        ["sameAs"] = ["sameAs", "socialLinks", "profiles", "socialMedia"],
+        ["sameAs"] = ["sameAs", "socialLinks", "profiles", "socialMedia", "social", "socials"],
         ["alumniOf"] = ["alumniOf", "education", "university"],
 
         // Organization (additional)
         ["foundingDate"] = ["foundingDate", "founded", "established"],
         ["numberOfEmployees"] = ["numberOfEmployees", "teamSize", "employees"],
+        ["legalName"] = ["legalName", "registeredName", "companyName"],
+        ["slogan"] = ["slogan", "tagline", "strapline"],
+        ["currenciesAccepted"] = ["currenciesAccepted", "currency", "acceptedCurrency"],
+
+        // Cross-entity references (used with `reference` source type when no
+        // content property matches — keeps synonyms consistent for partial matches)
+        ["publisher"] = ["publisher"],
+        ["about"] = ["about", "aboutEntity"],
+        ["mainEntity"] = ["mainEntity", "primaryEntity"],
+        ["founder"] = ["founder", "founderPerson"],
+
+        // Content (additional — generic bio / summary synonyms)
+        ["biography"] = ["biography", "bio", "profile", "about"],
+    };
+
+    /// <summary>
+    /// Schema.org properties that typically point at an Organization or Person
+    /// piece in a Yoast-style graph. When there's no matching content property,
+    /// the auto-mapper suggests <c>reference</c> source type with a target
+    /// piece key so the user gets a ready-made cross-ref instead of an empty slot.
+    /// </summary>
+    private static readonly Dictionary<string, string> ReferenceCandidates = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Point at Organization piece
+        ["publisher"] = "organization",
+        ["about"] = "organization",
+        ["sourceOrganization"] = "organization",
+        ["provider"] = "organization",
+        ["manufacturer"] = "organization",
+        ["brand"] = "organization",
+        ["worksFor"] = "organization",
+        ["affiliation"] = "organization",
+        ["memberOf"] = "organization",
+
+        // Page-level container refs
+        ["isPartOf"] = "website",
+        ["breadcrumb"] = "breadcrumb",
+        ["primaryImageOfPage"] = "primary-image",
+
+        // MainEntity depends on context — most useful on AboutPage/ContactPage pointing at Organization
+        ["mainEntity"] = "organization",
     };
 
     /// <summary>
@@ -200,6 +241,30 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["LocalBusiness.address"] = new("complexType", "PostalAddress", null),
         ["LocalBusiness.openingHoursSpecification"] = new("blockContent", "OpeningHoursSpecification", null),
         ["LocalBusiness.geo"] = new("complexType", "GeoCoordinates", null),
+        ["LocalBusiness.logo"] = new("complexType", "ImageObject", null),
+        ["LocalBusiness.contactPoint"] = new("blockContent", "ContactPoint", null),
+        ["LocalBusiness.hasCredential"] = new("blockContent", "EducationalOccupationalCredential", null),
+        ["LocalBusiness.makesOffer"] = new("blockContent", "Offer", null),
+        ["LocalBusiness.founder"] = new("complexType", "Person", null),
+
+        // RealEstateAgent extends LocalBusiness; same defaults apply but keyed
+        // on the subtype so auto-map picks them up for mappings against it.
+        ["RealEstateAgent.address"] = new("complexType", "PostalAddress", null),
+        ["RealEstateAgent.openingHoursSpecification"] = new("blockContent", "OpeningHoursSpecification", null),
+        ["RealEstateAgent.geo"] = new("complexType", "GeoCoordinates", null),
+        ["RealEstateAgent.logo"] = new("complexType", "ImageObject", null),
+        ["RealEstateAgent.contactPoint"] = new("blockContent", "ContactPoint", null),
+        ["RealEstateAgent.hasCredential"] = new("blockContent", "EducationalOccupationalCredential", null),
+        ["RealEstateAgent.makesOffer"] = new("blockContent", "Offer", null),
+        ["RealEstateAgent.founder"] = new("complexType", "Person", null),
+        ["RealEstateAgent.areaServed"] = new("blockContent", "City", null),
+
+        // Organization-level defaults (apply when the mapping is plain Organization
+        // rather than a LocalBusiness subtype).
+        ["Organization.address"] = new("complexType", "PostalAddress", null),
+        ["Organization.logo"] = new("complexType", "ImageObject", null),
+        ["Organization.contactPoint"] = new("blockContent", "ContactPoint", null),
+        ["Organization.founder"] = new("complexType", "Person", null),
 
         // NewsArticle / TechArticle (inherit Article patterns)
         ["NewsArticle.author"] = new("complexType", "Person", null),
@@ -239,6 +304,43 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
         // ProfilePage
         ["ProfilePage.mainEntity"] = new("complexType", "Person", null),
+
+        // AboutPage — the page describes the organisation; every cross-ref
+        // resolves to a named graph piece via `reference` source type so the
+        // output matches Yoast-style output shape (bare {"@id": ...} refs).
+        ["AboutPage.about"] = new("reference", null, null, "organization"),
+        ["AboutPage.mainEntity"] = new("reference", null, null, "organization"),
+        ["AboutPage.isPartOf"] = new("reference", null, null, "website"),
+        ["AboutPage.breadcrumb"] = new("reference", null, null, "breadcrumb"),
+        ["AboutPage.primaryImageOfPage"] = new("reference", null, null, "primary-image"),
+        ["AboutPage.publisher"] = new("reference", null, null, "organization"),
+
+        // ContactPage — same pattern, the page describes the organisation.
+        ["ContactPage.about"] = new("reference", null, null, "organization"),
+        ["ContactPage.mainEntity"] = new("reference", null, null, "organization"),
+        ["ContactPage.isPartOf"] = new("reference", null, null, "website"),
+        ["ContactPage.breadcrumb"] = new("reference", null, null, "breadcrumb"),
+        ["ContactPage.primaryImageOfPage"] = new("reference", null, null, "primary-image"),
+        ["ContactPage.publisher"] = new("reference", null, null, "organization"),
+
+        // Generic WebPage + ItemPage — isPartOf / breadcrumb / primaryImageOfPage
+        // are always refs to the site-level pieces, regardless of the page's
+        // specific subtype. The `about` / `mainEntity` fields are left unmapped
+        // for these because they depend on the page's content.
+        ["WebPage.isPartOf"] = new("reference", null, null, "website"),
+        ["WebPage.breadcrumb"] = new("reference", null, null, "breadcrumb"),
+        ["WebPage.primaryImageOfPage"] = new("reference", null, null, "primary-image"),
+        ["WebPage.publisher"] = new("reference", null, null, "organization"),
+        ["ItemPage.isPartOf"] = new("reference", null, null, "website"),
+        ["ItemPage.breadcrumb"] = new("reference", null, null, "breadcrumb"),
+        ["ItemPage.primaryImageOfPage"] = new("reference", null, null, "primary-image"),
+        ["FAQPage.isPartOf"] = new("reference", null, null, "website"),
+        ["FAQPage.breadcrumb"] = new("reference", null, null, "breadcrumb"),
+        ["FAQPage.publisher"] = new("reference", null, null, "organization"),
+        ["CollectionPage.isPartOf"] = new("reference", null, null, "website"),
+        ["CollectionPage.breadcrumb"] = new("reference", null, null, "breadcrumb"),
+        ["SearchResultsPage.isPartOf"] = new("reference", null, null, "website"),
+        ["SearchResultsPage.breadcrumb"] = new("reference", null, null, "breadcrumb"),
     };
 
     public SchemaAutoMapper(IContentTypeService contentTypeService, ISchemaTypeRegistry schemaTypeRegistry)
@@ -280,7 +382,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             {
                 suggestion.SuggestedContentTypePropertyAlias = exactMatch.Alias;
                 suggestion.EditorAlias = exactMatch.PropertyEditorAlias;
-                suggestion.Confidence = 100;
+                suggestion.Confidence = BoostForEditorMatch(100, exactMatch.PropertyEditorAlias, schemaProp);
                 suggestion.IsAutoMapped = true;
 
                 ApplyComplexTypeInference(suggestion, exactMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
@@ -298,7 +400,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 {
                     suggestion.SuggestedContentTypePropertyAlias = synonymMatch.Alias;
                     suggestion.EditorAlias = synonymMatch.PropertyEditorAlias;
-                    suggestion.Confidence = 80;
+                    suggestion.Confidence = BoostForEditorMatch(80, synonymMatch.PropertyEditorAlias, schemaProp);
                     suggestion.IsAutoMapped = true;
 
                     ApplyComplexTypeInference(suggestion, synonymMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
@@ -316,7 +418,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             {
                 suggestion.SuggestedContentTypePropertyAlias = partialMatch.Alias;
                 suggestion.EditorAlias = partialMatch.PropertyEditorAlias;
-                suggestion.Confidence = 50;
+                suggestion.Confidence = BoostForEditorMatch(50, partialMatch.PropertyEditorAlias, schemaProp);
                 suggestion.IsAutoMapped = true;
 
                 ApplyComplexTypeInference(suggestion, partialMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
@@ -345,9 +447,18 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 suggestion.SuggestedSourceType = popularDefault!.SourceType;
                 suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
                 suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
+                suggestion.SuggestedTargetPieceKey = popularDefault.TargetPieceKey;
 
+                // Reference-typed popular defaults (e.g. AboutPage.about → org
+                // piece) don't need a block property on the content type — they
+                // resolve at graph-generation time from registered pieces.
+                if (popularDefault.SourceType == "reference")
+                {
+                    suggestion.Confidence = 90;
+                    suggestion.IsAutoMapped = true;
+                }
                 // For blockContent defaults, only auto-map if a matching block property exists
-                if (popularDefault.SourceType == "blockContent")
+                else if (popularDefault.SourceType == "blockContent")
                 {
                     var blockProperty = contentProperties
                         .FirstOrDefault(p => BlockEditorAliases.Contains(p.PropertyEditorAlias));
@@ -375,11 +486,38 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 var nestedType = GetFirstNonPrimitiveAcceptedType(schemaProp.AcceptedTypes);
                 if (nestedType is not null)
                 {
-                    // Has a real complex type — keep as complex but don't auto-map
-                    suggestion.SuggestedSourceType = "complexType";
-                    suggestion.SuggestedNestedSchemaTypeName = nestedType;
-                    suggestion.Confidence = 0;
-                    suggestion.IsAutoMapped = false;
+                    // Has a real complex type — if it's a known cross-piece ref
+                    // candidate (about, publisher, worksFor, isPartOf, …), suggest
+                    // `reference` so the user gets a one-click Yoast-style @id ref.
+                    if (ReferenceCandidates.TryGetValue(schemaProp.Name, out var targetPieceKey))
+                    {
+                        suggestion.SuggestedSourceType = "reference";
+                        suggestion.SuggestedTargetPieceKey = targetPieceKey;
+                        suggestion.Confidence = 70;
+                        suggestion.IsAutoMapped = true;
+                    }
+                    // Else: generic target-type fallback. If the content type has
+                    // a BlockList/BlockGrid property we can plausibly map to a
+                    // collection of the nested type, suggest that at low confidence
+                    // so the user sees an actionable starting point instead of
+                    // an empty slot.
+                    else if (IsArrayProperty(schemaProp)
+                        && contentProperties.FirstOrDefault(p => BlockEditorAliases.Contains(p.PropertyEditorAlias)) is { } blockProp)
+                    {
+                        suggestion.SuggestedSourceType = "blockContent";
+                        suggestion.SuggestedNestedSchemaTypeName = nestedType;
+                        suggestion.SuggestedContentTypePropertyAlias = blockProp.Alias;
+                        suggestion.EditorAlias = blockProp.PropertyEditorAlias;
+                        suggestion.Confidence = 40;
+                        suggestion.IsAutoMapped = true;
+                    }
+                    else
+                    {
+                        suggestion.SuggestedSourceType = "complexType";
+                        suggestion.SuggestedNestedSchemaTypeName = nestedType;
+                        suggestion.Confidence = 0;
+                        suggestion.IsAutoMapped = false;
+                    }
                 }
                 else
                 {
@@ -388,6 +526,16 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                     suggestion.Confidence = 0;
                     suggestion.IsAutoMapped = false;
                 }
+            }
+            else if (ReferenceCandidates.TryGetValue(schemaProp.Name, out var targetPieceKey2))
+            {
+                // Non-complex property with a known cross-piece ref name — rare
+                // but handles e.g. future primitive refs. Low confidence because
+                // we're guessing from name alone.
+                suggestion.SuggestedSourceType = "reference";
+                suggestion.SuggestedTargetPieceKey = targetPieceKey2;
+                suggestion.Confidence = 50;
+                suggestion.IsAutoMapped = true;
             }
             else
             {
@@ -468,6 +616,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 suggestion.SuggestedSourceType = popularDefault!.SourceType;
                 suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
                 suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
+                suggestion.SuggestedTargetPieceKey = popularDefault.TargetPieceKey;
                 suggestion.Confidence = 70;
             }
             else
@@ -483,6 +632,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             if (hasPopularDefault)
             {
                 suggestion.SuggestedNestedSchemaTypeName = popularDefault!.NestedSchemaTypeName;
+                suggestion.SuggestedTargetPieceKey = popularDefault.TargetPieceKey;
             }
         }
         else if (hasPopularDefault)
@@ -491,7 +641,103 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             suggestion.SuggestedSourceType = popularDefault!.SourceType;
             suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
             suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
+            suggestion.SuggestedTargetPieceKey = popularDefault.TargetPieceKey;
         }
+    }
+
+    /// <summary>
+    /// Adds up to +15 confidence when the Umbraco editor alias is semantically
+    /// aligned with the target Schema.org property type. E.g. a MediaPicker3
+    /// feeding an ImageObject-typed property is a stronger match than an
+    /// alias-only coincidence. Capped at 100 — a perfect-alias + perfect-editor
+    /// match still reads as 100, not 115.
+    /// </summary>
+    private static int BoostForEditorMatch(int baseConfidence, string editorAlias, SchemaPropertyInfo schemaProp)
+    {
+        if (baseConfidence >= 100 || string.IsNullOrEmpty(editorAlias))
+            return baseConfidence;
+
+        var editor = editorAlias;
+        var accepted = schemaProp.AcceptedTypes ?? [];
+        var propertyType = schemaProp.PropertyType ?? string.Empty;
+
+        var boosted = false;
+
+        // MediaPicker → image-shaped schema properties (ImageObject, MediaObject,
+        // ImageObject-accepting Thing fields like logo / image / photo).
+        if (editor.Contains("MediaPicker", StringComparison.OrdinalIgnoreCase)
+            && (AcceptsAny(accepted, "ImageObject", "MediaObject")
+                || propertyType.Contains("ImageObject", StringComparison.OrdinalIgnoreCase)))
+        {
+            boosted = true;
+        }
+
+        // DateTime picker → Date-family schema properties (DateTime, Date, Time).
+        else if (editor.Equals("Umbraco.DateTime", StringComparison.OrdinalIgnoreCase)
+            && (propertyType.Contains("DateTime", StringComparison.OrdinalIgnoreCase)
+                || propertyType.Contains("Date", StringComparison.OrdinalIgnoreCase)
+                || propertyType.Contains("Time", StringComparison.OrdinalIgnoreCase)
+                || AcceptsAny(accepted, "DateTime", "Date", "Time")))
+        {
+            boosted = true;
+        }
+
+        // MultiUrlPicker → URL-shaped properties (SameAs arrays, primary URL fields).
+        else if (editor.Equals("Umbraco.MultiUrlPicker", StringComparison.OrdinalIgnoreCase)
+            && (propertyType.Contains("URL", StringComparison.OrdinalIgnoreCase)
+                || AcceptsAny(accepted, "URL")))
+        {
+            boosted = true;
+        }
+
+        // Tags / MultipleTextstring → text-array properties (keywords, sameAs).
+        else if ((editor.Equals("Umbraco.Tags", StringComparison.OrdinalIgnoreCase)
+                || editor.Equals("Umbraco.MultipleTextstring", StringComparison.OrdinalIgnoreCase))
+            && (propertyType.Contains("Text", StringComparison.OrdinalIgnoreCase)
+                || AcceptsAny(accepted, "Text")))
+        {
+            boosted = true;
+        }
+
+        return boosted ? Math.Min(100, baseConfidence + 15) : baseConfidence;
+    }
+
+    /// <summary>
+    /// Heuristic: does the Schema.org property type look like it holds an array
+    /// of entities? Schema.NET models plurality via <c>OneOrMany&lt;T&gt;</c> and
+    /// <c>IList&lt;T&gt;</c>; the property type string reflects that. Treat
+    /// plural schema.org names (ends in "s" plus known plurals) as arrays too.
+    /// Used to decide whether a BlockList fallback is plausible.
+    /// </summary>
+    private static bool IsArrayProperty(SchemaPropertyInfo schemaProp)
+    {
+        var propertyType = schemaProp.PropertyType ?? string.Empty;
+        if (propertyType.Contains("OneOrMany", StringComparison.OrdinalIgnoreCase)
+            || propertyType.Contains("IList", StringComparison.OrdinalIgnoreCase)
+            || propertyType.Contains("IEnumerable", StringComparison.OrdinalIgnoreCase)
+            || propertyType.EndsWith("[]", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Schema.org property names ending in recognisable plural patterns.
+        var name = schemaProp.Name ?? string.Empty;
+        return name.EndsWith("s", StringComparison.OrdinalIgnoreCase)
+            && !name.EndsWith("ss", StringComparison.OrdinalIgnoreCase)  // avoid "address", "business"
+            && !name.EndsWith("us", StringComparison.OrdinalIgnoreCase)  // avoid "status"
+            && !string.Equals(name, "sameAs", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool AcceptsAny(List<string> acceptedTypes, params string[] candidates)
+    {
+        if (acceptedTypes.Count == 0) return false;
+        foreach (var candidate in candidates)
+        {
+            for (var i = 0; i < acceptedTypes.Count; i++)
+            {
+                if (string.Equals(acceptedTypes[i], candidate, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>
@@ -540,6 +786,12 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
     /// <summary>
     /// Represents a pre-built default for a popular Schema.org type/property combination.
+    /// <paramref name="TargetPieceKey"/> is populated only for <c>reference</c>-type
+    /// defaults (cross-piece @id refs to named graph pieces like Organization or WebSite).
     /// </summary>
-    private sealed record PopularSchemaDefault(string SourceType, string? NestedSchemaTypeName, string? ResolverConfig);
+    private sealed record PopularSchemaDefault(
+        string SourceType,
+        string? NestedSchemaTypeName,
+        string? ResolverConfig,
+        string? TargetPieceKey = null);
 }
