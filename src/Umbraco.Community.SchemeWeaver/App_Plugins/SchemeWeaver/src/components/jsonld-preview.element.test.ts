@@ -63,26 +63,70 @@ describe('JsonLdPreviewElement', () => {
     expect(el.formattedJson).to.equal(expected);
   });
 
-  it('shows errors when isValid is false', async () => {
+  it('renders the validation panel with legacy errors as critical issues', async () => {
+    // Older backends only send the flat `errors: string[]` array. The preview
+    // component must still surface them — we promote each string to a
+    // critical-severity ValidationIssue and hand it to the panel.
     const data: JsonLdPreviewResponse = {
       jsonLd: '{}',
       isValid: false,
       errors: ['Missing @type'],
     };
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const errors = el.shadowRoot!.querySelectorAll('.error-item');
-    expect(errors.length).to.equal(1);
-    expect(errors[0].textContent).to.contain('Missing @type');
+    const panel = el.shadowRoot!.querySelector('schemeweaver-validation-panel') as any;
+    expect(panel, 'validation panel should render').to.exist;
+    expect(panel.issues).to.have.length(1);
+    expect(panel.issues[0].severity).to.equal('critical');
+    expect(panel.issues[0].message).to.equal('Missing @type');
   });
 
-  it('does not render errors when there are none', async () => {
+  it('passes structured issues through to the validation panel verbatim', async () => {
+    const data: JsonLdPreviewResponse = {
+      jsonLd: '{"@type":"Article"}',
+      isValid: false,
+      errors: ['Missing headline'],
+      issues: [
+        {
+          severity: 'critical',
+          schemaType: 'Article',
+          path: '@graph[0].headline',
+          message: 'Missing `headline` — Google requires it.',
+        },
+        {
+          severity: 'warning',
+          schemaType: 'Article',
+          path: '@graph[0].dateModified',
+          message: 'Missing `dateModified` — recommended.',
+        },
+      ],
+    };
+    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
+    const panel = el.shadowRoot!.querySelector('schemeweaver-validation-panel') as any;
+    expect(panel.issues).to.equal(data.issues);
+  });
+
+  it('does not render the validation panel when no issues or errors exist', async () => {
     const data: JsonLdPreviewResponse = {
       jsonLd: '{"@type":"Article"}',
       isValid: true,
       errors: [],
     };
     const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
-    const errors = el.shadowRoot!.querySelectorAll('.error-item');
-    expect(errors.length).to.equal(0);
+    const panel = el.shadowRoot!.querySelector('schemeweaver-validation-panel');
+    expect(panel).to.not.exist;
+  });
+
+  it('renders the validation panel (empty state) when an empty issues array is supplied', async () => {
+    // When `issues` is explicitly an empty array the backend is asserting the
+    // document is clean — we surface that positively instead of hiding it.
+    const data: JsonLdPreviewResponse = {
+      jsonLd: '{"@type":"Article"}',
+      isValid: true,
+      errors: [],
+      issues: [],
+    };
+    const el = await fixture(html`<schemeweaver-jsonld-preview .jsonLd=${data}></schemeweaver-jsonld-preview>`);
+    const panel = el.shadowRoot!.querySelector('schemeweaver-validation-panel');
+    expect(panel).to.exist;
   });
 });

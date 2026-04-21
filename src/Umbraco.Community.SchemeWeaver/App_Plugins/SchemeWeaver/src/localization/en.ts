@@ -218,6 +218,13 @@ export default {
     builtInCreateDate: 'Create Date (Built-in)',
     builtInUpdateDate: 'Update Date (Built-in)',
 
+    // Validator findings panel (below JSON-LD preview)
+    validation_heading: 'Validation',
+    validation_noIssues: 'No issues — passes Google Rich Results rules',
+    validation_critical: 'Critical',
+    validation_warning: 'Warning',
+    validation_info: 'Info',
+
     // Parameterised strings
     schemaPropertyCount: '{0} properties',
     loadingEllipsis: 'Loading...',

@@ -1,6 +1,7 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, nothing } from '@umbraco-cms/backoffice/external/lit';
-import type { JsonLdPreviewResponse } from '../api/types.js';
+import type { JsonLdPreviewResponse, ValidationIssue } from '../api/types.js';
+import './validation-panel.element.js';
 
 interface JsonToken {
   type: 'key' | 'string' | 'number' | 'boolean' | 'null' | 'text';
@@ -73,25 +74,41 @@ export class JsonLdPreviewElement extends UmbLitElement {
     return tokens;
   }
 
+  /**
+   * Resolve the structured validator findings to display.
+   *
+   * Prefer `issues` when the backend provides them. When only the legacy
+   * `errors: string[]` array is present (older server, or a call that
+   * pre-dates the validator), synthesise critical-severity issues so the
+   * validation panel still renders something useful.
+   */
+  private _resolveIssues(): ValidationIssue[] {
+    if (!this.jsonLd) return [];
+    if (this.jsonLd.issues && this.jsonLd.issues.length > 0) {
+      return this.jsonLd.issues;
+    }
+    // Fall back to the flat `errors` list as critical findings.
+    return (this.jsonLd.errors ?? []).map<ValidationIssue>((message) => ({
+      severity: 'critical',
+      schemaType: '',
+      path: '$',
+      message,
+    }));
+  }
+
   render() {
     if (!this.jsonLd) {
       return html`<div class="empty">${this.localize.term('schemeWeaver_noPreviewData')}</div>`;
     }
 
+    const issues = this._resolveIssues();
+    // Only render the panel when there is something to say. Silence when the
+    // preview is clean and no legacy errors are present keeps the view tight.
+    const renderPanel = issues.length > 0 || (this.jsonLd.issues !== undefined);
+
     return html`
-      ${this.jsonLd.errors.length > 0
-        ? html`
-            <ul class="error-list">
-              ${this.jsonLd.errors.map(
-                (err) => html`
-                  <li class="error-item">
-                    <uui-icon name="icon-alert"></uui-icon>
-                    <span>${err}</span>
-                  </li>
-                `,
-              )}
-            </ul>
-          `
+      ${renderPanel
+        ? html`<schemeweaver-validation-panel .issues=${issues}></schemeweaver-validation-panel>`
         : nothing}
       <pre class="json-code">${this._tokeniseJson().map((t) =>
         t.type === 'text'
@@ -107,25 +124,8 @@ export class JsonLdPreviewElement extends UmbLitElement {
         display: block;
       }
 
-      .error-list {
-        list-style: none;
-        margin: 0;
-        padding: var(--uui-size-space-3) var(--uui-size-space-4);
-        border-bottom: 1px solid var(--uui-color-border);
-      }
-
-      .error-item {
-        display: flex;
-        align-items: flex-start;
-        gap: var(--uui-size-space-2);
-        padding: var(--uui-size-space-1) 0;
-        color: var(--uui-color-danger);
-        font-size: 0.85rem;
-      }
-
-      .error-item uui-icon {
-        flex-shrink: 0;
-        margin-top: 2px;
+      schemeweaver-validation-panel {
+        display: block;
       }
 
       .json-code {

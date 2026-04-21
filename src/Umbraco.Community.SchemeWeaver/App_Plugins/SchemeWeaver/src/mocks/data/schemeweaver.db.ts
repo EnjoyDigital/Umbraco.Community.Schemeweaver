@@ -1475,7 +1475,19 @@ class SchemeWeaverMockDb {
   preview(alias: string, _culture?: string): JsonLdPreviewResponse {
     const mapping = this._mappings.find((m) => m.contentTypeAlias === alias);
     if (!mapping) {
-      return { jsonLd: '{}', isValid: false, errors: ['No mapping found'] };
+      return {
+        jsonLd: '{}',
+        isValid: false,
+        errors: ['No mapping found'],
+        issues: [
+          {
+            severity: 'critical',
+            schemaType: '(no-mapping)',
+            path: '$',
+            message: 'No mapping found for this content type.',
+          },
+        ],
+      };
     }
 
     const result: Record<string, unknown> = {
@@ -1487,10 +1499,49 @@ class SchemeWeaverMockDb {
         result[pm.schemaPropertyName] = pm.staticValue || `[${pm.contentTypePropertyAlias}]`;
       }
     }
+
+    // Synthesise a small set of validator findings so the mocked backoffice
+    // exercises the full severity matrix (critical / warning / info). The
+    // real backend produces these from its JSON-LD rules engine.
+    const mappedProps = new Set(
+      mapping.propertyMappings
+        .filter((pm) => !!(pm.contentTypePropertyAlias || pm.staticValue))
+        .map((pm) => pm.schemaPropertyName.toLowerCase()),
+    );
+    const pathBase = `$.@type=${mapping.schemaTypeName}`;
+    const issues: NonNullable<JsonLdPreviewResponse['issues']> = [];
+
+    if (!mappedProps.has('headline') && !mappedProps.has('name')) {
+      issues.push({
+        severity: 'critical',
+        schemaType: mapping.schemaTypeName,
+        path: `${pathBase}.headline`,
+        message: 'Missing `headline` — Google requires it for Article types.',
+      });
+    }
+    if (!mappedProps.has('datemodified')) {
+      issues.push({
+        severity: 'warning',
+        schemaType: mapping.schemaTypeName,
+        path: `${pathBase}.dateModified`,
+        message: 'Missing `dateModified` — recommended for search result freshness.',
+      });
+    }
+    issues.push({
+      severity: 'info',
+      schemaType: mapping.schemaTypeName,
+      path: pathBase,
+      message: `Rendered ${mapping.propertyMappings.length} property mapping(s) for preview.`,
+    });
+
+    // `errors` keeps backwards-compatibility: populated only from critical issues.
+    const errors = issues.filter((i) => i.severity === 'critical').map((i) => i.message);
+
     return {
       jsonLd: JSON.stringify(result, null, 2),
-      isValid: true,
-      errors: [],
+      isValid: errors.length === 0,
+      errors,
+      issues,
     };
   }
 }
