@@ -264,6 +264,113 @@ public class SchemaMappingSerializerTests
     }
 
     [Fact]
+    public async Task Serialize_IncludesIdOverride_WhenSet()
+    {
+        var mapping = CreateTestMapping();
+        mapping.IdOverride = "{siteUrl}#organization";
+        _repository.GetPropertyMappings(mapping.Id).Returns(new List<PropertyMapping>());
+
+        var result = await InvokeSerializeCoreAsync(mapping);
+
+        result.Success.Should().BeTrue();
+        var info = result.Item!.Element("Info")!;
+        info.Element("IdOverride")!.Value.Should().Be("{siteUrl}#organization");
+    }
+
+    [Fact]
+    public async Task Serialize_OmitsIdOverride_WhenNull()
+    {
+        var mapping = CreateTestMapping();
+        mapping.IdOverride = null;
+        _repository.GetPropertyMappings(mapping.Id).Returns(new List<PropertyMapping>());
+
+        var result = await InvokeSerializeCoreAsync(mapping);
+
+        result.Success.Should().BeTrue();
+        var info = result.Item!.Element("Info")!;
+        info.Element("IdOverride").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Serialize_IncludesTargetPieceKey_WhenSet()
+    {
+        var mapping = CreateTestMapping();
+        var propertyMappings = new List<PropertyMapping>
+        {
+            new()
+            {
+                Id = 30,
+                SchemaMappingId = mapping.Id,
+                SchemaPropertyName = "publisher",
+                SourceType = "reference",
+                TargetPieceKey = "organization",
+                IsAutoMapped = false,
+            }
+        };
+        _repository.GetPropertyMappings(mapping.Id).Returns(propertyMappings);
+
+        var result = await InvokeSerializeCoreAsync(mapping);
+
+        result.Success.Should().BeTrue();
+        var pmNode = result.Item!.Element("PropertyMappings")!.Element("PropertyMapping")!;
+        pmNode.Element("TargetPieceKey")!.Value.Should().Be("organization");
+        pmNode.Element("SourceType")!.Value.Should().Be("reference");
+    }
+
+    [Fact]
+    public async Task RoundTrip_PreservesIdOverrideAndTargetPieceKey()
+    {
+        // Guards against v1.4 fields (IdOverride, TargetPieceKey) being
+        // forgotten in either the serialize or deserialize path — if either
+        // drops the field, the uSync file will silently lose the setting
+        // when it moves between environments.
+        var mapping = CreateTestMapping();
+        mapping.IdOverride = "{url}#{type}-{culture}";
+        var propertyMappings = new List<PropertyMapping>
+        {
+            new()
+            {
+                Id = 40,
+                SchemaMappingId = mapping.Id,
+                SchemaPropertyName = "publisher",
+                SourceType = "reference",
+                TargetPieceKey = "organization",
+                IsAutoMapped = false,
+            },
+            new()
+            {
+                Id = 41,
+                SchemaMappingId = mapping.Id,
+                SchemaPropertyName = "isPartOf",
+                SourceType = "reference",
+                TargetPieceKey = "website",
+                IsAutoMapped = false,
+            },
+        };
+        _repository.GetPropertyMappings(mapping.Id).Returns(propertyMappings);
+
+        var serializeResult = await InvokeSerializeCoreAsync(mapping);
+        serializeResult.Success.Should().BeTrue();
+
+        _repository.GetByContentTypeAlias("blogPost").Returns((SchemaMapping?)null);
+        _repository.Save(Arg.Any<SchemaMapping>()).Returns(c => { var m = c.Arg<SchemaMapping>(); m.Id = 1; return m; });
+
+        var savedMappings = new List<PropertyMapping>();
+        _repository.When(r => r.SavePropertyMappings(Arg.Any<int>(), Arg.Any<IEnumerable<PropertyMapping>>()))
+            .Do(c => savedMappings.AddRange(c.Arg<IEnumerable<PropertyMapping>>()));
+
+        var deserializeResult = await InvokeDeserializeCoreAsync(serializeResult.Item!);
+
+        deserializeResult.Success.Should().BeTrue();
+        deserializeResult.Item!.IdOverride.Should().Be("{url}#{type}-{culture}");
+
+        savedMappings.Should().HaveCount(2);
+        savedMappings[0].TargetPieceKey.Should().Be("organization");
+        savedMappings[0].SourceType.Should().Be("reference");
+        savedMappings[1].TargetPieceKey.Should().Be("website");
+    }
+
+    [Fact]
     public async Task Serialize_IncludesDynamicRootConfig_WhenSet()
     {
         const string dynamicRootJson = "{\"originAlias\":\"Root\"}";

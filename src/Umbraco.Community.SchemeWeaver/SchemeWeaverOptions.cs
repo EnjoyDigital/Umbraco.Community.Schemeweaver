@@ -31,11 +31,20 @@ public class SchemeWeaverOptions
     public TimeSpan CacheDuration { get; set; } = TimeSpan.FromMinutes(30);
 
     /// <summary>
-    /// When <c>true</c> (the default for v1.4+), JSON-LD is emitted as a single
-    /// <c>@graph</c> composed from the registered <c>IGraphPiece</c>s (Yoast-style).
-    /// Set to <c>false</c> to fall back to the pre-v1.4 one-JSON-LD-block-per-mapping
-    /// behaviour if the new model causes problems. Kept as an escape hatch only —
-    /// expected to be removed once the graph model has been proven in production.
+    /// Controls the shape of emitted JSON-LD. Both modes are supported long-term.
+    /// <list type="bullet">
+    ///   <item><description><c>true</c> (default): a single Yoast-style
+    ///   <c>@graph</c> envelope composed from the registered
+    ///   <c>IGraphPiece</c>s, with cross-referenced <c>@id</c>s. Best for
+    ///   modern SEO pipelines — matches what Yoast, Rank Math et al. emit.</description></item>
+    ///   <item><description><c>false</c>: one <c>&lt;script type="application/ld+json"&gt;</c>
+    ///   block per source of data (inherited mappings, breadcrumb, main mapping,
+    ///   block elements). Useful when consumers prefer per-entity diffing,
+    ///   stricter CSP granularity, or just don't need cross-linking.</description></item>
+    /// </list>
+    /// This flag propagates through the tag helper, Delivery API, Examine
+    /// index handler and backoffice preview so the backoffice shows whatever
+    /// actually ships.
     /// </summary>
     public bool UseGraphModel { get; set; } = true;
 
