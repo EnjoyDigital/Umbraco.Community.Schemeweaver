@@ -69,8 +69,10 @@ public sealed class BreadcrumbListPiece : IGraphPiece
             if (!string.IsNullOrEmpty(url) && url != "#"
                 && Uri.TryCreate(url, UriKind.Absolute, out var uri))
             {
-                listItem.Url = uri;
-                listItem.Id = uri;
+                // Google's BreadcrumbList spec requires `item` on each ListItem
+                // (not `url`/`@id`). Point it at a minimal WebPage so Schema.NET
+                // emits `"item": { "@type": "WebPage", "@id": "…" }`.
+                listItem.Item = new WebPage { Id = uri };
             }
 
             items.Add(listItem);

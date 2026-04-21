@@ -254,10 +254,12 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 Name = ancestor.Name
             };
 
-            if (!string.IsNullOrEmpty(url))
+            if (!string.IsNullOrEmpty(url)
+                && Uri.TryCreate(url, UriKind.Absolute, out var uri))
             {
-                listItem.Url = new Uri(url, UriKind.Absolute);
-                listItem.Id = new Uri(url, UriKind.Absolute);
+                // Google's BreadcrumbList spec requires `item` on each ListItem
+                // (not `url`/`@id`). A minimal WebPage with @id is accepted.
+                listItem.Item = new WebPage { Id = uri };
             }
 
             items.Add(listItem);

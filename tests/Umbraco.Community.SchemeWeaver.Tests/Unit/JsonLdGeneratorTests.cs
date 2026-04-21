@@ -1294,6 +1294,34 @@ public class JsonLdGeneratorTests
         result.Should().BeNull();
     }
 
+    [Fact]
+    public void BuildBreadcrumbJsonLd_EachListItem_HasItemFieldWithUrlAsId()
+    {
+        // Google's BreadcrumbList spec requires an `item` field on every ListItem
+        // (a URL string or a Thing with @id). The Rich Results Test flags
+        // "Missing field 'item'" otherwise. Regression guard against emitting
+        // url/@id directly on the ListItem without an item pointer.
+        var root = CreateContent("homepage");
+        root.Name.Returns("Home");
+
+        var about = CreateContent("aboutPage");
+        about.Name.Returns("About");
+
+        _urlProvider.GetUrl(root, UrlMode.Absolute).Returns("https://example.com/");
+        _urlProvider.GetUrl(about, UrlMode.Absolute).Returns("https://example.com/about/");
+
+        var result = _sut.BuildBreadcrumbJsonLd([root, about]);
+
+        var doc = System.Text.Json.JsonDocument.Parse(result!);
+        var items = doc.RootElement.GetProperty("itemListElement").EnumerateArray().ToList();
+        items.Should().HaveCount(2);
+
+        items[0].GetProperty("item").GetProperty("@id").GetString()
+            .Should().Be("https://example.com/");
+        items[1].GetProperty("item").GetProperty("@id").GetString()
+            .Should().Be("https://example.com/about/");
+    }
+
     #endregion
 
     #region Nested Complex Type Tests
