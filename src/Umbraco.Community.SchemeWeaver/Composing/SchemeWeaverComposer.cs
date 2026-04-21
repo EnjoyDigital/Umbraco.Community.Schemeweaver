@@ -11,6 +11,8 @@ using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
+using Umbraco.Community.SchemeWeaver.Services.Validation;
+using Umbraco.Community.SchemeWeaver.Services.Validation.Rules;
 
 namespace Umbraco.Community.SchemeWeaver.Composing;
 
@@ -81,5 +83,26 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddSchemeWeaverGraphPiece<MainEntityPiece>();
         builder.Services.AddSchemeWeaverGraphPiece<BreadcrumbListPiece>();
         builder.Services.AddSchemeWeaverGraphPiece<PrimaryImagePiece>();
+
+        // Rich Results validator + tier-1 rules. Dispatch architecture means
+        // registration order doesn't matter; validator runs every applicable
+        // rule against each node.
+        builder.Services.AddSingleton<ISchemaValidator, SchemaValidator>();
+        builder.Services.AddSingleton<ITypeRule, GenericEligibleRule>();
+        builder.Services.AddSingleton<ITypeRule, ArticleRule>();
+        builder.Services.AddSingleton<ITypeRule, ProductRule>();
+        builder.Services.AddSingleton<ITypeRule, EventRule>();
+        builder.Services.AddSingleton<ITypeRule, OrganizationRule>();
+        builder.Services.AddSingleton<ITypeRule, LocalBusinessRule>();
+        builder.Services.AddSingleton<ITypeRule, WebSiteRule>();
+        builder.Services.AddSingleton<ITypeRule, JobPostingRule>();
+        builder.Services.AddSingleton<ITypeRule, FAQPageRule>();
+        builder.Services.AddSingleton<ITypeRule, BreadcrumbListRule>();
+        builder.Services.AddSingleton<ITypeRule, RecipeRule>();
+        builder.Services.AddSingleton<ITypeRule, HowToRule>();
+        builder.Services.AddSingleton<ITypeRule, CourseRule>();
+        builder.Services.AddSingleton<ITypeRule, MovieRule>();
+        builder.Services.AddSingleton<ITypeRule, BookRule>();
+        builder.Services.AddSingleton<ITypeRule, VideoObjectRule>();
     }
 }
