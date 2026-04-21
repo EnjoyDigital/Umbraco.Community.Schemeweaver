@@ -7,6 +7,7 @@ using Umbraco.Cms.Api.Common.Filters;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.DeliveryApi;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
 
@@ -62,7 +63,10 @@ public sealed class SchemeWeaverJsonLdApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetById([FromQuery] Guid id, [FromQuery] string? culture = null)
+    public IActionResult GetById(
+        [FromQuery] Guid id,
+        [FromQuery] string? culture = null,
+        [FromQuery] string? scope = null)
     {
         if (!CheckAccess()) return Unauthorized();
         if (id == Guid.Empty) return BadRequest(new { error = "`id` must be a non-empty Guid." });
@@ -76,7 +80,7 @@ public sealed class SchemeWeaverJsonLdApiController : ControllerBase
         var content = umbracoContext.Content?.GetById(id);
         if (content is null) return NotFound();
 
-        var blocks = _blocksProvider.GetBlocks(content, NormaliseCulture(culture));
+        var blocks = _blocksProvider.GetBlocks(content, NormaliseCulture(culture), ParseScope(scope));
         return Ok(new SchemeWeaverJsonLdResponse(blocks));
     }
 
@@ -91,7 +95,10 @@ public sealed class SchemeWeaverJsonLdApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetByRoute([FromQuery] string route, [FromQuery] string? culture = null)
+    public IActionResult GetByRoute(
+        [FromQuery] string route,
+        [FromQuery] string? culture = null,
+        [FromQuery] string? scope = null)
     {
         if (!CheckAccess()) return Unauthorized();
         if (string.IsNullOrWhiteSpace(route))
@@ -103,7 +110,7 @@ public sealed class SchemeWeaverJsonLdApiController : ControllerBase
         var content = _apiContentPathResolver.ResolveContentPath(normalisedRoute);
         if (content is null) return NotFound();
 
-        var blocks = _blocksProvider.GetBlocks(content, NormaliseCulture(culture));
+        var blocks = _blocksProvider.GetBlocks(content, NormaliseCulture(culture), ParseScope(scope));
         return Ok(new SchemeWeaverJsonLdResponse(blocks));
     }
 
@@ -121,5 +128,22 @@ public sealed class SchemeWeaverJsonLdApiController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(culture)) return null;
         return culture.Trim();
+    }
+
+    /// <summary>
+    /// Parse the optional <c>?scope=</c> query parameter. Unknown / empty values
+    /// fall back to <see cref="PieceScopeFilter.All"/> so every pre-v1.5 caller
+    /// keeps working without changes.
+    /// </summary>
+    private static PieceScopeFilter ParseScope(string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope)) return PieceScopeFilter.All;
+        return scope.Trim().ToLowerInvariant() switch
+        {
+            "site" => PieceScopeFilter.Site,
+            "page" => PieceScopeFilter.Page,
+            "all" => PieceScopeFilter.All,
+            _ => PieceScopeFilter.All,
+        };
     }
 }

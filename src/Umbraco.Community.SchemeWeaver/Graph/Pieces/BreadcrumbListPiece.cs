@@ -37,6 +37,7 @@ public sealed class BreadcrumbListPiece : IGraphPiece
 
     public string Key => "breadcrumb";
     public int Order => 400;
+    public PieceScope Scope => PieceScope.Page;
 
     public string? ResolveId(GraphPieceContext ctx)
     {

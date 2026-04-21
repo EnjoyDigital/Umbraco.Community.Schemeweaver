@@ -41,6 +41,7 @@ public sealed class OrganizationPiece : IGraphPiece
 
     public string Key => "organization";
     public int Order => 100;
+    public PieceScope Scope => PieceScope.Site;
 
     public string? ResolveId(GraphPieceContext ctx)
     {

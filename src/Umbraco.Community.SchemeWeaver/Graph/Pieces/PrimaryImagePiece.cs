@@ -41,6 +41,7 @@ public sealed class PrimaryImagePiece : IGraphPiece
 
     public string Key => "primary-image";
     public int Order => 500;
+    public PieceScope Scope => PieceScope.Page;
 
     public string? ResolveId(GraphPieceContext ctx)
     {

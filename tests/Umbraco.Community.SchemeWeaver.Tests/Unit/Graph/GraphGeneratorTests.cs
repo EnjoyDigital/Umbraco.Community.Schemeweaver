@@ -209,6 +209,98 @@ public class GraphGeneratorTests
             .GetProperty("@id").GetString().Should().Be("https://example.com/#organization");
     }
 
+    // --- Scope filtering (v1.5) --------------------------------------------
+
+    [Fact]
+    public void GenerateGraphJson_ScopeSite_OmitsPageScopedPieces()
+    {
+        var sut = Build(
+            new StubPiece("organization", 100,
+                id: "https://example.com/#organization",
+                thing: new Organization { Name = "Acme" },
+                scope: PieceScope.Site),
+            new StubPiece("webpage", 200,
+                id: "https://example.com/about/#webpage",
+                thing: new WebPage(),
+                scope: PieceScope.Page));
+
+        var json = sut.GenerateGraphJson(Page(), scope: PieceScopeFilter.Site);
+        using var doc = JsonDocument.Parse(json!);
+
+        var graph = doc.RootElement.GetProperty("@graph");
+        graph.GetArrayLength().Should().Be(1);
+        graph[0].GetProperty("@type").GetString().Should().Be("Organization");
+    }
+
+    [Fact]
+    public void GenerateGraphJson_ScopePage_OmitsSiteScopedPieces_ButRefsStillResolve()
+    {
+        // WebPage piece's Build reads ctx.IdFor("organization"). Even though
+        // Organization is Site-scoped and won't appear in a Page-scope graph,
+        // its @id must still be populated in ctx.Ids so the WebPage can emit
+        // a bare {"@id": ".../#organization"} ref for the consumer's other
+        // (Site-scope) script to resolve.
+        string? capturedOrgId = null;
+        var sut = Build(
+            new StubPiece("organization", 100,
+                id: "https://example.com/#organization",
+                thing: new Organization { Name = "Acme" },
+                scope: PieceScope.Site),
+            new StubPiece("webpage", 200,
+                id: "https://example.com/about/#webpage",
+                thing: new WebPage(),
+                scope: PieceScope.Page,
+                onBuild: ctx => capturedOrgId = ctx.IdFor("organization")));
+
+        var json = sut.GenerateGraphJson(Page(), scope: PieceScopeFilter.Page);
+        using var doc = JsonDocument.Parse(json!);
+
+        var graph = doc.RootElement.GetProperty("@graph");
+        graph.GetArrayLength().Should().Be(1);
+        graph[0].GetProperty("@type").GetString().Should().Be("WebPage");
+        capturedOrgId.Should().Be("https://example.com/#organization",
+            "cross-scope refs must still resolve in Page-scope builds");
+    }
+
+    [Fact]
+    public void GenerateGraphJson_ScopeAll_EmitsEveryPiece_MatchingV1_4Behaviour()
+    {
+        var sut = Build(
+            new StubPiece("organization", 100,
+                id: "https://example.com/#organization",
+                thing: new Organization { Name = "Acme" },
+                scope: PieceScope.Site),
+            new StubPiece("webpage", 200,
+                id: "https://example.com/about/#webpage",
+                thing: new WebPage(),
+                scope: PieceScope.Page));
+
+        var json = sut.GenerateGraphJson(Page(), scope: PieceScopeFilter.All);
+        using var doc = JsonDocument.Parse(json!);
+        doc.RootElement.GetProperty("@graph").GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public void GenerateGraphJson_ScopeDefault_IsAll()
+    {
+        // Regression guard: callers that pass no scope (every pre-v1.5 caller)
+        // get the full graph, identical to explicit PieceScopeFilter.All.
+        var sut = Build(
+            new StubPiece("organization", 100,
+                id: "https://example.com/#organization",
+                thing: new Organization { Name = "Acme" },
+                scope: PieceScope.Site),
+            new StubPiece("webpage", 200,
+                id: "https://example.com/about/#webpage",
+                thing: new WebPage(),
+                scope: PieceScope.Page));
+
+        var jsonNoArg = sut.GenerateGraphJson(Page());
+        var jsonExplicitAll = sut.GenerateGraphJson(Page(), scope: PieceScopeFilter.All);
+
+        jsonNoArg.Should().Be(jsonExplicitAll);
+    }
+
     private sealed class StubPiece : IGraphPiece
     {
         private readonly string? _id;
@@ -222,7 +314,8 @@ public class GraphGeneratorTests
             string? id,
             Thing? thing,
             Action<GraphPieceContext>? onBuild = null,
-            Action<GraphPieceContext>? onResolveId = null)
+            Action<GraphPieceContext>? onResolveId = null,
+            PieceScope scope = PieceScope.Page)
         {
             Key = key;
             Order = order;
@@ -230,10 +323,12 @@ public class GraphGeneratorTests
             _thing = thing;
             _onBuild = onBuild;
             _onResolveId = onResolveId;
+            Scope = scope;
         }
 
         public string Key { get; }
         public int Order { get; }
+        public PieceScope Scope { get; }
 
         public string? ResolveId(GraphPieceContext ctx)
         {

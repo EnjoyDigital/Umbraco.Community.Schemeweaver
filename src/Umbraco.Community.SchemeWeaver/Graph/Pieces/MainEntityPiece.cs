@@ -41,6 +41,7 @@ public sealed class MainEntityPiece : IGraphPiece
 
     public string Key => "main-entity";
     public int Order => 300;
+    public PieceScope Scope => PieceScope.Page;
 
     public string? ResolveId(GraphPieceContext ctx)
     {

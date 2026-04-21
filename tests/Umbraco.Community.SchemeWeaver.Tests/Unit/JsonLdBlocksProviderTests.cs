@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Services;
 using Xunit;
 
@@ -157,6 +158,35 @@ public class JsonLdBlocksProviderTests
 
         _generator.Received(2).GenerateJsonLdString(a, Arg.Any<string?>());
         _generator.Received(2).GenerateJsonLdString(b, Arg.Any<string?>());
+    }
+
+    [Fact]
+    public void BuildCacheKey_IncludesScope_SoVariantsCacheIndependently()
+    {
+        // The cache key must incorporate scope — otherwise a scope=site call
+        // would return the scope=all cached result and headless frontends would
+        // re-introduce the double-emission bug the scope filter exists to
+        // prevent.
+        var key = Guid.NewGuid();
+        var all = JsonLdBlocksProvider.BuildCacheKey(key, "en-gb", PieceScopeFilter.All);
+        var site = JsonLdBlocksProvider.BuildCacheKey(key, "en-gb", PieceScopeFilter.Site);
+        var page = JsonLdBlocksProvider.BuildCacheKey(key, "en-gb", PieceScopeFilter.Page);
+
+        all.Should().NotBe(site);
+        all.Should().NotBe(page);
+        site.Should().NotBe(page);
+    }
+
+    [Fact]
+    public void BuildCacheKey_ScopeDefaultsToAll()
+    {
+        // Back-compat: the no-scope overload yields the same cache key as an
+        // explicit All scope, so every pre-v1.5 caller hits the same entry.
+        var key = Guid.NewGuid();
+        var withoutScope = JsonLdBlocksProvider.BuildCacheKey(key, "en-gb");
+        var withAll = JsonLdBlocksProvider.BuildCacheKey(key, "en-gb", PieceScopeFilter.All);
+
+        withoutScope.Should().Be(withAll);
     }
 
     [Fact]

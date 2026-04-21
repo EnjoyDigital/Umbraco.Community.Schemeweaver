@@ -64,7 +64,10 @@ public sealed class GraphGenerator : IGraphGenerator
         _logger = logger;
     }
 
-    public string? GenerateGraphJson(IPublishedContent content, string? culture = null)
+    public string? GenerateGraphJson(
+        IPublishedContent content,
+        string? culture = null,
+        PieceScopeFilter scope = PieceScopeFilter.All)
     {
         if (_pieces.Count == 0)
             return null;
@@ -73,6 +76,10 @@ public sealed class GraphGenerator : IGraphGenerator
         var pageUrl = ResolvePageUrl(content);
 
         // Phase 1: which pieces contribute, and what @id does each declare?
+        // ResolveId runs for EVERY piece regardless of the scope filter so that
+        // cross-scope @id refs still resolve — a scope=Page WebPage piece can
+        // still emit publisher: {"@id": "...#organization"} even though the
+        // Organization body isn't in this graph.
         var ids = new Dictionary<string, string>(StringComparer.Ordinal);
         var probeContext = new GraphPieceContext
         {
@@ -107,6 +114,8 @@ public sealed class GraphGenerator : IGraphGenerator
             return null;
 
         // Phase 2: build each needed piece with the @id table visible.
+        // The scope filter is applied HERE so that refs in phase-1 Ids are
+        // still available to pieces we DO emit.
         var buildContext = new GraphPieceContext
         {
             Content = probeContext.Content,
@@ -120,6 +129,9 @@ public sealed class GraphGenerator : IGraphGenerator
         var nodes = new List<JsonObject>(needed.Count);
         foreach (var piece in needed)
         {
+            if (!PieceMatchesScope(piece, scope))
+                continue;
+
             try
             {
                 var thing = piece.Build(buildContext);
@@ -152,6 +164,14 @@ public sealed class GraphGenerator : IGraphGenerator
 
         return WrapAsGraph(nodes);
     }
+
+    private static bool PieceMatchesScope(IGraphPiece piece, PieceScopeFilter scope) => scope switch
+    {
+        PieceScopeFilter.All => true,
+        PieceScopeFilter.Site => piece.Scope == PieceScope.Site,
+        PieceScopeFilter.Page => piece.Scope == PieceScope.Page,
+        _ => true,
+    };
 
     private static JsonObject? SerialiseThingAsNode(Thing thing)
     {

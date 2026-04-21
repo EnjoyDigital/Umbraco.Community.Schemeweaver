@@ -40,18 +40,18 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
         _logger = logger;
     }
 
-    public string[] GetBlocks(IPublishedContent content, string? culture)
+    public string[] GetBlocks(IPublishedContent content, string? culture, PieceScopeFilter scope = PieceScopeFilter.All)
     {
         ArgumentNullException.ThrowIfNull(content);
 
-        var cacheKey = BuildCacheKey(content.Key, culture);
+        var cacheKey = BuildCacheKey(content.Key, culture, scope);
         return _cache.GetOrCreate(cacheKey, entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = _options.CacheDuration;
             var perContent = _perContentTokens.GetOrAdd(content.Key, _ => new CancellationTokenSource());
             entry.AddExpirationToken(new CancellationChangeToken(perContent.Token));
             entry.AddExpirationToken(new CancellationChangeToken(_globalToken.Token));
-            return Generate(content, culture);
+            return Generate(content, culture, scope);
         }) ?? Array.Empty<string>();
     }
 
@@ -90,14 +90,14 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
         try { _globalToken.Dispose(); } catch { /* best effort */ }
     }
 
-    internal static string BuildCacheKey(Guid contentKey, string? culture)
-        => $"schemeweaver:jsonld:{contentKey:N}:{culture?.ToLowerInvariant() ?? "none"}";
+    internal static string BuildCacheKey(Guid contentKey, string? culture, PieceScopeFilter scope = PieceScopeFilter.All)
+        => $"schemeweaver:jsonld:{contentKey:N}:{culture?.ToLowerInvariant() ?? "none"}:{scope}";
 
-    private string[] Generate(IPublishedContent content, string? culture)
+    private string[] Generate(IPublishedContent content, string? culture, PieceScopeFilter scope)
     {
         try
         {
-            using var scope = _scopeFactory.CreateScope();
+            using var serviceScope = _scopeFactory.CreateScope();
 
             // v1.4+ pieces-based @graph output. A single string element carrying
             // the full graph, which is what headless consumers render directly
@@ -107,15 +107,16 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
             // rendering the single entry.
             if (_options.UseGraphModel)
             {
-                var graphGenerator = scope.ServiceProvider.GetRequiredService<IGraphGenerator>();
-                var graphJson = graphGenerator.GenerateGraphJson(content, culture);
+                var graphGenerator = serviceScope.ServiceProvider.GetRequiredService<IGraphGenerator>();
+                var graphJson = graphGenerator.GenerateGraphJson(content, culture, scope);
                 return string.IsNullOrEmpty(graphJson)
                     ? Array.Empty<string>()
                     : [graphJson];
             }
 
             // Legacy fallback — one JSON-LD block per piece of source data.
-            var generator = scope.ServiceProvider.GetRequiredService<IJsonLdGenerator>();
+            // Scope filter is ignored here; legacy output is always the full set.
+            var generator = serviceScope.ServiceProvider.GetRequiredService<IJsonLdGenerator>();
             var all = new List<string>();
 
             all.AddRange(generator.GenerateInheritedJsonLdStrings(content, culture));

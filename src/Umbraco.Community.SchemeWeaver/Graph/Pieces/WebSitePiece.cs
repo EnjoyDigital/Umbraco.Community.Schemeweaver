@@ -25,6 +25,7 @@ public sealed class WebSitePiece : IGraphPiece
 
     public string Key => "website";
     public int Order => 200;
+    public PieceScope Scope => PieceScope.Site;
 
     public string? ResolveId(GraphPieceContext ctx) =>
         ctx.SiteUrl is null ? null : $"{ctx.SiteUrl}#website";
