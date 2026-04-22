@@ -717,6 +717,142 @@ public class BlockContentResolverTests
         jsonLd.Should().Contain("Grid question");
     }
 
+    // Regression: Map Block → Place.geo via GeoCoordinates. Two sub-mappings
+    // (lat → latitude, lng → longitude) both target the same wrapper; prior to
+    // the grouping fix in BlockContentResolver.MapBlockToThing, each mapping
+    // recreated the wrapper so only the last sub-property survived.
+    [Fact]
+    public void Resolve_MapBlockToPlace_WithLatAndLngWrappedInGeoCoordinates_SetsBothOnSameInstance()
+    {
+        var blockElement = CreateBlockElement("mapBlock", new Dictionary<string, object?>
+        {
+            ["lat"] = 53.8008m,
+            ["lng"] = -1.5491m,
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new()
+                {
+                    BlockAlias = "mapBlock",
+                    SchemaProperty = "Geo",
+                    ContentProperty = "lat",
+                    WrapInType = "GeoCoordinates",
+                    WrapInProperty = "Latitude"
+                },
+                new()
+                {
+                    BlockAlias = "mapBlock",
+                    SchemaProperty = "Geo",
+                    ContentProperty = "lng",
+                    WrapInType = "GeoCoordinates",
+                    WrapInProperty = "Longitude"
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Place", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(1);
+
+        var place = things[0].Should().BeOfType<Schema.NET.Place>().Subject;
+        var geo = place.Geo.Value1;
+        geo.Should().NotBeNull("both lat and lng mappings should land on the same GeoCoordinates instance");
+
+        var coords = geo.Should().BeOfType<Schema.NET.GeoCoordinates>().Subject;
+        coords.Latitude.HasValue.Should().BeTrue("latitude should survive when longitude also maps to geo");
+        coords.Longitude.HasValue.Should().BeTrue("longitude should survive when latitude also maps to geo");
+    }
+
+    // Regression guard: grouping by (SchemaProperty, WrapInType) must not collapse
+    // unrelated wrappers targeting different schema properties.
+    [Fact]
+    public void Resolve_TwoBlockProperties_WrappedInDifferentTypes_KeepsEachOnItsOwnSchemaProperty()
+    {
+        var blockElement = CreateBlockElement("mapBlock", new Dictionary<string, object?>
+        {
+            ["lat"] = 53.8008m,
+            ["markerText"] = "Leeds office"
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new()
+                {
+                    BlockAlias = "mapBlock",
+                    SchemaProperty = "Geo",
+                    ContentProperty = "lat",
+                    WrapInType = "GeoCoordinates",
+                    WrapInProperty = "Latitude"
+                },
+                new()
+                {
+                    BlockAlias = "mapBlock",
+                    SchemaProperty = "Name",
+                    ContentProperty = "markerText"
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Place", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var place = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Place>().Single();
+        place.Name.Value.First().Should().Be("Leeds office");
+        ((Schema.NET.GeoCoordinates)place.Geo.Value1!).Latitude.HasValue.Should().BeTrue();
+    }
+
+    // If every sub-mapping resolves to null the resolver should NOT emit an empty
+    // wrapper shell on the schema property.
+    [Fact]
+    public void Resolve_MultipleWrappedSubMappings_AllNullValues_DoesNotEmitEmptyWrapper()
+    {
+        var blockElement = CreateBlockElement("mapBlock", new Dictionary<string, object?>
+        {
+            ["lat"] = null,
+            ["lng"] = null,
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new() { BlockAlias = "mapBlock", SchemaProperty = "Geo", ContentProperty = "lat",
+                    WrapInType = "GeoCoordinates", WrapInProperty = "Latitude" },
+                new() { BlockAlias = "mapBlock", SchemaProperty = "Geo", ContentProperty = "lng",
+                    WrapInType = "GeoCoordinates", WrapInProperty = "Longitude" },
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Place", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var place = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Place>().Single();
+        place.Geo.Count.Should().Be(0, "no map values resolved so no empty GeoCoordinates should be emitted");
+    }
+
     private static IPublishedElement CreateBlockElement(string contentTypeAlias, Dictionary<string, object?> properties)
     {
         var element = Substitute.For<IPublishedElement>();

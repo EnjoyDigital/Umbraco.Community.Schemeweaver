@@ -106,9 +106,30 @@ public class BlockContentResolver : IPropertyValueResolver
 
         if (nestedMappings is { Count: > 0 })
         {
-            foreach (var mapping in nestedMappings)
+            // Group mappings that target the same (schemaProperty, wrapInType) so multi-
+            // sub-property wrappers — e.g. Place.geo via GeoCoordinates (latitude AND
+            // longitude) — collapse onto a single wrapper instance. Prior to this the
+            // resolver recreated the wrapper on every mapping in the group, so only the
+            // last sub-property survived and everything emitted before was silently lost.
+            var grouped = nestedMappings.GroupBy(m => (
+                SchemaProperty: m.SchemaProperty ?? string.Empty,
+                WrapInType: m.WrapInType ?? string.Empty));
+
+            foreach (var group in grouped)
             {
-                MapPropertyFromConfig(instance, blockContent, mapping, context);
+                if (string.IsNullOrEmpty(group.Key.WrapInType))
+                {
+                    // No wrapper — apply each mapping independently.
+                    foreach (var mapping in group)
+                        MapPropertyFromConfig(instance, blockContent, mapping, context);
+                }
+                else
+                {
+                    ApplyWrappedGroup(
+                        instance, blockContent,
+                        group.Key.SchemaProperty, group.Key.WrapInType,
+                        group, context);
+                }
             }
         }
         else
@@ -118,6 +139,53 @@ public class BlockContentResolver : IPropertyValueResolver
         }
 
         return instance;
+    }
+
+    /// <summary>
+    /// Apply every mapping in <paramref name="group"/> to a single wrapper instance
+    /// of type <paramref name="wrapInType"/>, then assign that wrapper to
+    /// <paramref name="schemaProperty"/> on <paramref name="instance"/> exactly once.
+    /// Skips the group entirely if no sub-mapping resolves to a usable value — avoids
+    /// emitting an empty wrapper shell (e.g. an empty GeoCoordinates on a Place that
+    /// has no map block at all).
+    /// </summary>
+    private static void ApplyWrappedGroup(
+        Thing instance,
+        IPublishedElement blockContent,
+        string schemaProperty,
+        string wrapInType,
+        IEnumerable<NestedPropertyMapping> group,
+        PropertyResolverContext context)
+    {
+        if (string.IsNullOrEmpty(schemaProperty))
+            return;
+
+        var wrapType = context.SchemaTypeRegistry.GetClrType(wrapInType);
+        if (wrapType is null || Activator.CreateInstance(wrapType) is not Thing wrapInstance)
+            return;
+
+        var wroteAtLeastOne = false;
+        foreach (var mapping in group)
+        {
+            if (string.IsNullOrEmpty(mapping.ContentProperty))
+                continue;
+
+            var rawValue = ResolveBlockElementProperty(blockContent, mapping.ContentProperty, context);
+            if (rawValue is null)
+                continue;
+            if (rawValue is string s && string.IsNullOrWhiteSpace(s))
+                continue;
+
+            var wrapPropertyName = !string.IsNullOrEmpty(mapping.WrapInProperty)
+                ? mapping.WrapInProperty
+                : InferWrapProperty(wrapInType, mapping.ContentProperty, context.SchemaTypeRegistry);
+
+            SchemaPropertySetter.SetPropertyValue(wrapInstance, wrapPropertyName, rawValue);
+            wroteAtLeastOne = true;
+        }
+
+        if (wroteAtLeastOne)
+            SchemaPropertySetter.SetPropertyValue(instance, schemaProperty, wrapInstance);
     }
 
     private static void MapPropertyFromConfig(
