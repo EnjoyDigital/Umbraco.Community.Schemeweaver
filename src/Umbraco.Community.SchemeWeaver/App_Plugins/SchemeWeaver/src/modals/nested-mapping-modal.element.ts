@@ -79,7 +79,16 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   private async _initialise() {
     this._loading = true;
     try {
-      const schemaTypeName = this.data?.nestedSchemaTypeName || '';
+      // Normalise Schema.NET interface names ("IPlace", "IArticle") to their
+      // concrete class form ("Place", "Article") before querying the registry —
+      // doc-type mapping UI exposes the property types as interface names because
+      // Schema.NET-generated models are interface-typed, but the registry is
+      // keyed by class name.
+      const rawSchemaTypeName = this.data?.nestedSchemaTypeName || '';
+      const schemaTypeName = rawSchemaTypeName.startsWith('I') && rawSchemaTypeName.length > 1
+        && rawSchemaTypeName[1] === rawSchemaTypeName[1].toUpperCase()
+        ? rawSchemaTypeName.slice(1)
+        : rawSchemaTypeName;
       const contentTypeAlias = this.data?.contentTypeAlias || '';
       const propertyAlias = this.data?.contentTypePropertyAlias || '';
 
@@ -90,6 +99,18 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           ? this.#context?.repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
       ]);
+
+      // Diagnostic — surfaces the exact payload the modal receives so future
+      // silent-empty-step-2 bugs are one console glance away from a diagnosis.
+      // Harmless in production; can be removed once the root cause is documented.
+      console.debug('[SchemeWeaver] nested-mapping init', {
+        rawSchemaTypeName,
+        normalisedSchemaTypeName: schemaTypeName,
+        contentTypeAlias,
+        propertyAlias,
+        schemaPropsCount: schemaProps?.length ?? 'undefined',
+        blockTypesCount: blockTypes?.length ?? 'undefined',
+      });
 
       if (schemaProps) {
         this._schemaProperties = schemaProps;
@@ -642,8 +663,27 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   }
 
   private _renderMappingSections() {
+    // Visible diagnostic — when the schema-type-properties fetch returns nothing
+    // the modal used to silently render an empty step 2 (no rows, no explanation)
+    // and leave the user stuck. This tells them why and how to fix it.
     if (this._nestedMappings.length === 0) {
-      return nothing;
+      const typeName = this.data?.nestedSchemaTypeName || '(unknown)';
+      return html`
+        <div class="empty-mappings-hint">
+          <uui-icon name="icon-alert"></uui-icon>
+          <p>
+            <strong>No properties loaded for <code>${typeName}</code>.</strong>
+          </p>
+          <p>
+            The registry returned zero properties for this schema type. Likely causes:
+          </p>
+          <ul>
+            <li>The Schema.org type name doesn't exactly match a Schema.NET class — check the dev-tools console for the normalised type name SchemeWeaver tried.</li>
+            <li>The schema-type-properties API returned an empty array (check Network tab for <code>/schema-types/${typeName}/properties?ranked=true</code>).</li>
+            <li>Container was restarted mid-request — reload the backoffice.</li>
+          </ul>
+        </div>
+      `;
     }
 
     // Partition while preserving the original index so mutation handlers keep working.
@@ -989,6 +1029,28 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       .no-block-types-hint {
         color: var(--uui-color-text-alt);
         margin: 0 0 var(--uui-size-space-3) 0;
+      }
+
+      .empty-mappings-hint {
+        padding: var(--uui-size-space-4);
+        border-left: 3px solid var(--uui-color-warning);
+        background: var(--uui-color-surface-alt);
+        color: var(--uui-color-text);
+      }
+
+      .empty-mappings-hint p {
+        margin: 0 0 var(--uui-size-space-2) 0;
+      }
+
+      .empty-mappings-hint ul {
+        margin: 0;
+        padding-left: 1.25rem;
+      }
+
+      .empty-mappings-hint code {
+        background: var(--uui-color-surface);
+        padding: 0 var(--uui-size-space-1);
+        border-radius: 2px;
       }
 
       .mapping-header-info {

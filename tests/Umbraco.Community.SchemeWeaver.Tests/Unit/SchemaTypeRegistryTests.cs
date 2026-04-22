@@ -25,6 +25,60 @@ public class SchemaTypeRegistryTests
         result!.Name.Should().Be("Article");
     }
 
+    // Regression: callers (e.g. the backoffice nested-mapping modal, where the
+    // declared field type comes back as the Schema.NET interface name) sometimes
+    // pass "IPlace", "IArticle" etc. The registry only stores classes, so
+    // without interface tolerance every such call returned empty and the UI
+    // silently showed a blank mapping table.
+    [Theory]
+    [InlineData("IPlace", "Place")]
+    [InlineData("IArticle", "Article")]
+    [InlineData("IOrganization", "Organization")]
+    [InlineData("IPerson", "Person")]
+    public void GetType_InterfaceName_StripsILeadAndResolvesClass(string interfaceName, string expectedClass)
+    {
+        var result = _sut.GetType(interfaceName);
+
+        result.Should().NotBeNull();
+        result!.Name.Should().Be(expectedClass);
+    }
+
+    [Theory]
+    [InlineData("IPlace", "Place")]
+    [InlineData("IArticle", "Article")]
+    public void GetProperties_InterfaceName_ResolvesFromClass(string interfaceName, string expectedClass)
+    {
+        var interfaceProps = _sut.GetProperties(interfaceName).ToList();
+        var classProps = _sut.GetProperties(expectedClass).ToList();
+
+        interfaceProps.Should().NotBeEmpty("interface-name lookup must fall back to the underlying class");
+        interfaceProps.Should().BeEquivalentTo(classProps,
+            "interface and class lookups should return the same property list");
+    }
+
+    [Fact]
+    public void GetClrType_InterfaceName_ResolvesToClass()
+    {
+        var clrType = _sut.GetClrType("IPlace");
+
+        clrType.Should().NotBeNull();
+        clrType!.Name.Should().Be("Place");
+    }
+
+    // Class names that legitimately start with 'I' + uppercase (ImageObject,
+    // IndividualProduct, IceCreamShop, …) must keep hitting directly, not be
+    // accidentally stripped to a non-existent "mageObject" / "ndividualProduct".
+    [Theory]
+    [InlineData("ImageObject")]
+    [InlineData("IndividualProduct")]
+    public void GetType_ClassNameStartingWithIUppercase_ResolvesDirectly(string name)
+    {
+        var result = _sut.GetType(name);
+
+        result.Should().NotBeNull();
+        result!.Name.Should().Be(name);
+    }
+
     [Fact]
     public void GetType_UnknownType_ReturnsNull()
     {
