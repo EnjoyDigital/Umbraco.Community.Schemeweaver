@@ -78,6 +78,11 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
   private async _initialise() {
     this._loading = true;
     try {
+      // Await the context — consumeContext fires after connectedCallback so
+      // repository calls inside _loadSubTypeProperties would otherwise
+      // short-circuit to undefined via `?.` and leave the mappings empty.
+      this.#context = await this.getContext(SCHEMEWEAVER_CONTEXT);
+
       // If there's an existing config, parse it
       if (this.data?.existingConfig) {
         this._loadExistingConfig();

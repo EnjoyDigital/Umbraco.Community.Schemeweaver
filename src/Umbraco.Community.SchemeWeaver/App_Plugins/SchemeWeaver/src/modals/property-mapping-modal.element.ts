@@ -57,8 +57,15 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   private async _initialise() {
     this._loading = true;
     try {
+      // Await the context instead of relying on the ctor-registered
+      // consumeContext callback — that fires AFTER connectedCallback so the
+      // first pass through _initialise sees this.#context undefined and every
+      // repository call short-circuits to undefined via `?.`.
+      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
+      this.#context = ctx;
+
       // Auto-map returns a flat array of PropertyMappingSuggestion
-      const suggestions = await this.#context?.repository.requestAutoMap(
+      const suggestions = await ctx.repository.requestAutoMap(
         this.data?.contentTypeAlias || '',
         this.data?.schemaType || ''
       );
@@ -68,8 +75,8 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       }
 
       const [props, schemaProps] = await Promise.all([
-        this.#context?.repository.requestContentTypeProperties(this.data?.contentTypeAlias || ''),
-        this.#context?.repository.requestSchemaTypeProperties(this.data?.schemaType || ''),
+        ctx.repository.requestContentTypeProperties(this.data?.contentTypeAlias || ''),
+        ctx.repository.requestSchemaTypeProperties(this.data?.schemaType || ''),
       ]);
       if (props) {
         this._availableProperties = props.map((p) => p.alias);

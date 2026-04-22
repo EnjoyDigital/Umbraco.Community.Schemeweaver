@@ -88,7 +88,10 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
   private async _fetchSchemaTypes() {
     this._loading = true;
     try {
-      const types = await this.#context?.repository.requestSchemaTypes();
+      // Await the context — consumeContext fires after connectedCallback.
+      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
+      this.#context = ctx;
+      const types = await ctx.repository.requestSchemaTypes();
       if (types) {
         this._schemaTypes = types;
       }

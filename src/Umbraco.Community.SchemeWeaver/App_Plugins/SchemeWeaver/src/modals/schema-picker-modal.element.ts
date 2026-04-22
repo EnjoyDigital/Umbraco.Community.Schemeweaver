@@ -57,7 +57,11 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   private async _fetchSchemaTypes() {
     this._loading = true;
     try {
-      const types = await this.#context?.repository.requestSchemaTypes();
+      // Await the context — consumeContext fires after connectedCallback so
+      // the first pass would otherwise hit an undefined #context via `?.`.
+      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
+      this.#context = ctx;
+      const types = await ctx.repository.requestSchemaTypes();
       if (types) {
         this._schemaTypes = types;
       }

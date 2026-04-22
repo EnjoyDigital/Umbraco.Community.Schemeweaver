@@ -79,18 +79,25 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   private async _initialise() {
     this._loading = true;
     try {
-      // Interface names (IPlace, IArticle) are handled by the registry's alias
-      // table now — no string surgery needed here. Just pass whatever the
-      // doc-type editor gave us.
+      // consumeContext in the ctor registers a subscription but its callback
+      // fires AFTER connectedCallback returns, so this.#context is still
+      // undefined on the first pass through _initialise. Awaiting getContext
+      // here resolves as soon as the context is available (immediately if the
+      // modal was opened inside a provider that already has it registered), so
+      // the repository calls below don't silently short-circuit via `?.` and
+      // return `undefined` — which is exactly what had _schemaProperties stay
+      // empty and rendered the "No properties loaded" step 2 panel.
+      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
+      this.#context = ctx;
       const schemaTypeName = this.data?.nestedSchemaTypeName || '';
       const contentTypeAlias = this.data?.contentTypeAlias || '';
       const propertyAlias = this.data?.contentTypePropertyAlias || '';
 
       // Fetch schema type properties (ranked — popular-first) and block element types in parallel
       const [schemaProps, blockTypes] = await Promise.all([
-        this.#context?.repository.requestSchemaTypeProperties(schemaTypeName, true),
+        ctx.repository.requestSchemaTypeProperties(schemaTypeName, true),
         propertyAlias
-          ? this.#context?.repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
+          ? ctx.repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
       ]);
 

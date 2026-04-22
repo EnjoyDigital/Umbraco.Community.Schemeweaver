@@ -48,7 +48,10 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
         return;
       }
 
-      const properties = await this.#context?.repository.requestContentTypeProperties(contentTypeAlias);
+      // Await the context — consumeContext fires after connectedCallback.
+      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
+      this.#context = ctx;
+      const properties = await ctx.repository.requestContentTypeProperties(contentTypeAlias);
       if (properties) {
         this._properties = properties;
       }

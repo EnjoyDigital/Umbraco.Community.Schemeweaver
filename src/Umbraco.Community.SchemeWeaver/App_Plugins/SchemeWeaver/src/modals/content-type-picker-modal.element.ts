@@ -38,7 +38,10 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
   private async _fetchContentTypes() {
     this._loading = true;
     try {
-      const types = await this.#context?.repository.requestContentTypes();
+      // Await the context — consumeContext fires after connectedCallback.
+      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
+      this.#context = ctx;
+      const types = await ctx.repository.requestContentTypes();
       if (types) {
         this._contentTypes = types;
       }
