@@ -83,13 +83,32 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
     public SchemaTypeInfo? GetType(string name)
     {
         EnsureInitialised();
-        return _types.TryGetValue(name, out var entry) ? entry.Info : null;
+        return TryResolve(name, out var entry) ? entry.Info : null;
     }
 
     public IEnumerable<SchemaPropertyInfo> GetProperties(string typeName)
     {
         EnsureInitialised();
-        return _types.TryGetValue(typeName, out var entry) ? entry.Properties : [];
+        return TryResolve(typeName, out var entry) ? entry.Properties : [];
+    }
+
+    // Schema.NET generates every concrete class alongside a matching interface
+    // (class Place : Thing, IPlace). Property-type reflection surfaces the
+    // interface name, so callers that echo a property's declared type — the
+    // backoffice nested-mapping modal being the main one — hand us "IPlace".
+    // The registry only indexes classes, so a direct hit is tried first and
+    // on miss we strip a leading `I` when the name looks like a Schema.NET
+    // interface (`I` + uppercase). Class names that legitimately start with
+    // uppercase-following `I` (ImageObject, IndividualProduct) keep hitting
+    // directly — the strip only fires after the direct lookup misses.
+    private bool TryResolve(string name, out SchemaTypeEntry entry)
+    {
+        if (_types.TryGetValue(name, out entry!)) return true;
+        if (name.Length > 1 && name[0] == 'I' && char.IsUpper(name[1])
+            && _types.TryGetValue(name[1..], out entry!))
+            return true;
+        entry = null!;
+        return false;
     }
 
     public IEnumerable<SchemaTypeInfo> Search(string query)
@@ -108,7 +127,7 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
     public Type? GetClrType(string typeName)
     {
         EnsureInitialised();
-        return _types.TryGetValue(typeName, out var entry) ? entry.ClrType : null;
+        return TryResolve(typeName, out var entry) ? entry.ClrType : null;
     }
 
     private static List<SchemaPropertyInfo> GetSchemaProperties(Type type)
