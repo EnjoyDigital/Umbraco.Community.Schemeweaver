@@ -102,11 +102,36 @@ export interface BlockElementTypeInfo {
   properties: string[];
 }
 
+/**
+ * Severity of a validator finding. Kept as a string union so it serialises
+ * verbatim to/from the C# `ValidationIssue.Severity` enum (lower-case JSON).
+ */
+export type ValidationIssueSeverity = 'critical' | 'warning' | 'info';
+
+/**
+ * Matches C# `ValidationIssue` on `JsonLdPreviewResponse.Issues`.
+ * Each finding carries enough context (schema type, JSON path, human-readable
+ * message) to render a Rich Results / SEO-style validation panel in the UI.
+ */
+export interface ValidationIssue {
+  severity: ValidationIssueSeverity;
+  schemaType: string;
+  path: string;
+  message: string;
+}
+
 /** Matches C# JsonLdPreviewResponse */
 export interface JsonLdPreviewResponse {
   jsonLd: string;
   isValid: boolean;
+  /**
+   * Legacy string-only messages populated alongside `issues` for backwards
+   * compatibility. Frontends should prefer `issues` when rendering detailed
+   * panels — `errors` only ever contains critical-level messages.
+   */
   errors: string[];
+  /** Structured validator findings grouped by severity. May be omitted by older backends. */
+  issues?: ValidationIssue[];
 }
 
 /** Matches C# SchemaTypeSuggestion from SchemeWeaver.AI */
