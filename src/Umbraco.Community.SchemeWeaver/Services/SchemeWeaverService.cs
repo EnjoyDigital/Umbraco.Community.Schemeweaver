@@ -7,6 +7,7 @@ using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
+using Umbraco.Community.SchemeWeaver.Services.Validation;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
 
@@ -22,6 +23,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly ISchemaMappingRepository _repository;
     private readonly IContentTypeService _contentTypeService;
     private readonly IDataTypeService _dataTypeService;
+    private readonly ISchemaValidator _validator;
     private readonly SchemeWeaverOptions _options;
     private readonly ILogger<SchemeWeaverService> _logger;
 
@@ -33,6 +35,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         ISchemaMappingRepository repository,
         IContentTypeService contentTypeService,
         IDataTypeService dataTypeService,
+        ISchemaValidator validator,
         IOptions<SchemeWeaverOptions> options,
         ILogger<SchemeWeaverService> logger)
     {
@@ -43,6 +46,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         _repository = repository;
         _contentTypeService = contentTypeService;
         _dataTypeService = dataTypeService;
+        _validator = validator;
         _options = options.Value;
         _logger = logger;
     }
@@ -142,7 +146,7 @@ public class SchemeWeaverService : ISchemeWeaverService
             if (jsonLd is not null)
             {
                 response.JsonLd = jsonLd;
-                response.IsValid = true;
+                ApplyValidation(response, jsonLd);
             }
             else
             {
@@ -152,6 +156,8 @@ public class SchemeWeaverService : ISchemeWeaverService
         catch (Exception ex)
         {
             response.Errors.Add(ex.Message);
+            response.Issues.Add(new ValidationIssueDto("critical", "(generation-error)", "$",
+                $"JSON-LD generation failed: {ex.Message}"));
             _logger.LogError(ex, "Error generating JSON-LD preview for content {ContentId}", content.Id);
         }
 
@@ -194,8 +200,35 @@ public class SchemeWeaverService : ISchemeWeaverService
 
         response.JsonLd = JsonSerializer.Serialize(result,
             new JsonSerializerOptions { WriteIndented = true });
-        response.IsValid = true;
+        ApplyValidation(response, response.JsonLd);
         return response;
+    }
+
+    /// <summary>
+    /// Runs <see cref="ISchemaValidator"/> over the generated JSON-LD and
+    /// fills <see cref="JsonLdPreviewResponse.Issues"/>, <see cref="JsonLdPreviewResponse.Errors"/>
+    /// (legacy) and <see cref="JsonLdPreviewResponse.IsValid"/>. Safe to call
+    /// on any non-null JSON-LD string — parse failures surface as a single
+    /// Critical issue rather than an exception.
+    /// </summary>
+    private void ApplyValidation(JsonLdPreviewResponse response, string jsonLd)
+    {
+        var result = _validator.Validate(jsonLd);
+        foreach (var issue in result.Issues)
+        {
+            var severity = issue.Severity switch
+            {
+                ValidationSeverity.Critical => "critical",
+                ValidationSeverity.Warning => "warning",
+                _ => "info",
+            };
+            response.Issues.Add(new ValidationIssueDto(severity, issue.SchemaType, issue.Path, issue.Message));
+
+            if (issue.Severity == ValidationSeverity.Critical)
+                response.Errors.Add(issue.Message);
+        }
+
+        response.IsValid = !result.HasCritical;
     }
 
     private static string GetBuiltInMockValue(string? alias) => alias switch
