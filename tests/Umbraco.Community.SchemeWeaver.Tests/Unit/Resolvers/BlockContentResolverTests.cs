@@ -766,10 +766,12 @@ public class BlockContentResolverTests
         things.Should().HaveCount(1);
 
         var place = things[0].Should().BeOfType<Schema.NET.Place>().Subject;
-        var geo = place.Geo.Value1;
-        geo.Should().NotBeNull("both lat and lng mappings should land on the same GeoCoordinates instance");
-
-        var coords = geo.Should().BeOfType<Schema.NET.GeoCoordinates>().Subject;
+        // Place.Geo is Values<OneOrMany<IGeoCoordinates>, OneOrMany<IGeoShape>>:
+        // Value1 yields the IGeoCoordinates side, then Single() unwraps the
+        // single coordinate instance inside the OneOrMany.
+        var coords = ((IEnumerable<Schema.NET.IGeoCoordinates>)place.Geo.Value1!)
+            .Single()
+            .Should().BeOfType<Schema.NET.GeoCoordinates>().Subject;
         coords.Latitude.HasValue.Should().BeTrue("latitude should survive when longitude also maps to geo");
         coords.Longitude.HasValue.Should().BeTrue("longitude should survive when latitude also maps to geo");
     }
@@ -815,7 +817,7 @@ public class BlockContentResolverTests
         var result = _sut.Resolve(context);
 
         var place = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Place>().Single();
-        place.Name.Value.First().Should().Be("Leeds office");
+        place.Name.First().Should().Be("Leeds office");
         ((Schema.NET.GeoCoordinates)place.Geo.Value1!).Latitude.HasValue.Should().BeTrue();
     }
 

@@ -12,6 +12,7 @@ using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.Validation;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 
@@ -24,6 +25,7 @@ public class SchemeWeaverServiceTests
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly IContentTypeService _contentTypeService = Substitute.For<IContentTypeService>();
     private readonly IDataTypeService _dataTypeService = Substitute.For<IDataTypeService>();
+    private readonly ISchemaValidator _validator = Substitute.For<ISchemaValidator>();
     private readonly ILogger<SchemeWeaverService> _logger = Substitute.For<ILogger<SchemeWeaverService>>();
 
     // Existing preview tests assert against the legacy single-Thing string;
@@ -35,10 +37,15 @@ public class SchemeWeaverServiceTests
 
     public SchemeWeaverServiceTests()
     {
+        // Default to an empty validation result — tests that care about issues
+        // override this per-test. Without it, NSubstitute returns null and
+        // ApplyValidation NPEs before the assertion runs.
+        _validator.Validate(Arg.Any<string>()).Returns(ValidationResult.Empty);
+
         _sut = new SchemeWeaverService(
             _registry, _autoMapper, _generator, _graphGenerator,
             _repository, _contentTypeService, _dataTypeService,
-            Options.Create(_options), _logger);
+            _validator, Options.Create(_options), _logger);
     }
 
     [Fact]
