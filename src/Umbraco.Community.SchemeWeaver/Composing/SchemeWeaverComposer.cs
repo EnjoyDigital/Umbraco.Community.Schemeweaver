@@ -104,5 +104,21 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddSingleton<ITypeRule, MovieRule>();
         builder.Services.AddSingleton<ITypeRule, BookRule>();
         builder.Services.AddSingleton<ITypeRule, VideoObjectRule>();
+
+        // Tier-2 rules — Group D (pages / work).
+        builder.Services.AddSingleton<ITypeRule, WebPageRule>();
+        builder.Services.AddSingleton<ITypeRule, AboutPageRule>();
+        builder.Services.AddSingleton<ITypeRule, ProfilePageRule>();
+        builder.Services.AddSingleton<ITypeRule, BlogRule>();
+        builder.Services.AddSingleton<ITypeRule, ServiceRule>();
+        builder.Services.AddSingleton<ITypeRule, OccupationRule>();
+
+        // Tier-2 rules — Group F (accommodation / vehicle / commerce).
+        builder.Services.AddSingleton<ITypeRule, AccommodationRule>();
+        builder.Services.AddSingleton<ITypeRule, VehicleRule>();
+        builder.Services.AddSingleton<ITypeRule, OfferRule>();
+        builder.Services.AddSingleton<ITypeRule, FinancialProductRule>();
+        builder.Services.AddSingleton<ITypeRule, RealEstateListingRule>();
+        builder.Services.AddSingleton<ITypeRule, PhotographRule>();
     }
 }
