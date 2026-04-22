@@ -178,28 +178,6 @@ export default {
     // showMoreProperties is defined above and shared with the nested-type modal disclosure.
     hideAdditionalProperties: 'Hide additional properties',
 
-    // AI features (require SchemeWeaver.AI satellite package)
-    aiAnalyse: 'AI Analyse',
-    aiAnalyseAll: 'AI Analyse All',
-    aiAutoMap: 'AI Auto-map',
-    aiSuggesting: 'AI is analysing...',
-    aiSuggestion: 'AI Suggestion',
-    aiConfidence: 'AI Confidence',
-    aiReasoning: 'Reasoning',
-    aiNotAvailable: 'Umbraco.AI is not installed. Install Umbraco.Community.SchemeWeaver.AI for AI-powered mapping.',
-    aiAnalyseAllDescription: 'Use AI to analyse all content types and suggest Schema.org mappings.',
-    aiBulkResults: 'AI Analysis Results',
-    aiApply: 'Apply',
-    aiApplyAll: 'Apply All',
-    aiSkip: 'Skip',
-    aiSuggestedSchema: 'AI Suggested Schema',
-    aiAnalysing: 'Analysing with AI...',
-    aiApplying: 'Applying mappings...',
-    aiNoSuggestions: 'AI could not determine a suitable schema type for this content type.',
-    aiBulkComplete: 'AI analysis complete',
-    aiAnalysisFailed: 'AI analysis failed. Please try again.',
-    aiAutoMapFailed: 'AI auto-map failed. Please try again.',
-
     // Workspace context errors
     workspaceContextUnavailable: 'Could not connect to the SchemeWeaver workspace context.',
 

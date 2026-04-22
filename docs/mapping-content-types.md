@@ -34,8 +34,6 @@ Each type in the list shows:
 
 Click a type to highlight it. The selected type is visually distinguished with a coloured background and border. Click **Select** in the modal footer to confirm your choice and proceed to property mapping. Click **Cancel** to close the modal without creating a mapping.
 
-> **Tip:** If you have the optional `Umbraco.Community.SchemeWeaver.AI` package installed, the **AI Analyse** entity action on a document type can suggest the most appropriate Schema.org type based on the content type's properties. See [AI Integration](ai-integration.md).
-
 ## Step 2: Review auto-mapped properties
 
 After selecting a Schema.org type, a **property mapping modal** opens with auto-mapped suggestions.
@@ -116,9 +114,6 @@ To edit an existing mapping, navigate to the document type and switch to the **S
 
 On the workspace view, you can also click **Auto-map** to re-run the auto-mapper. This merges new suggestions with your existing mappings: if a property already has user-provided data (a content type property alias, static value, or resolver config), the user's choices are preserved and only the confidence score is updated. New schema properties from the suggestions are added as new rows.
 
-> **AI Auto-Map:** When the `Umbraco.Community.SchemeWeaver.AI` package is installed, auto-mapping uses AI to semantically match properties, then merges the results with heuristic suggestions. For each property, the higher-confidence suggestion wins. See [AI Integration](ai-integration.md).
-
-
 ## Inherited schemas toggle
 
 On the workspace view, beneath the Schema Type display, there is an **Inherited** toggle switch with the description: "When enabled, this schema will also be output on all descendant pages."
@@ -140,5 +135,4 @@ Deleting a mapping means published pages of that content type will no longer out
 
 - **Property Mappings** (property-mappings.md) -- detailed guide to each source type, transforms, confidence scoring, and the property value resolver architecture.
 - **Block Content** (block-content.md) -- mapping Block List and Block Grid editors to Schema.org types, including nested type configuration and the nested mapping modal.
-- **[AI Integration](ai-integration.md)** -- optional AI-powered schema suggestions, bulk analysis, and Copilot tools.
 - **[Getting Started](getting-started.md)** -- installation, tag helper setup, and your first mapping walkthrough.

@@ -153,4 +153,3 @@ Once JSON-LD is rendering on your pages, validate it using these tools:
 - **[Mapping Content Types](mapping-content-types.md)** -- detailed guide to the schema picker, property mapping table, inherited schemas, and deleting mappings.
 - **Property Mappings** (property-mappings.md) -- deep dive into source types, transforms, block content mapping, and complex nested types.
 - **Block Content** (block-content.md) -- working with Block List and Block Grid editors in your schema mappings.
-- **[AI Integration](ai-integration.md)** -- optional AI-powered schema suggestions, bulk analysis, and Copilot tools.

@@ -32,28 +32,6 @@ dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
 
 > The TestHost is purely for testing schema mappings and structured data generation. It is not intended as a base site or starter kit.
 
-## Running the TestHost with AI features
-
-The companion `Umbraco.Community.SchemeWeaver.AI` package is referenced by the TestHost and its Anthropic provider is wired up so you can exercise the AI schema-mapping flows end-to-end. The API key lives in user-secrets so it stays off disk and out of git:
-
-1. Grab an Anthropic API key.
-2. Set it locally (the TestHost has a `UserSecretsId`, so this stores it in your per-user secret store, never in the repo):
-
-   ```bash
-   cd src/Umbraco.Community.SchemeWeaver.TestHost
-   dotnet user-secrets set "Anthropic:ApiKey" "sk-ant-..."
-   ```
-
-3. Start the TestHost:
-
-   ```bash
-   dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
-   ```
-
-4. In the backoffice, open the **AI** section, create an Anthropic connection, and enter `$Anthropic:ApiKey` as the API key — Umbraco.AI resolves `$`-prefixed values from configuration at runtime. Create a chat profile against that connection (e.g. `claude-sonnet-4-5`) and set it as the default chat profile. SchemeWeaver's AI entity actions will then appear on document types; `GET /umbraco/management/api/v1/schemeweaver/ai/status` returns `200`.
-
-Without a configured connection, the AI endpoints fall back to the heuristic auto-mapper; the rest of SchemeWeaver works unchanged.
-
 Read [`CLAUDE.md`](CLAUDE.md) for architecture, DI wiring, and naming conventions.
 
 ## Tests

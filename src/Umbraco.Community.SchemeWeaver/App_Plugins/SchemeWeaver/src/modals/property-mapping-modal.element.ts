@@ -36,15 +36,6 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   @state()
   private _allSchemaProperties: SchemaPropertyInfo[] = [];
 
-  @state()
-  private _aiAvailable = false;
-
-  @state()
-  private _aiChecking = true;
-
-  @state()
-  private _aiLoading = false;
-
   constructor() {
     super();
     this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
@@ -61,38 +52,6 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   async connectedCallback() {
     super.connectedCallback();
     await this._initialise();
-    this._checkAIStatus();
-  }
-
-  private async _checkAIStatus() {
-    this._aiChecking = true;
-    try {
-      const status = await this.#context?.repository.requestAIStatus();
-      this._aiAvailable = status?.available === true;
-    } catch {
-      this._aiAvailable = false;
-    } finally {
-      this._aiChecking = false;
-    }
-  }
-
-  private async _handleAIAutoMap() {
-    this._aiLoading = true;
-    try {
-      const suggestions = await this.#context?.repository.requestAIAutoMap(
-        this.data?.contentTypeAlias || '',
-        this.data?.schemaType || '',
-      );
-      if (suggestions && Array.isArray(suggestions)) {
-        this._mappings = mergeAutoMapSuggestions(this._mappings, suggestions);
-      }
-    } catch {
-      this.#notificationContext?.peek('danger', {
-        data: { message: this.localize.term('schemeWeaver_aiAutoMapFailed') },
-      });
-    } finally {
-      this._aiLoading = false;
-    }
   }
 
   private async _initialise() {
@@ -322,22 +281,6 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
                   <uui-tag color="primary">${this.data?.schemaType}</uui-tag>
                   <span>${this.localize.term('schemeWeaver_mappedTo')}</span>
                   <uui-tag color="default">${this.data?.contentTypeAlias}</uui-tag>
-                  ${this._aiChecking
-                    ? html`<uui-loader-bar class="ai-checking"></uui-loader-bar>`
-                    : this._aiAvailable ? html`
-                    <uui-button
-                      look="outline"
-                      color="positive"
-                      compact
-                      @click=${this._handleAIAutoMap}
-                      ?disabled=${this._aiLoading}
-                      .state=${this._aiLoading ? 'waiting' : undefined}
-                      label=${this.localize.term('schemeWeaver_aiAutoMap')}
-                    >
-                      <uui-icon name="icon-wand"></uui-icon>
-                      ${this._aiLoading ? this.localize.term('schemeWeaver_aiAnalysing') : this.localize.term('schemeWeaver_aiAutoMap')}
-                    </uui-button>
-                  ` : ''}
                 </div>
 
                 <schemeweaver-property-mapping-table

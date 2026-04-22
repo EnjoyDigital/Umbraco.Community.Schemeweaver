@@ -22,8 +22,6 @@ import type {
   JsonLdPreviewResponse,
   ContentTypeGenerationRequest,
   BlockElementTypeInfo,
-  SchemaTypeSuggestion,
-  BulkSchemaTypeSuggestion,
 } from '../api/types.js';
 
 const API_BASE = '/umbraco/management/api/v1/schemeweaver';
@@ -191,40 +189,4 @@ export class SchemeWeaverServerDataSource {
     });
   }
 
-  // --- AI endpoints (require SchemeWeaver.AI satellite package) ---
-
-  /** Returns { available: true } if AI satellite is installed, undefined if not (404). */
-  async getAIStatus(): Promise<{ available: boolean } | undefined> {
-    return fetchApi<{ available: boolean }>(this.#host, '/ai/status', {}, true);
-  }
-
-  /** AI-powered schema type suggestions for a single content type. */
-  async suggestSchemaType(contentTypeAlias: string): Promise<SchemaTypeSuggestion[] | undefined> {
-    return fetchApi<SchemaTypeSuggestion[]>(
-      this.#host,
-      `/ai/suggest-schema-type/${encodeURIComponent(contentTypeAlias)}`,
-      { method: 'POST' },
-    );
-  }
-
-  /** AI-powered schema type suggestions for all content types (bulk). */
-  async suggestSchemaTypesBulk(): Promise<BulkSchemaTypeSuggestion[] | undefined> {
-    return fetchApi<BulkSchemaTypeSuggestion[]>(
-      this.#host,
-      '/ai/suggest-schema-types-bulk',
-      { method: 'POST' },
-    );
-  }
-
-  /** AI-powered property mapping suggestions (returns same format as heuristic auto-map). */
-  async aiAutoMap(
-    contentTypeAlias: string,
-    schemaTypeName: string,
-  ): Promise<PropertyMappingSuggestion[] | undefined> {
-    return fetchApi<PropertyMappingSuggestion[]>(
-      this.#host,
-      `/ai/ai-auto-map/${encodeURIComponent(contentTypeAlias)}?schemaTypeName=${encodeURIComponent(schemaTypeName)}`,
-      { method: 'POST' },
-    );
-  }
 }

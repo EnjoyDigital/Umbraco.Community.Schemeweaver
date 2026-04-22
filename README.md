@@ -30,7 +30,6 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template; the tag helper reads the current culture from Umbraco's `IVariationContextAccessor` automatically
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
-- **AI-powered mapping (experimental)** -- install the companion [`Umbraco.Community.SchemeWeaver.AI`](docs/ai-integration.md) package for AI schema type suggestions, bulk analysis across all content types, and Umbraco Copilot integration. Not yet smoke-tested end-to-end — feedback welcome, but don't rely on it in production
 
 ## Requirements
 
@@ -44,18 +43,6 @@ dotnet add package Umbraco.Community.SchemeWeaver
 ```
 
 No additional configuration needed. The package registers all services, creates its database tables on first run, and adds the backoffice UI automatically.
-
-### Optional: AI-Powered Mapping (experimental)
-
-> ⚠️ **Experimental.** The AI companion hasn't been smoke-tested end-to-end against the current main-package contracts yet. It is shipped for early feedback only — expect rough edges and don't rely on it in production.
-
-For AI-assisted schema type suggestions and property mapping, install the companion package:
-
-```bash
-dotnet add package Umbraco.Community.SchemeWeaver.AI --prerelease
-```
-
-Requires [Umbraco.AI.Core](https://marketplace.umbraco.com/package/umbraco.ai.core) 1.7.0 or later and a configured chat provider (e.g. Azure OpenAI, Anthropic). See [AI Integration](docs/ai-integration.md) for details.
 
 ### Optional: uSync Integration
 
@@ -130,7 +117,6 @@ The backoffice JSON-LD preview tab automatically follows the workspace variant s
 - [uSync Integration](docs/usync.md) -- sync schema mappings between environments
 - [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, troubleshooting
 - [API Reference](docs/api-reference.md) -- REST API endpoints
-- [AI Integration](docs/ai-integration.md) -- optional AI-powered schema suggestions, bulk analysis, and Copilot tools
 
 ## How it works
 
@@ -171,7 +157,6 @@ The generated output:
 
 - **Block content nested types** -- complex Schema.org properties (e.g. `acceptedAnswer`, `reviewRating`) require a wrapper type. The auto-mapper pre-configures this for common patterns (FAQ, Product, Recipe). For custom types, see the [`wrapInType` guide](docs/block-content.md#wrapintype-configuration).
 - **Media picker edge cases** -- complex multi-crop scenarios with specific crop aliases may need manual URL configuration. See [Property Mappings](docs/property-mappings.md#property-value-resolvers).
-- **AI package** -- the `Umbraco.Community.SchemeWeaver.AI` companion is **experimental** and not yet smoke-tested end-to-end. It requires a configured Umbraco.AI chat provider. Without it, the heuristic auto-mapper handles all suggestions.
 
 ## Releasing
 
@@ -210,28 +195,6 @@ dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
 ```
 
 > **Note:** The TestHost is purely for testing schema mappings and structured data generation. It is not intended as a base site or starter kit.
-
-#### Running the TestHost with AI features
-
-The companion `Umbraco.Community.SchemeWeaver.AI` package is referenced by the TestHost and its Anthropic provider is wired up so you can exercise the AI schema-mapping flows end-to-end. The API key lives in [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets) so it stays off disk and out of git:
-
-1. Grab an [Anthropic API key](https://console.anthropic.com/).
-2. Set it locally (the TestHost has a `UserSecretsId`, so this stores it in your per-user secret store, never in the repo):
-
-   ```bash
-   cd src/Umbraco.Community.SchemeWeaver.TestHost
-   dotnet user-secrets set "Anthropic:ApiKey" "sk-ant-..."
-   ```
-
-3. Start the TestHost:
-
-   ```bash
-   dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
-   ```
-
-4. In the backoffice, open the **AI** section, create an **Anthropic** connection, and enter `$Anthropic:ApiKey` as the API key — Umbraco.AI resolves `$`-prefixed values from configuration at runtime. Create a chat profile against that connection (e.g. `claude-sonnet-4-5`) and set it as the default chat profile. SchemeWeaver's AI entity actions will then appear on document types; `GET /umbraco/management/api/v1/schemeweaver/ai/status` returns 200.
-
-Without a configured connection, the AI endpoints fall back to the heuristic auto-mapper; the rest of SchemeWeaver works unchanged.
 
 Read [`CLAUDE.md`](CLAUDE.md) for architecture, DI wiring, and naming conventions.
 

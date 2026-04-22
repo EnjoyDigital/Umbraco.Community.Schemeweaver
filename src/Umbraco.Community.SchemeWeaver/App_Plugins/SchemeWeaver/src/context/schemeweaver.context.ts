@@ -16,7 +16,7 @@ export class SchemeWeaverContext extends UmbControllerBase {
 
   /** Direct access to the underlying repository for callers (modals, entity
    *  actions, workspace views) that need endpoints not already surfaced as
-   *  context methods — e.g. AI status, AI auto-map, AI schema suggestions. */
+   *  context methods. */
   public get repository(): SchemeWeaverRepository {
     return this.#repository;
   }

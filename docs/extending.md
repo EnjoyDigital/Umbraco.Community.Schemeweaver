@@ -329,4 +329,3 @@ For multicast services like `IPropertyValueResolver`, ordering does not matter -
 - **[Property Mappings](property-mappings.md)** -- source types, transforms, and the auto-mapping algorithm
 - **[Block Content](block-content.md)** -- how BlockContentResolver and nested mappings work
 - **[API Reference](api-reference.md)** -- REST API endpoints
-- **[AI Integration](ai-integration.md)** -- optional AI-powered mapping via the companion package
