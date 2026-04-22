@@ -79,16 +79,10 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   private async _initialise() {
     this._loading = true;
     try {
-      // Normalise Schema.NET interface names ("IPlace", "IArticle") to their
-      // concrete class form ("Place", "Article") before querying the registry —
-      // doc-type mapping UI exposes the property types as interface names because
-      // Schema.NET-generated models are interface-typed, but the registry is
-      // keyed by class name.
-      const rawSchemaTypeName = this.data?.nestedSchemaTypeName || '';
-      const schemaTypeName = rawSchemaTypeName.startsWith('I') && rawSchemaTypeName.length > 1
-        && rawSchemaTypeName[1] === rawSchemaTypeName[1].toUpperCase()
-        ? rawSchemaTypeName.slice(1)
-        : rawSchemaTypeName;
+      // Interface names (IPlace, IArticle) are handled by the registry's alias
+      // table now — no string surgery needed here. Just pass whatever the
+      // doc-type editor gave us.
+      const schemaTypeName = this.data?.nestedSchemaTypeName || '';
       const contentTypeAlias = this.data?.contentTypeAlias || '';
       const propertyAlias = this.data?.contentTypePropertyAlias || '';
 
@@ -102,10 +96,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
       // Diagnostic — surfaces the exact payload the modal receives so future
       // silent-empty-step-2 bugs are one console glance away from a diagnosis.
-      // Harmless in production; can be removed once the root cause is documented.
+      // Harmless in production; keep.
       console.debug('[SchemeWeaver] nested-mapping init', {
-        rawSchemaTypeName,
-        normalisedSchemaTypeName: schemaTypeName,
+        schemaTypeName,
         contentTypeAlias,
         propertyAlias,
         schemaPropsCount: schemaProps?.length ?? 'undefined',

@@ -35,6 +35,8 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
             var schemaTypes = assembly.GetExportedTypes()
                 .Where(t => t is { IsClass: true, IsAbstract: false } && thingType.IsAssignableFrom(t));
 
+            var thingInterfaceType = assembly.GetType("Schema.NET.IThing");
+
             foreach (var type in schemaTypes)
             {
                 var properties = GetSchemaProperties(type);
@@ -59,6 +61,23 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
                 };
 
                 _types.TryAdd(type.Name, entry);
+
+                // Schema.NET generates every concrete class with a matching
+                // interface (`class Place : Thing, IPlace`). Property-type
+                // reflection returns those interface names, so callers that
+                // surface a property's declared type — the backoffice
+                // nested-mapping modal being the main one — pass "IPlace" to
+                // the registry. Registering the interface as an alias pointing
+                // at the same entry means every such lookup hits directly,
+                // with no string surgery at the call site.
+                if (thingInterfaceType is not null)
+                {
+                    foreach (var iface in type.GetInterfaces())
+                    {
+                        if (iface != thingInterfaceType && thingInterfaceType.IsAssignableFrom(iface))
+                            _types.TryAdd(iface.Name, entry);
+                    }
+                }
             }
 
             // Second pass: set IsComplexType now that _types is fully populated
@@ -83,33 +102,13 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
     public SchemaTypeInfo? GetType(string name)
     {
         EnsureInitialised();
-        return TryResolve(name, out var entry) ? entry.Info : null;
+        return _types.TryGetValue(name, out var entry) ? entry.Info : null;
     }
 
     public IEnumerable<SchemaPropertyInfo> GetProperties(string typeName)
     {
         EnsureInitialised();
-        return TryResolve(typeName, out var entry) ? entry.Properties : [];
-    }
-
-    /// <summary>
-    /// Dictionary lookup that tolerates callers passing Schema.NET interface
-    /// names (<c>IPlace</c>, <c>IArticle</c>) alongside class names. The
-    /// registry itself only stores classes, so a direct hit is tried first and
-    /// — on miss — the leading <c>I</c> is stripped if the name looks like a
-    /// Schema.NET interface (<c>I</c> + uppercase). Real class names that happen
-    /// to start with an uppercase-following <c>I</c> (<c>ImageObject</c>,
-    /// <c>IndividualProduct</c>) keep working because they hit on the first
-    /// lookup; the fallback only fires when the direct name was unknown.
-    /// </summary>
-    private bool TryResolve(string name, out SchemaTypeEntry entry)
-    {
-        if (_types.TryGetValue(name, out entry!)) return true;
-        if (name.Length > 1 && name[0] == 'I' && char.IsUpper(name[1])
-            && _types.TryGetValue(name[1..], out entry!))
-            return true;
-        entry = null!;
-        return false;
+        return _types.TryGetValue(typeName, out var entry) ? entry.Properties : [];
     }
 
     public IEnumerable<SchemaTypeInfo> Search(string query)
@@ -128,7 +127,7 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
     public Type? GetClrType(string typeName)
     {
         EnsureInitialised();
-        return TryResolve(typeName, out var entry) ? entry.ClrType : null;
+        return _types.TryGetValue(typeName, out var entry) ? entry.ClrType : null;
     }
 
     private static List<SchemaPropertyInfo> GetSchemaProperties(Type type)
