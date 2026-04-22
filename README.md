@@ -6,6 +6,11 @@ Map Umbraco Content Types to [Schema.org](https://schema.org) types and automati
 
 [![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.SchemeWeaver)](https://www.nuget.org/packages/Umbraco.Community.SchemeWeaver) [![License](https://img.shields.io/github/license/EnjoyDigital/Umbraco.Community.Schemeweaver)](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/blob/main/LICENSE)
 
+> 👋 **Heads-up — I'm building this one in public.**
+> SchemeWeaver is usable today, but I'm still dialling in the editor UX and a few of the sharper edges. Expect small behavioural and UI changes between releases while that settles down. Every change (breaking or otherwise) gets called out in the [release notes](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/releases) so you can see what's coming before you upgrade.
+>
+> If something bites you, confuses you, or you just have a suggestion — **please [open an issue](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues)**. I genuinely want the feedback, especially the "this UX is weird" kind. The package is better for every issue that gets logged.
+
 SchemeWeaver provides a document type editor UI for configuring mappings, an auto-mapper that suggests property assignments, and runtime JSON-LD generation that works with both server-rendered templates and the headless Delivery API.
 
 ## Why structured data?
