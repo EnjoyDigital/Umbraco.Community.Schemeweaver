@@ -1,8 +1,7 @@
 import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
-import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
-import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
+import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { SchemaTypeInfo, SchemaPropertyInfo } from '../api/types.js';
 import type { GenerateDoctypeModalData, GenerateDoctypeModalValue } from './generate-doctype-modal.token.js';
 
@@ -29,7 +28,7 @@ function toCamelCaseAlias(name: string): string {
 
 @customElement('schemeweaver-generate-doctype-modal')
 export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoctypeModalData, GenerateDoctypeModalValue> {
-  #context?: SchemeWeaverContext;
+  #repository = new SchemeWeaverRepository(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
   #searchTimer?: ReturnType<typeof setTimeout>;
 
@@ -62,9 +61,6 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
 
   constructor() {
     super();
-    this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
-      this.#context = context;
-    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
@@ -88,10 +84,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
   private async _fetchSchemaTypes() {
     this._loading = true;
     try {
-      // Await the context — consumeContext fires after connectedCallback.
-      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
-      this.#context = ctx;
-      const types = await ctx.repository.requestSchemaTypes();
+      const types = await this.#repository.requestSchemaTypes();
       if (types) {
         this._schemaTypes = types;
       }
@@ -114,7 +107,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
   private async _doSearch() {
     this._loading = true;
     try {
-      const types = await this.#context?.repository.requestSchemaTypes(this._searchTerm || undefined);
+      const types = await this.#repository.requestSchemaTypes(this._searchTerm || undefined);
       if (types) {
         this._schemaTypes = types;
       }
@@ -134,7 +127,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
 
     // Fetch full properties from the properties endpoint
     try {
-      const props = await this.#context?.repository.requestSchemaTypeProperties(type.name);
+      const props = await this.#repository.requestSchemaTypeProperties(type.name);
       if (props) {
         this._selectedTypeProperties = props;
         this._selectedProperties = new Set(props.map((p) => p.name));
@@ -162,7 +155,7 @@ export class GenerateDoctypeModalElement extends UmbModalBaseElement<GenerateDoc
     this._generating = true;
 
     try {
-      const result = await this.#context?.repository.generateContentType({
+      const result = await this.#repository.generateContentType({
         schemaTypeName: this._selectedSchemaType.name,
         documentTypeName: this._documentTypeName,
         documentTypeAlias: this._documentTypeAlias,

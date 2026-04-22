@@ -1,21 +1,17 @@
 import { css, html, customElement, state, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
-import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
-import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
+import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { ContentTypeInfo } from '../api/types.js';
 import type { ContentTypePickerModalData, ContentTypePickerModalValue } from './content-type-picker-modal.token.js';
 
 @customElement('schemeweaver-content-type-picker-modal')
 export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTypePickerModalData, ContentTypePickerModalValue> {
-  #context?: SchemeWeaverContext;
+  #repository = new SchemeWeaverRepository(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   constructor() {
     super();
-    this.consumeContext(SCHEMEWEAVER_CONTEXT, (ctx) => {
-      this.#context = ctx;
-    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => {
       this.#notificationContext = ctx;
     });
@@ -38,10 +34,7 @@ export class ContentTypePickerModalElement extends UmbModalBaseElement<ContentTy
   private async _fetchContentTypes() {
     this._loading = true;
     try {
-      // Await the context — consumeContext fires after connectedCallback.
-      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
-      this.#context = ctx;
-      const types = await ctx.repository.requestContentTypes();
+      const types = await this.#repository.requestContentTypes();
       if (types) {
         this._contentTypes = types;
       }

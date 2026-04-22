@@ -1,8 +1,7 @@
 import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
-import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
-import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
+import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { SchemaTypeInfo } from '../api/types.js';
 import type { SchemaPickerModalData, SchemaPickerModalValue } from './schema-picker-modal.token.js';
 
@@ -13,15 +12,12 @@ interface SchemaTypeGroup {
 
 @customElement('schemeweaver-schema-picker-modal')
 export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerModalData, SchemaPickerModalValue> {
-  #context?: SchemeWeaverContext;
+  #repository = new SchemeWeaverRepository(this);
   #searchTimer?: ReturnType<typeof setTimeout>;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   constructor() {
     super();
-    this.consumeContext(SCHEMEWEAVER_CONTEXT, (ctx) => {
-      this.#context = ctx;
-    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => {
       this.#notificationContext = ctx;
     });
@@ -57,11 +53,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   private async _fetchSchemaTypes() {
     this._loading = true;
     try {
-      // Await the context — consumeContext fires after connectedCallback so
-      // the first pass would otherwise hit an undefined #context via `?.`.
-      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
-      this.#context = ctx;
-      const types = await ctx.repository.requestSchemaTypes();
+      const types = await this.#repository.requestSchemaTypes();
       if (types) {
         this._schemaTypes = types;
       }
@@ -84,7 +76,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   private async _doSearch() {
     this._loading = true;
     try {
-      const types = await this.#context?.repository.requestSchemaTypes(this._searchTerm || undefined);
+      const types = await this.#repository.requestSchemaTypes(this._searchTerm || undefined);
       if (types) {
         this._schemaTypes = types;
       }

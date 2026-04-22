@@ -1,8 +1,7 @@
 import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
-import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
-import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
+import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { SchemaPropertyInfo, RankedSchemaPropertyInfo, BlockElementTypeInfo } from '../api/types.js';
 
 import type { NestedMappingModalData, NestedMappingModalValue } from './nested-mapping-modal.token.js';
@@ -25,7 +24,11 @@ type WizardStep = 'block-type' | 'mappings' | 'preview';
 
 @customElement('schemeweaver-nested-mapping-modal')
 export class NestedMappingModalElement extends UmbModalBaseElement<NestedMappingModalData, NestedMappingModalValue> {
-  #context?: SchemeWeaverContext;
+  // Own repository instance — sidesteps the context-consumption timing that
+  // burned two prior fix attempts (await getContext resolved to undefined on
+  // modal re-opens; consumeContext callback fires after connectedCallback).
+  // The repository is stateless over HTTP so a per-modal instance is fine.
+  #repository = new SchemeWeaverRepository(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
   @state()
@@ -63,9 +66,6 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
   constructor() {
     super();
-    this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
-      this.#context = context;
-    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
@@ -73,31 +73,28 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
   async connectedCallback() {
     super.connectedCallback();
+    console.debug('[SchemeWeaver] nested-mapping modal mount', {
+      data: this.data,
+    });
     await this._initialise();
   }
 
   private async _initialise() {
     this._loading = true;
     try {
-      // consumeContext in the ctor registers a subscription but its callback
-      // fires AFTER connectedCallback returns, so this.#context is still
-      // undefined on the first pass through _initialise. Awaiting getContext
-      // here resolves as soon as the context is available (immediately if the
-      // modal was opened inside a provider that already has it registered), so
-      // the repository calls below don't silently short-circuit via `?.` and
-      // return `undefined` — which is exactly what had _schemaProperties stay
-      // empty and rendered the "No properties loaded" step 2 panel.
-      const ctx = await this.getContext(SCHEMEWEAVER_CONTEXT);
-      this.#context = ctx;
       const schemaTypeName = this.data?.nestedSchemaTypeName || '';
       const contentTypeAlias = this.data?.contentTypeAlias || '';
       const propertyAlias = this.data?.contentTypePropertyAlias || '';
 
-      // Fetch schema type properties (ranked — popular-first) and block element types in parallel
+      // Fetch schema type properties (ranked — popular-first) and block element types in parallel.
+      // Uses the modal's own repository instance so nothing depends on
+      // context-consumption timing — previous attempts routing through
+      // SchemeWeaverContext hit a race where this.#context was undefined
+      // on first pass and the empty-step-2 panel rendered.
       const [schemaProps, blockTypes] = await Promise.all([
-        ctx.repository.requestSchemaTypeProperties(schemaTypeName, true),
+        this.#repository.requestSchemaTypeProperties(schemaTypeName, true),
         propertyAlias
-          ? ctx.repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
+          ? this.#repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
       ]);
 
@@ -439,7 +436,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   /** Fetch and cache schema type properties */
   private async _getTypeProperties(typeName: string): Promise<SchemaPropertyInfo[]> {
     if (!this._typePropsCache[typeName]) {
-      const props = await this.#context?.repository.requestSchemaTypeProperties(typeName);
+      const props = await this.#repository.requestSchemaTypeProperties(typeName);
       this._typePropsCache[typeName] = props || [];
     }
     return this._typePropsCache[typeName];
