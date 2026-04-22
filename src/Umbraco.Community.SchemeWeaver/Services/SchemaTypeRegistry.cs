@@ -35,8 +35,6 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
             var schemaTypes = assembly.GetExportedTypes()
                 .Where(t => t is { IsClass: true, IsAbstract: false } && thingType.IsAssignableFrom(t));
 
-            var thingInterfaceType = assembly.GetType("Schema.NET.IThing");
-
             foreach (var type in schemaTypes)
             {
                 var properties = GetSchemaProperties(type);
@@ -61,23 +59,6 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
                 };
 
                 _types.TryAdd(type.Name, entry);
-
-                // Schema.NET generates every concrete class with a matching
-                // interface (`class Place : Thing, IPlace`). Property-type
-                // reflection returns those interface names, so callers that
-                // surface a property's declared type — the backoffice
-                // nested-mapping modal being the main one — pass "IPlace" to
-                // the registry. Registering the interface as an alias pointing
-                // at the same entry means every such lookup hits directly,
-                // with no string surgery at the call site.
-                if (thingInterfaceType is not null)
-                {
-                    foreach (var iface in type.GetInterfaces())
-                    {
-                        if (iface != thingInterfaceType && thingInterfaceType.IsAssignableFrom(iface))
-                            _types.TryAdd(iface.Name, entry);
-                    }
-                }
             }
 
             // Second pass: set IsComplexType now that _types is fully populated
