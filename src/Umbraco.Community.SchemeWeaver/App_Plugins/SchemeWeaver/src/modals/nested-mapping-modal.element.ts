@@ -73,9 +73,6 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
   async connectedCallback() {
     super.connectedCallback();
-    console.debug('[SchemeWeaver] nested-mapping modal mount', {
-      data: this.data,
-    });
     await this._initialise();
   }
 
@@ -97,17 +94,6 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           ? this.#repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
       ]);
-
-      // Diagnostic — surfaces the exact payload the modal receives so future
-      // silent-empty-step-2 bugs are one console glance away from a diagnosis.
-      // Harmless in production; keep.
-      console.debug('[SchemeWeaver] nested-mapping init', {
-        schemaTypeName,
-        contentTypeAlias,
-        propertyAlias,
-        schemaPropsCount: schemaProps?.length ?? 'undefined',
-        blockTypesCount: blockTypes?.length ?? 'undefined',
-      });
 
       if (schemaProps) {
         this._schemaProperties = schemaProps;
