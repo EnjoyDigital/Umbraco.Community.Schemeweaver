@@ -39,8 +39,13 @@ jobs:
         run: npm run test:msw
 
   backend:
-    name: C# unit & integration
+    name: C# unit & integration (Umbraco ${{ matrix.umbraco }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # One source tree, compiled per Umbraco major (see Directory.Build.props).
+        umbraco: ['17', '18']
     steps:
       - uses: actions/checkout@v5
 
@@ -68,26 +73,28 @@ jobs:
         run: npm run build
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore -p:UmbracoMajor=${{ matrix.umbraco }}
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --no-restore --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }}
 
       - name: Test (unit + integration)
-        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v5
         with:
-          name: dotnet-test-results
+          name: dotnet-test-results-umbraco${{ matrix.umbraco }}
           path: '**/TestResults/*.trx'
 
-      - name: Pack
-        run: dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release --output ./artifacts
+      - name: Pack (SchemeWeaver + uSync addon)
+        run: |
+          dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
+          dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
-      - name: Upload NuGet package
+      - name: Upload NuGet packages
         uses: actions/upload-artifact@v5
         with:
-          name: nuget-package
+          name: nuget-packages-umbraco${{ matrix.umbraco }}
           path: ./artifacts/*.nupkg

@@ -44,6 +44,17 @@ dotnet add package Umbraco.Community.SchemeWeaver
 
 No additional configuration needed. The package registers all services, creates its database tables on first run, and adds the backoffice UI automatically.
 
+### Umbraco 17 vs 18
+
+Umbraco 18 made a binary-breaking change to `IPublishedContent`, so a single assembly cannot run on both majors. SchemeWeaver therefore ships **one package per Umbraco major** from the same source:
+
+| Umbraco | SchemeWeaver version | Install |
+|---|---|---|
+| 17 | `1.4.x` (stable) | `dotnet add package Umbraco.Community.SchemeWeaver` |
+| 18 | `1.4.x-umbraco18` (prerelease) | `dotnet add package Umbraco.Community.SchemeWeaver --prerelease` |
+
+NuGet picks the right build for your project automatically when you constrain to a major; the `-umbraco18` builds are held as prereleases until Umbraco 18.0.0 (and uSync 18.0.0) ship as stable.
+
 ### Optional: uSync Integration
 
 To sync schema mappings between environments via [uSync](https://jumoo.co.uk/usync/):
@@ -52,7 +63,7 @@ To sync schema mappings between environments via [uSync](https://jumoo.co.uk/usy
 dotnet add package Umbraco.Community.SchemeWeaver.uSync --prerelease
 ```
 
-See [uSync Integration](docs/usync.md) for details.
+The uSync addon follows the same per-major scheme (`1.4.x` for Umbraco 17, `1.4.x-umbraco18` for Umbraco 18). The Umbraco 18 build depends on the uSync 18 release candidate and stays a prerelease until uSync 18.0.0 is stable. See [uSync Integration](docs/usync.md) for details.
 
 ## Quick Start
 

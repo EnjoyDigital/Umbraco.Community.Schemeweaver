@@ -28,6 +28,8 @@ dotnet add package Umbraco.Community.SchemeWeaver
 
 No additional configuration needed. The package registers all services, creates its database tables on first run, and adds the backoffice UI automatically.
 
+**Umbraco 17 vs 18:** Umbraco 18 made a binary-breaking change to `IPublishedContent`, so SchemeWeaver ships one build per major from the same source — `1.4.x` for Umbraco 17 (stable) and `1.4.x-umbraco18` for Umbraco 18 (prerelease, `--prerelease`). The Umbraco 18 builds stay prereleases until Umbraco 18.0.0 ships stable.
+
 ## Quick Start
 
 ### 1. Add the tag helper
