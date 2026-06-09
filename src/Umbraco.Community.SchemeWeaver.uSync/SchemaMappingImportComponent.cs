@@ -38,10 +38,17 @@ public class SchemaMappingImportNotificationHandler : INotificationAsyncHandler<
 
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
-        var mappingsFolder = Path.Combine(_hostEnvironment.ContentRootPath, "uSync", "v17", "SchemeWeaverMappings");
-        if (!Directory.Exists(mappingsFolder))
+        // uSync's data-folder convention moves to "v18" on Umbraco 18, but existing
+        // installs may still hold their mappings under the older "v17" folder. Probe
+        // the current convention first and fall back to the previous one.
+        var mappingsFolder = new[] { "v18", "v17" }
+            .Select(version => Path.Combine(_hostEnvironment.ContentRootPath, "uSync", version, "SchemeWeaverMappings"))
+            .FirstOrDefault(Directory.Exists);
+
+        if (mappingsFolder is null)
         {
-            _logger.LogDebug("No SchemeWeaverMappings folder found at {Path} — skipping import", mappingsFolder);
+            var defaultPath = Path.Combine(_hostEnvironment.ContentRootPath, "uSync", "v18", "SchemeWeaverMappings");
+            _logger.LogDebug("No SchemeWeaverMappings folder found (looked under v18/v17, e.g. {Path}) — skipping import", defaultPath);
             return;
         }
 
