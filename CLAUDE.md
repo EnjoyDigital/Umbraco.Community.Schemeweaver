@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Umbraco community package that maps Content Types to Schema.org types and generates JSON-LD structured data. Built for Umbraco 17+ on .NET 10 with a Lit web components backoffice UI.
+Umbraco community package that maps Content Types to Schema.org types and generates JSON-LD structured data. Built for Umbraco 17 & 18 on .NET 10 with a Lit web components backoffice UI.
 
 ## Build & Test Commands
 

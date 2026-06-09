@@ -33,7 +33,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 
 ## Requirements
 
-- Umbraco 17+
+- Umbraco 17 & 18
 - .NET 10
 
 ## Installation

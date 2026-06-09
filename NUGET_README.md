@@ -17,7 +17,7 @@ Map Umbraco Content Types to Schema.org types and automatically generate JSON-LD
 
 ## Requirements
 
-- Umbraco 17+
+- Umbraco 17 & 18
 - .NET 10
 
 ## Installation
