@@ -85,6 +85,33 @@ public class GraphGeneratorTests
     }
 
     [Fact]
+    public void GenerateGraphJson_EscapesScriptBreakout_ButKeepsNonAsciiLiteral()
+    {
+        // The graph JSON is written raw into a <script type="application/ld+json"> block,
+        // so a mapped value containing "</script>" must be escaped to prevent breakout
+        // (stored XSS) — while non-ASCII (umlauts/accents) stays literal for readability.
+        var sut = Build(
+            new StubPiece("organization", 100,
+                id: "https://example.com/#organization",
+                thing: new Organization { Name = "Textkörper </script><script>alert(1)</script>" }));
+
+        var json = sut.GenerateGraphJson(Page());
+        json.Should().NotBeNull();
+
+        // No literal closing-script sequence may survive in the raw output.
+        json!.Should().NotContain("</script>");
+        json.Should().Contain("\\u003C/script", "the HTML-sensitive '<' must be escaped");
+        // Non-ASCII is emitted literally (not as ö).
+        json.Should().Contain("Textkörper");
+        json.Should().NotContain("Textk\\u00F6rper");
+
+        // And it is still valid JSON that round-trips to the original value.
+        using var doc = JsonDocument.Parse(json!);
+        doc.RootElement.GetProperty("@graph")[0].GetProperty("name").GetString()
+            .Should().Be("Textkörper </script><script>alert(1)</script>");
+    }
+
+    [Fact]
     public void GenerateGraphJson_OrdersByOrderThenKey()
     {
         var sut = Build(

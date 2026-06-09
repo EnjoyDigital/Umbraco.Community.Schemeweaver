@@ -44,15 +44,17 @@ public sealed class GraphGenerator : IGraphGenerator
     {
         Indented = false,
         // Emit non-ASCII characters (umlauts, accents, CJK, …) literally as
-        // UTF-8 rather than as \uXXXX escapes. JSON-LD embedded in an HTML
-        // <script> block is served as UTF-8, so the relaxed encoder produces
-        // human-readable, byte-for-byte source values (e.g. German
-        // "Textkörper" instead of "Textkörper") — matching what Yoast and
-        // Umbraco's own output conventions emit. The HTML-sensitive characters
-        // (<, >, &) inside a JSON string are still represented safely by JSON
-        // string escaping, and the surrounding <script type="application/ld+json">
-        // context is not HTML-parsed for entities, so this is safe here.
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        // UTF-8 rather than as \uXXXX escapes, so the JSON-LD source reads as
+        // German "Textkörper" instead of "Textkörper" — matching Yoast/
+        // Umbraco output conventions. Create(UnicodeRanges.All) relaxes the
+        // non-ASCII escaping but — unlike UnsafeRelaxedJsonEscaping — STILL
+        // escapes the HTML-sensitive characters <, >, & and '. That matters:
+        // this JSON is written raw into a <script type="application/ld+json">
+        // block (see SchemeWeaverTagHelper), and the HTML parser terminates the
+        // script on a literal "</script>" regardless of the type attribute, so
+        // escaping < / > is what stops a mapped field value breaking out of the
+        // block (stored XSS).
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
     };
 
     public GraphGenerator(
