@@ -16,9 +16,9 @@
 
 <p class="article-meta">
     Part of
-    @if (Model.Parent != null)
+    @if (Model.Parent() != null)
     {
-        <a href="@Model.Parent.Url()">@Model.Parent.Name</a>
+        <a href="@Model.Parent().Url()">@Model.Parent().Name</a>
     }
 </p>
 

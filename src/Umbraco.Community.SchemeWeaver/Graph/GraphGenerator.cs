@@ -42,7 +42,17 @@ public sealed class GraphGenerator : IGraphGenerator
 
     private static readonly JsonWriterOptions _writerOptions = new()
     {
-        Indented = false
+        Indented = false,
+        // Emit non-ASCII characters (umlauts, accents, CJK, …) literally as
+        // UTF-8 rather than as \uXXXX escapes. JSON-LD embedded in an HTML
+        // <script> block is served as UTF-8, so the relaxed encoder produces
+        // human-readable, byte-for-byte source values (e.g. German
+        // "Textkörper" instead of "Textkörper") — matching what Yoast and
+        // Umbraco's own output conventions emit. The HTML-sensitive characters
+        // (<, >, &) inside a JSON string are still represented safely by JSON
+        // string escaping, and the surrounding <script type="application/ld+json">
+        // context is not HTML-parsed for entities, so this is safe here.
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
     public GraphGenerator(

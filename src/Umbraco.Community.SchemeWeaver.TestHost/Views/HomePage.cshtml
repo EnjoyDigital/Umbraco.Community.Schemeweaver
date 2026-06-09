@@ -52,7 +52,7 @@
 
 <h2>Explore Our Site</h2>
 @{
-    var children = Model.Children?.ToList();
+    var children = Model.Children()?.ToList();
 }
 @if (children != null && children.Any())
 {

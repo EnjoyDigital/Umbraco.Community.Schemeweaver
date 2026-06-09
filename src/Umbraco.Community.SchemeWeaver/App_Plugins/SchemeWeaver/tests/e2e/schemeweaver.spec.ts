@@ -2,6 +2,34 @@ import { expect } from '@playwright/test';
 import { ConstantHelper, test } from '@umbraco/playwright-testhelpers';
 
 /**
+ * Find a node of a given @type in a parsed JSON-LD document, transparently
+ * handling both shapes the package can emit:
+ *   - graph model (default):  { "@context": ..., "@graph": [ {…}, {…} ] }
+ *   - flat single Thing:       { "@context": ..., "@type": "WebSite", … }
+ * Returns the matching node object, or undefined if none is present.
+ */
+function findNodeOfType(jsonLd: any, type: string): any | undefined {
+  if (!jsonLd) return undefined;
+  if (Array.isArray(jsonLd['@graph'])) {
+    return jsonLd['@graph'].find((node: any) => node?.['@type'] === type);
+  }
+  return jsonLd['@type'] === type ? jsonLd : undefined;
+}
+
+/**
+ * True when a parsed JSON-LD document carries at least one node with an
+ * @type — i.e. a non-empty @graph (default output) or a flat top-level Thing
+ * (when UseGraphModel is disabled).
+ */
+function hasTypedNode(jsonLd: any): boolean {
+  if (!jsonLd) return false;
+  if (Array.isArray(jsonLd['@graph'])) {
+    return jsonLd['@graph'].some((node: any) => Boolean(node?.['@type']));
+  }
+  return Boolean(jsonLd['@type']);
+}
+
+/**
  * Helper: fill a uui-input web component by targeting its inner native input.
  */
 async function fillUuiInput(locator: any, text: string) {
@@ -91,7 +119,9 @@ test.describe('JSON-LD Output on Site', () => {
 
         const parsed = JSON.parse(jsonLdText!);
         expect(parsed['@context']).toBe('https://schema.org');
-        expect(parsed['@type']).toBeTruthy();
+        // Default output is a @graph; accept either a graph with nodes or a
+        // flat top-level @type (when UseGraphModel is disabled).
+        expect(hasTypedNode(parsed)).toBeTruthy();
       }
     }
   });
@@ -269,7 +299,9 @@ test.describe('JSON-LD Script Ordering', () => {
       expect(text).toBeTruthy();
       const parsed = JSON.parse(text!);
       expect(parsed['@context']).toBe('https://schema.org');
-      expect(parsed['@type']).toBeTruthy();
+      // Default output is a @graph; accept either a graph with nodes or a
+      // flat top-level @type (when UseGraphModel is disabled).
+      expect(hasTypedNode(parsed)).toBeTruthy();
     }
   });
 });
@@ -369,30 +401,46 @@ test.describe('Mapping Persistence & JSON-LD Output', () => {
 
     const jsonLd = JSON.parse(jsonLdMatch![1]);
     expect(jsonLd['@context']).toBe('https://schema.org');
-    expect(jsonLd['@type']).toBe('WebSite');
-    expect(jsonLd['name']).toBeTruthy();
 
-    // Also verify the product page has JSON-LD
-    await umbracoUi.page.goto(baseUrl + '/categories/products/electronics/wireless-headphones-pro/');
+    // The v1.4+ default emits a Yoast-style @graph (a single script tag whose
+    // body is {"@context": ..., "@graph": [ ... ]}) rather than a flat,
+    // top-level Thing. Find the WebSite node within that graph; fall back to
+    // the flat shape so this test also passes when UseGraphModel is disabled.
+    const website = findNodeOfType(jsonLd, 'WebSite');
+    expect(website, 'home page should expose a WebSite node').toBeTruthy();
+    expect(website['name']).toBeTruthy();
+
+    // Also verify a product page emits a product-family JSON-LD node. The
+    // seed maps individualProductPage → IndividualProduct (a Product subtype),
+    // rendered under the en-US culture path. We accept any Product-family
+    // @type so the assertion stays robust to the exact subtype the mapping
+    // uses.
+    await umbracoUi.page.goto(
+      baseUrl + '/en/categories/products/electronics/limited-edition-watch/',
+    );
     await umbracoUi.page.waitForLoadState('domcontentloaded', { timeout: 15_000 });
 
     const productContent = await umbracoUi.page.content();
     expect(productContent).toContain('application/ld+json');
 
+    const productFamilyTypes = ['Product', 'IndividualProduct', 'ProductModel'];
     const productJsonLdMatches = productContent.matchAll(
       /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g
     );
     let productJsonLd: any = null;
     for (const match of productJsonLdMatches) {
       const parsed = JSON.parse(match[1]);
-      if (parsed['@type'] === 'Product') {
-        productJsonLd = parsed;
+      const product = productFamilyTypes
+        .map((t) => findNodeOfType(parsed, t))
+        .find(Boolean);
+      if (product) {
+        productJsonLd = product;
         break;
       }
     }
 
-    expect(productJsonLd).toBeTruthy();
-    expect(productJsonLd['@type']).toBe('Product');
+    expect(productJsonLd, 'product page should expose a Product-family node').toBeTruthy();
+    expect(productFamilyTypes).toContain(productJsonLd['@type']);
     expect(productJsonLd['name']).toBeTruthy();
   });
 

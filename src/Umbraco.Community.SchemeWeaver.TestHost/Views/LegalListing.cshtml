@@ -4,7 +4,7 @@
 }
 
 <nav class="breadcrumb" aria-label="Breadcrumb">
-    <a href="@Model.Parent?.Url()">Categories</a>
+    <a href="@Model.Parent()?.Url()">Categories</a>
     <span class="breadcrumb-sep">&rsaquo;</span>
     <span class="breadcrumb-current">@Model.Name</span>
 </nav>
@@ -21,10 +21,10 @@
 }
 
 
-@if (Model.Children != null && Model.Children.Any())
+@if (Model.Children() != null && Model.Children().Any())
 {
     <div class="card-grid">
-        @foreach (var child in Model.Children)
+        @foreach (var child in Model.Children())
         {
             <div class="card">
                 <h3><a href="@child.Url()">@child.Name</a></h3>

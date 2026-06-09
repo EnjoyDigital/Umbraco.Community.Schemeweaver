@@ -60,20 +60,20 @@ test.describe('Validation Panel — Preview Tab (E2E)', () => {
     }
 
     const body = await response.json();
-    expect(body).to.have.property('jsonLd');
-    expect(body).to.have.property('isValid');
-    expect(body).to.have.property('errors');
+    expect(body).toHaveProperty('jsonLd');
+    expect(body).toHaveProperty('isValid');
+    expect(body).toHaveProperty('errors');
 
     // `issues` is optional on older backends. When present it must be an
     // array of severity/path/message records — that's the contract the
     // validation-panel component relies on.
     if (Array.isArray(body.issues) && body.issues.length > 0) {
       const issue = body.issues[0];
-      expect(issue).to.have.property('severity');
-      expect(['critical', 'warning', 'info']).to.include(issue.severity);
-      expect(issue).to.have.property('schemaType');
-      expect(issue).to.have.property('path');
-      expect(issue).to.have.property('message');
+      expect(issue).toHaveProperty('severity');
+      expect(['critical', 'warning', 'info']).toContain(issue.severity);
+      expect(issue).toHaveProperty('schemaType');
+      expect(issue).toHaveProperty('path');
+      expect(issue).toHaveProperty('message');
     }
   });
 

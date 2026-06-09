@@ -60,10 +60,10 @@
 </div>
 
 <h2>Departments &amp; Subsidiaries</h2>
-@if (Model.Children != null && Model.Children.Any())
+@if (Model.Children() != null && Model.Children().Any())
 {
     <div class="card-grid">
-        @foreach (var child in Model.Children)
+        @foreach (var child in Model.Children())
         {
             <div class="card">
                 <h3><a href="@child.Url()">@child.Name</a></h3>

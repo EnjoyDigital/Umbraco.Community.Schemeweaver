@@ -37,9 +37,35 @@ export default defineConfig({
       testMatch: '**/*.setup.ts',
     },
     {
+      // Main suite. Excludes generate-doctype.spec.ts: creating/deleting a
+      // document type at runtime forces Umbraco's InMemoryAuto ModelsBuilder
+      // to regenerate its in-memory model assembly, after which every Razor
+      // view bound to a generated PublishedModel (the whole TestHost site)
+      // throws ModelBindingException ("…in an unstable state and should be
+      // restarted") until the host is rebooted. The page-rendering specs
+      // (JSON-LD on published pages) must therefore run BEFORE any model
+      // mutation. See the e2e-mutating project below.
       name: 'e2e',
       testMatch: '**/*.spec.ts',
+      // Project-level testIgnore replaces (does not merge with) the top-level
+      // one, so screenshots.spec.ts must be repeated here alongside the
+      // model-mutating spec that is deferred to the e2e-mutating project.
+      testIgnore: ['**/screenshots.spec.ts', '**/generate-doctype.spec.ts'],
       dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        ignoreHTTPSErrors: true,
+        storageState: STORAGE_STATE,
+      },
+    },
+    {
+      // Model-mutating specs, isolated to run only after every rendering spec
+      // in the `e2e` project has completed (via `dependencies`). These leave
+      // the InMemoryAuto host in an unstable state, so nothing that renders a
+      // published page may run after them without a host restart.
+      name: 'e2e-mutating',
+      testMatch: '**/generate-doctype.spec.ts',
+      dependencies: ['e2e'],
       use: {
         ...devices['Desktop Chrome'],
         ignoreHTTPSErrors: true,

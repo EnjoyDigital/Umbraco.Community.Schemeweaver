@@ -1,8 +1,8 @@
 ﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<CategoriesListing>
 @{
     Layout = "Master.cshtml";
-    var categories = Model.Children?.Where(c => c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
-    var items = Model.Children?.Where(c => !c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
+    var categories = Model.Children()?.Where(c => c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
+    var items = Model.Children()?.Where(c => !c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
 }
 
 <h1>@Model.Title</h1>
@@ -26,7 +26,7 @@
                 {
                     <p>@childDescription</p>
                 }
-                <p class="article-meta">@child.Children?.Count() items</p>
+                <p class="article-meta">@child.Children()?.Count() items</p>
             </div>
         }
     </div>

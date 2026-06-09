@@ -1,9 +1,9 @@
 ﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<EducationListing>
 @{
     Layout = "Master.cshtml";
-    var categories = Model.Children?.Where(c => c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
-    var items = Model.Children?.Where(c => !c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
-    var parentIsListing = Model.Parent?.ContentType.Alias.EndsWith("Listing") == true;
+    var categories = Model.Children()?.Where(c => c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
+    var items = Model.Children()?.Where(c => !c.ContentType.Alias.EndsWith("Listing")) ?? Enumerable.Empty<IPublishedContent>();
+    var parentIsListing = Model.Parent()?.ContentType.Alias.EndsWith("Listing") == true;
 }
 
 @if (parentIsListing)
