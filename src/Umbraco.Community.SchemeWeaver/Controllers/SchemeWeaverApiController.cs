@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Api.Common.Attributes;
+using Umbraco.Cms.Api.Common.Filters;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
@@ -18,6 +19,7 @@ namespace Umbraco.Community.SchemeWeaver.Controllers;
 [Route("umbraco/management/api/v1/schemeweaver")]
 [ApiExplorerSettings(GroupName = SchemeWeaverConstants.PackageName)]
 [MapToApi("management")]
+[JsonOptionsName(Constants.JsonOptionsNames.BackOffice)]
 [ApiController]
 [Authorize(AuthenticationSchemes = Constants.Security.BackOfficeAuthenticationType)]
 public class SchemeWeaverApiController : ControllerBase
