@@ -78,14 +78,19 @@ public class JsonLdGeneratorTests
             IsEnabled = isEnabled
         };
 
-    // Umbraco 18's navigation extension methods resolve Parent()/Ancestors() via
-    // IPublishedStatusFilteringService.Unfiltered(keys) — a v18-only API — whereas 17 used
-    // FilterAvailable(). Stub Unfiltered to return the supplied nodes by key so the same
-    // resolution tests pass on whichever major is built. On 17 this is a no-op (those tests
-    // already stub FilterAvailable, which 17 calls).
+    // Production resolves Parent()/Ancestors() through Umbraco's non-deprecated
+    // Parent<T>(navService, filterService) / Ancestors(...) extension methods. On Umbraco 18
+    // those extensions resolve keys internally via IPublishedStatusFilteringService.Unfiltered()
+    // (17 used FilterAvailable()). To make the extension return our test nodes we have to stub
+    // whatever it calls internally — there is no other seam. Unfiltered carries Umbraco's own
+    // [Obsolete] "intermediate solution" note (it will change the extension's internals in v19),
+    // so we suppress CS0618 here only: this is a test mock mirroring Umbraco's internal call,
+    // not the package using a deprecated API. On 17 this is a no-op (those tests stub the
+    // non-obsolete FilterAvailable, which 17 calls).
     private void StubUnfilteredResolution(params IPublishedContent[] nodes)
     {
 #if UMBRACO18
+#pragma warning disable CS0618 // Unfiltered is Umbraco-internal-deprecated; mocked, not used for functionality
         _publishedStatusFilteringService
             .Unfiltered(Arg.Any<IEnumerable<Guid>>())
             .Returns(callInfo =>
@@ -93,6 +98,7 @@ public class JsonLdGeneratorTests
                 var keys = ((IEnumerable<Guid>)callInfo[0]).ToHashSet();
                 return nodes.Where(n => keys.Contains(n.Key)).ToArray();
             });
+#pragma warning restore CS0618
 #endif
     }
 

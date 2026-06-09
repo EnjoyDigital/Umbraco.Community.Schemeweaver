@@ -87,7 +87,13 @@ public class JsonLdCacheInvalidationTests
         var target = MakeContent(id: 1);
         var child = MakeContent(id: 2);
         WireDescendants(target.Id, child);
-        var moveInfo = new MoveEventInfo<IContent>(target, "-1,1", 99, null);
+        // Use each major's non-obsolete MoveEventInfo overload (18 dropped the int newParentId
+        // overloads in favour of the newParentKey one; 17 has no Guid?-only overload).
+#if UMBRACO18
+        var moveInfo = new MoveEventInfo<IContent>(target, "-1,1", (Guid?)null);
+#else
+        var moveInfo = new MoveEventInfo<IContent>(target, "-1,1", 99);
+#endif
 
         var handler = new InvalidateJsonLdCacheOnMove(_provider, _contentService,
             NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
