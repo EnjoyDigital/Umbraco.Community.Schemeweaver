@@ -3,4 +3,49 @@
     <!-- Suppress transitive NuGet vulnerability warnings we cannot fix (MimeKit via Umbraco) -->
     <NoWarn>$(NoWarn);NU1902;NU1903</NoWarn>
   </PropertyGroup>
+
+  <!--
+    ===========================================================================
+    Per-major Umbraco build matrix
+    ===========================================================================
+    A single source tree, two compiled outputs. Umbraco 18 made a binary-breaking
+    change (IPublishedContent.Id/Name/... moved down into IPublishedElement), so
+    one net10.0 assembly cannot run on both Umbraco 17 and 18. We therefore
+    compile per-major, the same way uSync ships 17.x and 18.x from one codebase.
+
+      dotnet build                     -> targets Umbraco 18 (default below)
+      dotnet build -p:UmbracoMajor=17  -> targets Umbraco 17
+
+    Everything version-specific is derived from $(UmbracoMajor); no project hard-
+    codes an Umbraco version. UMBRACO18 is defined for the 18 build so source can
+    branch on the few APIs that genuinely differ (e.g. the navigation extension
+    methods' IPublishedStatusFilteringService.Unfiltered, which is 18-only).
+  -->
+  <PropertyGroup>
+    <UmbracoMajor Condition="'$(UmbracoMajor)' == ''">18</UmbracoMajor>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(UmbracoMajor)' == '17'">
+    <!-- Consumer-facing dependency range for the shipped package -->
+    <SchemeWeaverUmbracoCmsRange>[17.0.0, 18.0.0)</SchemeWeaverUmbracoCmsRange>
+    <!-- Pinned version the runnable TestHost installs -->
+    <SchemeWeaverUmbracoCmsHost>17.3.3</SchemeWeaverUmbracoCmsHost>
+    <!-- uSync line for this major (stable) -->
+    <SchemeWeaverUSyncVersion>17.3.0</SchemeWeaverUSyncVersion>
+    <!-- No package-version suffix: 17 remains the established 1.4.x line -->
+    <SchemeWeaverVersionSuffix></SchemeWeaverVersionSuffix>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
+    <!-- RC-inclusive range now; tighten to [18.0.0, 19.0.0) once 18.0.0 stable ships -->
+    <SchemeWeaverUmbracoCmsRange>[18.0.0-rc2, 19.0.0)</SchemeWeaverUmbracoCmsRange>
+    <SchemeWeaverUmbracoCmsHost>18.0.0-rc2</SchemeWeaverUmbracoCmsHost>
+    <!-- uSync 18 is still a release candidate; the 18 package is held until both
+         Umbraco 18.0.0 and uSync 18.0.0 stable are published -->
+    <SchemeWeaverUSyncVersion>18.0.0-rc1</SchemeWeaverUSyncVersion>
+    <!-- Distinct, clearly-prerelease version so the 18 pack never collides with,
+         or supersedes, the stable 17 package on NuGet. Finalised at publish time. -->
+    <SchemeWeaverVersionSuffix>-umbraco18</SchemeWeaverVersionSuffix>
+    <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
+  </PropertyGroup>
 </Project>

@@ -40,10 +40,12 @@ public class SchemaMappingImportNotificationHandler : INotificationAsyncHandler<
     {
         // uSync's data-folder convention moves to "v18" on Umbraco 18, but existing
         // installs may still hold their mappings under the older "v17" folder. Probe
-        // the current convention first and fall back to the previous one.
+        // the current convention first and fall back to the previous one. Require the
+        // folder to actually contain mapping files so an empty "v18" (e.g. created by
+        // an in-place upgrade) cannot shadow a populated legacy "v17".
         var mappingsFolder = new[] { "v18", "v17" }
             .Select(version => Path.Combine(_hostEnvironment.ContentRootPath, "uSync", version, "SchemeWeaverMappings"))
-            .FirstOrDefault(Directory.Exists);
+            .FirstOrDefault(path => Directory.Exists(path) && Directory.EnumerateFiles(path, "*.config", SearchOption.AllDirectories).Any());
 
         if (mappingsFolder is null)
         {

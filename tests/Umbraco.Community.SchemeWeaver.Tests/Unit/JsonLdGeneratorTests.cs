@@ -78,6 +78,24 @@ public class JsonLdGeneratorTests
             IsEnabled = isEnabled
         };
 
+    // Umbraco 18's navigation extension methods resolve Parent()/Ancestors() via
+    // IPublishedStatusFilteringService.Unfiltered(keys) — a v18-only API — whereas 17 used
+    // FilterAvailable(). Stub Unfiltered to return the supplied nodes by key so the same
+    // resolution tests pass on whichever major is built. On 17 this is a no-op (those tests
+    // already stub FilterAvailable, which 17 calls).
+    private void StubUnfilteredResolution(params IPublishedContent[] nodes)
+    {
+#if UMBRACO18
+        _publishedStatusFilteringService
+            .Unfiltered(Arg.Any<IEnumerable<Guid>>())
+            .Returns(callInfo =>
+            {
+                var keys = ((IEnumerable<Guid>)callInfo[0]).ToHashSet();
+                return nodes.Where(n => keys.Contains(n.Key)).ToArray();
+            });
+#endif
+    }
+
     [Fact]
     public void GenerateJsonLd_NoMappingExists_ReturnsNull()
     {
@@ -157,15 +175,13 @@ public class JsonLdGeneratorTests
                 return true;
             });
 
-        // The extension method uses IPublishedSnapshot internally - for Parent<T>() to work
-        // with mocked navigation, we rely on the deprecated .Parent property fallback
-        // In the test context, Parent<T>() extension method calls navigation service
-        // which we've mocked above. However, the extension method needs IPublishedSnapshot
-        // to resolve the content by key. Since we can't easily mock that chain,
-        // we use the deprecated Parent property for the test mock setup.
-#pragma warning disable CS0618 // Type or member is obsolete - required for test mock setup
-        content.Parent.Returns(parentContent);
-#pragma warning restore CS0618
+        // Parent<T>() resolves via the navigation + filtering services (the instance
+        // IPublishedContent.Parent property was removed in Umbraco 18). Mock the key→content
+        // resolution so the parent is actually returned (FilterAvailable on 17, Unfiltered on 18).
+        _publishedStatusFilteringService
+            .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(parentKey)), Arg.Any<string?>())
+            .Returns(new[] { parentContent });
+        StubUnfilteredResolution(parentContent);
 
         var mapping = CreateMapping("article", "Article");
         _repository.GetByContentTypeAlias("article").Returns(mapping);
@@ -1475,6 +1491,7 @@ public class JsonLdGeneratorTests
         _publishedStatusFilteringService
             .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(parentKey)), Arg.Any<string?>())
             .Returns(new[] { parentContent });
+        StubUnfilteredResolution(parentContent);
 
         var mapping = CreateMapping("article", "Article");
         _repository.GetByContentTypeAlias("article").Returns(mapping);
@@ -1514,6 +1531,7 @@ public class JsonLdGeneratorTests
         _publishedStatusFilteringService
             .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(grandparentKey) && keys.Contains(parentKey)), Arg.Any<string?>())
             .Returns(new[] { parent, grandparent });
+        StubUnfilteredResolution(parent, grandparent);
 
         var mapping = CreateMapping("article", "Article");
         _repository.GetByContentTypeAlias("article").Returns(mapping);
@@ -1562,6 +1580,8 @@ public class JsonLdGeneratorTests
         _publishedStatusFilteringService
             .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(parentNodeKey)), Arg.Any<string?>())
             .Returns(new[] { parentNode });
+        // Parent resolves via Unfiltered on 18; siblings (the parent's Children) still use FilterAvailable.
+        StubUnfilteredResolution(parentNode);
 
         // Mock Children() on the parent: TryGetChildrenKeys → FilterAvailable
         _navigationQueryService.TryGetChildrenKeys(parentNodeKey, out Arg.Any<IEnumerable<Guid>>())

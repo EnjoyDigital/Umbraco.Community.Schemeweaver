@@ -8,8 +8,10 @@
     <PackageId>Umbraco.Community.SchemeWeaver.uSync</PackageId>
     <Title>uSync addon for SchemeWeaver</Title>
     <Description>uSync addon for SchemeWeaver — syncs Schema.org mappings (including resolver config and dynamic root config) between Umbraco environments alongside the doc types they belong to.</Description>
-    <PackageTags>umbraco plugin package umbraco-marketplace umbraco-v17 usync schema.org json-ld</PackageTags>
-    <Version>1.4.1</Version>
+    <PackageTags>umbraco plugin package umbraco-marketplace usync schema.org json-ld</PackageTags>
+    <!-- Per-major build matrix (see Directory.Build.props): the 18 build carries a
+         "-umbraco18" suffix and depends on the uSync 18 RC, held until uSync 18 stable. -->
+    <Version>1.4.1$(SchemeWeaverVersionSuffix)</Version>
     <Authors>Oliver Picton</Authors>
     <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
     <PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
@@ -31,7 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="uSync.BackOffice" Version="18.0.0-rc1" />
+    <PackageReference Include="uSync.BackOffice" Version="$(SchemeWeaverUSyncVersion)" />
   </ItemGroup>
 
 </Project>

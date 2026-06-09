@@ -8,9 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Umbraco.Cms" Version="18.0.0-rc2" />
-    <PackageReference Include="Umbraco.Cms.DevelopmentMode.Backoffice" Version="18.0.0-rc2" />
-    <PackageReference Include="uSync" Version="18.0.0-rc1" />
+    <!-- Versions come from the per-major matrix in Directory.Build.props -->
+    <PackageReference Include="Umbraco.Cms" Version="$(SchemeWeaverUmbracoCmsHost)" />
+    <PackageReference Include="Umbraco.Cms.DevelopmentMode.Backoffice" Version="$(SchemeWeaverUmbracoCmsHost)" />
+    <PackageReference Include="uSync" Version="$(SchemeWeaverUSyncVersion)" />
   </ItemGroup>
 
   <ItemGroup>
