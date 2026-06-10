@@ -13,7 +13,7 @@
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 		<!-- Per-major build matrix (see Directory.Build.props). The 18 build gets a
 		     "-umbraco18" suffix so it is a distinct, clearly-prerelease NuGet version. -->
-		<Version>1.4.3$(SchemeWeaverVersionSuffix)</Version>
+		<Version>1.4.4$(SchemeWeaverVersionSuffix)</Version>
 		<Authors>Oliver Picton</Authors>
 		<Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
 		<PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>

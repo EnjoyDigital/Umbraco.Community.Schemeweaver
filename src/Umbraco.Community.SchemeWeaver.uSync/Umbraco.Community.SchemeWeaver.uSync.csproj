@@ -11,7 +11,7 @@
     <PackageTags>umbraco plugin package umbraco-marketplace usync schema.org json-ld</PackageTags>
     <!-- Per-major build matrix (see Directory.Build.props): the 18 build carries a
          "-umbraco18" suffix and depends on the uSync 18 RC, held until uSync 18 stable. -->
-    <Version>1.4.1$(SchemeWeaverVersionSuffix)</Version>
+    <Version>1.4.4$(SchemeWeaverVersionSuffix)</Version>
     <Authors>Oliver Picton</Authors>
     <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
     <PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
