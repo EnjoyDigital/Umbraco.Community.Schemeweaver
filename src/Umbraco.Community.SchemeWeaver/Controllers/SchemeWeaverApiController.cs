@@ -8,6 +8,7 @@ using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Cms.Web.Common.Authorization;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
 
@@ -21,7 +22,10 @@ namespace Umbraco.Community.SchemeWeaver.Controllers;
 [MapToApi("management")]
 [JsonOptionsName(Constants.JsonOptionsNames.BackOffice)]
 [ApiController]
-[Authorize(AuthenticationSchemes = Constants.Security.BackOfficeAuthenticationType)]
+// The BackOfficeAccess policy brings the OpenIddict bearer scheme (API users /
+// MCP clients); the attribute adds the backoffice cookie scheme so existing
+// cookie-session callers keep working. The schemes are unioned at evaluation.
+[Authorize(Policy = AuthorizationPolicies.BackOfficeAccess, AuthenticationSchemes = Constants.Security.BackOfficeAuthenticationType)]
 public class SchemeWeaverApiController : ControllerBase
 {
     private readonly ISchemeWeaverService _service;
