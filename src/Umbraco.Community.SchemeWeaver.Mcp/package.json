@@ -1,0 +1,64 @@
+{
+  "name": "@umbraco-community/schemeweaver-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP server for Umbraco.Community.SchemeWeaver — lets AI assistants browse Schema.org types, inspect Umbraco content types, and create/verify schema mappings",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./collections": "./dist/collections.js",
+    "./tool-types": {
+      "types": "./dist/tool-types.d.ts"
+    }
+  },
+  "bin": {
+    "schemeweaver-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsup --config tsup.config.ts",
+    "postbuild": "umbraco-mcp-generate-types",
+    "compile": "tsc --noEmit",
+    "watch": "tsup --config tsup.config.ts --watch",
+    "generate": "node scripts/extract-openapi.mjs && orval --config orval.config.ts",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=__tests__ --runInBand"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "Umbraco",
+    "MCP",
+    "Model Context Protocol"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@umbraco-cms/mcp-server-sdk": "17.0.0-beta.28",
+    "dotenv": "^16.5.0",
+    "uuid": "^11.1.0",
+    "yargs": "^18.0.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@jest/types": "^29.6.3",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.14.1",
+    "@types/uuid": "^10.0.0",
+    "@types/yargs": "^17.0.33",
+    "jest": "^29.7.0",
+    "msw": "^2.12.7",
+    "orval": "^7.8.0",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.3.2",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.4.0",
+    "undici": "^7.0.0",
+    "typescript": "^5.8.3"
+  }
+}

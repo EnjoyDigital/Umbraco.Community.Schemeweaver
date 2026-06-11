@@ -1,0 +1,13 @@
+# Secrets
+.env
+.dev.vars
+
+# Build output
+dist/
+
+# Dependencies
+node_modules/
+
+# Test output
+coverage/
+test-results/

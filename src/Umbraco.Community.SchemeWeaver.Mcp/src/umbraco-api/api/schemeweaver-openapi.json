@@ -1,0 +1,985 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "SchemeWeaver Management API",
+    "description": "SchemeWeaver endpoints extracted from the Umbraco management API document (https://localhost:44308/umbraco/openapi/management.json)",
+    "version": "Latest"
+  },
+  "paths": {
+    "/umbraco/management/api/v1/schemeweaver/content-types": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverContentTypes",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/content-types/{alias}/properties": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverContentTypesByAliasProperties",
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/content-types/{contentTypeAlias}/properties/{propertyAlias}/block-types": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypes",
+        "parameters": [
+          {
+            "name": "contentTypeAlias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyAlias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BlockElementTypeInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/generate-content-type": {
+      "post": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "PostSchemeweaverGenerateContentType",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentTypeGenerationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/mappings": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverMappings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SchemaMappingDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "PostSchemeweaverMappings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaMappingDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaMappingDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/mappings/{contentTypeAlias}": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverMappingsByContentTypeAlias",
+        "parameters": [
+          {
+            "name": "contentTypeAlias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaMappingDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "DeleteSchemeweaverMappingsByContentTypeAlias",
+        "parameters": [
+          {
+            "name": "contentTypeAlias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/mappings/{contentTypeAlias}/auto-map": {
+      "post": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "PostSchemeweaverMappingsByContentTypeAliasAutoMap",
+        "parameters": [
+          {
+            "name": "contentTypeAlias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "schemaTypeName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyMappingSuggestion"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/mappings/{contentTypeAlias}/preview": {
+      "post": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "PostSchemeweaverMappingsByContentTypeAliasPreview",
+        "parameters": [
+          {
+            "name": "contentTypeAlias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contentKey",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "culture",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonLdPreviewResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/schema-types": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverSchemaTypes",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SchemaTypeInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/schema-types/{name}/properties": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverSchemaTypesByNameProperties",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ranked",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RankedSchemaPropertyInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BlockElementTypeInfo": {
+        "required": [
+          "alias",
+          "name",
+          "properties"
+        ],
+        "type": "object",
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ContentTypeGenerationRequest": {
+        "required": [
+          "schemaTypeName",
+          "documentTypeName",
+          "documentTypeAlias",
+          "selectedProperties",
+          "propertyGroupName"
+        ],
+        "type": "object",
+        "properties": {
+          "schemaTypeName": {
+            "type": "string"
+          },
+          "documentTypeName": {
+            "type": "string"
+          },
+          "documentTypeAlias": {
+            "type": "string"
+          },
+          "selectedProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "propertyGroupName": {
+            "type": "string"
+          }
+        }
+      },
+      "EventMessageTypeModel": {
+        "enum": [
+          "Default",
+          "Info",
+          "Error",
+          "Success",
+          "Warning"
+        ]
+      },
+      "JsonLdPreviewResponse": {
+        "required": [
+          "jsonLd",
+          "isValid",
+          "errors",
+          "issues"
+        ],
+        "type": "object",
+        "properties": {
+          "jsonLd": {
+            "type": "string"
+          },
+          "isValid": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssueDto"
+            }
+          }
+        }
+      },
+      "NotificationHeaderModel": {
+        "required": [
+          "message",
+          "category",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EventMessageTypeModel"
+          }
+        }
+      },
+      "PropertyMappingDto": {
+        "required": [
+          "schemaPropertyName",
+          "sourceType",
+          "isAutoMapped"
+        ],
+        "type": "object",
+        "properties": {
+          "schemaPropertyName": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "contentTypePropertyAlias": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceContentTypeAlias": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "transformType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isAutoMapped": {
+            "type": "boolean"
+          },
+          "staticValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nestedSchemaTypeName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resolverConfig": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dynamicRootConfig": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "targetPieceKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PropertyMappingSuggestion": {
+        "required": [
+          "schemaPropertyName",
+          "suggestedSourceType",
+          "confidence",
+          "isAutoMapped",
+          "acceptedTypes",
+          "isComplexType"
+        ],
+        "type": "object",
+        "properties": {
+          "schemaPropertyName": {
+            "type": "string"
+          },
+          "schemaPropertyType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestedContentTypePropertyAlias": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestedSourceType": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isAutoMapped": {
+            "type": "boolean"
+          },
+          "editorAlias": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acceptedTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isComplexType": {
+            "type": "boolean"
+          },
+          "suggestedNestedSchemaTypeName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestedResolverConfig": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestedTargetPieceKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RankedSchemaPropertyInfo": {
+        "required": [
+          "confidence",
+          "isPopular",
+          "name",
+          "propertyType",
+          "isRequired",
+          "acceptedTypes",
+          "isComplexType"
+        ],
+        "type": "object",
+        "properties": {
+          "confidence": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isPopular": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "propertyType": {
+            "type": "string"
+          },
+          "isRequired": {
+            "type": "boolean"
+          },
+          "acceptedTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isComplexType": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SchemaMappingDto": {
+        "required": [
+          "contentTypeAlias",
+          "contentTypeKey",
+          "schemaTypeName",
+          "isEnabled",
+          "isInherited",
+          "propertyMappings"
+        ],
+        "type": "object",
+        "properties": {
+          "contentTypeAlias": {
+            "type": "string"
+          },
+          "contentTypeKey": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schemaTypeName": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "isInherited": {
+            "type": "boolean"
+          },
+          "idOverride": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "propertyMappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertyMappingDto"
+            }
+          }
+        }
+      },
+      "SchemaTypeInfo": {
+        "required": [
+          "name",
+          "propertyCount"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "parentTypeName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "propertyCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ValidationIssueDto": {
+        "required": [
+          "severity",
+          "schemaType",
+          "path",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string"
+          },
+          "schemaType": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Backoffice-User": {
+        "type": "oauth2",
+        "description": "Umbraco Authentication",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/umbraco/management/api/v1/security/back-office/authorize",
+            "tokenUrl": "/umbraco/management/api/v1/security/back-office/token",
+            "scopes": {}
+          }
+        }
+      }
+    }
+  }
+}

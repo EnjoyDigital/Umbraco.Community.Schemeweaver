@@ -18,6 +18,18 @@
         "UMBRACO_BASE_URL": "https://localhost:44308"
       }
     },
+    "schemeweaver-mcp": {
+      "command": "node",
+      "args": [
+        "src/Umbraco.Community.SchemeWeaver.Mcp/dist/index.js"
+      ],
+      "env": {
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0",
+        "UMBRACO_CLIENT_ID": "umbraco-back-office-mcp",
+        "UMBRACO_CLIENT_SECRET": "7YubSlcjnIxLRVdTGbcx",
+        "UMBRACO_BASE_URL": "https://localhost:44308"
+      }
+    },
 "framelink": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "figma-developer-mcp", "--stdio"],
