@@ -53,8 +53,14 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>
             // migration plan on first boot.
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
+                // Pooling is deliberately OFF (Umbraco's default has it on): the test
+                // host's background jobs open pooled connections concurrently with the
+                // rapid per-test scope churn, and Microsoft.Data.Sqlite's pool then
+                // intermittently hands out a broken handle (native
+                // ArgumentOutOfRangeException in sqlite3_prepare_v2 during Open).
+                // Unpooled file-based opens are cheap and race-free.
                 ["ConnectionStrings:umbracoDbDSN"] =
-                    $"Data Source={_databasePath};Cache=Shared;Foreign Keys=True;Pooling=True",
+                    $"Data Source={_databasePath};Cache=Shared;Foreign Keys=True;Pooling=False",
                 ["ConnectionStrings:umbracoDbDSN_ProviderName"] = "Microsoft.Data.Sqlite",
                 ["Umbraco:CMS:Unattended:InstallUnattended"] = "true",
                 ["Umbraco:CMS:Unattended:UnattendedUserName"] = "Integration Test",
@@ -76,6 +82,22 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.AddTransient<IPolicyEvaluator, TestPolicyEvaluator>();
+
+            // The uSync addon's first-boot mapping import fires on
+            // UmbracoApplicationStarted and runs in the background AFTER tests have
+            // begun (the integration database is always empty at boot, so its
+            // "mappings already exist" guard never trips). Its inserts race the
+            // per-test table resets and intermittently leak fixture mappings like
+            // "medicalClinicPage" into count assertions. Integration tests seed
+            // their own data, so remove the handler outright — the uSync settings
+            // above don't gate it.
+            foreach (var descriptor in services
+                .Where(d => d.ImplementationType ==
+                    typeof(Umbraco.Community.SchemeWeaver.uSync.SchemaMappingImportNotificationHandler))
+                .ToList())
+            {
+                services.Remove(descriptor);
+            }
         });
     }
 

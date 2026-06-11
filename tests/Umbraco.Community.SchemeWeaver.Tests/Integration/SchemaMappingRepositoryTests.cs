@@ -42,8 +42,12 @@ public class SchemaMappingRepositoryTests : UmbracoIntegrationTestBase
         {
             var results = repository.GetAll().ToList();
 
-            results.Should().HaveCount(3);
+            // Assert on the rows this test seeded rather than a global count: the
+            // database is shared across the collection, and a stray row from a
+            // racing write must not fail this test. The filtered BeEquivalentTo
+            // still catches duplicated or missing rows for the seeded aliases.
             results.Select(x => x.ContentTypeAlias)
+                .Where(alias => alias is "blogPost" or "product" or "article")
                 .Should().BeEquivalentTo(new[] { "blogPost", "product", "article" });
         }
     }
@@ -226,8 +230,10 @@ public class SchemaMappingRepositoryTests : UmbracoIntegrationTestBase
         {
             var inherited = repository.GetInheritedMappings().ToList();
 
-            inherited.Should().HaveCount(2);
+            // Filter to the aliases this test seeded (see GetAll test for why):
+            // of the four, only the enabled+inherited pair may come back.
             inherited.Select(x => x.ContentTypeAlias)
+                .Where(alias => alias is "homePage" or "archivePage" or "blogPost" or "newsPage")
                 .Should().BeEquivalentTo(new[] { "homePage", "newsPage" });
         }
     }

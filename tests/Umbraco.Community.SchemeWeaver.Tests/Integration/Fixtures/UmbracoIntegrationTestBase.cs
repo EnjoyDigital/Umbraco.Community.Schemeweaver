@@ -64,18 +64,46 @@ public abstract class UmbracoIntegrationTestBase : IAsyncLifetime
                 using var scope = CreateServiceScope();
                 var scopeProvider = scope.ServiceProvider.GetRequiredService<IScopeProvider>();
 
-                using var dbScope = scopeProvider.CreateScope();
-                dbScope.Database.Execute($"DELETE FROM {SchemeWeaverConstants.Tables.PropertyMapping}");
-                dbScope.Database.Execute($"DELETE FROM {SchemeWeaverConstants.Tables.SchemaMapping}");
-                dbScope.Complete();
-                return;
+                using (var dbScope = scopeProvider.CreateScope())
+                {
+                    dbScope.Database.Execute($"DELETE FROM {SchemeWeaverConstants.Tables.PropertyMapping}");
+                    dbScope.Database.Execute($"DELETE FROM {SchemeWeaverConstants.Tables.SchemaMapping}");
+                    dbScope.Complete();
+                }
+
+                // Verify from a fresh scope that the delete actually stuck. A row
+                // can reappear when a write started by the previous test commits
+                // after our DELETE; loop (deleting again) until the tables stay
+                // empty so no test starts against residue.
+                using (var verifyScope = scopeProvider.CreateScope(autoComplete: true))
+                {
+                    var remaining = verifyScope.Database.ExecuteScalar<int>(
+                        $"SELECT COUNT(1) FROM {SchemeWeaverConstants.Tables.SchemaMapping}");
+                    if (remaining == 0)
+                    {
+                        return;
+                    }
+                }
+
+                Thread.Sleep(delayMs);
             }
             catch (Microsoft.Data.Sqlite.SqliteException ex)
                 when (attempt < maxAttempts && IsTransientSqliteStartupError(ex))
             {
                 Thread.Sleep(delayMs);
             }
+            catch (ArgumentOutOfRangeException)
+                when (attempt < maxAttempts)
+            {
+                // Microsoft.Data.Sqlite occasionally surfaces a broken native handle
+                // as ArgumentOutOfRangeException from sqlite3_prepare_v2 while
+                // opening a connection. Transient — retry.
+                Thread.Sleep(delayMs);
+            }
         }
+
+        throw new InvalidOperationException(
+            "SchemeWeaver tables could not be reset to empty — a background writer keeps re-inserting rows.");
     }
 
     private static bool IsTransientSqliteStartupError(Microsoft.Data.Sqlite.SqliteException exception)
