@@ -349,6 +349,13 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         _schemaTypeRegistry = schemaTypeRegistry;
     }
 
+    /// <summary>
+    /// Heuristic mapping is synchronous; this just wraps it so the seam can be awaited.
+    /// The AI satellite overrides <see cref="ISchemaAutoMapper.SuggestMappingsAsync"/> with a real async call.
+    /// </summary>
+    public Task<IEnumerable<PropertyMappingSuggestion>> SuggestMappingsAsync(string contentTypeAlias, string schemaTypeName)
+        => Task.FromResult(SuggestMappings(contentTypeAlias, schemaTypeName));
+
     public IEnumerable<PropertyMappingSuggestion> SuggestMappings(string contentTypeAlias, string schemaTypeName)
     {
         var contentType = _contentTypeService.Get(contentTypeAlias);

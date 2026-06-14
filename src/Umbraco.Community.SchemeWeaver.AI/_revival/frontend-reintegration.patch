@@ -1,0 +1,429 @@
+diff --git a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/api/types.ts b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/api/types.ts
+index 13e02b4..2a850d6 100644
+--- a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/api/types.ts
++++ b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/api/types.ts
+@@ -134,6 +134,20 @@ export interface JsonLdPreviewResponse {
+   issues?: ValidationIssue[];
+ }
+ 
++/** Matches C# SchemaTypeSuggestion from SchemeWeaver.AI */
++export interface SchemaTypeSuggestion {
++  schemaTypeName: string;
++  confidence: number;
++  reasoning: string | null;
++}
++
++/** Matches C# BulkSchemaTypeSuggestion from SchemeWeaver.AI */
++export interface BulkSchemaTypeSuggestion {
++  contentTypeAlias: string;
++  contentTypeName: string | null;
++  suggestions: SchemaTypeSuggestion[];
++}
++
+ /** Matches C# ContentTypeGenerationRequest — sent to POST /generate-content-type */
+ export interface ContentTypeGenerationRequest {
+   schemaTypeName: string;
+diff --git a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/context/schemeweaver.context.ts b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/context/schemeweaver.context.ts
+index 12682db..8ee7854 100644
+--- a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/context/schemeweaver.context.ts
++++ b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/context/schemeweaver.context.ts
+@@ -16,7 +16,7 @@ export class SchemeWeaverContext extends UmbControllerBase {
+ 
+   /** Direct access to the underlying repository for callers (modals, entity
+    *  actions, workspace views) that need endpoints not already surfaced as
+-   *  context methods. */
++   *  context methods — e.g. AI status, AI auto-map, AI schema suggestions. */
+   public get repository(): SchemeWeaverRepository {
+     return this.#repository;
+   }
+diff --git a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/localization/en.ts b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/localization/en.ts
+index 8d3c0e6..57b847d 100644
+--- a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/localization/en.ts
++++ b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/localization/en.ts
+@@ -178,6 +178,28 @@ export default {
+     // showMoreProperties is defined above and shared with the nested-type modal disclosure.
+     hideAdditionalProperties: 'Hide additional properties',
+ 
++    // AI features (require SchemeWeaver.AI satellite package)
++    aiAnalyse: 'AI Analyse',
++    aiAnalyseAll: 'AI Analyse All',
++    aiAutoMap: 'AI Auto-map',
++    aiSuggesting: 'AI is analysing...',
++    aiSuggestion: 'AI Suggestion',
++    aiConfidence: 'AI Confidence',
++    aiReasoning: 'Reasoning',
++    aiNotAvailable: 'Umbraco.AI is not installed. Install Umbraco.Community.SchemeWeaver.AI for AI-powered mapping.',
++    aiAnalyseAllDescription: 'Use AI to analyse all content types and suggest Schema.org mappings.',
++    aiBulkResults: 'AI Analysis Results',
++    aiApply: 'Apply',
++    aiApplyAll: 'Apply All',
++    aiSkip: 'Skip',
++    aiSuggestedSchema: 'AI Suggested Schema',
++    aiAnalysing: 'Analysing with AI...',
++    aiApplying: 'Applying mappings...',
++    aiNoSuggestions: 'AI could not determine a suitable schema type for this content type.',
++    aiBulkComplete: 'AI analysis complete',
++    aiAnalysisFailed: 'AI analysis failed. Please try again.',
++    aiAutoMapFailed: 'AI auto-map failed. Please try again.',
++
+     // Workspace context errors
+     workspaceContextUnavailable: 'Could not connect to the SchemeWeaver workspace context.',
+ 
+diff --git a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/modals/property-mapping-modal.element.ts b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/modals/property-mapping-modal.element.ts
+index d392042..02c3125 100644
+--- a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/modals/property-mapping-modal.element.ts
++++ b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/modals/property-mapping-modal.element.ts
+@@ -36,6 +36,15 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
+   @state()
+   private _allSchemaProperties: SchemaPropertyInfo[] = [];
+ 
++  @state()
++  private _aiAvailable = false;
++
++  @state()
++  private _aiChecking = true;
++
++  @state()
++  private _aiLoading = false;
++
+   constructor() {
+     super();
+     this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
+@@ -52,6 +61,38 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
+   async connectedCallback() {
+     super.connectedCallback();
+     await this._initialise();
++    this._checkAIStatus();
++  }
++
++  private async _checkAIStatus() {
++    this._aiChecking = true;
++    try {
++      const status = await this.#context?.repository.requestAIStatus();
++      this._aiAvailable = status?.available === true;
++    } catch {
++      this._aiAvailable = false;
++    } finally {
++      this._aiChecking = false;
++    }
++  }
++
++  private async _handleAIAutoMap() {
++    this._aiLoading = true;
++    try {
++      const suggestions = await this.#context?.repository.requestAIAutoMap(
++        this.data?.contentTypeAlias || '',
++        this.data?.schemaType || '',
++      );
++      if (suggestions && Array.isArray(suggestions)) {
++        this._mappings = mergeAutoMapSuggestions(this._mappings, suggestions);
++      }
++    } catch {
++      this.#notificationContext?.peek('danger', {
++        data: { message: this.localize.term('schemeWeaver_aiAutoMapFailed') },
++      });
++    } finally {
++      this._aiLoading = false;
++    }
+   }
+ 
+   private async _initialise() {
+@@ -281,6 +322,22 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
+                   <uui-tag color="primary">${this.data?.schemaType}</uui-tag>
+                   <span>${this.localize.term('schemeWeaver_mappedTo')}</span>
+                   <uui-tag color="default">${this.data?.contentTypeAlias}</uui-tag>
++                  ${this._aiChecking
++                    ? html`<uui-loader-bar class="ai-checking"></uui-loader-bar>`
++                    : this._aiAvailable ? html`
++                    <uui-button
++                      look="outline"
++                      color="positive"
++                      compact
++                      @click=${this._handleAIAutoMap}
++                      ?disabled=${this._aiLoading}
++                      .state=${this._aiLoading ? 'waiting' : undefined}
++                      label=${this.localize.term('schemeWeaver_aiAutoMap')}
++                    >
++                      <uui-icon name="icon-wand"></uui-icon>
++                      ${this._aiLoading ? this.localize.term('schemeWeaver_aiAnalysing') : this.localize.term('schemeWeaver_aiAutoMap')}
++                    </uui-button>
++                  ` : ''}
+                 </div>
+ 
+                 <schemeweaver-property-mapping-table
+diff --git a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/modals/schema-picker-modal.element.ts b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/modals/schema-picker-modal.element.ts
+index 0532134..ff71e3f 100644
+--- a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/modals/schema-picker-modal.element.ts
++++ b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/modals/schema-picker-modal.element.ts
+@@ -3,7 +3,7 @@ import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
+ import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
+ import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
+ import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
+-import type { SchemaTypeInfo } from '../api/types.js';
++import type { SchemaTypeInfo, SchemaTypeSuggestion } from '../api/types.js';
+ import type { SchemaPickerModalData, SchemaPickerModalValue } from './schema-picker-modal.token.js';
+ 
+ interface SchemaTypeGroup {
+@@ -39,9 +39,22 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
+   @state()
+   private _selectedType = '';
+ 
++  @state()
++  private _aiAvailable = false;
++
++  @state()
++  private _aiChecking = true;
++
++  @state()
++  private _aiLoading = false;
++
++  @state()
++  private _aiSuggestions: SchemaTypeSuggestion[] = [];
++
+   async connectedCallback() {
+     super.connectedCallback();
+     await this._fetchSchemaTypes();
++    this._checkAIStatus();
+   }
+ 
+   override disconnectedCallback() {
+@@ -54,6 +67,46 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
+     super.disconnectedCallback();
+   }
+ 
++  private async _checkAIStatus() {
++    this._aiChecking = true;
++    try {
++      const status = await this.#context?.repository.requestAIStatus();
++      this._aiAvailable = status?.available === true;
++    } catch {
++      this._aiAvailable = false;
++    } finally {
++      this._aiChecking = false;
++    }
++  }
++
++  private async _handleAISuggest() {
++    const contentTypeAlias = this.data?.contentTypeAlias;
++    if (!contentTypeAlias) return;
++
++    this._aiLoading = true;
++    this._aiSuggestions = [];
++    try {
++      const suggestions = await this.#context?.repository.requestAISuggestSchemaType(contentTypeAlias);
++      if (suggestions && suggestions.length > 0) {
++        this._aiSuggestions = suggestions.slice(0, 3);
++      } else {
++        this.#notificationContext?.peek('warning', {
++          data: { message: this.localize.term('schemeWeaver_aiNoSuggestions') },
++        });
++      }
++    } catch {
++      this.#notificationContext?.peek('danger', {
++        data: { message: this.localize.term('schemeWeaver_aiAnalysisFailed') },
++      });
++    } finally {
++      this._aiLoading = false;
++    }
++  }
++
++  private _handleAISuggestionSelect(typeName: string) {
++    this._selectedType = typeName;
++  }
++
+   private async _fetchSchemaTypes() {
+     this._loading = true;
+     try {
+@@ -128,6 +181,50 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
+     return html`
+       <umb-body-layout headline=${this.localize.term('schemeWeaver_selectSchemaType')}>
+         <uui-box>
++          ${this._aiChecking ? html`
++            <div class="ai-section">
++              <uui-loader-bar></uui-loader-bar>
++            </div>
++          ` : this._aiAvailable ? html`
++            <div class="ai-section">
++              ${this._aiSuggestions.length === 0 ? html`
++                <uui-button
++                  look="outline"
++                  color="positive"
++                  @click=${this._handleAISuggest}
++                  ?disabled=${this._aiLoading}
++                  .state=${this._aiLoading ? 'waiting' : undefined}
++                  label=${this.localize.term('schemeWeaver_aiAnalyse')}
++                >
++                  <uui-icon name="icon-wand"></uui-icon>
++                  ${this._aiLoading ? this.localize.term('schemeWeaver_aiAnalysing') : this.localize.term('schemeWeaver_aiAnalyse')}
++                </uui-button>
++              ` : html`
++                <div class="ai-suggestions">
++                  <h4 class="ai-suggestions-header">${this.localize.term('schemeWeaver_aiSuggestedSchema')}</h4>
++                  ${this._aiSuggestions.map((suggestion) => html`
++                    <div
++                      class="ai-suggestion-card ${this._selectedType === suggestion.schemaTypeName ? 'selected' : ''}"
++                      @click=${() => this._handleAISuggestionSelect(suggestion.schemaTypeName)}
++                      @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._handleAISuggestionSelect(suggestion.schemaTypeName); } }}
++                      tabindex="0"
++                      role="option"
++                      aria-selected="${this._selectedType === suggestion.schemaTypeName}"
++                    >
++                      <div class="ai-suggestion-header">
++                        <strong>${suggestion.schemaTypeName}</strong>
++                        <uui-tag color=${suggestion.confidence >= 80 ? 'positive' : suggestion.confidence >= 50 ? 'warning' : 'default'}>
++                          ${suggestion.confidence}%
++                        </uui-tag>
++                      </div>
++                      ${suggestion.reasoning ? html`<p class="ai-suggestion-reasoning">${suggestion.reasoning}</p>` : ''}
++                    </div>
++                  `)}
++                </div>
++              `}
++            </div>
++          ` : ''}
++
+           <uui-input
+             type="search"
+             placeholder=${this.localize.term('schemeWeaver_searchSchemaTypes')}
+@@ -307,6 +404,61 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
+         font-size: 0.8rem;
+         margin-top: var(--uui-size-space-2);
+       }
++
++      .ai-section {
++        margin-bottom: var(--uui-size-space-4);
++      }
++
++      .ai-suggestions {
++        margin-bottom: var(--uui-size-space-2);
++      }
++
++      .ai-suggestions-header {
++        color: var(--uui-color-text-alt);
++        font-size: 0.8rem;
++        text-transform: uppercase;
++        letter-spacing: 0.05em;
++        margin: 0 0 var(--uui-size-space-2) 0;
++      }
++
++      .ai-suggestion-card {
++        padding: var(--uui-size-space-3) var(--uui-size-space-4);
++        border-radius: var(--uui-border-radius);
++        border: 2px solid var(--uui-color-positive);
++        background: var(--uui-color-positive-standalone, rgba(27, 183, 110, 0.05));
++        cursor: pointer;
++        margin-bottom: var(--uui-size-space-2);
++        transition: background-color 0.15s ease, border-color 0.15s ease;
++      }
++
++      .ai-suggestion-card:hover {
++        background-color: var(--uui-color-surface-alt);
++      }
++
++      .ai-suggestion-card.selected {
++        background-color: var(--uui-color-selected);
++        border-color: var(--uui-color-focus);
++        color: var(--uui-color-selected-contrast);
++      }
++
++      .ai-suggestion-card.selected .ai-suggestion-reasoning {
++        color: var(--uui-color-selected-contrast);
++        opacity: 0.85;
++      }
++
++      .ai-suggestion-header {
++        display: flex;
++        align-items: center;
++        justify-content: space-between;
++        gap: var(--uui-size-space-3);
++      }
++
++      .ai-suggestion-reasoning {
++        margin: var(--uui-size-space-1) 0 0 0;
++        color: var(--uui-color-text-alt);
++        font-size: 0.85rem;
++        line-height: 1.4;
++      }
+     `,
+   ];
+ }
+diff --git a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/repository/schemeweaver.repository.ts b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/repository/schemeweaver.repository.ts
+index 79a6260..7f5002b 100644
+--- a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/repository/schemeweaver.repository.ts
++++ b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/repository/schemeweaver.repository.ts
+@@ -76,4 +76,21 @@ export class SchemeWeaverRepository extends UmbControllerBase {
+     return match?.alias;
+   }
+ 
++  // --- AI methods (require SchemeWeaver.AI satellite package) ---
++
++  async requestAIStatus() {
++    return this.#dataSource.getAIStatus();
++  }
++
++  async requestAISuggestSchemaType(contentTypeAlias: string) {
++    return this.#dataSource.suggestSchemaType(contentTypeAlias);
++  }
++
++  async requestAISuggestSchemaTypesBulk() {
++    return this.#dataSource.suggestSchemaTypesBulk();
++  }
++
++  async requestAIAutoMap(contentTypeAlias: string, schemaTypeName: string) {
++    return this.#dataSource.aiAutoMap(contentTypeAlias, schemaTypeName);
++  }
+ }
+diff --git a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/repository/schemeweaver.server-data-source.ts b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/repository/schemeweaver.server-data-source.ts
+index 6a5a36d..493efe3 100644
+--- a/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/repository/schemeweaver.server-data-source.ts
++++ b/src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/repository/schemeweaver.server-data-source.ts
+@@ -22,6 +22,8 @@ import type {
+   JsonLdPreviewResponse,
+   ContentTypeGenerationRequest,
+   BlockElementTypeInfo,
++  SchemaTypeSuggestion,
++  BulkSchemaTypeSuggestion,
+ } from '../api/types.js';
+ 
+ const API_BASE = '/umbraco/management/api/v1/schemeweaver';
+@@ -189,4 +191,40 @@ export class SchemeWeaverServerDataSource {
+     });
+   }
+ 
++  // --- AI endpoints (require SchemeWeaver.AI satellite package) ---
++
++  /** Returns { available: true } if AI satellite is installed, undefined if not (404). */
++  async getAIStatus(): Promise<{ available: boolean } | undefined> {
++    return fetchApi<{ available: boolean }>(this.#host, '/ai/status', {}, true);
++  }
++
++  /** AI-powered schema type suggestions for a single content type. */
++  async suggestSchemaType(contentTypeAlias: string): Promise<SchemaTypeSuggestion[] | undefined> {
++    return fetchApi<SchemaTypeSuggestion[]>(
++      this.#host,
++      `/ai/suggest-schema-type/${encodeURIComponent(contentTypeAlias)}`,
++      { method: 'POST' },
++    );
++  }
++
++  /** AI-powered schema type suggestions for all content types (bulk). */
++  async suggestSchemaTypesBulk(): Promise<BulkSchemaTypeSuggestion[] | undefined> {
++    return fetchApi<BulkSchemaTypeSuggestion[]>(
++      this.#host,
++      '/ai/suggest-schema-types-bulk',
++      { method: 'POST' },
++    );
++  }
++
++  /** AI-powered property mapping suggestions (returns same format as heuristic auto-map). */
++  async aiAutoMap(
++    contentTypeAlias: string,
++    schemaTypeName: string,
++  ): Promise<PropertyMappingSuggestion[] | undefined> {
++    return fetchApi<PropertyMappingSuggestion[]>(
++      this.#host,
++      `/ai/ai-auto-map/${encodeURIComponent(contentTypeAlias)}?schemaTypeName=${encodeURIComponent(schemaTypeName)}`,
++      { method: 'POST' },
++    );
++  }
+ }

@@ -129,6 +129,9 @@ public class SchemeWeaverService : ISchemeWeaverService
     public IEnumerable<PropertyMappingSuggestion> AutoMap(string contentTypeAlias, string schemaTypeName)
         => _autoMapper.SuggestMappings(contentTypeAlias, schemaTypeName);
 
+    public Task<IEnumerable<PropertyMappingSuggestion>> AutoMapAsync(string contentTypeAlias, string schemaTypeName)
+        => _autoMapper.SuggestMappingsAsync(contentTypeAlias, schemaTypeName);
+
     public JsonLdPreviewResponse GeneratePreview(IPublishedContent content, string? culture = null)
     {
         var response = new JsonLdPreviewResponse();

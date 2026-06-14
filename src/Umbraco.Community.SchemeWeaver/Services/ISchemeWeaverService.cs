@@ -13,6 +13,7 @@ public interface ISchemeWeaverService
     SchemaMappingDto SaveMapping(SchemaMappingDto dto);
     void DeleteMapping(string contentTypeAlias);
     IEnumerable<PropertyMappingSuggestion> AutoMap(string contentTypeAlias, string schemaTypeName);
+    Task<IEnumerable<PropertyMappingSuggestion>> AutoMapAsync(string contentTypeAlias, string schemaTypeName);
     JsonLdPreviewResponse GeneratePreview(IPublishedContent content, string? culture = null);
     JsonLdPreviewResponse GenerateMockPreview(string contentTypeAlias);
     IEnumerable<SchemaTypeInfo> GetSchemaTypes();

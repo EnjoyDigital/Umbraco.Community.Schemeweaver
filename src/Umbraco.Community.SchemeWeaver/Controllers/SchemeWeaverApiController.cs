@@ -253,14 +253,15 @@ public class SchemeWeaverApiController : ControllerBase
     [HttpPost("mappings/{contentTypeAlias}/auto-map")]
     [ProducesResponseType(typeof(IEnumerable<PropertyMappingSuggestion>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult AutoMap(string contentTypeAlias, [FromQuery] string schemaTypeName)
+    public async Task<IActionResult> AutoMap(string contentTypeAlias, [FromQuery] string schemaTypeName)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(schemaTypeName))
                 return BadRequest("schemaTypeName query parameter is required.");
 
-            var suggestions = _service.AutoMap(contentTypeAlias, schemaTypeName);
+            // Awaits the seam: heuristic by default, AI when the SchemeWeaver.AI satellite overrides it.
+            var suggestions = await _service.AutoMapAsync(contentTypeAlias, schemaTypeName).ConfigureAwait(false);
             return Ok(suggestions);
         }
         catch (Exception ex)

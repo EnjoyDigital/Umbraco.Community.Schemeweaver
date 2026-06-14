@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>Umbraco.Community.SchemeWeaver.AI</PackageId>
+    <Description>AI-powered schema mapping for SchemeWeaver using Umbraco.AI</Description>
+    <PackageTags>umbraco-marketplace umbraco-v17 schema-org ai</PackageTags>
+    <Version>1.0.0-beta</Version>
+    <Authors>Oliver Picton</Authors>
+    <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RootNamespace>Umbraco.Community.SchemeWeaver.AI</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    Umbraco.AI 1.14 only supports Umbraco 17.4+ (no Umbraco 18 build exists yet),
+    so this satellite is 17-only. Building it under any other major is a hard error
+    rather than a confusing transitive restore failure. It is kept out of the
+    default (18) solution build; build it explicitly with -p:UmbracoMajor=17.
+  -->
+  <Target Name="GuardUmbracoMajor" BeforeTargets="Restore;Build"
+          Condition="'$(UmbracoMajor)' != '' AND '$(UmbracoMajor)' != '17'">
+    <Error Text="Umbraco.Community.SchemeWeaver.AI is Umbraco 17-only (Umbraco.AI 1.14 has no Umbraco 18 build). Build with -p:UmbracoMajor=17." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic: the satellite depends on Umbraco.AI.Core only.
+         The Anthropic provider (Umbraco.AI.Anthropic) is installed by the host. -->
+    <PackageReference Include="Umbraco.AI.Core" Version="[1.14.0, 2.0.0)" />
+  </ItemGroup>
+
+</Project>

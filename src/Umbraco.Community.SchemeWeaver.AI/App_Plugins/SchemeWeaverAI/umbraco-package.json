@@ -1,0 +1,14 @@
+{
+  "$schema": "../../umbraco-package-schema.json",
+  "id": "Umbraco.Community.SchemeWeaver.AI",
+  "name": "SchemeWeaver AI",
+  "version": "1.0.0-beta",
+  "extensions": [
+    {
+      "type": "bundle",
+      "alias": "SchemeWeaver.AI.Bundle",
+      "name": "SchemeWeaver AI Bundle",
+      "js": "/App_Plugins/SchemeWeaverAI/index.js"
+    }
+  ]
+}
