@@ -2,14 +2,82 @@ import { css, html, customElement, state } from '@umbraco-cms/backoffice/externa
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
+import { tryExecute } from '@umbraco-cms/backoffice/resources';
+import type { UmbControllerHost } from '@umbraco-cms/backoffice/controller-api';
+import type { UmbContextToken, UmbContextMinimal } from '@umbraco-cms/backoffice/context-api';
 import type { AIBulkAnalysisModalData, AIBulkAnalysisModalValue } from './ai-bulk-analysis-modal.token.js';
 
 const API_BASE = '/umbraco/management/api/v1/schemeweaver';
+
+type ContextHost = UmbControllerHost & {
+  getContext<TContext extends UmbContextMinimal>(token: UmbContextToken<TContext>): Promise<TContext>;
+};
+
+async function getAuthHeaders(host: UmbControllerHost): Promise<Record<string, string>> {
+  try {
+    const authContext = await (host as ContextHost).getContext(UMB_AUTH_CONTEXT);
+    const config = authContext.getOpenApiConfiguration();
+    const token = typeof config.token === 'function' ? await config.token() : undefined;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+async function fetchApi<T>(
+  host: UmbControllerHost,
+  path: string,
+  options: RequestInit = {},
+  signal?: AbortSignal,
+): Promise<T | undefined> {
+  const { data } = await tryExecute(
+    host,
+    (async () => {
+      const authHeaders = await getAuthHeaders(host);
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        signal,
+        headers: {
+          ...authHeaders,
+          ...options.headers,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(errorText || `HTTP ${response.status}`);
+      }
+
+      if (response.status === 204) {
+        return { data: undefined as T };
+      }
+
+      const json = await response.json();
+      return { data: json as T };
+    })(),
+  );
+
+  return data;
+}
 
 interface BulkSuggestion {
   contentTypeAlias: string;
   contentTypeName: string | null;
   suggestions: { schemaTypeName: string; confidence: number; reasoning: string | null }[];
+}
+
+interface ContentTypeInfo {
+  alias: string;
+  name: string;
+  key: string;
+  propertyCount: number;
+}
+
+interface PropertyMappingSuggestion {
+  schemaPropertyName: string;
+  suggestedContentTypePropertyAlias: string | null;
+  suggestedSourceType: string;
+  confidence: number;
 }
 
 interface BulkRow {
@@ -24,6 +92,7 @@ interface BulkRow {
 @customElement('schemeweaver-ai-bulk-analysis-modal')
 export class AIBulkAnalysisModalElement extends UmbModalBaseElement<AIBulkAnalysisModalData, AIBulkAnalysisModalValue> {
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
+  #abortController: AbortController | null = null;
 
   @state() private _loading = true;
   @state() private _applying = false;
@@ -41,32 +110,27 @@ export class AIBulkAnalysisModalElement extends UmbModalBaseElement<AIBulkAnalys
     await this._analyse();
   }
 
-  private async _getAuthHeaders(): Promise<Record<string, string>> {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const authContext = await (this as any).getContext(UMB_AUTH_CONTEXT);
-      const config = authContext.getOpenApiConfiguration();
-      const token = typeof config.TOKEN === 'function'
-        ? await config.TOKEN({ url: API_BASE })
-        : config.TOKEN;
-      return token ? { Authorization: `Bearer ${token}` } : {};
-    } catch {
-      return {};
-    }
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.#abortController?.abort();
+    this.#abortController = null;
   }
 
   private async _analyse() {
     this._loading = true;
+    this.#abortController?.abort();
+    this.#abortController = new AbortController();
+    const { signal } = this.#abortController;
+
     try {
-      const authHeaders = await this._getAuthHeaders();
-      const response = await fetch(`${API_BASE}/ai/suggest-schema-types-bulk`, {
-        method: 'POST',
-        headers: authHeaders,
-      });
+      const results = await fetchApi<BulkSuggestion[]>(
+        this,
+        '/ai/suggest-schema-types-bulk',
+        { method: 'POST' },
+        signal,
+      );
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const results = await response.json() as BulkSuggestion[];
+      if (!results) return;
 
       this._rows = results
         .filter((r) => r.suggestions.length > 0)
@@ -79,9 +143,10 @@ export class AIBulkAnalysisModalElement extends UmbModalBaseElement<AIBulkAnalys
           selected: r.suggestions[0].confidence >= 70,
         }));
     } catch (error) {
+      if (signal.aborted) return;
       console.error('SchemeWeaver AI: Bulk analysis failed:', error);
       this.#notificationContext?.peek('danger', {
-        data: { message: 'AI bulk analysis failed. Please try again.' },
+        data: { message: this.localize.term('schemeWeaver_aiAnalysisFailed') },
       });
     } finally {
       this._loading = false;
@@ -103,31 +168,37 @@ export class AIBulkAnalysisModalElement extends UmbModalBaseElement<AIBulkAnalys
     if (selected.length === 0) return;
 
     this._applying = true;
+    this.#abortController?.abort();
+    this.#abortController = new AbortController();
+    const { signal } = this.#abortController;
+
     let applied = 0;
 
     try {
-      const authHeaders = await this._getAuthHeaders();
+      // Fetch content types once to build an alias→key map (M-5)
+      const contentTypes = await fetchApi<ContentTypeInfo[]>(this, '/content-types', {}, signal);
+      const keyMap = new Map<string, string>();
+      if (contentTypes) {
+        for (const ct of contentTypes) {
+          keyMap.set(ct.alias, ct.key);
+        }
+      }
 
       for (const row of selected) {
-        // Get AI auto-map suggestions for each
-        const mapResponse = await fetch(
-          `${API_BASE}/ai/ai-auto-map/${encodeURIComponent(row.contentTypeAlias)}?schemaTypeName=${encodeURIComponent(row.schemaTypeName)}`,
-          { method: 'POST', headers: authHeaders },
+        if (signal.aborted) break;
+
+        const suggestions = await fetchApi<PropertyMappingSuggestion[]>(
+          this,
+          `/ai/ai-auto-map/${encodeURIComponent(row.contentTypeAlias)}?schemaTypeName=${encodeURIComponent(row.schemaTypeName)}`,
+          { method: 'POST' },
+          signal,
         );
 
-        if (!mapResponse.ok) continue;
+        if (!suggestions || signal.aborted) continue;
 
-        const suggestions = await mapResponse.json() as {
-          schemaPropertyName: string;
-          suggestedContentTypePropertyAlias: string | null;
-          suggestedSourceType: string;
-          confidence: number;
-        }[];
-
-        // Save the mapping
         const mapping = {
           contentTypeAlias: row.contentTypeAlias,
-          contentTypeKey: '',
+          contentTypeKey: keyMap.get(row.contentTypeAlias) ?? '',
           schemaTypeName: row.schemaTypeName,
           isEnabled: true,
           isInherited: false,
@@ -146,25 +217,33 @@ export class AIBulkAnalysisModalElement extends UmbModalBaseElement<AIBulkAnalys
             })),
         };
 
-        const saveResponse = await fetch(`${API_BASE}/mappings`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders },
-          body: JSON.stringify(mapping),
-        });
+        const saved = await fetchApi<unknown>(
+          this,
+          '/mappings',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(mapping),
+          },
+          signal,
+        );
 
-        if (saveResponse.ok) applied++;
+        if (saved !== undefined) applied++;
       }
 
-      this.#notificationContext?.peek('positive', {
-        data: { message: `Applied ${applied} of ${selected.length} mappings.` },
-      });
+      if (!signal.aborted) {
+        this.#notificationContext?.peek('positive', {
+          data: { message: this.localize.term('schemeWeaver_aiBulkApplied', applied, selected.length) },
+        });
 
-      this.modalContext?.setValue({ applied: true });
-      this.modalContext?.submit();
+        this.modalContext?.setValue({ applied: true });
+        this.modalContext?.submit();
+      }
     } catch (error) {
+      if (signal.aborted) return;
       console.error('SchemeWeaver AI: Apply failed:', error);
       this.#notificationContext?.peek('danger', {
-        data: { message: 'Failed to apply some mappings.' },
+        data: { message: this.localize.term('schemeWeaver_aiBulkApplyFailed') },
       });
     } finally {
       this._applying = false;
@@ -172,6 +251,8 @@ export class AIBulkAnalysisModalElement extends UmbModalBaseElement<AIBulkAnalys
   }
 
   private _handleClose() {
+    this.#abortController?.abort();
+    this.#abortController = null;
     this.modalContext?.reject();
   }
 
@@ -228,8 +309,8 @@ export class AIBulkAnalysisModalElement extends UmbModalBaseElement<AIBulkAnalys
             ${this.localize.term('schemeWeaver_cancel')}
           </uui-button>
           ${this._rows.length > 0 ? html`
-            <uui-button look="outline" @click=${this._selectAll} label="Select all">
-              Select All
+            <uui-button look="outline" @click=${this._selectAll} label=${this.localize.term('schemeWeaver_aiSelectAll')}>
+              ${this.localize.term('schemeWeaver_aiSelectAll')}
             </uui-button>
             <uui-button
               look="primary"

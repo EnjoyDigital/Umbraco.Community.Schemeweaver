@@ -199,6 +199,9 @@ export default {
     aiBulkComplete: 'AI analysis complete',
     aiAnalysisFailed: 'AI analysis failed. Please try again.',
     aiAutoMapFailed: 'AI auto-map failed. Please try again.',
+    aiSelectAll: 'Select All',
+    aiBulkApplied: 'Applied {0} of {1} mappings.',
+    aiBulkApplyFailed: 'Failed to apply some mappings. Please try again.',
 
     // Workspace context errors
     workspaceContextUnavailable: 'Could not connect to the SchemeWeaver workspace context.',
