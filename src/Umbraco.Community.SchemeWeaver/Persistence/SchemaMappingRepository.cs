@@ -77,6 +77,15 @@ public class SchemaMappingRepository : ISchemaMappingRepository
             .ToList();
     }
 
+    public IReadOnlyDictionary<int, List<PropertyMapping>> GetAllPropertyMappingsByMappingId()
+    {
+        using var scope = _scopeProvider.CreateScope(autoComplete: true);
+        return scope.Database
+            .Fetch<PropertyMapping>()
+            .GroupBy(x => x.SchemaMappingId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
     public IEnumerable<SchemaMapping> GetInheritedMappings()
     {
         using var scope = _scopeProvider.CreateScope(autoComplete: true);

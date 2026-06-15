@@ -79,13 +79,17 @@ Each block is output as a separate `<script type="application/ld+json">` element
 
 ### Headless / Delivery API
 
-If you are using Umbraco's Delivery API rather than server-rendered templates, JSON-LD is automatically indexed when content is published. No tag helper is needed -- retrieve the structured data from the content response:
+If you are using Umbraco's Delivery API rather than server-rendered templates, no tag helper is needed -- fetch the page's JSON-LD from SchemeWeaver's dedicated endpoint and inject the strings as `<script type="application/ld+json">` tags:
 
 ```typescript
-const response = await fetch('/umbraco/delivery/api/v2/content/item/my-blog-post');
-const data = await response.json();
-const jsonLd = data.properties.schemaOrg;
+const response = await fetch(
+  '/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route?route=/my-blog-post',
+  { headers: { 'Api-Key': process.env.UMBRACO_DELIVERY_API_KEY! } },
+);
+const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 ```
+
+See the [Delivery API guide](delivery-api.md) for the full endpoint surface and a Next.js example.
 
 ## Your first mapping
 

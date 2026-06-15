@@ -737,11 +737,14 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// <inheritdoc />
     public IEnumerable<string> GenerateBlockElementJsonLdStrings(IPublishedContent content, string? culture = null)
     {
-        // Batch-load all mappings in one query and index by alias for O(1) lookups.
-        // This avoids N+1 queries when a page has multiple block element types.
+        // Batch-load all mappings AND all property mappings in two queries and
+        // index by alias / mapping id for O(1) lookups. This avoids N+1 queries
+        // when a page has multiple block element types (or many blocks of the
+        // same type).
         var allMappings = _repository.GetAll()
             .Where(m => m.IsEnabled)
             .ToDictionary(m => m.ContentTypeAlias, StringComparer.OrdinalIgnoreCase);
+        var propertyMappingsByMappingId = _repository.GetAllPropertyMappingsByMappingId();
 
         // Identify properties already explicitly mapped via blockContent source type to avoid duplicates
         allMappings.TryGetValue(content.ContentType.Alias, out var currentMapping);
@@ -749,7 +752,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         if (currentMapping is not null)
         {
-            var currentPropertyMappings = _repository.GetPropertyMappings(currentMapping.Id);
+            var currentPropertyMappings = propertyMappingsByMappingId.GetValueOrDefault(currentMapping.Id) ?? [];
             foreach (var pm in currentPropertyMappings
                 .Where(pm => pm.SourceType == "blockContent" && !string.IsNullOrEmpty(pm.ContentTypePropertyAlias)))
             {
@@ -780,7 +783,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 if (!allMappings.TryGetValue(element.ContentType.Alias, out var mapping))
                     continue;
 
-                var thing = GenerateThingFromElement(element, mapping);
+                var elementPropertyMappings = propertyMappingsByMappingId.GetValueOrDefault(mapping.Id) ?? [];
+                var thing = GenerateThingFromElement(element, mapping, elementPropertyMappings);
                 if (thing is not null)
                 {
                     var jsonLd = SafeSerialize(thing);
@@ -795,7 +799,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// Generates a Thing from a block element using its schema mapping.
     /// Only supports "property" and "static" source types (block elements have no parents/ancestors).
     /// </summary>
-    private Thing? GenerateThingFromElement(IPublishedElement element, SchemaMapping mapping)
+    private Thing? GenerateThingFromElement(
+        IPublishedElement element,
+        SchemaMapping mapping,
+        IEnumerable<PropertyMapping> propertyMappings)
     {
         var clrType = _registry.GetClrType(mapping.SchemaTypeName);
         if (clrType is null)
@@ -803,8 +810,6 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         if (Activator.CreateInstance(clrType) is not Thing instance)
             return null;
-
-        var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
 
         foreach (var propMapping in propertyMappings)
         {

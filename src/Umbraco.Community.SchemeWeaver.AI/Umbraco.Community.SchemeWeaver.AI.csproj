@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>Umbraco.Community.SchemeWeaver.AI</PackageId>
+    <Description>AI-powered schema mapping for SchemeWeaver using Umbraco.AI</Description>
+    <PackageTags>umbraco-marketplace umbraco-v17 schema-org ai</PackageTags>
+    <Version>1.0.0-beta</Version>
+    <Authors>Oliver Picton</Authors>
+    <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RootNamespace>Umbraco.Community.SchemeWeaver.AI</RootNamespace>
+    <!--
+      Static web assets: the Vite build outputs index.js to the SDK-default
+      wwwroot/ folder, which the Razor SDK auto-discovers and propagates
+      transitively to referencing projects (e.g. the TestHost). The
+      StaticWebAssetBasePath maps that folder to /App_Plugins/SchemeWeaverAI/
+      so the umbraco-package.json bundle reference (/App_Plugins/SchemeWeaverAI/index.js)
+      resolves — and keeps it distinct from the main package's App_Plugins/SchemeWeaver.
+      (Do NOT use a custom folder via a made-up <DefaultWebContentRootPath>; that
+      property does not exist in the SDK and the assets are silently never served.)
+    -->
+    <StaticWebAssetBasePath>App_Plugins/SchemeWeaverAI</StaticWebAssetBasePath>
+  </PropertyGroup>
+
+  <!--
+    Umbraco.AI 1.14 only supports Umbraco 17.4+ (no Umbraco 18 build exists yet),
+    so this satellite is 17-only. Building it under any other major is a hard error
+    rather than a confusing transitive restore failure. It is kept out of the
+    default (18) solution build; build it explicitly with -p:UmbracoMajor=17.
+  -->
+  <Target Name="GuardUmbracoMajor" BeforeTargets="Restore;Build"
+          Condition="'$(UmbracoMajor)' != '' AND '$(UmbracoMajor)' != '17'">
+    <Error Text="Umbraco.Community.SchemeWeaver.AI is Umbraco 17-only (Umbraco.AI 1.14 has no Umbraco 18 build). Build with -p:UmbracoMajor=17." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic: the satellite depends on Umbraco.AI.Core only.
+         The Anthropic provider (Umbraco.AI.Anthropic) is installed by the host. -->
+    <PackageReference Include="Umbraco.AI.Core" Version="[1.14.0, 2.0.0)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Exclude schema files from publish to avoid conflicts with main project -->
+    <Content Remove="appsettings-schema.json" />
+    <Content Remove="appsettings-schema.Umbraco.Cms.json" />
+    <Content Remove="umbraco-package-schema.json" />
+    <None Remove="appsettings-schema.json" />
+    <None Remove="appsettings-schema.Umbraco.Cms.json" />
+    <None Remove="umbraco-package-schema.json" />
+  </ItemGroup>
+
+  <!--
+    Ensure the satellite frontend JS is built before packing.
+    The Vite build outputs to wwwroot/index.js (served as /App_Plugins/SchemeWeaverAI/index.js).
+    Set SchemeWeaverAISkipFrontendBuild=true to bypass (e.g. in CI that runs npm build separately).
+  -->
+  <ItemGroup>
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/index.ts" />
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/entity-actions/**/*.ts" />
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/modals/**/*.ts" />
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/package.json" />
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/vite.config.ts" />
+    <_AIFrontendDistOutputs Include="wwwroot/index.js" />
+    <!-- Note: Vite outDir is relative to vite.config.ts (App_Plugins/SchemeWeaverAI/) → ../../wwwroot/ = this project's wwwroot/ -->
+  </ItemGroup>
+  <Target Name="EnsureAIFrontendBuiltBeforePack"
+          BeforeTargets="Pack"
+          Condition="'$(Configuration)' == 'Release' AND '$(SchemeWeaverAISkipFrontendBuild)' != 'true'"
+          Inputs="@(_AIFrontendSourceInputs)"
+          Outputs="@(_AIFrontendDistOutputs)">
+    <Message Text="AI frontend source is newer than wwwroot-ai/ — running 'npm run build' in App_Plugins/SchemeWeaverAI." Importance="high" />
+    <Exec Command="npm install" WorkingDirectory="App_Plugins/SchemeWeaverAI" />
+    <Exec Command="npm run build" WorkingDirectory="App_Plugins/SchemeWeaverAI" />
+    <ItemGroup>
+      <_StaleAIStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets.*.json" />
+      <_StaleAIStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/*.dswa.cache.json" />
+    </ItemGroup>
+    <Delete Files="@(_StaleAIStaticAssetsFiles)" />
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Build" Properties="Configuration=$(Configuration);SchemeWeaverAISkipFrontendBuild=true" />
+  </Target>
+
+</Project>

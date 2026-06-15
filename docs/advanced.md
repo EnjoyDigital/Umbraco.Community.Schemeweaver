@@ -1,6 +1,6 @@
 # Advanced Topics
 
-This guide covers SchemeWeaver's deeper features: BreadcrumbList generation, JSON-LD output ordering, the workspace views, database schema, and troubleshooting. For extensibility and custom resolvers, see [Extending SchemeWeaver](extending.md).
+This guide covers SchemeWeaver's deeper features: BreadcrumbList generation, JSON-LD output ordering, the workspace views, Rich Results validation, configuration, database schema, and troubleshooting. For extensibility and custom resolvers, see [Extending SchemeWeaver](extending.md).
 
 ## BreadcrumbList Auto-Generation
 
@@ -107,6 +107,56 @@ The preview endpoint (`POST /mappings/{contentTypeAlias}/preview`) supports two 
 4. If the content is unpublished (preview returns no data), a warning message is shown indicating that the content must be published first.
 5. The preview shows a formatted JSON-LD block with syntax highlighting, a valid/invalid badge, and copy/refresh buttons.
 
+
+## Rich Results Validation
+
+Every JSON-LD preview is run through a validator that checks the generated output against
+Google's [structured-data requirements](https://developers.google.com/search/docs/appearance/structured-data)
+for the schema type in question. The results appear in the **JSON-LD** preview tab (and in the
+mock preview on the document type's Schema.org tab):
+
+- A **valid / invalid badge** summarises whether the output is eligible for rich results.
+- **Issues** are listed by severity:
+  - **Critical** — a required property is missing or malformed; the result is ineligible until fixed.
+  - **Warning** — a recommended property is missing; the result is eligible but weaker.
+  - **Info** — informational notes.
+
+Validation is rule-based and type-aware: there are dedicated rule sets for the common rich-result
+types (Article, Product, Event, Recipe, FAQ, JobPosting, LocalBusiness, BreadcrumbList, and many
+more), plus a generic eligibility check for everything else. Types without a specific rule set
+still get the generic check, so you always get baseline feedback.
+
+The same validation issues are returned by the preview API (`POST /mappings/{alias}/preview`) and
+by the MCP `preview-json-ld` tool, so you can lint mappings programmatically as well as in the UI.
+
+## Configuration
+
+All settings are optional and bind to a `SchemeWeaver` section in `appsettings.json`. The defaults
+suit most sites — you only need this section to change behaviour.
+
+```json
+{
+  "SchemeWeaver": {
+    "UseGraphModel": true,
+    "MaxRecursionDepth": 3,
+    "EmitBreadcrumbsInDeliveryApi": true,
+    "CacheDuration": "00:30:00",
+    "SiteSettings": {
+      "ContentTypeAlias": "schemaSiteSettings",
+      "ContentKey": null
+    }
+  }
+}
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `UseGraphModel` | `true` | Output shape. `true` emits a single Yoast-style `@graph` envelope with cross-referenced `@id`s (best for modern SEO pipelines). `false` emits one `<script type="application/ld+json">` block per source (inherited mappings, breadcrumb, main mapping, block elements) — useful for per-entity diffing or stricter CSP. The flag flows through the tag helper, Delivery API, Examine index and backoffice preview, so the preview always matches what ships. |
+| `MaxRecursionDepth` | `3` | Maximum depth for nested property resolution (content pickers, block lists). Guards against infinite loops in circular content. |
+| `EmitBreadcrumbsInDeliveryApi` | `true` | Whether `BreadcrumbList` is included in the Delivery API `/json-ld` output. Set `false` if your headless front-end builds its own breadcrumb from its routing data. The server-rendered tag helper always emits breadcrumbs regardless. |
+| `CacheDuration` | `00:30:00` | Absolute cache duration for the per-content JSON-LD blocks served by the Delivery API. A safety-net only — invalidation is event-driven (publish/unpublish/move/delete). |
+| `SiteSettings.ContentTypeAlias` | `schemaSiteSettings` | Content type alias of the singleton settings node that drives the site-level part of the graph (Organization / WebSite pieces). The first published node of this type is used. |
+| `SiteSettings.ContentKey` | `null` | Optional explicit GUID of the settings node. Overrides the alias-based lookup when the convention doesn't fit. |
 
 ## Extending SchemeWeaver
 

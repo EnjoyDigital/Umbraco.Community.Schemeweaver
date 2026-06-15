@@ -62,12 +62,13 @@ public class SchemeWeaverService : ISchemeWeaverService
 
     public IEnumerable<SchemaMappingDto> GetAllMappings()
     {
+        // Two queries total (mappings + all property mappings) instead of 1 + N.
+        // Grouping is done in memory so a site with many mappings doesn't issue
+        // one DB round-trip per mapping.
         var mappings = _repository.GetAll();
+        var propertyMappingsByMappingId = _repository.GetAllPropertyMappingsByMappingId();
         return mappings.Select(m =>
-        {
-            var propertyMappings = _repository.GetPropertyMappings(m.Id);
-            return ToDto(m, propertyMappings);
-        });
+            ToDto(m, propertyMappingsByMappingId.GetValueOrDefault(m.Id) ?? []));
     }
 
     public SchemaMappingDto SaveMapping(SchemaMappingDto dto)
@@ -128,6 +129,9 @@ public class SchemeWeaverService : ISchemeWeaverService
 
     public IEnumerable<PropertyMappingSuggestion> AutoMap(string contentTypeAlias, string schemaTypeName)
         => _autoMapper.SuggestMappings(contentTypeAlias, schemaTypeName);
+
+    public Task<IEnumerable<PropertyMappingSuggestion>> AutoMapAsync(string contentTypeAlias, string schemaTypeName)
+        => _autoMapper.SuggestMappingsAsync(contentTypeAlias, schemaTypeName);
 
     public JsonLdPreviewResponse GeneratePreview(IPublishedContent content, string? culture = null)
     {
