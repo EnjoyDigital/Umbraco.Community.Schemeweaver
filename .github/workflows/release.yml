@@ -90,6 +90,16 @@ jobs:
       - name: Pack uSync satellite
         run: dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts -p:Version=${{ steps.version.outputs.value }}
 
+      # AI satellite is Umbraco 17-only (Umbraco.AI 1.14 has no Umbraco 18 build), so it
+      # is packed on the 17 leg only. It is versioned independently of the release tag —
+      # it ships at its own prerelease version from the csproj (<Version>), so the
+      # push step's --skip-duplicate makes this a no-op on tags that don't bump it.
+      # --no-build is omitted intentionally: the AI project isn't in the solution the
+      # Build step compiles, and its frontend (wwwroot/) is produced by the AI pack target.
+      - name: Pack AI satellite (Umbraco 17 only)
+        if: matrix.umbraco == '17'
+        run: dotnet pack src/Umbraco.Community.SchemeWeaver.AI/Umbraco.Community.SchemeWeaver.AI.csproj --configuration Release -p:UmbracoMajor=17 --output ./artifacts
+
       - name: Upload NuGet package
         uses: actions/upload-artifact@v5
         with:

@@ -10,11 +10,12 @@ If the AI package is not installed, SchemeWeaver works exactly as before -- the 
 
 | Requirement | Version |
 |---|---|
+| Umbraco | **17 only** — Umbraco.AI 1.14 has no Umbraco 18 build, so the AI satellite is Umbraco 17-only |
 | Umbraco.Community.SchemeWeaver | Same version as the AI package |
-| Umbraco.AI.Core | 1.7.0 or later (up to, but not including, 2.0.0) |
-| A configured AI chat provider | e.g. Azure OpenAI, Anthropic (via Umbraco.AI provider packages) |
+| Umbraco.AI.Core | `1.14.0` or later (up to, but not including, `2.0.0`) |
+| A configured AI chat provider | e.g. Anthropic or Azure OpenAI, via the matching Umbraco.AI provider package |
 
-The AI package depends on `IAIChatService` from Umbraco.AI.Core. You must have at least one chat provider configured in your Umbraco instance for AI features to work. Refer to the [Umbraco.AI documentation](https://docs.umbraco.com/umbraco-ai) for provider setup.
+The AI package depends on `IAIChatService` from `Umbraco.AI.Core.Chat`. You must have a chat **connection and profile** configured in your Umbraco instance for AI features to work (see Installation below). Refer to the [Umbraco.AI documentation](https://docs.umbraco.com/umbraco-ai) for provider setup.
 
 ---
 
@@ -25,6 +26,16 @@ Install the satellite package into the same project as SchemeWeaver:
 ```bash
 dotnet add package Umbraco.Community.SchemeWeaver.AI --prerelease
 ```
+
+You also need Umbraco.AI itself and a provider. Two things commonly trip people up:
+
+1. **Install the umbrella `Umbraco.AI` package** (not just `Umbraco.AI.Startup`) so the
+   **AI** section renders in the backoffice, plus a provider package (e.g.
+   `Umbraco.AI.Anthropic`), and call `.AddUmbracoAI()` in your builder chain.
+2. **Configure a chat connection and set a Default Chat Profile.** In **Settings → AI**,
+   add a connection for your provider (with its API key) and mark a chat profile as the
+   default. Without a default profile the AI calls throw and SchemeWeaver silently falls
+   back to the heuristic mapper — so the AI buttons appear but suggestions never improve.
 
 No additional SchemeWeaver configuration is needed. The `SchemeWeaverAIComposer` registers the AI services and controller automatically. The frontend detects the AI package by calling `GET /ai/status` and shows AI buttons only when it returns successfully.
 

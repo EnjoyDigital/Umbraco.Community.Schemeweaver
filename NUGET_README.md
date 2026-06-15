@@ -4,16 +4,17 @@ Map Umbraco Content Types to Schema.org types and automatically generate JSON-LD
 
 ## Features
 
-- **780+ Schema.org types** -- every type in the Schema.NET library, including pending types
+- **The full Schema.org vocabulary** -- every type in the Schema.NET.Pending library (~800), including pending types
 - **Auto-mapping with confidence scores** -- suggests property mappings using exact matching, synonym dictionaries, and substring matching
 - **Seven source types** -- pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, or nested complex types
 - **Transforms** -- strip HTML, convert to absolute URL, or format dates before output
 - **Content Type generation** -- scaffold a new Umbraco document type from any Schema.org type
 - **Language variants** -- culture-aware JSON-LD generation for multi-language sites with automatic `inLanguage` population
-- **Delivery API integration** -- JSON-LD is automatically indexed per culture and available via the `schemaOrg` field
+- **Delivery API integration** -- a dedicated, culture-aware `/json-ld` endpoint returns each page's JSON-LD for headless front-ends, cached with event-driven invalidation
 - **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
+- **Rich Results validation** -- the backoffice flags missing required/recommended properties against Google's structured-data rules
 
 ## Requirements
 
@@ -55,13 +56,21 @@ In your master layout (e.g. `_Layout.cshtml`):
 
 ### 3. Headless / Delivery API
 
-JSON-LD is automatically indexed when content is published:
+JSON-LD is served from a dedicated endpoint — fetch it and inject the strings as
+`<script type="application/ld+json">` tags:
 
 ```typescript
-const response = await fetch('/umbraco/delivery/api/v2/content/item/my-blog-post');
-const data = await response.json();
-const jsonLd = data.properties.schemaOrg;
+const response = await fetch(
+  '/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route?route=/my-blog-post',
+  { headers: { 'Api-Key': process.env.UMBRACO_DELIVERY_API_KEY! } },
+);
+const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 ```
+
+## Optional companions
+
+- **uSync** — sync schema mappings between environments: `Umbraco.Community.SchemeWeaver.uSync`
+- **AI** (Umbraco 17) — AI-powered mapping suggestions via Umbraco.AI: `Umbraco.Community.SchemeWeaver.AI`
 
 ## How it works
 

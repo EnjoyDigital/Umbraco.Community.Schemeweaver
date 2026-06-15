@@ -19,7 +19,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 
 ## Features
 
-- **780 Schema.org types** -- discovers every type in the [Schema.NET.Pending](https://github.com/RehanSaeed/Schema.NET) library at startup, including pending types like `RealEstateListing`
+- **The full Schema.org vocabulary** -- discovers every type in the [Schema.NET.Pending](https://github.com/RehanSaeed/Schema.NET) library at startup (~800 types, including pending ones like `RealEstateListing`)
 - **Auto-mapping with confidence scores** -- suggests property mappings using exact matching, synonym dictionaries, and substring matching
 - **Smart property UI** -- shows mapped properties first, with an "Add property" combobox to add more schema properties
 - **Seven source types** -- pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, or nested complex types
@@ -30,6 +30,7 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 - **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template; the tag helper reads the current culture from Umbraco's `IVariationContextAccessor` automatically
 - **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
 - **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
+- **Rich Results validation** -- the backoffice preview checks each mapping against Google's structured-data requirements and flags missing required/recommended properties
 
 ## Requirements
 
@@ -126,7 +127,9 @@ The backoffice JSON-LD preview tab automatically follows the workspace variant s
 - [Delivery API](docs/delivery-api.md) -- headless integration
 - [Extending](docs/extending.md) -- custom property resolvers, replacing core services
 - [uSync Integration](docs/usync.md) -- sync schema mappings between environments
-- [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, troubleshooting
+- [AI Integration](docs/ai-integration.md) -- optional AI-powered mapping (Umbraco 17)
+- [MCP Server](docs/mcp-server.md) -- drive SchemeWeaver from an AI assistant (dev tool)
+- [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, validation, configuration, troubleshooting
 - [API Reference](docs/api-reference.md) -- REST API endpoints
 
 ## How it works

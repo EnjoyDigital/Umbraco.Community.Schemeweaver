@@ -20,6 +20,9 @@ The idea: SchemeWeaver's built-in auto-mapper is a name-matching heuristic. An L
 | `preview-json-ld` | Generate JSON-LD for a content node + Rich Results validation issues |
 | `generate-content-type` | Scaffold a new document type from a Schema.org type |
 
+The base SDK also registers a `get-server-info` tool (server version/runtime — handy as an
+auth smoke test), so `--list-tools` reports 13 in total.
+
 The recommended AI workflow (also sent to clients as server `instructions`): inspect both sides → heuristic baseline → reason semantically → save → preview → fix validation issues.
 
 ## Prerequisites

@@ -46,7 +46,7 @@ npm run build                   # tsup → dist/ (the entry point .mcp.json poin
 npm test                        # Integration tests against the running TestHost
 ```
 
-TypeScript MCP server on `@umbraco-cms/mcp-server-sdk` exposing 12 tools (schema type search, content type inspection, heuristic suggest, save/delete mapping, JSON-LD preview, doc type generation) so AI assistants can build better mappings than the heuristic auto-mapper. Registered in `.mcp.json` as `schemeweaver-mcp`; authenticates as an Umbraco API user (client credentials in the project's gitignored `.env`; `scripts/setup-api-user.mjs` creates the user in a fresh TestHost DB). See the project's own README/CLAUDE.md for details.
+TypeScript MCP server on `@umbraco-cms/mcp-server-sdk` exposing 12 SchemeWeaver tools (schema type search, content type inspection, heuristic suggest, save/delete mapping, JSON-LD preview, doc type generation) plus a `get-server-info` smoke-test tool from the base SDK, so AI assistants can build better mappings than the heuristic auto-mapper. Registered in `.mcp.json` as `schemeweaver-mcp`; authenticates as an Umbraco API user (client credentials in the project's gitignored `.env`; `scripts/setup-api-user.mjs` creates the user in a fresh TestHost DB). See the project's own README/CLAUDE.md for details.
 
 ## Architecture
 
