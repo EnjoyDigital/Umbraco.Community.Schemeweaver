@@ -27,8 +27,10 @@
     <ProjectReference Include="..\Umbraco.Community.SchemeWeaver.AI\Umbraco.Community.SchemeWeaver.AI.csproj" />
     <!-- Umbraco.AI.Anthropic pulls Umbraco.AI.Core transtively -->
     <PackageReference Include="Umbraco.AI.Anthropic" Version="[1.3.6, 2.0.0)" />
-    <!-- Umbraco.AI.Startup provides AddUmbracoAI() + UmbracoAIComposer (auto-discovered) -->
-    <PackageReference Include="Umbraco.AI.Startup" Version="[1.14.0, 2.0.0)" />
+    <!-- Umbrella package: brings AddUmbracoAI() (Startup) AND the backoffice section
+         (Umbraco.AI.Web.StaticAssets). Referencing Startup alone is backend-only and
+         the AI backoffice section never renders, so connections/profiles can't be set up. -->
+    <PackageReference Include="Umbraco.AI" Version="[1.14.0, 2.0.0)" />
   </ItemGroup>
 
   <ItemGroup>

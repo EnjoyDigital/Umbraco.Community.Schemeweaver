@@ -1,9 +1,37 @@
 # TestHost AI Setup (Anthropic provider, Umbraco 17 build only)
 
-Umbraco.AI manages providers, connections, and profiles via the backoffice (Settings →
-Umbraco AI). There is currently no programmatic seeding API exposed publicly, so the
-Anthropic connection and the three SchemeWeaver profiles must be created manually after
+Umbraco.AI manages providers, connections, and profiles via the backoffice (the **AI**
+section). There is currently no programmatic seeding API exposed publicly, so the
+Anthropic connection and the SchemeWeaver profile(s) must be created manually after
 first boot. This file is the authoritative reference for doing that.
+
+## ✅ Verified working end-to-end (2026-06-15)
+
+A real-key run confirmed the satellite produces AI-driven property mappings in the live
+backoffice (NewsArticle → articlePage: `bodyText`→ArticleBody, `title`→Headline,
+`heroImage`→Image, `authorName`→Author, built-in URL→Url — all semantic, no heuristic
+fallback in the log). Three gotchas were found along the way — **read these first**:
+
+1. **Reference the umbrella `Umbraco.AI` package, NOT `Umbraco.AI.Startup` alone.**
+   Startup is backend-only; the **AI backoffice section** (connections/profiles UI) comes
+   from `Umbraco.AI.Web.StaticAssets`, which only the umbrella `Umbraco.AI` package pulls
+   in. With Startup alone there is no AI section and you cannot configure anything. (The
+   TestHost csproj now references `Umbraco.AI`.)
+2. **Set a Default Chat Profile.** In Umbraco.AI 1.14, `chat.WithAlias("…")` did **not**
+   resolve our named profiles by alias at runtime — the chat service fell through to the
+   *default* chat profile and threw "Default Chat profile is not configured". Fix: AI
+   section → **Settings → Default Chat Profile → Add → pick the SchemeWeaver profile →
+   Save**. (Follow-up worth verifying: whether `WithAlias` should select a profile by
+   alias in 1.14, or whether `AISchemaMapper` should use `WithProfile`/the `profileAlias`
+   parameter instead. Until then, a Default Chat Profile is required.)
+3. **Dedicated 17 DB.** The TestHost shares one SQLite DB across both majors
+   (`umbraco/Data/Umbraco.sqlite.db`), so a DB last upgraded by the default-18 build
+   cannot be migrated by the 17 build ("Premigrations does not support migrating from
+   state …"). For an Umbraco-17 AI session, point the 17 host at its own DB, e.g. run
+   with `ConnectionStrings__umbracoDbDSN` set to `…/Umbraco17.sqlite.db` (or temporarily
+   edit `appsettings.Development.json`). It installs fresh and re-seeds via uSync
+   `ImportOnFirstBoot`. **Let the uSync first-boot import finish before hitting the
+   backoffice** — concurrent OAuth/login traffic during the import deadlocks SQLite.
 
 ---
 
