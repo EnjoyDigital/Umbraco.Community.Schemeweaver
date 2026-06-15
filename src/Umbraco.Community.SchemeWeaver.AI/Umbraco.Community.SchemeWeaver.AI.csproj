@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -13,6 +13,13 @@
     <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RootNamespace>Umbraco.Community.SchemeWeaver.AI</RootNamespace>
+    <!--
+      Static web assets: the Vite build outputs index.js to wwwroot-ai/.
+      The StaticWebAssetBasePath maps that folder to /App_Plugins/SchemeWeaverAI/
+      so the umbraco-package.json bundle reference (/App_Plugins/SchemeWeaverAI/index.js) resolves.
+    -->
+    <StaticWebAssetBasePath>App_Plugins/SchemeWeaverAI</StaticWebAssetBasePath>
+    <DefaultWebContentRootPath>wwwroot-ai</DefaultWebContentRootPath>
   </PropertyGroup>
 
   <!--
@@ -35,5 +42,45 @@
          The Anthropic provider (Umbraco.AI.Anthropic) is installed by the host. -->
     <PackageReference Include="Umbraco.AI.Core" Version="[1.14.0, 2.0.0)" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Exclude schema files from publish to avoid conflicts with main project -->
+    <Content Remove="appsettings-schema.json" />
+    <Content Remove="appsettings-schema.Umbraco.Cms.json" />
+    <Content Remove="umbraco-package-schema.json" />
+    <None Remove="appsettings-schema.json" />
+    <None Remove="appsettings-schema.Umbraco.Cms.json" />
+    <None Remove="umbraco-package-schema.json" />
+  </ItemGroup>
+
+  <!--
+    Ensure the satellite frontend JS is built before packing.
+    The Vite build outputs to wwwroot-ai/index.js (served as /App_Plugins/SchemeWeaverAI/index.js).
+    Set SchemeWeaverAISkipFrontendBuild=true to bypass (e.g. in CI that runs npm build separately).
+  -->
+  <ItemGroup>
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/index.ts" />
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/entity-actions/**/*.ts" />
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/modals/**/*.ts" />
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/package.json" />
+    <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/vite.config.ts" />
+    <_AIFrontendDistOutputs Include="wwwroot-ai/index.js" />
+    <!-- Note: Vite outDir is relative to vite.config.ts (App_Plugins/SchemeWeaverAI/) → ../../wwwroot-ai/ = this project's wwwroot-ai/ -->
+  </ItemGroup>
+  <Target Name="EnsureAIFrontendBuiltBeforePack"
+          BeforeTargets="Pack"
+          Condition="'$(Configuration)' == 'Release' AND '$(SchemeWeaverAISkipFrontendBuild)' != 'true'"
+          Inputs="@(_AIFrontendSourceInputs)"
+          Outputs="@(_AIFrontendDistOutputs)">
+    <Message Text="AI frontend source is newer than wwwroot-ai/ — running 'npm run build' in App_Plugins/SchemeWeaverAI." Importance="high" />
+    <Exec Command="npm install" WorkingDirectory="App_Plugins/SchemeWeaverAI" />
+    <Exec Command="npm run build" WorkingDirectory="App_Plugins/SchemeWeaverAI" />
+    <ItemGroup>
+      <_StaleAIStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets.*.json" />
+      <_StaleAIStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/*.dswa.cache.json" />
+    </ItemGroup>
+    <Delete Files="@(_StaleAIStaticAssetsFiles)" />
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Build" Properties="Configuration=$(Configuration);SchemeWeaverAISkipFrontendBuild=true" />
+  </Target>
 
 </Project>

@@ -30,8 +30,9 @@ public class SuggestSchemaTypeTool : AIToolBase<SuggestSchemaTypeArgs>
     }
 
     public override string Description =>
-        "Analyses an Umbraco content type and suggests the most appropriate Schema.org types. " +
-        "Returns ranked suggestions with confidence scores and reasoning.";
+        "Analyses an Umbraco content type and suggests the most appropriate Schema.org types for it. " +
+        "Returns up to three ranked suggestions, each with a confidence score (0–100) and a brief reasoning. " +
+        "Use the top suggestion's schemaTypeName as input to schemeweaver_map_properties to generate property mappings.";
 
     protected override async Task<object> ExecuteAsync(
         SuggestSchemaTypeArgs args, CancellationToken cancellationToken = default)

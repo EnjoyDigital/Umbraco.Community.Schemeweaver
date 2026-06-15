@@ -12,17 +12,26 @@ public record SaveSchemaMappingArgs(
     string ContentTypeAlias,
     [property: Description("The Schema.org type name (e.g., 'BlogPosting')")]
     string SchemaTypeName,
-    [property: Description("Array of property mappings: each with schemaPropertyName, contentTypePropertyAlias, sourceType")]
+    [property: Description(
+        "Array of property mappings. Each entry maps one Schema.org property to one Umbraco property. " +
+        "Use the suggestions from schemeweaver_map_properties: transfer suggestedContentTypePropertyAlias " +
+        "→ contentTypePropertyAlias and suggestedSourceType → sourceType. " +
+        "Omit entries where confidence is 0 and no mapping is appropriate.")]
     SaveSchemaMappingPropertyArg[] PropertyMappings);
 
 public record SaveSchemaMappingPropertyArg(
     [property: Description("The Schema.org property name (e.g., 'headline')")]
     string SchemaPropertyName,
-    [property: Description("The Umbraco content type property alias to map from (e.g., 'title')")]
+    [property: Description(
+        "The Umbraco content type property alias to read the value from (e.g., 'title', '__name', '__url'). " +
+        "Required when sourceType is 'property'. Set to null when sourceType is 'static'.")]
     string? ContentTypePropertyAlias,
-    [property: Description("Source type: 'property', 'static', 'parent', 'ancestor', 'sibling'")]
+    [property: Description(
+        "How to resolve the value. Use 'property' to read from a property on the current content node " +
+        "(including built-ins __name, __url, __createDate, __updateDate). " +
+        "Use 'static' to store a hardcoded literal value — set staticValue instead of contentTypePropertyAlias.")]
     string SourceType = "property",
-    [property: Description("Static value when sourceType is 'static'")]
+    [property: Description("The hardcoded literal value to store when sourceType is 'static' (e.g., 'en-GB', 'https://schema.org/InStock').")]
     string? StaticValue = null);
 
 public record SaveSchemaMappingResult(
@@ -44,8 +53,11 @@ public class SaveSchemaMappingTool : AIToolBase<SaveSchemaMappingArgs>
     }
 
     public override string Description =>
-        "Saves a Schema.org mapping for an Umbraco content type. This will create or overwrite " +
-        "the existing mapping. Use schemeweaver_map_properties first to get suggestions.";
+        "Saves a Schema.org mapping for an Umbraco content type, creating or overwriting any existing mapping. " +
+        "Always call schemeweaver_map_properties first to obtain property suggestions, then pass those suggestions " +
+        "as propertyMappings (transferring suggestedContentTypePropertyAlias → contentTypePropertyAlias and " +
+        "suggestedSourceType → sourceType). Only supported source types are 'property' and 'static'; " +
+        "entries with an empty contentTypePropertyAlias and sourceType 'property' are ignored.";
 
     protected override Task<object> ExecuteAsync(
         SaveSchemaMappingArgs args, CancellationToken cancellationToken = default)

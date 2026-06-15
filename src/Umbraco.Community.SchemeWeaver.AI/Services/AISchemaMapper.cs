@@ -18,7 +18,7 @@ public class AISchemaMapper : IAISchemaMapper
     private readonly IAIChatService _chatService;
     private readonly IContentTypeService _contentTypeService;
     private readonly ISchemaTypeRegistry _schemaTypeRegistry;
-    private readonly ISchemaAutoMapper _heuristicMapper;
+    private readonly SchemaAutoMapper _heuristicMapper;
     private readonly ILogger<AISchemaMapper> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -27,11 +27,21 @@ public class AISchemaMapper : IAISchemaMapper
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    /// <summary>
+    /// Initialises a new instance of <see cref="AISchemaMapper"/>.
+    /// </summary>
+    /// <remarks>
+    /// The <paramref name="heuristicMapper"/> parameter takes the concrete
+    /// <see cref="SchemaAutoMapper"/> (not <see cref="ISchemaAutoMapper"/>) to avoid
+    /// a circular dependency: the <c>ISchemaAutoMapper</c> registration in the AI
+    /// composer resolves to <see cref="AiSchemaAutoMapper"/>, which depends on
+    /// <see cref="IAISchemaMapper"/>, which would circle back here.
+    /// </remarks>
     public AISchemaMapper(
         IAIChatService chatService,
         IContentTypeService contentTypeService,
         ISchemaTypeRegistry schemaTypeRegistry,
-        ISchemaAutoMapper heuristicMapper,
+        SchemaAutoMapper heuristicMapper,
         ILogger<AISchemaMapper> logger)
     {
         _chatService = chatService;

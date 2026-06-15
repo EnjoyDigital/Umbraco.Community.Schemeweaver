@@ -1,0 +1,26 @@
+{
+  "name": "schemeweaver-ai-webcomponents",
+  "version": "1.0.0-beta",
+  "description": "AI web components for Umbraco SchemeWeaver.AI backoffice extension",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "vite build"
+  },
+  "keywords": [
+    "umbraco",
+    "backoffice",
+    "webcomponents",
+    "lit",
+    "vite",
+    "schema-org",
+    "ai"
+  ],
+  "author": "Enjoy Digital",
+  "license": "MIT",
+  "devDependencies": {
+    "@umbraco-cms/backoffice": "18.0.0-rc2",
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3",
+    "vite": "^8.0.8"
+  }
+}

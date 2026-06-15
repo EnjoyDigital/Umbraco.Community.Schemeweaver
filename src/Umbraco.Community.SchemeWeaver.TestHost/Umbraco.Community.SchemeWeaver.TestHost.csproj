@@ -19,6 +19,18 @@
     <ProjectReference Include="..\Umbraco.Community.SchemeWeaver.uSync\Umbraco.Community.SchemeWeaver.uSync.csproj" />
   </ItemGroup>
 
+  <!--
+    Umbraco.AI is 17-only (no Umbraco 18 build exists).
+    SchemeWeaver.AI satellite + Anthropic provider only included in the 17 build.
+  -->
+  <ItemGroup Condition="'$(UmbracoMajor)' == '17'">
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver.AI\Umbraco.Community.SchemeWeaver.AI.csproj" />
+    <!-- Umbraco.AI.Anthropic pulls Umbraco.AI.Core transtively -->
+    <PackageReference Include="Umbraco.AI.Anthropic" Version="[1.3.6, 2.0.0)" />
+    <!-- Umbraco.AI.Startup provides AddUmbracoAI() + UmbracoAIComposer (auto-discovered) -->
+    <PackageReference Include="Umbraco.AI.Startup" Version="[1.14.0, 2.0.0)" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Opt-in to app-local ICU to ensure consistent globalization APIs across different platforms -->
     <PackageReference Include="Microsoft.ICU.ICU4C.Runtime" Version="72.1.0.3" />

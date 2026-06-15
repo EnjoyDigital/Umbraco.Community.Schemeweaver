@@ -22,4 +22,16 @@
 		<ProjectReference Include="..\..\src\Umbraco.Community.SchemeWeaver.uSync\Umbraco.Community.SchemeWeaver.uSync.csproj" />
 		<ProjectReference Include="..\..\src\Umbraco.Community.SchemeWeaver.TestHost\Umbraco.Community.SchemeWeaver.TestHost.csproj" />
 	</ItemGroup>
+
+	<!--
+		The AI satellite is Umbraco 17-only (Umbraco.AI.Core has no 18 build).
+		Include the project reference and compile constants only for the 17 build.
+	-->
+	<ItemGroup Condition="'$(UmbracoMajor)'=='17'">
+		<ProjectReference Include="..\..\src\Umbraco.Community.SchemeWeaver.AI\Umbraco.Community.SchemeWeaver.AI.csproj" />
+	</ItemGroup>
+
+	<PropertyGroup Condition="'$(UmbracoMajor)'!='17'">
+		<DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
+	</PropertyGroup>
 </Project>

@@ -29,7 +29,8 @@
     <!-- Consumer-facing dependency range for the shipped package -->
     <SchemeWeaverUmbracoCmsRange>[17.0.0, 18.0.0)</SchemeWeaverUmbracoCmsRange>
     <!-- Pinned version the runnable TestHost installs -->
-    <SchemeWeaverUmbracoCmsHost>17.3.3</SchemeWeaverUmbracoCmsHost>
+    <!-- 17.4.x required: Umbraco.AI.Core 1.14 depends on Umbraco.Cms >= 17.4.0 -->
+    <SchemeWeaverUmbracoCmsHost>17.4.2</SchemeWeaverUmbracoCmsHost>
     <!-- uSync line for this major (stable) -->
     <SchemeWeaverUSyncVersion>17.3.0</SchemeWeaverUSyncVersion>
     <!-- No package-version suffix: 17 remains the established 1.4.x line -->

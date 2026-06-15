@@ -30,8 +30,10 @@ public class ListSchemaMappingsTool : AIToolBase
     }
 
     public override string Description =>
-        "Lists all existing Schema.org mappings configured in SchemeWeaver. " +
-        "Returns each mapping's content type alias, schema type, and property count.";
+        "Lists all Schema.org mappings currently saved in SchemeWeaver. " +
+        "Use this to see which Umbraco content types already have a mapping, what Schema.org type they map to, " +
+        "and how many properties are mapped. Useful before calling schemeweaver_suggest_schema_type or " +
+        "schemeweaver_save_mapping to avoid overwriting a well-configured mapping accidentally.";
 
     protected override Task<object> ExecuteAsync(CancellationToken cancellationToken = default)
     {

@@ -33,7 +33,10 @@ public class MapSchemaPropertiesTool : AIToolBase<MapSchemaPropertiesArgs>
 
     public override string Description =>
         "Suggests property mappings between an Umbraco content type and a Schema.org type. " +
-        "Returns a list of property mapping suggestions with confidence scores.";
+        "Returns a list of suggestions, each with a schemaPropertyName, suggestedContentTypePropertyAlias, " +
+        "suggestedSourceType, and a confidence score (0–100). High confidence (≥80) means a strong semantic match; " +
+        "medium (≥50) means a reasonable match; zero means no match was found. " +
+        "Pass the results to schemeweaver_save_mapping to persist the mapping.";
 
     protected override async Task<object> ExecuteAsync(
         MapSchemaPropertiesArgs args, CancellationToken cancellationToken = default)

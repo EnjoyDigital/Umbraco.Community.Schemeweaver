@@ -29,13 +29,19 @@ const BASE = '/umbraco/management/api/v1/schemeweaver';
 const SEEDED_ALIAS = 'articlePage';
 const SEEDED_SCHEMA_TYPE = 'Article';
 
+// ---------------------------------------------------------------------------
+// 1. Wiring tests — run unconditionally; no Anthropic key required
+// ---------------------------------------------------------------------------
+
 test.describe('SchemeWeaver AI — wiring (no API key required)', () => {
-  test('GET /ai/status returns 200 when package is installed', async ({ umbracoUi }) => {
+  test('GET /ai/status returns 200 when AI package is installed', async ({ umbracoUi }) => {
     const res = await umbracoUi.page.request.get(`${BASE}/ai/status`);
     expect(res.ok(), `GET /ai/status failed: ${res.status()}`).toBeTruthy();
   });
 
-  test('AI Analyse entity action appears on document type context menu', async ({ umbracoUi }) => {
+  test('AI Analyse entity action appears on document type context menu', async ({
+    umbracoUi,
+  }) => {
     const statusRes = await umbracoUi.page.request.get(`${BASE}/ai/status`);
     if (!statusRes.ok()) {
       test.skip(true, 'AI package not installed — GET /ai/status failed');
@@ -47,7 +53,7 @@ test.describe('SchemeWeaver AI — wiring (no API key required)', () => {
     const docTypesLink = umbracoUi.page.locator('a', { hasText: 'Document Types' }).first();
     await docTypesLink.waitFor({ timeout: 15_000 });
 
-    // Expand the Document Types root to reveal children
+    // Expand the Document Types root to reveal children.
     const expandBtn = umbracoUi.page.locator('button[aria-label*="Expand"]').first();
     if (await expandBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await expandBtn.click();
@@ -94,15 +100,48 @@ test.describe('SchemeWeaver AI — wiring (no API key required)', () => {
     const aiAnalyseAll = umbracoUi.page.getByRole('button', { name: /AI Analyse All/i });
     await expect(aiAnalyseAll).toBeVisible({ timeout: 5_000 });
   });
+
+  test('POST /ai/ai-auto-map/{alias} returns valid-shaped response (heuristic fallback when no key)', async ({
+    umbracoUi,
+  }) => {
+    // This endpoint falls back to heuristic suggestions when no AI key is
+    // configured, so it always returns 200 with a valid response shape.
+    const statusRes = await umbracoUi.page.request.get(`${BASE}/ai/status`);
+    if (!statusRes.ok()) {
+      test.skip(true, 'AI package not installed — GET /ai/status failed');
+      return;
+    }
+
+    const res = await umbracoUi.page.request.post(
+      `${BASE}/ai/ai-auto-map/${SEEDED_ALIAS}?schemaTypeName=${SEEDED_SCHEMA_TYPE}`,
+      { data: {} },
+    );
+    expect(res.ok(), `AI auto-map failed: ${res.status()}`).toBeTruthy();
+
+    const body = await res.json();
+    const suggestions: unknown[] = Array.isArray(body) ? body : [];
+    expect(Array.isArray(suggestions)).toBe(true);
+    // The heuristic mapper always produces at least some suggestions for a
+    // seeded content type that has properties, so the array is non-empty.
+    expect(suggestions.length).toBeGreaterThan(0);
+
+    const first = suggestions[0] as Record<string, unknown>;
+    expect(typeof first['schemaPropertyName']).toBe('string');
+    expect((first['schemaPropertyName'] as string).length).toBeGreaterThan(0);
+  });
 });
+
+// ---------------------------------------------------------------------------
+// 2. Real Anthropic calls — gated on key detection
+// ---------------------------------------------------------------------------
 
 test.describe('SchemeWeaver AI — real Anthropic calls', () => {
   // Pre-flight probe run once per describe. Skips the whole block if:
-  //   - the AI package isn't installed (/ai/status fails), or
-  //   - a minimal real call returns non-2xx (no provider / no key).
+  //   - the AI package is not installed (/ai/status fails), or
+  //   - a minimal real call returns non-2xx (no provider / no key configured).
   test.beforeAll(async ({ browser }) => {
     const storagePath = process.env.STORAGE_STAGE_PATH;
-    const baseUrl = process.env.URL || process.env.UMBRACO_URL || 'https://localhost:44308';
+    const baseUrl = process.env.URL ?? process.env.UMBRACO_URL ?? 'https://localhost:44308';
 
     const ctx = await browser.newContext({
       storageState: storagePath,
@@ -113,10 +152,15 @@ test.describe('SchemeWeaver AI — real Anthropic calls', () => {
     try {
       const statusRes = await page.request.get(`${baseUrl}${BASE}/ai/status`);
       if (!statusRes.ok()) {
-        test.skip(true, `AI package not installed — GET /ai/status returned ${statusRes.status()}`);
+        test.skip(
+          true,
+          `AI package not installed — GET /ai/status returned ${statusRes.status()}`,
+        );
         return;
       }
 
+      // Probe with the suggest-schema-type endpoint.  A non-2xx response here
+      // means no Anthropic connection/key is configured in the TestHost.
       const probeRes = await page.request.post(
         `${baseUrl}${BASE}/ai/suggest-schema-type/${SEEDED_ALIAS}`,
         { data: {} },
@@ -125,7 +169,7 @@ test.describe('SchemeWeaver AI — real Anthropic calls', () => {
         test.skip(
           true,
           `AI real calls unavailable (probe returned ${probeRes.status()}). ` +
-            `Set the Anthropic API key via \`dotnet user-secrets\` on the TestHost.`,
+            `Configure the Anthropic API key via \`dotnet user-secrets\` on the TestHost.`,
         );
       }
     } finally {
@@ -143,26 +187,28 @@ test.describe('SchemeWeaver AI — real Anthropic calls', () => {
     const body = await res.json();
     expect(body).toBeTruthy();
 
-    // Accept either a bare array or an object wrapping one
-    const suggestions: any[] = Array.isArray(body)
+    // Accept either a bare array or an object wrapping one.
+    const suggestions: unknown[] = Array.isArray(body)
       ? body
-      : (body.suggestions ?? body.results ?? []);
+      : ((body as Record<string, unknown>).suggestions as unknown[]) ?? [];
     expect(Array.isArray(suggestions)).toBe(true);
     expect(suggestions.length).toBeGreaterThan(0);
 
-    // Structural check on the first suggestion — LLM output is
-    // non-deterministic so we only assert fields exist and have the
-    // right shape, not specific values.
-    const first = suggestions[0];
+    // Structural check on the first suggestion — LLM output is non-deterministic
+    // so we only assert fields exist and have the right shape, not specific values.
+    const first = suggestions[0] as Record<string, unknown>;
     expect(first).toBeTruthy();
-    const name = first.schemaTypeName ?? first.name ?? first.type;
+    const name =
+      (first['schemaTypeName'] as string | undefined) ??
+      (first['name'] as string | undefined) ??
+      (first['type'] as string | undefined);
     expect(typeof name).toBe('string');
-    expect(name.length).toBeGreaterThan(0);
+    expect((name as string).length).toBeGreaterThan(0);
 
-    if (first.confidence !== undefined) {
-      expect(typeof first.confidence).toBe('number');
-      expect(first.confidence).toBeGreaterThanOrEqual(0);
-      expect(first.confidence).toBeLessThanOrEqual(100);
+    if (first['confidence'] !== undefined) {
+      expect(typeof first['confidence']).toBe('number');
+      expect(first['confidence'] as number).toBeGreaterThanOrEqual(0);
+      expect(first['confidence'] as number).toBeLessThanOrEqual(100);
     }
   });
 
@@ -173,31 +219,32 @@ test.describe('SchemeWeaver AI — real Anthropic calls', () => {
       `${BASE}/ai/ai-auto-map/${SEEDED_ALIAS}?schemaTypeName=${SEEDED_SCHEMA_TYPE}`,
       { data: {} },
     );
-    expect(res.ok(), `Auto-map failed: ${res.status()}`).toBeTruthy();
+    expect(res.ok(), `AI auto-map failed: ${res.status()}`).toBeTruthy();
 
     const body = await res.json();
-    const suggestions: any[] = Array.isArray(body) ? body : (body.suggestions ?? []);
+    const suggestions: unknown[] = Array.isArray(body)
+      ? body
+      : ((body as Record<string, unknown>).suggestions as unknown[]) ?? [];
     expect(Array.isArray(suggestions)).toBe(true);
     expect(suggestions.length).toBeGreaterThan(0);
 
-    const first = suggestions[0];
+    const first = suggestions[0] as Record<string, unknown>;
     expect(first).toBeTruthy();
-    expect(typeof first.schemaPropertyName).toBe('string');
-    expect(first.schemaPropertyName.length).toBeGreaterThan(0);
-    // Content type property alias may legitimately be null when the AI
-    // declines to map a schema property — but the field should exist.
+    expect(typeof first['schemaPropertyName']).toBe('string');
+    expect((first['schemaPropertyName'] as string).length).toBeGreaterThan(0);
+    // Content type property alias may legitimately be null when the AI declines
+    // to map a schema property — but the field should always be present.
     expect('contentTypePropertyAlias' in first).toBe(true);
 
-    if (first.confidence !== undefined) {
-      expect(typeof first.confidence).toBe('number');
-      expect(first.confidence).toBeGreaterThanOrEqual(0);
-      expect(first.confidence).toBeLessThanOrEqual(100);
+    if (first['confidence'] !== undefined) {
+      expect(typeof first['confidence']).toBe('number');
+      expect(first['confidence'] as number).toBeGreaterThanOrEqual(0);
+      expect(first['confidence'] as number).toBeLessThanOrEqual(100);
     }
   });
 
-  // Budget-gated: the bulk endpoint hits Anthropic once per seeded doctype
-  // (~100 calls for the TestHost seed), so it only runs when explicitly
-  // requested via `RUN_BULK_AI_TESTS=true`.
+  // Budget-gated: bulk analysis hits Anthropic once per seeded doctype
+  // (~100 calls), so it only runs when explicitly opted in.
   test('POST /ai/suggest-schema-types-bulk returns per-doctype suggestions', async ({
     umbracoUi,
   }) => {
@@ -206,11 +253,10 @@ test.describe('SchemeWeaver AI — real Anthropic calls', () => {
       'Set RUN_BULK_AI_TESTS=true to run the expensive bulk analysis test.',
     );
 
-    const res = await umbracoUi.page.request.post(
-      `${BASE}/ai/suggest-schema-types-bulk`,
-      { data: {} },
-      { timeout: 300_000 }, // 5 min — bulk call is slow
-    );
+    const res = await umbracoUi.page.request.post(`${BASE}/ai/suggest-schema-types-bulk`, {
+      data: {},
+      timeout: 300_000, // 5 min — bulk call is slow
+    });
     expect(res.ok(), `Bulk failed: ${res.status()}`).toBeTruthy();
 
     const body = await res.json();
@@ -218,9 +264,9 @@ test.describe('SchemeWeaver AI — real Anthropic calls', () => {
 
     // Either an array of per-doctype results, or an object keyed by alias.
     if (Array.isArray(body)) {
-      expect(body.length).toBeGreaterThan(0);
+      expect((body as unknown[]).length).toBeGreaterThan(0);
     } else {
-      expect(Object.keys(body).length).toBeGreaterThan(0);
+      expect(Object.keys(body as Record<string, unknown>).length).toBeGreaterThan(0);
     }
   });
 
@@ -245,8 +291,8 @@ test.describe('SchemeWeaver AI — real Anthropic calls', () => {
     await expect(aiAnalyseAll).toBeVisible({ timeout: 5_000 });
     await aiAnalyseAll.click();
 
-    // The bulk analysis modal should open. We don't assert that the table
-    // populates — that's a real Anthropic call already covered by the
+    // The bulk analysis modal should open. We do not assert the table
+    // populates — that is a real Anthropic call already covered by the
     // bulk API test above. Just confirm the modal is visible.
     const modal = umbracoUi.page
       .locator('umb-modal, uui-dialog, uui-modal-container')

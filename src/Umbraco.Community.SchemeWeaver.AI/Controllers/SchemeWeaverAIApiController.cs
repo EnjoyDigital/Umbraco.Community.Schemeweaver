@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Api.Common.Attributes;
+using Umbraco.Cms.Api.Common.Filters;
 using Umbraco.Cms.Core;
+using Umbraco.Cms.Web.Common.Authorization;
 using Umbraco.Community.SchemeWeaver.AI.Models;
 using Umbraco.Community.SchemeWeaver.AI.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
@@ -16,8 +18,12 @@ namespace Umbraco.Community.SchemeWeaver.AI.Controllers;
 [Route("umbraco/management/api/v1/schemeweaver/ai")]
 [ApiExplorerSettings(GroupName = "SchemeWeaverAI")]
 [MapToApi("management")]
+[JsonOptionsName(Constants.JsonOptionsNames.BackOffice)]
 [ApiController]
-[Authorize(AuthenticationSchemes = Constants.Security.BackOfficeAuthenticationType)]
+// The BackOfficeAccess policy brings the OpenIddict bearer scheme (API users /
+// MCP clients); the attribute adds the backoffice cookie scheme so existing
+// cookie-session callers keep working. Mirrors SchemeWeaverApiController exactly.
+[Authorize(Policy = AuthorizationPolicies.BackOfficeAccess, AuthenticationSchemes = Constants.Security.BackOfficeAuthenticationType)]
 public class SchemeWeaverAIApiController : ControllerBase
 {
     private readonly IAISchemaMapper _aiMapper;
