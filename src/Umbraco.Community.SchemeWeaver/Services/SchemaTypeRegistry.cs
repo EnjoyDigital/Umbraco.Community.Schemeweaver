@@ -21,7 +21,7 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
         public List<SchemaPropertyInfo> Properties { get; set; } = [];
     }
 
-    private void EnsureInitialised()
+    public void EnsureInitialised()
     {
         if (_initialised) return;
 

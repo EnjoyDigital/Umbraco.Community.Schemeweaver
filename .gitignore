@@ -18,7 +18,7 @@ dist/
 
 ## SchemeWeaver.AI satellite: Vite build output (regenerated at pack time).
 ## Keep the hand-written umbraco-package.json; ignore the compiled JS.
-src/Umbraco.Community.SchemeWeaver.AI/wwwroot-ai/*.js
+src/Umbraco.Community.SchemeWeaver.AI/wwwroot/*.js
 
 ## Build
 [Dd]ebug/

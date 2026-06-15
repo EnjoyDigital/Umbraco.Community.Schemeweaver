@@ -30,6 +30,10 @@ public class SchemeWeaverComposer : IComposer
             .AddApplicationPart(typeof(SchemeWeaverComposer).Assembly);
 
         builder.Services.AddSingleton<ISchemaTypeRegistry, SchemaTypeRegistry>();
+
+        // Warm the Schema.NET assembly scan at startup so the first request that
+        // needs schema types doesn't block on reflection.
+        builder.AddNotificationHandler<UmbracoApplicationStartedNotification, WarmUpSchemaTypeRegistry>();
         builder.Services.AddScoped<ISchemaMappingRepository, SchemaMappingRepository>();
         builder.Services.AddScoped<ISchemeWeaverService, SchemeWeaverService>();
         builder.Services.AddScoped<ISchemaAutoMapper, SchemaAutoMapper>();

@@ -14,12 +14,16 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RootNamespace>Umbraco.Community.SchemeWeaver.AI</RootNamespace>
     <!--
-      Static web assets: the Vite build outputs index.js to wwwroot-ai/.
-      The StaticWebAssetBasePath maps that folder to /App_Plugins/SchemeWeaverAI/
-      so the umbraco-package.json bundle reference (/App_Plugins/SchemeWeaverAI/index.js) resolves.
+      Static web assets: the Vite build outputs index.js to the SDK-default
+      wwwroot/ folder, which the Razor SDK auto-discovers and propagates
+      transitively to referencing projects (e.g. the TestHost). The
+      StaticWebAssetBasePath maps that folder to /App_Plugins/SchemeWeaverAI/
+      so the umbraco-package.json bundle reference (/App_Plugins/SchemeWeaverAI/index.js)
+      resolves — and keeps it distinct from the main package's App_Plugins/SchemeWeaver.
+      (Do NOT use a custom folder via a made-up <DefaultWebContentRootPath>; that
+      property does not exist in the SDK and the assets are silently never served.)
     -->
     <StaticWebAssetBasePath>App_Plugins/SchemeWeaverAI</StaticWebAssetBasePath>
-    <DefaultWebContentRootPath>wwwroot-ai</DefaultWebContentRootPath>
   </PropertyGroup>
 
   <!--
@@ -55,7 +59,7 @@
 
   <!--
     Ensure the satellite frontend JS is built before packing.
-    The Vite build outputs to wwwroot-ai/index.js (served as /App_Plugins/SchemeWeaverAI/index.js).
+    The Vite build outputs to wwwroot/index.js (served as /App_Plugins/SchemeWeaverAI/index.js).
     Set SchemeWeaverAISkipFrontendBuild=true to bypass (e.g. in CI that runs npm build separately).
   -->
   <ItemGroup>
@@ -64,8 +68,8 @@
     <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/modals/**/*.ts" />
     <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/package.json" />
     <_AIFrontendSourceInputs Include="App_Plugins/SchemeWeaverAI/vite.config.ts" />
-    <_AIFrontendDistOutputs Include="wwwroot-ai/index.js" />
-    <!-- Note: Vite outDir is relative to vite.config.ts (App_Plugins/SchemeWeaverAI/) → ../../wwwroot-ai/ = this project's wwwroot-ai/ -->
+    <_AIFrontendDistOutputs Include="wwwroot/index.js" />
+    <!-- Note: Vite outDir is relative to vite.config.ts (App_Plugins/SchemeWeaverAI/) → ../../wwwroot/ = this project's wwwroot/ -->
   </ItemGroup>
   <Target Name="EnsureAIFrontendBuiltBeforePack"
           BeforeTargets="Pack"

@@ -12,6 +12,14 @@ public interface ISchemaTypeRegistry
     IEnumerable<SchemaPropertyInfo> GetProperties(string typeName);
     IEnumerable<SchemaTypeInfo> Search(string query);
     Type? GetClrType(string typeName);
+
+    /// <summary>
+    /// Eagerly builds the Schema.org type cache (a one-off Schema.NET assembly
+    /// scan). Safe to call multiple times — subsequent calls are no-ops. Call at
+    /// application start so the first request that needs schema types doesn't pay
+    /// the reflection cost on the request thread.
+    /// </summary>
+    void EnsureInitialised();
 }
 
 /// <summary>

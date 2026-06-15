@@ -2,6 +2,7 @@ import type { UmbControllerHost } from '@umbraco-cms/backoffice/controller-api';
 import type { UmbContextToken, UmbContextMinimal } from '@umbraco-cms/backoffice/context-api';
 import { tryExecute } from '@umbraco-cms/backoffice/resources';
 import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 
 /**
  * Narrow `UmbControllerHost` to expose `getContext`. The base type ships
@@ -28,6 +29,49 @@ import type {
 
 const API_BASE = '/umbraco/management/api/v1/schemeweaver';
 
+const SESSION_EXPIRED_MESSAGE =
+  'Your session has expired. Please reload the page and sign in again.';
+
+/**
+ * Thrown when a SchemeWeaver request comes back as the backoffice login page
+ * instead of our JSON API — i.e. the user's session has timed out (a 401, a
+ * redirect to login, or an HTML body). It is shaped like an Umbraco
+ * `ProblemDetails` (type/title/status/detail) with status 401 so that
+ * `tryExecute` recognises it as an auth error and suppresses its generic
+ * "An error occurred" toast — we then surface a single friendly notification
+ * ourselves. This avoids the raw "Unexpected token '<' in JSON" SyntaxError the
+ * user would otherwise see.
+ */
+export class SchemeWeaverSessionExpiredError extends Error {
+  readonly type = 'error';
+  readonly title: string;
+  readonly status = 401;
+  readonly detail: string;
+
+  constructor(message = SESSION_EXPIRED_MESSAGE) {
+    super(message);
+    this.name = 'SchemeWeaverSessionExpiredError';
+    this.title = message;
+    this.detail = message;
+  }
+}
+
+/** True when a request failed because the backoffice session is no longer valid. */
+function isUnauthenticated(error: unknown): boolean {
+  // After tryExecute the original error is mapped to an UmbApiError that carries
+  // the source ProblemDetails; a 401 there means "not authenticated".
+  const status = (error as { problemDetails?: { status?: number } } | null)?.problemDetails?.status;
+  return error instanceof SchemeWeaverSessionExpiredError || status === 401;
+}
+
+async function getNotificationContext(host: UmbControllerHost) {
+  try {
+    return await (host as ContextHost).getContext(UMB_NOTIFICATION_CONTEXT);
+  } catch {
+    return undefined;
+  }
+}
+
 async function getAuthHeaders(host: UmbControllerHost): Promise<Record<string, string>> {
   try {
     const authContext = await (host as ContextHost).getContext(UMB_AUTH_CONTEXT);
@@ -45,7 +89,7 @@ async function fetchApi<T>(
   options: RequestInit = {},
   expect404?: boolean,
 ): Promise<T | undefined> {
-  const { data } = await tryExecute(
+  const { data, error } = await tryExecute(
     host,
     (async () => {
       const authHeaders = await getAuthHeaders(host);
@@ -57,10 +101,27 @@ async function fetchApi<T>(
         },
       });
 
+      // Legitimate "not found" (e.g. no mapping saved yet) — the caller opted in.
+      if (expect404 && response.status === 404) {
+        return { data: undefined as T };
+      }
+
+      // When the backoffice session times out the request is answered with the
+      // HTML login page (often via a redirect) or a 401 rather than our JSON.
+      // Detect that *before* parsing so we can show a clear "session expired"
+      // message instead of a raw JSON-parse SyntaxError. Our API only ever
+      // returns JSON (or 204), so a non-JSON body on an otherwise-OK response
+      // means the login page was served.
+      const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
+      const looksLikeLoginPage =
+        response.status === 401 ||
+        response.redirected ||
+        (response.status !== 204 && !contentType.includes('json'));
+      if (looksLikeLoginPage) {
+        throw new SchemeWeaverSessionExpiredError();
+      }
+
       if (!response.ok) {
-        if (expect404 && response.status === 404) {
-          return { data: undefined as T };
-        }
         const errorText = await response.text().catch(() => 'Unknown error');
         throw new Error(errorText || `HTTP ${response.status}`);
       }
@@ -72,7 +133,24 @@ async function fetchApi<T>(
       const json = await response.json();
       return { data: json as T };
     })(),
+    // We render our own notifications below (tryExecute already suppresses 401s,
+    // which is exactly the session-expiry case we want to message about).
+    { disableNotifications: true },
   );
+
+  if (error) {
+    const notificationContext = await getNotificationContext(host);
+    if (isUnauthenticated(error)) {
+      notificationContext?.peek('warning', {
+        data: { headline: 'Session expired', message: SESSION_EXPIRED_MESSAGE },
+      });
+    } else {
+      notificationContext?.peek('danger', {
+        data: { message: error instanceof Error ? error.message : 'An unexpected error occurred.' },
+      });
+    }
+    return undefined;
+  }
 
   return data;
 }

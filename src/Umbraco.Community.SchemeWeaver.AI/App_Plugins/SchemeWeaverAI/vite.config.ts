@@ -21,8 +21,8 @@ export default defineConfig({
         chunkFileNames: '[name]-[hash].js',
       },
     },
-    outDir: '../../wwwroot-ai',
-    // Don't empty the dir so umbraco-package.json (committed to wwwroot-ai/) is preserved.
+    outDir: '../../wwwroot',
+    // Don't empty the dir so umbraco-package.json (committed to wwwroot/) is preserved.
     emptyOutDir: false,
   },
 });
