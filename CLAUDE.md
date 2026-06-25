@@ -46,7 +46,9 @@ npm run build                   # tsup → dist/ (the entry point .mcp.json poin
 npm test                        # Integration tests against the running TestHost
 ```
 
-TypeScript MCP server on `@umbraco-cms/mcp-server-sdk` exposing 12 SchemeWeaver tools (schema type search, content type inspection, heuristic suggest, save/delete mapping, JSON-LD preview, doc type generation) plus a `get-server-info` smoke-test tool from the base SDK, so AI assistants can build better mappings than the heuristic auto-mapper. Registered in `.mcp.json` as `schemeweaver-mcp`; authenticates as an Umbraco API user (client credentials in the project's gitignored `.env`; `scripts/setup-api-user.mjs` creates the user in a fresh TestHost DB). See the project's own README/CLAUDE.md for details.
+TypeScript MCP server on `@umbraco-cms/mcp-server-sdk` exposing 12 SchemeWeaver tools (schema type search, content type inspection, heuristic suggest, save/delete mapping, JSON-LD preview, doc type generation) plus a `get-server-info` smoke-test tool from the base SDK, so AI assistants can build better mappings than the heuristic auto-mapper. Registered in `.mcp.json` as `schemeweaver-mcp`; authenticates as an Umbraco API user (client credentials in the project's gitignored `.env`; `scripts/setup-api-user.mjs` creates the user in a fresh TestHost DB).
+
+It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugin/marketplace.json` lists the `schemeweaver-mcp` plugin (`src/Umbraco.Community.SchemeWeaver.Mcp/.claude-plugin/plugin.json`), which registers the server via `mcpServers` running the committed, self-contained `dist/index.js` from `${CLAUDE_PLUGIN_ROOT}` and collects Umbraco credentials via `userConfig`. End-users install with `/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver` then `/plugin install schemeweaver-mcp@schemeweaver`. The bundled `dist/index.js` is committed (tsup `noExternal` makes it standalone) and **must be rebuilt and re-committed** whenever the server changes. See the project's own README/CLAUDE.md for details.
 
 ## Architecture
 

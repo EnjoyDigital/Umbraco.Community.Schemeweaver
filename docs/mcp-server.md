@@ -11,9 +11,31 @@ end to end.
 
 > **Not part of the NuGet package.** The MCP server is a developer/AI tool that lives in the
 > repository (`src/Umbraco.Community.SchemeWeaver.Mcp/`). It is **not** included in the
-> `Umbraco.Community.SchemeWeaver` NuGet package and is **not** published to npm — you run it
-> locally from a clone of the repo against your own Umbraco instance. This is different from the
-> in-product [AI satellite](ai-integration.md), which *is* a NuGet package.
+> `Umbraco.Community.SchemeWeaver` NuGet package and is **not** published to npm. You can either
+> **install it as a Claude Code plugin** (below) or run it locally from a clone of the repo. Either
+> way it runs against your own Umbraco instance. This is different from the in-product
+> [AI satellite](ai-integration.md), which *is* a NuGet package.
+
+## Install as a Claude Code plugin
+
+The quickest way to use the server with [Claude Code](https://claude.com/claude-code) — no clone,
+no build. The plugin is served straight from this GitHub repo and bundles a pre-built, self-contained
+server, so installation is two commands:
+
+```text
+/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver
+/plugin install schemeweaver-mcp@schemeweaver
+/reload-plugins
+```
+
+On install, Claude Code prompts you for three values — your **Umbraco Base URL**, **API User Client
+ID**, and **API User Client Secret** (the secret is stored in your OS keychain). It then starts the
+`schemeweaver` MCP server automatically and the tools listed below become available to the assistant.
+
+You still need an Umbraco instance (v17/18) with SchemeWeaver installed and an **API user** with
+client credentials — see [Prerequisites](#prerequisites). For advanced tool filtering (read-only mode,
+excluding specific tools), set the `UMBRACO_READONLY` / `UMBRACO_EXCLUDE_TOOLS` environment variables
+in your shell before launching Claude Code — see [Tool filtering](#tool-filtering).
 
 ## What it exposes
 

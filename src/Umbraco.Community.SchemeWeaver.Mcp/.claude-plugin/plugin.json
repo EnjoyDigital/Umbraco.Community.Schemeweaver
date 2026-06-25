@@ -1,0 +1,46 @@
+{
+  "name": "schemeweaver-mcp",
+  "displayName": "SchemeWeaver MCP Server",
+  "version": "1.0.0",
+  "description": "Map Umbraco content types to Schema.org and generate JSON-LD via 12 MCP tools for AI assistants.",
+  "author": {
+    "name": "Oliver Picton",
+    "url": "https://www.enjoy-digital.co.uk"
+  },
+  "homepage": "https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/blob/main/docs/mcp-server.md",
+  "repository": "https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver",
+  "license": "MIT",
+  "keywords": ["umbraco", "mcp", "schema.org", "json-ld"],
+  "userConfig": {
+    "umbraco_base_url": {
+      "type": "string",
+      "title": "Umbraco Base URL",
+      "description": "Your Umbraco instance URL, e.g. https://your-site.com",
+      "required": true
+    },
+    "umbraco_client_id": {
+      "type": "string",
+      "title": "API User Client ID",
+      "description": "Client ID of the Umbraco API user the server authenticates as",
+      "required": true
+    },
+    "umbraco_client_secret": {
+      "type": "string",
+      "title": "API User Client Secret",
+      "description": "Client secret for the Umbraco API user (stored in your OS keychain)",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "mcpServers": {
+    "schemeweaver": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"],
+      "env": {
+        "UMBRACO_BASE_URL": "${user_config.umbraco_base_url}",
+        "UMBRACO_CLIENT_ID": "${user_config.umbraco_client_id}",
+        "UMBRACO_CLIENT_SECRET": "${user_config.umbraco_client_secret}"
+      }
+    }
+  }
+}

@@ -25,6 +25,24 @@ auth smoke test), so `--list-tools` reports 13 in total.
 
 The recommended AI workflow (also sent to clients as server `instructions`): inspect both sides → heuristic baseline → reason semantically → save → preview → fix validation issues.
 
+## Install as a Claude Code plugin
+
+For [Claude Code](https://claude.com/claude-code) users, this is the no-clone, no-build path. This
+repo is a Claude Code plugin marketplace and ships a pre-built, self-contained server, so it's two
+commands:
+
+```text
+/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver
+/plugin install schemeweaver-mcp@schemeweaver
+/reload-plugins
+```
+
+Claude Code prompts for your **Umbraco Base URL**, **API User Client ID**, and **API User Client
+Secret** on install (the secret goes to your OS keychain), then launches the `schemeweaver` server
+automatically. You still need the [Prerequisites](#prerequisites) below — an Umbraco instance with
+SchemeWeaver and an API user. The sections after that (Setup / Running) are for **local development**
+of the server itself, not for plugin users.
+
 ## Prerequisites
 
 - Node.js >= 22

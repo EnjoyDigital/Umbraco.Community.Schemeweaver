@@ -2,8 +2,10 @@
 .env
 .dev.vars
 
-# Build output
-dist/
+# Build output — except the bundled, self-contained plugin entry, which is
+# committed so the Claude Code plugin can run it without a build/node_modules.
+dist/*
+!dist/index.js
 
 # Dependencies
 node_modules/

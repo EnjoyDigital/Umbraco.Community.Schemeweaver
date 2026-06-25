@@ -16,6 +16,13 @@ node_modules/
 dist/
 *.map
 
+## SchemeWeaver MCP plugin: commit only the bundled, self-contained entry so the
+## Claude Code plugin runs without a build/node_modules (the Mcp project's own
+## .gitignore keeps the rest of dist/ out). A parent-dir exclusion can't be undone
+## by a deeper .gitignore, so the directory is re-included here.
+!src/Umbraco.Community.SchemeWeaver.Mcp/dist/
+!src/Umbraco.Community.SchemeWeaver.Mcp/dist/index.js
+
 ## SchemeWeaver.AI satellite: Vite build output (regenerated at pack time).
 ## Keep the hand-written umbraco-package.json; ignore the compiled JS.
 src/Umbraco.Community.SchemeWeaver.AI/wwwroot/*.js

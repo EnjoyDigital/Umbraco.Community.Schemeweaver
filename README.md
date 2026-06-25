@@ -130,7 +130,7 @@ The backoffice JSON-LD preview tab automatically follows the workspace variant s
 - [Extending](docs/extending.md) -- custom property resolvers, replacing core services
 - [uSync Integration](docs/usync.md) -- sync schema mappings between environments
 - [AI Integration](docs/ai-integration.md) -- optional AI-powered mapping (Umbraco 17)
-- [MCP Server](docs/mcp-server.md) -- drive SchemeWeaver from an AI assistant (dev tool)
+- [MCP Server](docs/mcp-server.md) -- drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin (`/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver`)
 - [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, validation, configuration, troubleshooting
 - [API Reference](docs/api-reference.md) -- REST API endpoints
 
