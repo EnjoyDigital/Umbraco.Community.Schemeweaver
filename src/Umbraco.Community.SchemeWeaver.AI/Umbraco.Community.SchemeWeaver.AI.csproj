@@ -8,7 +8,11 @@
     <PackageId>Umbraco.Community.SchemeWeaver.AI</PackageId>
     <Description>AI-powered schema mapping for SchemeWeaver using Umbraco.AI</Description>
     <PackageTags>umbraco-marketplace umbraco-v17 schema-org ai</PackageTags>
-    <Version>1.0.0-beta</Version>
+    <!-- Major-aligned with the rest of the suite (see Directory.Build.props): this
+         satellite is Umbraco 17-only, so it ships on the 17.x stable line. Building
+         requires -p:UmbracoMajor=17 (the guard below errors otherwise), so
+         $(SchemeWeaverPackageVersion) here is always the 17 leg's version. -->
+    <Version>$(SchemeWeaverPackageVersion)</Version>
     <Authors>Oliver Picton</Authors>
     <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
