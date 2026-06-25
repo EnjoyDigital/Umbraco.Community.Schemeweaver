@@ -31,7 +31,7 @@
     "@playwright/test": "^1.56.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.10.6",
-    "@umbraco-cms/backoffice": "18.0.0-rc2",
+    "@umbraco-cms/backoffice": "18.0.0",
     "@umbraco/json-models-builders": "18.0.2",
     "@umbraco/playwright-testhelpers": "18.0.5",
     "@web/dev-server-esbuild": "^1.0.0",

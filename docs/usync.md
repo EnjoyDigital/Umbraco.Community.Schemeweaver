@@ -8,15 +8,17 @@ SchemeWeaver provides an optional uSync addon package that serializes schema map
 
 | Requirement | Version |
 |---|---|
-| Umbraco.Community.SchemeWeaver | Same version as the uSync addon |
-| uSync | 17.x (uSync.Core 17.0.4 or later) |
+| Umbraco.Community.SchemeWeaver | Same major-aligned version as the uSync addon |
+| uSync | 17.x (on Umbraco 17) or 18.x (on Umbraco 18) |
+
+The addon ships one stable build per Umbraco major, matching the main package: the Umbraco 17 build depends on uSync 17.x, the Umbraco 18 build on uSync 18.x. NuGet selects the build matching your Umbraco major automatically.
 
 ## Installation
 
 Install the uSync addon alongside SchemeWeaver and uSync:
 
 ```bash
-dotnet add package Umbraco.Community.SchemeWeaver.uSync --prerelease
+dotnet add package Umbraco.Community.SchemeWeaver.uSync
 ```
 
 The `SchemeWeaverUSyncComposer` registers the serializer with uSync automatically on startup.

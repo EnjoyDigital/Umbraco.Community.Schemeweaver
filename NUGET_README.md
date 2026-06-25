@@ -29,7 +29,7 @@ dotnet add package Umbraco.Community.SchemeWeaver
 
 No additional configuration needed. The package registers all services, creates its database tables on first run, and adds the backoffice UI automatically.
 
-**Umbraco 17 vs 18:** Umbraco 18 made a binary-breaking change to `IPublishedContent`, so SchemeWeaver ships one build per major from the same source — `1.4.x` for Umbraco 17 (stable) and `1.4.x-umbraco18` for Umbraco 18 (prerelease, `--prerelease`). The Umbraco 18 builds stay prereleases until Umbraco 18.0.0 ships stable.
+**Umbraco 17 vs 18:** Umbraco 18 made a binary-breaking change to `IPublishedContent`, so SchemeWeaver ships one **stable** build per major from the same source — `17.x` for Umbraco 17 and `18.x` for Umbraco 18, the same major-aligned scheme uSync uses. The install command above is identical for both; each build's mutually-exclusive `Umbraco.Cms` dependency range means NuGet auto-selects the one matching your Umbraco major (no `--prerelease` needed).
 
 ## Quick Start
 

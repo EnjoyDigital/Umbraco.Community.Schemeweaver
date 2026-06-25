@@ -6,11 +6,11 @@ This guide walks you through installing SchemeWeaver, creating your first Schema
 
 | Requirement | Version |
 |---|---|
-| Umbraco CMS | 17.0.0 or later (up to, but not including, 18.0.0) |
+| Umbraco CMS | 17.x **or** 18.x (one stable build per major) |
 | .NET | 10 |
 | Schema.NET.Pending | 13.0.0 (installed automatically as a dependency) |
 
-SchemeWeaver targets `net10.0` and uses the `Microsoft.NET.Sdk.Razor` SDK. No additional runtime dependencies are required beyond what Umbraco 17 already provides.
+SchemeWeaver targets `net10.0` and uses the `Microsoft.NET.Sdk.Razor` SDK. No additional runtime dependencies are required beyond what Umbraco already provides.
 
 ## Installation
 
@@ -26,11 +26,7 @@ Or via the .NET CLI in your solution directory:
 dotnet add src/MyUmbracoSite/MyUmbracoSite.csproj package Umbraco.Community.SchemeWeaver
 ```
 
-The current version is **1.0.0-beta.3**. If your NuGet source does not show pre-release packages by default, add the `--prerelease` flag:
-
-```bash
-dotnet add package Umbraco.Community.SchemeWeaver --prerelease
-```
+Both Umbraco majors ship as stable packages, so no `--prerelease` flag is needed. NuGet picks the build matching your project's Umbraco major automatically (`17.x` for Umbraco 17, `18.x` for Umbraco 18) — see [Umbraco 17 vs 18](../README.md#umbraco-17-vs-18) for how the major-aligned scheme works.
 
 ## What happens on first run
 

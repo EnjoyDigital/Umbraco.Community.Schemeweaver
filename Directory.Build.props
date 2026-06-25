@@ -20,6 +20,13 @@
     codes an Umbraco version. UMBRACO18 is defined for the 18 build so source can
     branch on the few APIs that genuinely differ (e.g. the navigation extension
     methods' IPublishedStatusFilteringService.Unfiltered, which is 18-only).
+
+    Both majors now ship as STABLE NuGet packages, exactly like uSync: the package
+    version's major tracks the Umbraco major (17.x for Umbraco 17, 18.x for Umbraco
+    18) and each carries a mutually-exclusive Umbraco.Cms dependency range, so
+    `dotnet add package Umbraco.Community.SchemeWeaver` resolves to the build that
+    matches the consumer's Umbraco major automatically. $(SchemeWeaverPackageVersion)
+    below drives the packed version for each leg.
   -->
   <PropertyGroup>
     <UmbracoMajor Condition="'$(UmbracoMajor)' == ''">18</UmbracoMajor>
@@ -33,20 +40,20 @@
     <SchemeWeaverUmbracoCmsHost>17.4.2</SchemeWeaverUmbracoCmsHost>
     <!-- uSync line for this major (stable) -->
     <SchemeWeaverUSyncVersion>17.3.0</SchemeWeaverUSyncVersion>
-    <!-- No package-version suffix: 17 remains the established 1.4.x line -->
-    <SchemeWeaverVersionSuffix></SchemeWeaverVersionSuffix>
+    <!-- Major-aligned stable package version for the Umbraco 17 line -->
+    <SchemeWeaverPackageVersion>17.5.0</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
-    <!-- RC-inclusive range now; tighten to [18.0.0, 19.0.0) once 18.0.0 stable ships -->
-    <SchemeWeaverUmbracoCmsRange>[18.0.0-rc2, 19.0.0)</SchemeWeaverUmbracoCmsRange>
-    <SchemeWeaverUmbracoCmsHost>18.0.0-rc2</SchemeWeaverUmbracoCmsHost>
-    <!-- uSync 18 is still a release candidate; the 18 package is held until both
-         Umbraco 18.0.0 and uSync 18.0.0 stable are published -->
-    <SchemeWeaverUSyncVersion>18.0.0-rc1</SchemeWeaverUSyncVersion>
-    <!-- Distinct, clearly-prerelease version so the 18 pack never collides with,
-         or supersedes, the stable 17 package on NuGet. Finalised at publish time. -->
-    <SchemeWeaverVersionSuffix>-umbraco18</SchemeWeaverVersionSuffix>
+    <!-- Umbraco 18 is GA (18.0.0): consumer range for the shipped package -->
+    <SchemeWeaverUmbracoCmsRange>[18.0.0, 19.0.0)</SchemeWeaverUmbracoCmsRange>
+    <SchemeWeaverUmbracoCmsHost>18.0.0</SchemeWeaverUmbracoCmsHost>
+    <!-- uSync 18.0.0 is stable -->
+    <SchemeWeaverUSyncVersion>18.0.0</SchemeWeaverUSyncVersion>
+    <!-- Major-aligned stable package version for the Umbraco 18 line. Its
+         [18.0.0, 19.0.0) Umbraco.Cms range is mutually exclusive with the 17 leg's
+         [17.0.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->
+    <SchemeWeaverPackageVersion>18.0.0</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>

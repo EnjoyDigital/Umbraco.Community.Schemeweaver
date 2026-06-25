@@ -5,20 +5,19 @@ name: Release to NuGet
 # tag (already set in the csproj), so pushing here is all that is required for the
 # listing to appear on marketplace.umbraco.com within ~24 hours.
 #
-# Trigger by pushing a tag like `v1.0.0-beta.4` or `v1.0.0`, or by dispatching
-# manually from the Actions tab. The leading `v` is stripped before pack so
-# `v1.2.3` -> package version `1.2.3`.
+# Trigger by pushing a tag like `v18.0.0`, or by dispatching manually from the
+# Actions tab. The tag is only a trigger + GitHub-release label — the packed
+# version comes from $(SchemeWeaverPackageVersion) in Directory.Build.props, which
+# is major-aligned per leg (17.x for the Umbraco 17 build, 18.x for the Umbraco 18
+# build), so both ship as stable and NuGet auto-selects the right one per consumer.
 
 on:
   push:
     tags:
       - 'v*.*.*'
+  # Manual trigger for an out-of-band publish. No version input: the packed version
+  # is sourced from $(SchemeWeaverPackageVersion) in Directory.Build.props per leg.
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Package version (without leading v, e.g. 1.0.0-beta.4)'
-        required: true
-        type: string
 
 permissions:
   contents: write  # needed to create the GitHub release
@@ -36,22 +35,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BASE="${{ inputs.version }}"
-          else
-            # Strip the leading 'v' from the tag ref (refs/tags/v1.2.3 -> 1.2.3)
-            BASE="${GITHUB_REF_NAME#v}"
-          fi
-          # The 18 package carries a distinct, prerelease-sorting version so it never
-          # collides with or supersedes the stable 17 package on NuGet.
-          if [ "${{ matrix.umbraco }}" = "18" ]; then
-            echo "value=${BASE}-umbraco18" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${BASE}" >> "$GITHUB_OUTPUT"
-          fi
+      # No version-from-tag step: each leg packs at $(SchemeWeaverPackageVersion)
+      # from Directory.Build.props (17.x for the 17 leg, 18.x for the 18 leg). The
+      # tag/dispatch input is only the trigger and the GitHub-release name.
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -79,16 +65,16 @@ jobs:
         run: dotnet restore -p:UmbracoMajor=${{ matrix.umbraco }}
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} -p:Version=${{ steps.version.outputs.value }}
+        run: dotnet build --no-restore --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }}
 
       - name: Test
         run: dotnet test --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal
 
       - name: Pack
-        run: dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts -p:Version=${{ steps.version.outputs.value }}
+        run: dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
       - name: Pack uSync satellite
-        run: dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts -p:Version=${{ steps.version.outputs.value }}
+        run: dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
       # AI satellite is Umbraco 17-only (Umbraco.AI 1.14 has no Umbraco 18 build), so it
       # is packed on the 17 leg only. It is versioned independently of the release tag —
@@ -103,7 +89,7 @@ jobs:
       - name: Upload NuGet package
         uses: actions/upload-artifact@v5
         with:
-          name: nuget-package-${{ steps.version.outputs.value }}
+          name: nuget-package-umbraco${{ matrix.umbraco }}
           path: ./artifacts/*.nupkg
 
       - name: Push to NuGet.org
@@ -129,8 +115,9 @@ jobs:
             --skip-duplicate
 
       # Create the GitHub release once (on the 17 leg). Both per-major packages are
-      # already pushed to NuGet by their own matrix legs above; the 18 (-umbraco18)
-      # nupkg can be attached to the release manually when finalising a dual release.
+      # already pushed to NuGet by their own matrix legs above (17.x and 18.x, both
+      # stable); the 18.x nupkg can be attached to the release manually when finalising
+      # a dual release.
       # NB: generate_release_notes produces near-empty notes here — overwrite with
       # hand-crafted notes via `gh release edit` before considering the release shipped.
       - name: Create GitHub release

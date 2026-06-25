@@ -11,9 +11,9 @@
 		<PackageTags>umbraco plugin package umbraco-marketplace schema.org json-ld structured-data seo schema-mapping</PackageTags>
 		<StaticWebAssetBasePath>App_Plugins/SchemeWeaver</StaticWebAssetBasePath>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-		<!-- Per-major build matrix (see Directory.Build.props). The 18 build gets a
-		     "-umbraco18" suffix so it is a distinct, clearly-prerelease NuGet version. -->
-		<Version>1.4.4$(SchemeWeaverVersionSuffix)</Version>
+		<!-- Per-major build matrix (see Directory.Build.props): the package version's
+		     major tracks the Umbraco major (17.x / 18.x), both stable. -->
+		<Version>$(SchemeWeaverPackageVersion)</Version>
 		<Authors>Oliver Picton</Authors>
 		<Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
 		<PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>

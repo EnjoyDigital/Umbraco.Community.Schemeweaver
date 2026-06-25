@@ -1,10 +1,12 @@
-![SchemeWeaver](https://raw.githubusercontent.com/EnjoyDigital/Umbraco.Community.Schemeweaver/main/icon.png)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/EnjoyDigital/Umbraco.Community.Schemeweaver/main/icon.png" alt="SchemeWeaver" width="140" />
+</p>
 
 # Umbraco.Community.SchemeWeaver
 
 Map Umbraco Content Types to [Schema.org](https://schema.org) types and automatically generate [JSON-LD](https://json-ld.org/) structured data for your pages.
 
-[![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.SchemeWeaver)](https://www.nuget.org/packages/Umbraco.Community.SchemeWeaver) [![License](https://img.shields.io/github/license/EnjoyDigital/Umbraco.Community.Schemeweaver)](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/blob/main/LICENSE)
+[![NuGet](https://img.shields.io/nuget/v/Umbraco.Community.SchemeWeaver)](https://www.nuget.org/packages/Umbraco.Community.SchemeWeaver) [![License](https://img.shields.io/github/license/EnjoyDigital/Umbraco.Community.Schemeweaver)](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/blob/main/LICENSE)
 
 > 👋 **Heads-up — I'm building this one in public.**
 > SchemeWeaver is usable today, but I'm still dialling in the editor UX and a few of the sharper edges. Expect small behavioural and UI changes between releases while that settles down. Every change (breaking or otherwise) gets called out in the [release notes](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/releases) so you can see what's coming before you upgrade.
@@ -47,24 +49,24 @@ No additional configuration needed. The package registers all services, creates 
 
 ### Umbraco 17 vs 18
 
-Umbraco 18 made a binary-breaking change to `IPublishedContent`, so a single assembly cannot run on both majors. SchemeWeaver therefore ships **one package per Umbraco major** from the same source:
+Umbraco 18 made a binary-breaking change to `IPublishedContent`, so a single assembly cannot run on both majors. SchemeWeaver therefore ships **one stable package per Umbraco major** from the same source — exactly like uSync, the package version's major tracks the Umbraco major:
 
 | Umbraco | SchemeWeaver version | Install |
 |---|---|---|
-| 17 | `1.4.x` (stable) | `dotnet add package Umbraco.Community.SchemeWeaver` |
-| 18 | `1.4.x-umbraco18` (prerelease) | `dotnet add package Umbraco.Community.SchemeWeaver --prerelease` |
+| 17 | `17.x` (stable) | `dotnet add package Umbraco.Community.SchemeWeaver` |
+| 18 | `18.x` (stable) | `dotnet add package Umbraco.Community.SchemeWeaver` |
 
-NuGet picks the right build for your project automatically when you constrain to a major; the `-umbraco18` builds are held as prereleases until Umbraco 18.0.0 (and uSync 18.0.0) ship as stable.
+The command is the same for both. Each build carries a mutually-exclusive `Umbraco.Cms` dependency range (`[17.0.0, 18.0.0)` vs `[18.0.0, 19.0.0)`), so NuGet resolves to the build that matches your project's Umbraco major automatically — no `--prerelease` flag needed.
 
 ### Optional: uSync Integration
 
 To sync schema mappings between environments via [uSync](https://jumoo.co.uk/usync/):
 
 ```bash
-dotnet add package Umbraco.Community.SchemeWeaver.uSync --prerelease
+dotnet add package Umbraco.Community.SchemeWeaver.uSync
 ```
 
-The uSync addon follows the same per-major scheme (`1.4.x` for Umbraco 17, `1.4.x-umbraco18` for Umbraco 18). The Umbraco 18 build depends on the uSync 18 release candidate and stays a prerelease until uSync 18.0.0 is stable. See [uSync Integration](docs/usync.md) for details.
+The uSync addon follows the same major-aligned stable scheme (`17.x` for Umbraco 17 + uSync 17, `18.x` for Umbraco 18 + uSync 18); NuGet selects the matching build automatically. See [uSync Integration](docs/usync.md) for details.
 
 ## Quick Start
 
@@ -177,11 +179,12 @@ The generated output:
 Maintainer notes — shipping a new version to NuGet and the [Umbraco Marketplace](https://marketplace.umbraco.com/):
 
 1. Ensure `NUGET_API_KEY` is set in **Settings → Secrets and variables → Actions** (a single API key with "Push new packages and package versions" scope on `Umbraco.Community.SchemeWeaver*`).
-2. Tag the commit you want to ship: `git tag v1.0.0-beta.4 && git push origin v1.0.0-beta.4`.
-3. The `Release to NuGet` workflow builds, tests, packs and pushes the package to nuget.org, and opens a matching GitHub release.
-4. The Umbraco Marketplace listing is automatic — it discovers packages on nuget.org that carry the `umbraco-marketplace` tag (already set in the csproj) and usually updates within 24 hours.
+2. Bump `SchemeWeaverPackageVersion` for the major(s) you're shipping in [`Directory.Build.props`](Directory.Build.props) — the package version is sourced from there per leg (`17.x` for Umbraco 17, `18.x` for Umbraco 18), **not** from the tag.
+3. Tag the commit you want to ship: `git tag v18.0.0 && git push origin v18.0.0`. The tag is only the trigger + GitHub-release label.
+4. The `Release to NuGet` workflow builds and tests both Umbraco majors, packs each at its `SchemeWeaverPackageVersion`, pushes them to nuget.org, and opens a matching GitHub release.
+5. The Umbraco Marketplace listing is automatic — it discovers packages on nuget.org that carry the `umbraco-marketplace` tag (already set in the csproj) and usually updates within 24 hours.
 
-To publish an out-of-band build without tagging, use the workflow's "Run workflow" button on the Actions tab and type the version explicitly.
+To publish an out-of-band build without tagging, use the workflow's "Run workflow" button on the Actions tab (version still comes from `Directory.Build.props`).
 
 ## Contributing
 
