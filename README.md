@@ -4,39 +4,35 @@
 
 # Umbraco.Community.SchemeWeaver
 
-Map Umbraco Content Types to [Schema.org](https://schema.org) types and automatically generate [JSON-LD](https://json-ld.org/) structured data for your pages.
+Map Umbraco content types to [Schema.org](https://schema.org) types and generate [JSON-LD](https://json-ld.org/) structured data automatically.
 
 [![NuGet](https://img.shields.io/nuget/v/Umbraco.Community.SchemeWeaver)](https://www.nuget.org/packages/Umbraco.Community.SchemeWeaver) [![License](https://img.shields.io/github/license/EnjoyDigital/Umbraco.Community.Schemeweaver)](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/blob/main/LICENSE)
 
-> 👋 **Heads-up — I'm building this one in public.**
-> SchemeWeaver is usable today, but I'm still dialling in the editor UX and a few of the sharper edges. Expect small behavioural and UI changes between releases while that settles down. Every change (breaking or otherwise) gets called out in the [release notes](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/releases) so you can see what's coming before you upgrade.
->
-> If something bites you, confuses you, or you just have a suggestion — **please [open an issue](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues)**. I genuinely want the feedback, especially the "this UX is weird" kind. The package is better for every issue that gets logged.
+> **Building in public.** SchemeWeaver is usable today, but the editor UX is still settling, so expect small UI and behavioural changes between releases — each one is flagged in the [release notes](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/releases). Hit a rough edge? Please [open an issue](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues) — that feedback is what shapes the package.
 
-SchemeWeaver provides a document type editor UI for configuring mappings, an auto-mapper that suggests property assignments, and runtime JSON-LD generation that works with both server-rendered templates and the headless Delivery API.
+## Overview
 
-## Why structured data?
+Search engines read JSON-LD to understand a page: a post tagged `BlogPosting` with a `headline`, `author` and `datePublished` can show as a rich result in Google, Bing and others. Maintaining that markup by hand is tedious and error-prone — SchemeWeaver generates it from the content you already have.
 
-Search engines use JSON-LD to understand page content. A blog post tagged as `BlogPosting` with a `headline`, `author`, and `datePublished` can appear as a rich result in Google, Bing, and other search engines. Manually maintaining JSON-LD scripts is tedious and error-prone -- SchemeWeaver automates it from your existing content.
+You get a document-type editor UI for configuring mappings, an auto-mapper that suggests them, and runtime output that works with both server-rendered templates and the headless Delivery API.
 
 ## Features
 
-- **The full Schema.org vocabulary** -- discovers every type in the [Schema.NET.Pending](https://github.com/RehanSaeed/Schema.NET) library at startup (~800 types, including pending ones like `RealEstateListing`)
-- **Auto-mapping with confidence scores** -- suggests property mappings using exact matching, synonym dictionaries, and substring matching
-- **Smart property UI** -- shows mapped properties first, with an "Add property" combobox to add more schema properties
-- **Seven source types** -- pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, or nested complex types
-- **Transforms** -- strip HTML, convert to absolute URL, or format dates before output
-- **Content Type generation** -- scaffold a new Umbraco document type from any Schema.org type
-- **Language variants** -- culture-aware JSON-LD generation for multi-language sites. When content varies by culture, SchemeWeaver pulls the correct localised values and auto-populates `inLanguage` with the BCP 47 culture code. Works across server-rendered templates, the Delivery API, and the backoffice preview
-- **Delivery API integration** -- dedicated `/umbraco/delivery/api/v2/schemeweaver/json-ld` endpoint returns the per-page JSON-LD blocks, culture-aware, cached in-process with event-driven invalidation on publish/unpublish/move/delete
-- **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template; the tag helper reads the current culture from Umbraco's `IVariationContextAccessor` automatically
-- **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
-- **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
-- **Rich Results validation** -- the backoffice preview checks each mapping against Google's structured-data requirements and flags missing required/recommended properties
+- **Full Schema.org vocabulary** — every type in [Schema.NET.Pending](https://github.com/RehanSaeed/Schema.NET) (~800, including pending ones like `RealEstateListing`).
+- **Auto-mapping with confidence scores** — suggests property mappings via exact, synonym and substring matching.
+- **Seven source types** — pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, or nested complex types.
+- **Transforms** — strip HTML, convert to an absolute URL, or format dates before output.
+- **Content type generation** — scaffold a new Umbraco document type from any Schema.org type.
+- **Culture-aware** — localised values on variant content, with `inLanguage` auto-populated from the BCP 47 culture code.
+- **Delivery API integration** — a dedicated, culture-aware JSON-LD endpoint for headless front-ends, cached with event-driven invalidation.
+- **Razor tag helper** — drop `<scheme-weaver content="@Model" />` into any template.
+- **Inherited schemas** — mark a mapping as inherited and it outputs on all descendant pages.
+- **BreadcrumbList** — generated automatically from the content's ancestor hierarchy.
+- **Rich Results validation** — the backoffice preview flags missing required/recommended properties against Google's rules.
 
 ## Requirements
 
-- Umbraco 17 & 18
+- Umbraco 17 or 18
 - .NET 10
 
 ## Installation
@@ -45,34 +41,24 @@ Search engines use JSON-LD to understand page content. A blog post tagged as `Bl
 dotnet add package Umbraco.Community.SchemeWeaver
 ```
 
-No additional configuration needed. The package registers all services, creates its database tables on first run, and adds the backoffice UI automatically.
+No configuration needed — the package registers its services, creates its database tables on first run, and adds the backoffice UI automatically.
 
 ### Umbraco 17 vs 18
 
-Umbraco 18 made a binary-breaking change to `IPublishedContent`, so a single assembly cannot run on both majors. SchemeWeaver therefore ships **one stable package per Umbraco major** from the same source — exactly like uSync, the package version's major tracks the Umbraco major:
+Umbraco 18 made a binary-breaking change to `IPublishedContent`, so one assembly can't serve both majors. SchemeWeaver therefore ships **one stable package per Umbraco major**, with the version's major tracking the CMS major — exactly like uSync:
 
-| Umbraco | SchemeWeaver version | Install |
+| Umbraco | SchemeWeaver | Install |
 |---|---|---|
-| 17 | `17.x` (stable) | `dotnet add package Umbraco.Community.SchemeWeaver` |
-| 18 | `18.x` (stable) | `dotnet add package Umbraco.Community.SchemeWeaver` |
+| 17 | `17.x` | `dotnet add package Umbraco.Community.SchemeWeaver` |
+| 18 | `18.x` | `dotnet add package Umbraco.Community.SchemeWeaver` |
 
-The command is the same for both. Each build carries a mutually-exclusive `Umbraco.Cms` dependency range (`[17.0.0, 18.0.0)` vs `[18.0.0, 19.0.0)`), so NuGet resolves to the build that matches your project's Umbraco major automatically — no `--prerelease` flag needed.
+The command is identical for both: each build's `Umbraco.Cms` dependency range is mutually exclusive (`[17.0.0, 18.0.0)` vs `[18.0.0, 19.0.0)`), so NuGet resolves the right build for your project automatically — no `--prerelease` needed.
 
-### Optional: uSync Integration
+To sync mappings between environments, add the optional [uSync](https://jumoo.co.uk/usync/) addon — `dotnet add package Umbraco.Community.SchemeWeaver.uSync` — which follows the same major-aligned scheme. See [uSync Integration](docs/usync.md).
 
-To sync schema mappings between environments via [uSync](https://jumoo.co.uk/usync/):
+## Quick start
 
-```bash
-dotnet add package Umbraco.Community.SchemeWeaver.uSync
-```
-
-The uSync addon follows the same major-aligned stable scheme (`17.x` for Umbraco 17 + uSync 17, `18.x` for Umbraco 18 + uSync 18); NuGet selects the matching build automatically. See [uSync Integration](docs/usync.md) for details.
-
-## Quick Start
-
-### 1. Add the tag helper
-
-In your master layout (e.g. `_Layout.cshtml`):
+**1. Add the tag helper** to your master layout (e.g. `_Layout.cshtml`):
 
 ```html
 @addTagHelper *, Umbraco.Community.SchemeWeaver
@@ -83,17 +69,9 @@ In your master layout (e.g. `_Layout.cshtml`):
 </head>
 ```
 
-### 2. Map your content types
+**2. Map a content type:** open a document type in **Settings → Document Types**, click the **Schema.org** tab, choose **Map to Schema.org** and pick a type (e.g. Product, Article, Event), review the auto-suggested mappings, and **Save**. Publish content and the JSON-LD appears in the page source.
 
-1. Open any document type in **Settings > Document Types**
-2. Click the **Schema.org** tab
-3. Click **Map to Schema.org** and select a type (e.g. Product, Article, Event)
-4. Review the auto-suggested property mappings in the modal and click **Save**
-5. Publish content -- JSON-LD appears in the page source
-
-### 3. Headless / Delivery API
-
-JSON-LD is served from a dedicated endpoint — fetch it in parallel with your content request and inject the strings as `<script type="application/ld+json">` tags:
+**3. Headless?** Fetch the per-page JSON-LD from the Delivery API and inject it as `<script type="application/ld+json">` tags:
 
 ```typescript
 const response = await fetch(
@@ -103,149 +81,61 @@ const response = await fetch(
 const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 ```
 
-Responses are cached in-process and invalidated automatically by publish/unpublish/move/delete notifications, so the cache stays fresh without manual busting. The array is ordered: inherited ancestor schemas → `BreadcrumbList` → main page schema → block-element schemas. See [Delivery API docs](docs/delivery-api.md) for the full endpoint surface, Next.js example, and the opt-out for `BreadcrumbList` when your front-end builds its own.
+Responses are cached and invalidated automatically on publish/unpublish/move/delete. See [Delivery API](docs/delivery-api.md) for the full endpoint surface and a Next.js example.
 
-> Pre-1.3 consumers who read `schemaOrg` from `properties.schemaOrg` on the content response: that was never actually wired up (index handlers feed Examine, not the response body). Use the dedicated endpoint above.
+**4. Multi-language?** Nothing to configure — on variant content SchemeWeaver resolves values in the requested culture, sets `inLanguage`, and generates culture-correct URLs. Mappings stay invariant (one mapping, all cultures), and the backoffice preview follows the variant selector.
 
-### 4. Language variants
+## Use it with an AI assistant (MCP)
 
-No extra configuration needed. If your content type varies by culture, SchemeWeaver automatically:
+SchemeWeaver ships an [MCP server](docs/mcp-server.md) that gives an AI assistant (Claude and others) tools to inspect your content types, reason about the best-fitting Schema.org type, save the mapping, and verify the JSON-LD — typically a better result than the name-matching auto-mapper alone. Install it as a Claude Code plugin:
 
-- Pulls property values in the requested culture (tag helper reads the current `VariationContext`; the Delivery API handler is called once per culture)
-- Populates `inLanguage` with the BCP 47 culture code (e.g. `"de-DE"`) unless you've explicitly mapped `inLanguage` yourself
-- Generates culture-correct URLs for `@id` and breadcrumb links
+```text
+/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver
+/plugin install schemeweaver-mcp@schemeweaver
+```
 
-Mappings stay invariant -- the same mapping applies to all cultures. You don't need per-language mappings; SchemeWeaver resolves the right value at generation time.
-
-The backoffice JSON-LD preview tab automatically follows the workspace variant selector, so switching to German in the editor shows the German JSON-LD output.
-
-## Documentation
-
-- [Getting Started](docs/getting-started.md) -- installation, tag helper, first mapping
-- [Mapping Content Types](docs/mapping-content-types.md) -- full mapping workflow
-- [Property Mappings](docs/property-mappings.md) -- source types, transforms, confidence tiers
-- [Block Content](docs/block-content.md) -- BlockList/BlockGrid mapping, nested types, wrapInType
-- [Content Type Generation](docs/content-type-generation.md) -- scaffold document types from Schema.org
-- [Delivery API](docs/delivery-api.md) -- headless integration
-- [Extending](docs/extending.md) -- custom property resolvers, replacing core services
-- [uSync Integration](docs/usync.md) -- sync schema mappings between environments
-- [AI Integration](docs/ai-integration.md) -- optional AI-powered mapping (Umbraco 17)
-- [MCP Server](docs/mcp-server.md) -- drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin (`/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver`)
-- [Advanced](docs/advanced.md) -- inherited schemas, BreadcrumbList, validation, configuration, troubleshooting
-- [API Reference](docs/api-reference.md) -- REST API endpoints
+Claude Code prompts for your Umbraco URL and an API user's credentials, then it's ready to use. See [MCP Server](docs/mcp-server.md) for details.
 
 ## How it works
 
-Each mapping connects one Umbraco **Content Type** to one **Schema.org type**. Within that mapping, individual **property mappings** define where each schema property gets its value:
-
-| Schema Property | Source | Value | Description |
-|---|---|---|---|
-| `headline` | property | `title` | Read from the current node |
-| `author` | static | `Jane Smith` | Hardcoded string value |
-| `datePublished` | property | `publishDate` | Formatted as ISO date |
-| `publisher` | parent | `organisationName` | Read from the parent node |
-| `mainEntity` | blockContent | `faqItems` | Built from BlockList items |
-| `inLanguage` | *(auto)* | | Auto-populated from the current culture on variant content |
-
-The auto-mapper suggests assignments using three confidence tiers:
-
-- **High (100%)** -- exact property name match
-- **Medium (80%)** -- synonym match (e.g. `title` to `name`, `bodyText` to `articleBody`)
-- **Low (50%)** -- substring match
-
-The generated output:
+Each mapping links one Umbraco **content type** to one **Schema.org type**, and each **property mapping** says where a schema property gets its value — the current node, a static value, a parent/ancestor/sibling, or block content. The auto-mapper proposes a starting point by matching names (exact, then synonym, then substring) with a confidence score; you refine and save. A `blogPost` mapped to `BlogPosting` might produce:
 
 ```json
 {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "10 Tips for Better SEO",
-  "author": {
-    "@type": "Person",
-    "name": "Jane Smith"
-  },
+  "author": { "@type": "Person", "name": "Jane Smith" },
   "datePublished": "2024-01-15",
   "inLanguage": "en-US"
 }
 ```
 
+See [Mapping Content Types](docs/mapping-content-types.md) and [Property Mappings](docs/property-mappings.md) for the full model — source types, transforms, and confidence tiers.
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md) — installation, tag helper, first mapping
+- [Mapping Content Types](docs/mapping-content-types.md) — full mapping workflow
+- [Property Mappings](docs/property-mappings.md) — source types, transforms, confidence tiers
+- [Block Content](docs/block-content.md) — BlockList/BlockGrid mapping, nested types, `wrapInType`
+- [Content Type Generation](docs/content-type-generation.md) — scaffold document types from Schema.org
+- [Delivery API](docs/delivery-api.md) — headless integration
+- [Extending](docs/extending.md) — custom property resolvers, replacing core services
+- [uSync Integration](docs/usync.md) — sync mappings between environments
+- [AI Integration](docs/ai-integration.md) — optional AI-powered mapping (Umbraco 17)
+- [MCP Server](docs/mcp-server.md) — drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin
+- [Advanced](docs/advanced.md) — inherited schemas, BreadcrumbList, validation, configuration, troubleshooting
+- [API Reference](docs/api-reference.md) — REST API endpoints
+
 ## Notes
 
-- **Block content nested types** -- complex Schema.org properties (e.g. `acceptedAnswer`, `reviewRating`) require a wrapper type. The auto-mapper pre-configures this for common patterns (FAQ, Product, Recipe). For custom types, see the [`wrapInType` guide](docs/block-content.md#wrapintype-configuration).
-- **Media picker edge cases** -- complex multi-crop scenarios with specific crop aliases may need manual URL configuration. See [Property Mappings](docs/property-mappings.md#property-value-resolvers).
-
-## Releasing
-
-Maintainer notes — shipping a new version to NuGet and the [Umbraco Marketplace](https://marketplace.umbraco.com/):
-
-1. Ensure `NUGET_API_KEY` is set in **Settings → Secrets and variables → Actions** (a single API key with "Push new packages and package versions" scope on `Umbraco.Community.SchemeWeaver*`).
-2. Bump `SchemeWeaverPackageVersion` for the major(s) you're shipping in [`Directory.Build.props`](Directory.Build.props) — the package version is sourced from there per leg (`17.x` for Umbraco 17, `18.x` for Umbraco 18), **not** from the tag.
-3. Tag the commit you want to ship: `git tag v18.0.0 && git push origin v18.0.0`. The tag is only the trigger + GitHub-release label.
-4. The `Release to NuGet` workflow builds and tests both Umbraco majors, packs each at its `SchemeWeaverPackageVersion`, pushes them to nuget.org, and opens a matching GitHub release.
-5. The Umbraco Marketplace listing is automatic — it discovers packages on nuget.org that carry the `umbraco-marketplace` tag (already set in the csproj) and usually updates within 24 hours.
-
-To publish an out-of-band build without tagging, use the workflow's "Run workflow" button on the Actions tab (version still comes from `Directory.Build.props`).
+- **Block content nested types** — complex Schema.org properties (e.g. `acceptedAnswer`, `reviewRating`) need a wrapper type. The auto-mapper pre-configures the common patterns (FAQ, Product, Recipe); for custom ones see the [`wrapInType` guide](docs/block-content.md#wrapintype-configuration).
+- **Media picker edge cases** — multi-crop scenarios with specific crop aliases may need manual URL configuration. See [Property Mappings](docs/property-mappings.md#property-value-resolvers).
 
 ## Contributing
 
-Contributions are very welcome — bug reports, fixes, docs, new property resolvers, extra auto-mapper synonyms, whole new features. Small PRs are fine.
-
-### Getting set up
-
-```bash
-# C#
-dotnet build
-dotnet test
-
-# Frontend
-cd src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
-npm install
-npm run build
-npm test
-npm run test:msw                 # component tests with MSW handlers
-npm run test:mocked-backoffice   # Playwright drives the real backoffice UI with MSW — needs Umbraco-CMS clone
-npm run test:e2e                 # Playwright against a running Umbraco + .env
-npm run test:screenshots         # regenerate the docs screenshots (opt-in)
-
-# Test host with 100+ sample content types
-dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
-```
-
-> **Note:** The TestHost is purely for testing schema mappings and structured data generation. It is not intended as a base site or starter kit.
-
-Read [`CLAUDE.md`](CLAUDE.md) for architecture, DI wiring, and naming conventions.
-
-### Tests
-
-Please add tests for behavioural changes, and a regression test for bug fixes. CI runs the full suite on every push.
-
-| Layer | Framework | Location |
-|---|---|---|
-| C# Unit | xUnit + NSubstitute + FluentAssertions | `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/` |
-| C# Integration | xUnit + `WebApplicationFactory<Program>` against the SchemeWeaver TestHost, shared via an xUnit collection fixture so every test class reuses a single host (temp SQLite, one file per suite) | `tests/Umbraco.Community.SchemeWeaver.Tests/Integration/` |
-| TS Unit / Component | `@open-wc/testing` + MSW | `App_Plugins/SchemeWeaver/src/**/*.test.ts` |
-| Mocked Backoffice | Playwright drives the real Umbraco backoffice UI via `VITE_EXAMPLE_PATH`, with SchemeWeaver's MSW handlers serving all HTTP traffic — no .NET required. Requires a local `umbraco/Umbraco-CMS` clone plus a small `addMockHandlers` patch; see [`tests/mocked-backoffice/README.md`](src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/tests/mocked-backoffice/README.md) | `App_Plugins/SchemeWeaver/tests/mocked-backoffice/` |
-| E2E | Playwright + `@umbraco/playwright-testhelpers` against a running Umbraco | `App_Plugins/SchemeWeaver/tests/e2e/` |
-
-For backoffice UI changes, `npm run test:mocked-backoffice` verifies manifest wiring, workspace-view conditions, and modal plumbing without a running Umbraco; `npm run test:e2e` against a real instance is still the only thing that catches issues across the full .NET + backoffice stack.
-
-### Using an AI assistant
-
-AI tools (Claude, Codex, Copilot, Cursor, etc.) are welcome to help. The rules are short:
-
-- **You review it.** Read every line before committing. You're accountable for the PR, not the assistant.
-- **MIT-compatible only.** Don't submit code copied from incompatible sources.
-- **Add tests**, same as any other contribution.
-- **For UI work**, install the [Umbraco Backoffice Skills](https://github.com/umbraco/Umbraco-CMS-Backoffice-Skills) and add [`umbraco/Umbraco-CMS`](https://github.com/umbraco/Umbraco-CMS) (`src/Umbraco.Web.UI.Client`) and [`umbraco/Umbraco.UI`](https://github.com/umbraco/Umbraco.UI) (`packages/uui`) as working directories so the skills can grep the canonical backoffice source — see the skills repo for setup. Also run the `umbraco-extension-reviewer` agent on UI changes.
-- **Tag the commit.** When an assistant materially helped, add a git trailer at the bottom of the commit message so we can see which model was used:
-
-  ```
-  Assisted-by: Claude:claude-opus-4-6
-  ```
-
-  Format is `Assisted-by: <agent>:<model> [optional tools]`, e.g. `Assisted-by: Copilot:gpt-5 playwright`. Just leave a blank line before it, or use `git commit --trailer "Assisted-by=..."`. Basic tools (`git`, `dotnet`, `npm`, editors) don't need listing. If your tool already adds a `Co-authored-by:` trailer for the assistant automatically, that's fine too — just don't bother adding both.
-
-- **Don't add `Signed-off-by` on a human's behalf.** Only the human submitter can sign off their own contribution.
+Contributions are very welcome — bug reports, fixes, docs, new property resolvers, extra auto-mapper synonyms, whole features. Small PRs are fine. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get set up, run the tests, and use an AI assistant, and [`CLAUDE.md`](CLAUDE.md) for architecture and conventions.
 
 ## Licence
 
