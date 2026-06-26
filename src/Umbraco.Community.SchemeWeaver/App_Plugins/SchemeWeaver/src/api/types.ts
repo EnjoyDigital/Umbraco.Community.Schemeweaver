@@ -95,11 +95,71 @@ export interface PropertyMappingSuggestion {
   suggestedTargetPieceKey?: string;
 }
 
+/** Matches C# BlockElementPropertyInfo — a single property on a block element type. */
+export interface BlockElementPropertyInfo {
+  alias: string;
+  name: string;
+  editorAlias: string;
+}
+
 /** Matches C# BlockElementTypeInfo — returned by GET /content-types/{alias}/properties/{propertyAlias}/block-types */
 export interface BlockElementTypeInfo {
   alias: string;
   name: string;
+  /** Back-compat: plain property aliases. New callers should prefer `propertyInfos`. */
   properties: string[];
+  /** Full per-property info (alias, name, editor alias). Additive — may be omitted by older backends. */
+  propertyInfos?: BlockElementPropertyInfo[];
+}
+
+/**
+ * A single property mapping within a block route: block content property → nested schema property.
+ * Matches C# NestedPropertyMapping / BlockRoutePropertyMappingSuggestion (camelCase).
+ */
+export interface BlockRoutePropertyMapping {
+  schemaProperty: string;
+  contentProperty: string;
+  wrapInType?: string | null;
+  wrapInProperty?: string | null;
+}
+
+/**
+ * A route for one block element type: which Schema.org type to instantiate for blocks
+ * of this element type, and the per-property mappings to apply. Matches C# BlockRoute.
+ * `blockAlias === ''` is the wildcard ("any block").
+ */
+export interface BlockRoute {
+  blockAlias: string;
+  nestedSchemaType: string;
+  propertyMappings: BlockRoutePropertyMapping[];
+}
+
+/**
+ * The routed ResolverConfig shape stored on a `blockContent` PropertyMappingDto.
+ * Serialised (JSON.stringify) into `PropertyMappingDto.resolverConfig`.
+ */
+export interface RoutedResolverConfig {
+  routes: BlockRoute[];
+}
+
+/** Matches C# BlockRouteSuggestion — a suggested route for one block element type. */
+export interface BlockRouteSuggestion {
+  blockAlias: string;
+  nestedSchemaType: string;
+  confidence: number;
+  propertyMappings: BlockRoutePropertyMapping[];
+}
+
+/**
+ * Matches C# BlockMappingSuggestion — returned as a flat array by
+ * POST /content-types/{alias}/properties/{propertyAlias}/block-suggest.
+ * One suggestion per TARGET page property (mainEntity | hasPart | about | …),
+ * carrying the block-element routes that feed that target.
+ */
+export interface BlockMappingSuggestion {
+  schemaProperty: string;
+  confidence: number;
+  routes: BlockRouteSuggestion[];
 }
 
 /**

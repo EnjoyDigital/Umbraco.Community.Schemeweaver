@@ -1,33 +1,59 @@
-import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
-import type { SchemaPropertyInfo, RankedSchemaPropertyInfo, BlockElementTypeInfo } from '../api/types.js';
+import type {
+  SchemaPropertyInfo,
+  RankedSchemaPropertyInfo,
+  BlockElementTypeInfo,
+  BlockElementPropertyInfo,
+  BlockMappingSuggestion,
+  BlockRouteSuggestion,
+  BlockRoutePropertyMapping,
+  RoutedResolverConfig,
+} from '../api/types.js';
 
-import type { NestedMappingModalData, NestedMappingModalValue } from './nested-mapping-modal.token.js';
+import type {
+  NestedMappingModalData,
+  NestedMappingModalValue,
+  NestedMappingModalTargetMapping,
+} from './nested-mapping-modal.token.js';
 
-interface NestedMappingEntry {
+/** A single nested-property mapping row inside one block's expandable table. */
+interface RoutePropEntry {
   schemaProperty: string;
+  schemaPropertyType: string;
   contentProperty: string;
   wrapInType: string;
   wrapInProperty: string;
-  /** Schema property type for display */
-  schemaPropertyType: string;
-  /** Accepted types for wrap-in picker */
-  acceptedTypes: string[];
   isComplexType: boolean;
-  /** True when the row belongs in the Popular section of the mapping table. */
-  isPopular: boolean;
 }
 
-type WizardStep = 'block-type' | 'mappings' | 'preview';
+/** One block element type as a flat-panel row. */
+interface BlockRow {
+  alias: string;
+  name: string;
+  /** Block element property aliases (drive the value dropdown). */
+  properties: string[];
+  propertyInfos: BlockElementPropertyInfo[];
+  /** false === SKIP / not mapped (opt-in). */
+  mapped: boolean;
+  nestedSchemaType: string;
+  targetProperty: string;
+  propertyMappings: RoutePropEntry[];
+  /** Total nested schema properties for the chosen type (denominator of the badge). */
+  totalSchemaProps: number;
+  expanded: boolean;
+  confidence: number | null;
+}
+
+/** Target page properties offered for routing block content. */
+const DEFAULT_TARGET_PROPERTIES = ['mainEntity', 'hasPart', 'about', 'mentions'];
 
 @customElement('schemeweaver-nested-mapping-modal')
 export class NestedMappingModalElement extends UmbModalBaseElement<NestedMappingModalData, NestedMappingModalValue> {
-  // Own repository instance — sidesteps the context-consumption timing that
-  // burned two prior fix attempts (await getContext resolved to undefined on
-  // modal re-opens; consumeContext callback fires after connectedCallback).
-  // The repository is stateless over HTTP so a per-modal instance is fine.
+  // Own repository instance — sidesteps context-consumption timing (see the
+  // long-standing empty-step-2 saga); the repository is stateless over HTTP.
   #repository = new SchemeWeaverRepository(this);
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
@@ -35,33 +61,12 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   private _loading = true;
 
   @state()
-  private _currentStep: WizardStep = 'block-type';
-
-  @state()
-  private _blockElementTypes: BlockElementTypeInfo[] = [];
-
-  @state()
-  private _selectedBlockType: BlockElementTypeInfo | null = null;
-
-  @state()
-  private _schemaProperties: RankedSchemaPropertyInfo[] = [];
-
-  @state()
-  private _showAdditional = false;
-
-  @state()
-  private _nestedMappings: NestedMappingEntry[] = [];
-
-  @state()
-  private _previewJson = '';
-
-  @state()
   private _autoMapping = false;
 
   @state()
-  private _wrapOverrideRows = new Set<number>();
+  private _blockRows: BlockRow[] = [];
 
-  /** Cache of schema type properties for wrap detection */
+  /** Cache of ranked schema-type properties keyed by type name. */
   private _typePropsCache: Record<string, SchemaPropertyInfo[]> = {};
 
   constructor() {
@@ -76,48 +81,34 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     await this._initialise();
   }
 
+  // ── Initialisation ───────────────────────────────────────────────────────
+
   private async _initialise() {
     this._loading = true;
     try {
-      const schemaTypeName = this.data?.nestedSchemaTypeName || '';
       const contentTypeAlias = this.data?.contentTypeAlias || '';
       const propertyAlias = this.data?.contentTypePropertyAlias || '';
 
-      // Fetch schema type properties (ranked — popular-first) and block element types in parallel.
-      // Uses the modal's own repository instance so nothing depends on
-      // context-consumption timing — previous attempts routing through
-      // SchemeWeaverContext hit a race where this.#context was undefined
-      // on first pass and the empty-step-2 panel rendered.
-      const [schemaProps, blockTypes] = await Promise.all([
-        this.#repository.requestSchemaTypeProperties(schemaTypeName, true),
+      const [blockTypes, suggestions] = await Promise.all([
         propertyAlias
           ? this.#repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
+        propertyAlias
+          ? this.#repository.requestBlockSuggestions(contentTypeAlias, propertyAlias)
+          : Promise.resolve(undefined),
       ]);
 
-      if (schemaProps) {
-        this._schemaProperties = schemaProps;
-      }
+      const blocks = blockTypes ?? [];
+      const routeByBlock = this._indexSuggestionRoutes(suggestions ?? []);
+      const existingByBlock = this._indexExistingRoutes();
 
-      if (blockTypes) {
-        this._blockElementTypes = blockTypes;
-      }
+      // One row per block element type, seeded from existing config first
+      // (re-editing wins), then the heuristic suggestion, else SKIP.
+      this._blockRows = blocks.map((bt) => this._buildRow(bt, routeByBlock.get(bt.alias), existingByBlock.get(bt.alias)));
 
-      // Parse existing config if present
-      if (this.data?.existingConfig) {
-        this._loadExistingConfig();
-        this._ensureSingleTypeWrapping();
-      }
-
-      // If we have an existing config with a block alias, skip to mappings step
-      if (this._selectedBlockType || this._nestedMappings.length > 0) {
-        this._currentStep = 'mappings';
-      }
-
-      // If only one block type available, auto-select it
-      if (!this._selectedBlockType && this._blockElementTypes.length === 1) {
-        await this._selectBlockType(this._blockElementTypes[0]);
-      }
+      // Hydrate full editable property tables for every mapped row.
+      await Promise.all(this._blockRows.map((_, i) => this._hydrateRow(i)));
+      this._blockRows = [...this._blockRows];
     } catch (error) {
       this.#notificationContext?.peek('danger', {
         data: {
@@ -129,339 +120,293 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     }
   }
 
-  private _loadExistingConfig() {
-    try {
-      const config = JSON.parse(this.data!.existingConfig!);
-      if (config.nestedMappings && Array.isArray(config.nestedMappings)) {
-        // Try to find the matching block type
-        const blockAlias = config.nestedMappings[0]?.blockAlias;
-        if (blockAlias) {
-          const matchingBlock = this._blockElementTypes.find((bt) => bt.alias === blockAlias);
-          if (matchingBlock) {
-            this._selectedBlockType = matchingBlock;
-          }
-        }
+  /** blockAlias → { target, route } from the block-suggest response. */
+  private _indexSuggestionRoutes(
+    suggestions: BlockMappingSuggestion[],
+  ): Map<string, { target: string; route: BlockRouteSuggestion; confidence: number }> {
+    const map = new Map<string, { target: string; route: BlockRouteSuggestion; confidence: number }>();
+    for (const s of suggestions) {
+      for (const route of s.routes) {
+        map.set(route.blockAlias, { target: s.schemaProperty, route, confidence: route.confidence });
+      }
+    }
+    return map;
+  }
 
-        // Rebuild mappings from schema properties, preserving existing values.
-        // User-configured rows always count as popular so toggling the disclosure
-        // never hides an active mapping.
-        this._nestedMappings = this._schemaProperties.map((prop) => {
-          const existing = config.nestedMappings.find(
-            (m: Record<string, string>) => m.schemaProperty === prop.name
-          );
-          const userConfigured = !!existing?.contentProperty;
-          return {
-            schemaProperty: prop.name,
-            contentProperty: existing?.contentProperty || '',
-            wrapInType: existing?.wrapInType || '',
-            wrapInProperty: existing?.wrapInProperty || '',
-            schemaPropertyType: prop.propertyType,
-            acceptedTypes: prop.acceptedTypes,
-            isComplexType: prop.isComplexType,
-            isPopular: prop.isPopular || userConfigured,
-          };
+  /** blockAlias → { target, nestedSchemaType, propertyMappings } parsed from existing saved config. */
+  private _indexExistingRoutes(): Map<string, { target: string; nestedSchemaType: string; propertyMappings: BlockRoutePropertyMapping[] }> {
+    const map = new Map<string, { target: string; nestedSchemaType: string; propertyMappings: BlockRoutePropertyMapping[] }>();
+    for (const existing of this.data?.existingMappings ?? []) {
+      const target = existing.schemaPropertyName;
+      if (!existing.resolverConfig) continue;
+      let config: Record<string, unknown>;
+      try {
+        config = JSON.parse(existing.resolverConfig);
+      } catch {
+        continue;
+      }
+
+      const routes = config.routes;
+      if (Array.isArray(routes)) {
+        // NEW routed shape
+        for (const route of routes as Array<Record<string, unknown>>) {
+          const blockAlias = (route.blockAlias as string) || '';
+          map.set(blockAlias, {
+            target,
+            nestedSchemaType: (route.nestedSchemaType as string) || existing.nestedSchemaTypeName || '',
+            propertyMappings: (route.propertyMappings as BlockRoutePropertyMapping[]) || [],
+          });
+        }
+      } else if (Array.isArray(config.nestedMappings)) {
+        // LEGACY flat shape → one implicit route keyed by its blockAlias (or wildcard).
+        const flat = config.nestedMappings as Array<Record<string, unknown>>;
+        const blockAlias = (flat[0]?.blockAlias as string) || '';
+        map.set(blockAlias, {
+          target,
+          nestedSchemaType: existing.nestedSchemaTypeName || '',
+          propertyMappings: flat.map((m) => ({
+            schemaProperty: m.schemaProperty as string,
+            contentProperty: m.contentProperty as string,
+            wrapInType: (m.wrapInType as string) ?? null,
+            wrapInProperty: (m.wrapInProperty as string) ?? null,
+          })),
         });
       }
-    } catch {
-      // Silently ignore parse errors — fall back to default config
     }
+    return map;
+  }
+
+  private _buildRow(
+    bt: BlockElementTypeInfo,
+    suggestion?: { target: string; route: BlockRouteSuggestion; confidence: number },
+    existing?: { target: string; nestedSchemaType: string; propertyMappings: BlockRoutePropertyMapping[] },
+  ): BlockRow {
+    const properties = bt.propertyInfos?.length ? bt.propertyInfos.map((p) => p.alias) : bt.properties;
+    const source = existing ?? (suggestion
+      ? { target: suggestion.target, nestedSchemaType: suggestion.route.nestedSchemaType, propertyMappings: suggestion.route.propertyMappings }
+      : undefined);
+
+    return {
+      alias: bt.alias,
+      name: bt.name || bt.alias,
+      properties,
+      propertyInfos: bt.propertyInfos ?? properties.map((alias) => ({ alias, name: alias, editorAlias: '' })),
+      mapped: !!source,
+      nestedSchemaType: source?.nestedSchemaType ?? '',
+      targetProperty: source?.target ?? '',
+      // Seeded mappings; replaced with a full editable table during hydration.
+      propertyMappings: (source?.propertyMappings ?? []).map((m) => ({
+        schemaProperty: m.schemaProperty,
+        schemaPropertyType: '',
+        contentProperty: m.contentProperty || '',
+        wrapInType: m.wrapInType || '',
+        wrapInProperty: m.wrapInProperty || '',
+        isComplexType: false,
+      })),
+      totalSchemaProps: source?.propertyMappings?.length ?? 0,
+      expanded: false,
+      confidence: suggestion?.confidence ?? null,
+    };
   }
 
   /**
-   * Ensure wrapInType is set for complex properties with only one accepted type.
-   * Called after data loading to avoid state mutation during render.
+   * Fetch the chosen nested schema type's properties and align the row's
+   * property table to them, preserving any already-chosen content properties.
    */
-  private _ensureSingleTypeWrapping() {
-    let changed = false;
-    const updated = [...this._nestedMappings];
-    for (let i = 0; i < updated.length; i++) {
-      const m = updated[i];
-      if (m.isComplexType && m.contentProperty && !m.wrapInType && m.acceptedTypes.length === 1) {
-        updated[i] = { ...m, wrapInType: m.acceptedTypes[0] };
-        changed = true;
-      }
-    }
-    if (changed) {
-      this._nestedMappings = updated;
-    }
-  }
+  private async _hydrateRow(index: number): Promise<void> {
+    const row = this._blockRows[index];
+    if (!row || !row.mapped || !row.nestedSchemaType) return;
 
-  private async _selectBlockType(blockType: BlockElementTypeInfo) {
-    this._selectedBlockType = blockType;
+    const seed = new Map(row.propertyMappings.map((m) => [m.schemaProperty.toLowerCase(), m]));
+    const props = await this._getTypeProperties(row.nestedSchemaType);
 
-    // If no existing mappings, create from schema properties and auto-map
-    if (this._nestedMappings.length === 0) {
-      this._nestedMappings = this._schemaProperties.map((prop) => ({
-        schemaProperty: prop.name,
-        contentProperty: '',
-        wrapInType: '',
-        wrapInProperty: '',
-        schemaPropertyType: prop.propertyType,
-        acceptedTypes: prop.acceptedTypes,
-        isComplexType: prop.isComplexType,
-        isPopular: prop.isPopular,
-      }));
-      await this._autoMapMappings();
-      this._ensureSingleTypeWrapping();
+    if (props.length === 0) {
+      // Unknown nested type — keep whatever was seeded.
+      this._blockRows[index] = { ...row, totalSchemaProps: row.propertyMappings.length };
+      return;
     }
 
-    this._currentStep = 'mappings';
+    const propertyMappings: RoutePropEntry[] = props.map((sp) => {
+      const existing = seed.get(sp.name.toLowerCase());
+      return {
+        schemaProperty: sp.name,
+        schemaPropertyType: sp.propertyType,
+        contentProperty: existing?.contentProperty ?? '',
+        wrapInType: existing?.wrapInType ?? '',
+        wrapInProperty: existing?.wrapInProperty ?? '',
+        isComplexType: sp.isComplexType,
+      };
+    });
+
+    this._blockRows[index] = { ...row, propertyMappings, totalSchemaProps: props.length };
   }
 
-  private async _handleContentPropertyChange(index: number, value: string) {
-    const updated = [...this._nestedMappings];
-    const mapping = updated[index];
-    // Setting a content property promotes the row to popular so it stays
-    // visible even if the user later collapses the disclosure.
-    updated[index] = { ...mapping, contentProperty: value, isPopular: value ? true : mapping.isPopular };
-
-    // Auto-detect wrapping for complex types when a property is selected
-    if (mapping.isComplexType && value && mapping.acceptedTypes.length > 0) {
-      const wrapResult = await this._detectWrapping(mapping.acceptedTypes, value);
-      if (wrapResult) {
-        updated[index] = { ...updated[index], wrapInType: wrapResult.wrapInType, wrapInProperty: wrapResult.wrapInProperty };
-      }
-    } else if (!value) {
-      updated[index] = { ...updated[index], wrapInType: '', wrapInProperty: '' };
+  private async _getTypeProperties(typeName: string): Promise<RankedSchemaPropertyInfo[]> {
+    if (!this._typePropsCache[typeName]) {
+      const props = await this.#repository.requestSchemaTypeProperties(typeName, true);
+      this._typePropsCache[typeName] = props || [];
     }
-
-    this._nestedMappings = updated;
+    return this._typePropsCache[typeName] as RankedSchemaPropertyInfo[];
   }
 
-  private _handleWrapInTypeChange(index: number, value: string) {
-    const updated = [...this._nestedMappings];
-    updated[index] = { ...updated[index], wrapInType: value };
-    this._nestedMappings = updated;
-  }
+  // ── Auto-map ───────────────────────────────────────────────────────────────
 
-  private _toggleWrapOverride(index: number) {
-    const updated = new Set(this._wrapOverrideRows);
-    if (updated.has(index)) updated.delete(index);
-    else updated.add(index);
-    this._wrapOverrideRows = updated;
-  }
-
-  // ── Auto-map algorithm ──────────────────────────────────────────────
-
-  private async _handleAutoMap() {
+  private async _handleAutoMapAll() {
     this._autoMapping = true;
     try {
-      await this._autoMapMappings();
+      const suggestions = await this.#repository.requestBlockSuggestions(
+        this.data?.contentTypeAlias || '',
+        this.data?.contentTypePropertyAlias || '',
+      );
+      const routeByBlock = this._indexSuggestionRoutes(suggestions ?? []);
+
+      this._blockRows = this._blockRows.map((row) => {
+        const hit = routeByBlock.get(row.alias);
+        if (!hit) return row; // no suggestion — leave as-is (e.g. SKIP blocks)
+        return this._applyRouteToRow(row, hit.target, hit.route, hit.confidence);
+      });
+
+      await Promise.all(this._blockRows.map((_, i) => this._hydrateRow(i)));
+      this._blockRows = [...this._blockRows];
     } finally {
       this._autoMapping = false;
     }
   }
 
-  /**
-   * Auto-maps block properties to schema properties using a 3-tier algorithm:
-   * 1. Exact name match (case-insensitive)
-   * 2. Partial/contains match
-   * 3. Complex type sub-property match (fetches accepted type's properties)
-   * Only fills empty mappings — does not overwrite user selections.
-   */
-  private async _autoMapMappings(): Promise<void> {
-    if (!this._selectedBlockType) return;
-    const blockProps = this._selectedBlockType.properties;
-    if (blockProps.length === 0) return;
-
-    const updated = [...this._nestedMappings];
-    const usedBlockProps = new Set(
-      updated.filter((m) => m.contentProperty).map((m) => m.contentProperty),
+  private async _handleAutoMapRow(index: number) {
+    const row = this._blockRows[index];
+    if (!row) return;
+    const suggestions = await this.#repository.requestBlockSuggestions(
+      this.data?.contentTypeAlias || '',
+      this.data?.contentTypePropertyAlias || '',
     );
-
-    for (let i = 0; i < updated.length; i++) {
-      const mapping = updated[i];
-      if (mapping.contentProperty) continue; // skip already mapped
-
-      // Tier 1: exact match
-      const exactMatch = blockProps.find(
-        (bp) => !usedBlockProps.has(bp) && bp.toLowerCase() === mapping.schemaProperty.toLowerCase(),
-      );
-      if (exactMatch) {
-        updated[i] = { ...mapping, contentProperty: exactMatch };
-        usedBlockProps.add(exactMatch);
-        // Auto-detect wrapping for complex types
-        if (mapping.isComplexType && mapping.acceptedTypes.length > 0) {
-          const wrapResult = await this._detectWrapping(mapping.acceptedTypes, exactMatch);
-          if (wrapResult) {
-            updated[i] = { ...updated[i], ...wrapResult };
-          }
-        }
-        continue;
-      }
-
-      // Tier 2: partial match (one name contains the other)
-      const partialMatch = blockProps.find(
-        (bp) =>
-          !usedBlockProps.has(bp) &&
-          (bp.toLowerCase().includes(mapping.schemaProperty.toLowerCase()) ||
-            mapping.schemaProperty.toLowerCase().includes(bp.toLowerCase())),
-      );
-      if (partialMatch) {
-        updated[i] = { ...mapping, contentProperty: partialMatch };
-        usedBlockProps.add(partialMatch);
-        // Auto-detect wrapping for complex types
-        if (mapping.isComplexType && mapping.acceptedTypes.length > 0) {
-          const wrapResult = await this._detectWrapping(mapping.acceptedTypes, partialMatch);
-          if (wrapResult) {
-            updated[i] = { ...updated[i], ...wrapResult };
-          }
-        }
-        continue;
-      }
-
-      // Tier 3: complex type sub-property match
-      if (mapping.isComplexType && mapping.acceptedTypes.length > 0) {
-        const complexResult = await this._findComplexTypeMatch(mapping, blockProps, usedBlockProps);
-        if (complexResult) {
-          updated[i] = { ...mapping, ...complexResult };
-          if (complexResult.contentProperty) {
-            usedBlockProps.add(complexResult.contentProperty);
-          }
-        }
-      }
+    const hit = this._indexSuggestionRoutes(suggestions ?? []).get(row.alias);
+    if (!hit) {
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_blockNoSuggestion') },
+      });
+      return;
     }
-
-    // Anything that just got a content property is now an active mapping —
-    // promote to popular so the disclosure can't hide it.
-    for (let i = 0; i < updated.length; i++) {
-      if (updated[i].contentProperty) {
-        updated[i] = { ...updated[i], isPopular: true };
-      }
-    }
-
-    this._nestedMappings = updated;
+    const updated = [...this._blockRows];
+    updated[index] = this._applyRouteToRow(row, hit.target, hit.route, hit.confidence);
+    this._blockRows = updated;
+    await this._hydrateRow(index);
+    this._blockRows = [...this._blockRows];
   }
 
-  /**
-   * For a complex schema property, check if any block property matches a sub-property
-   * of an accepted type. E.g., block has "ratingValue" → schema "reviewRating" accepts "Rating"
-   * → Rating has "ratingValue" → match with wrap.
-   */
-  private async _findComplexTypeMatch(
-    mapping: NestedMappingEntry,
-    blockProps: string[],
-    usedBlockProps: Set<string>,
-  ): Promise<Partial<NestedMappingEntry> | null> {
-    for (const acceptedType of mapping.acceptedTypes) {
-      const subProps = await this._getTypeProperties(acceptedType);
-
-      for (const subProp of subProps) {
-        // Exact match of block property to sub-property
-        const match = blockProps.find(
-          (bp) => !usedBlockProps.has(bp) && bp.toLowerCase() === subProp.name.toLowerCase(),
-        );
-        if (match) {
-          return {
-            contentProperty: match,
-            wrapInType: acceptedType,
-            wrapInProperty: subProp.name,
-          };
-        }
-
-        // Partial match
-        const partialMatch = blockProps.find(
-          (bp) =>
-            !usedBlockProps.has(bp) &&
-            (bp.toLowerCase().includes(subProp.name.toLowerCase()) ||
-              subProp.name.toLowerCase().includes(bp.toLowerCase())),
-        );
-        if (partialMatch) {
-          return {
-            contentProperty: partialMatch,
-            wrapInType: acceptedType,
-            wrapInProperty: subProp.name,
-          };
-        }
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Auto-detect wrapping: given accepted types and a content property name,
-   * find the best wrapper type and property.
-   */
-  private async _detectWrapping(
-    acceptedTypes: string[],
-    contentPropertyName: string,
-  ): Promise<{ wrapInType: string; wrapInProperty: string } | null> {
-    // Check all accepted types for the best match, not just the first
-    for (const wrapType of acceptedTypes) {
-      const subProps = await this._getTypeProperties(wrapType);
-      if (subProps.length === 0) continue;
-
-      // Exact match
-      const exact = subProps.find(
-        (sp) => sp.name.toLowerCase() === contentPropertyName.toLowerCase(),
-      );
-      if (exact) return { wrapInType: wrapType, wrapInProperty: exact.name };
-
-      // Partial match
-      const partial = subProps.find(
-        (sp) =>
-          sp.name.toLowerCase().includes(contentPropertyName.toLowerCase()) ||
-          contentPropertyName.toLowerCase().includes(sp.name.toLowerCase()),
-      );
-      if (partial) return { wrapInType: wrapType, wrapInProperty: partial.name };
-    }
-
-    // Fallback: only auto-wrap if there is exactly one accepted type (unambiguous)
-    if (acceptedTypes.length === 1) {
-      const fallbackType = acceptedTypes[0];
-      const fallbackProps = await this._getTypeProperties(fallbackType);
-      if (fallbackProps.length > 0) {
-        const textProp = fallbackProps.find((sp) => sp.name.toLowerCase() === 'text');
-        return { wrapInType: fallbackType, wrapInProperty: textProp?.name || fallbackProps[0]?.name || 'Text' };
-      }
-    }
-
-    return null;
-  }
-
-  /** Fetch and cache schema type properties */
-  private async _getTypeProperties(typeName: string): Promise<SchemaPropertyInfo[]> {
-    if (!this._typePropsCache[typeName]) {
-      const props = await this.#repository.requestSchemaTypeProperties(typeName);
-      this._typePropsCache[typeName] = props || [];
-    }
-    return this._typePropsCache[typeName];
-  }
-
-  private _goToStep(step: WizardStep) {
-    if (step === 'preview') {
-      this._generatePreview();
-    }
-    this._currentStep = step;
-  }
-
-  private _generatePreview() {
-    const activeMappings = this._nestedMappings.filter((m) => m.contentProperty.trim() !== '');
-    const config = {
-      nestedMappings: activeMappings.map((m) => ({
-        blockAlias: this._selectedBlockType?.alias || '',
+  private _applyRouteToRow(row: BlockRow, target: string, route: BlockRouteSuggestion, confidence: number): BlockRow {
+    return {
+      ...row,
+      mapped: true,
+      nestedSchemaType: route.nestedSchemaType,
+      targetProperty: target,
+      confidence,
+      propertyMappings: route.propertyMappings.map((m) => ({
         schemaProperty: m.schemaProperty,
-        contentProperty: m.contentProperty,
-        ...(m.wrapInType ? { wrapInType: m.wrapInType } : {}),
-        ...(m.wrapInProperty ? { wrapInProperty: m.wrapInProperty } : {}),
+        schemaPropertyType: '',
+        contentProperty: m.contentProperty || '',
+        wrapInType: m.wrapInType || '',
+        wrapInProperty: m.wrapInProperty || '',
+        isComplexType: false,
       })),
+      totalSchemaProps: route.propertyMappings.length,
     };
-    this._previewJson = JSON.stringify(config, null, 2);
+  }
+
+  // ── Row edits ──────────────────────────────────────────────────────────────
+
+  private _mappedCount(row: BlockRow): number {
+    return row.propertyMappings.filter((m) => m.contentProperty.trim() !== '').length;
+  }
+
+  private async _enableRow(index: number) {
+    const updated = [...this._blockRows];
+    updated[index] = { ...updated[index], mapped: true, targetProperty: updated[index].targetProperty || 'hasPart', expanded: true };
+    this._blockRows = updated;
+  }
+
+  private _disableRow(index: number) {
+    const updated = [...this._blockRows];
+    updated[index] = { ...updated[index], mapped: false, expanded: false };
+    this._blockRows = updated;
+  }
+
+  private _toggleExpand(index: number) {
+    const updated = [...this._blockRows];
+    updated[index] = { ...updated[index], expanded: !updated[index].expanded };
+    this._blockRows = updated;
+  }
+
+  private async _handleSchemaTypeChange(index: number, value: string) {
+    const updated = [...this._blockRows];
+    updated[index] = { ...updated[index], nestedSchemaType: value };
+    this._blockRows = updated;
+    await this._hydrateRow(index);
+    this._blockRows = [...this._blockRows];
+  }
+
+  private _handleTargetChange(index: number, value: string) {
+    const updated = [...this._blockRows];
+    updated[index] = { ...updated[index], targetProperty: value };
+    this._blockRows = updated;
+  }
+
+  private _handleContentPropertyChange(rowIndex: number, propIndex: number, value: string) {
+    const updated = [...this._blockRows];
+    const row = { ...updated[rowIndex] };
+    const mappings = [...row.propertyMappings];
+    mappings[propIndex] = { ...mappings[propIndex], contentProperty: value };
+    row.propertyMappings = mappings;
+    updated[rowIndex] = row;
+    this._blockRows = updated;
+  }
+
+  private _handleWrapInTypeChange(rowIndex: number, propIndex: number, value: string) {
+    const updated = [...this._blockRows];
+    const row = { ...updated[rowIndex] };
+    const mappings = [...row.propertyMappings];
+    mappings[propIndex] = { ...mappings[propIndex], wrapInType: value };
+    row.propertyMappings = mappings;
+    updated[rowIndex] = row;
+    this._blockRows = updated;
+  }
+
+  // ── Save ─────────────────────────────────────────────────────────────────
+
+  /** Serialise the mapped rows into one PropertyMappingDto-shaped target per group. */
+  private _buildTargetMappings(): NestedMappingModalTargetMapping[] {
+    const blockListProp = this.data?.contentTypePropertyAlias || '';
+    const byTarget = new Map<string, RoutedResolverConfig>();
+
+    for (const row of this._blockRows) {
+      if (!row.mapped || !row.nestedSchemaType || !row.targetProperty) continue;
+      const propertyMappings = row.propertyMappings
+        .filter((m) => m.contentProperty.trim() !== '')
+        .map((m) => ({
+          schemaProperty: m.schemaProperty,
+          contentProperty: m.contentProperty,
+          wrapInType: m.wrapInType || null,
+          wrapInProperty: m.wrapInProperty || null,
+        }));
+
+      const config = byTarget.get(row.targetProperty) ?? { routes: [] };
+      config.routes.push({
+        blockAlias: row.alias,
+        nestedSchemaType: row.nestedSchemaType,
+        propertyMappings,
+      });
+      byTarget.set(row.targetProperty, config);
+    }
+
+    return [...byTarget.entries()].map(([schemaPropertyName, config]) => ({
+      schemaPropertyName,
+      contentTypePropertyAlias: blockListProp,
+      resolverConfig: JSON.stringify(config),
+    }));
   }
 
   private _handleSave() {
-    const activeMappings = this._nestedMappings.filter((m) => m.contentProperty.trim() !== '');
-    const config = JSON.stringify({
-      nestedMappings: activeMappings.map((m) => ({
-        blockAlias: this._selectedBlockType?.alias || '',
-        schemaProperty: m.schemaProperty,
-        contentProperty: m.contentProperty,
-        ...(m.wrapInType ? { wrapInType: m.wrapInType } : {}),
-        ...(m.wrapInProperty ? { wrapInProperty: m.wrapInProperty } : {}),
-      })),
-    });
-
-    this.modalContext?.setValue({ resolverConfig: config });
+    this.modalContext?.setValue({ mappings: this._buildTargetMappings() });
     this.modalContext?.submit();
   }
 
@@ -469,11 +414,16 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     this.modalContext?.reject();
   }
 
-  render() {
-    const stepNumber = this._currentStep === 'block-type' ? 1 : this._currentStep === 'mappings' ? 2 : 3;
+  // ── Render ─────────────────────────────────────────────────────────────────
 
+  private get _targetOptions(): string[] {
+    const fromRows = this._blockRows.map((r) => r.targetProperty).filter(Boolean);
+    return Array.from(new Set([...DEFAULT_TARGET_PROPERTIES, ...fromRows]));
+  }
+
+  render() {
     return html`
-      <umb-body-layout headline="${this.localize.term('schemeWeaver_nestedMappings')}: ${this.data?.nestedSchemaTypeName ?? ''}">
+      <umb-body-layout headline="${this.localize.term('schemeWeaver_blockMappings')}: ${this.data?.contentTypePropertyAlias ?? ''}">
         ${this._loading
           ? html`
               <div class="loading">
@@ -481,406 +431,186 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                 <p>${this.localize.term('schemeWeaver_loadingProperties')}</p>
               </div>
             `
-          : html`
-              <div class="wizard-steps">
-                <div class="step-indicator ${stepNumber >= 1 ? 'active' : ''} ${stepNumber > 1 ? 'completed' : ''}">
-                  <span class="step-number">1</span>
-                  <span class="step-label">${this.localize.term('schemeWeaver_blockElementType')}</span>
-                </div>
-                <div class="step-divider"></div>
-                <div class="step-indicator ${stepNumber >= 2 ? 'active' : ''} ${stepNumber > 2 ? 'completed' : ''}">
-                  <span class="step-number">2</span>
-                  <span class="step-label">${this.localize.term('schemeWeaver_nestedMappings')}</span>
-                </div>
-                <div class="step-divider"></div>
-                <div class="step-indicator ${stepNumber >= 3 ? 'active' : ''}">
-                  <span class="step-number">3</span>
-                  <span class="step-label">${this.localize.term('schemeWeaver_preview')}</span>
-                </div>
-              </div>
-
-              ${this._currentStep === 'block-type' ? this._renderBlockTypePicker() : nothing}
-              ${this._currentStep === 'mappings' ? this._renderMappings() : nothing}
-              ${this._currentStep === 'preview' ? this._renderPreview() : nothing}
-            `}
+          : this._renderPanel()}
 
         <div slot="actions">
-          ${this._currentStep !== 'block-type'
-            ? html`
-                <uui-button
-                  look="secondary"
-                  @click=${() => this._goToStep(this._currentStep === 'preview' ? 'mappings' : 'block-type')}
-                  label=${this.localize.term('schemeWeaver_back')}
-                >
-                  ${this.localize.term('schemeWeaver_back')}
-                </uui-button>
-              `
-            : html`
-                <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
-                  ${this.localize.term('schemeWeaver_cancel')}
-                </uui-button>
-              `}
-
-          ${this._currentStep === 'block-type'
-            ? html`
-                <uui-button
-                  look="primary"
-                  ?disabled=${!this._selectedBlockType}
-                  @click=${() => this._goToStep('mappings')}
-                  label=${this.localize.term('schemeWeaver_next')}
-                >
-                  ${this.localize.term('schemeWeaver_next')}
-                </uui-button>
-              `
-            : nothing}
-
-          ${this._currentStep === 'mappings'
-            ? html`
-                <uui-button
-                  look="primary"
-                  @click=${() => this._goToStep('preview')}
-                  label="${this.localize.term('schemeWeaver_preview')}"
-                >
-                  ${this.localize.term('schemeWeaver_preview')}
-                </uui-button>
-              `
-            : nothing}
-
-          ${this._currentStep === 'preview'
-            ? html`
-                <uui-button
-                  look="primary"
-                  @click=${this._handleSave}
-                  label=${this.localize.term('schemeWeaver_save')}
-                >
-                  ${this.localize.term('schemeWeaver_save')}
-                </uui-button>
-              `
-            : nothing}
+          <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
+            ${this.localize.term('schemeWeaver_cancel')}
+          </uui-button>
+          <uui-button look="primary" @click=${this._handleSave} label=${this.localize.term('schemeWeaver_save')}>
+            ${this.localize.term('schemeWeaver_save')}
+          </uui-button>
         </div>
       </umb-body-layout>
     `;
   }
 
-  private _renderBlockTypePicker() {
-    if (this._blockElementTypes.length === 0) {
+  private _renderPanel() {
+    if (this._blockRows.length === 0) {
       return html`
-        <uui-box headline=${this.localize.term('schemeWeaver_blockElementType')}>
+        <uui-box headline=${this.localize.term('schemeWeaver_blockMappings')}>
           <p class="no-block-types-hint">${this.localize.term('schemeWeaver_noBlockTypesHint')}</p>
           <p class="no-block-types-hint">${this.localize.term('schemeWeaver_noBlockTypesConfigureHint')}</p>
-          <uui-input
-            .value=${this._selectedBlockType?.alias || ''}
-            @input=${(e: Event) => {
-              const alias = (e.target as HTMLInputElement).value;
-              this._selectedBlockType = { alias, name: alias, properties: [] };
-            }}
-            placeholder=${this.localize.term('schemeWeaver_blockElementType')}
-            label=${this.localize.term('schemeWeaver_blockElementType')}
-          ></uui-input>
         </uui-box>
       `;
     }
 
     return html`
-      <uui-box headline=${this.localize.term('schemeWeaver_blockElementType')}>
-        <p class="step-description">${this.localize.term('schemeWeaver_selectBlockTypeHint')} ${this.data?.nestedSchemaTypeName || ''}:</p>
-        <div class="block-type-list">
-          ${this._blockElementTypes.map(
-            (bt) => html`
-              <uui-button
-                class="block-type-card ${this._selectedBlockType?.alias === bt.alias ? 'selected' : ''}"
-                look="placeholder"
-                label=${bt.name}
-                @click=${() => {
-                  this._selectedBlockType = bt;
-                }}
-              >
-                <div class="block-type-header">
-                  <strong>${bt.name}</strong>
-                  <small class="block-alias">${bt.alias}</small>
-                </div>
-                <div class="block-type-props">
-                  ${bt.properties.map((p) => html`<uui-tag look="secondary" class="prop-tag">${p}</uui-tag>`)}
-                </div>
-              </uui-button>
-            `
-          )}
-        </div>
-      </uui-box>
-    `;
-  }
-
-  private _renderMappings() {
-    // When the resolver config doesn't pin a specific block alias (the mapping
-    // applies to every block type that exposes a matching property — e.g. the
-    // home page contentGrid spans hero / feature / quote blocks), fall back to
-    // listing the available block aliases so the source tag never renders empty.
-    const sourceLabel = this._selectedBlockType?.name
-      || this._selectedBlockType?.alias
-      || (this._blockElementTypes.length > 0
-        ? this._blockElementTypes.map((bt) => bt.name || bt.alias).join(', ')
-        : this.localize.term('schemeWeaver_fromAnyBlock'));
-
-    return html`
-      <uui-box headline=${this.localize.term('schemeWeaver_nestedMappings')}>
-        <div class="mapping-header-info">
-          <uui-tag color="primary">${this.data?.nestedSchemaTypeName}</uui-tag>
-          <span>${this.localize.term('schemeWeaver_from')}</span>
-          <uui-tag color="default">${sourceLabel}</uui-tag>
-
+      <uui-box headline=${this.localize.term('schemeWeaver_blockMappings')}>
+        <div class="panel-header">
+          <p class="panel-description">${this.localize.term('schemeWeaver_blockMappingsDescription')}</p>
           <uui-button
-            class="auto-map-button"
+            class="auto-map-all"
             look="secondary"
             ?disabled=${this._autoMapping}
-            @click=${this._handleAutoMap}
-            label=${this.localize.term('schemeWeaver_autoMapNested')}
+            @click=${this._handleAutoMapAll}
+            label=${this.localize.term('schemeWeaver_autoMapAll')}
           >
             <uui-icon name="icon-wand"></uui-icon>
-            ${this._autoMapping ? this.localize.term('schemeWeaver_loadingEllipsis') : this.localize.term('schemeWeaver_autoMapNested')}
+            ${this._autoMapping ? this.localize.term('schemeWeaver_loadingEllipsis') : this.localize.term('schemeWeaver_autoMapAll')}
           </uui-button>
         </div>
 
-        ${this._renderMappingSections()}
+        <div class="block-rows">
+          ${repeat(this._blockRows, (r) => r.alias, (row, index) => this._renderBlockRow(row, index))}
+        </div>
       </uui-box>
     `;
   }
 
-  private _renderMappingSections() {
-    // Visible diagnostic — when the schema-type-properties fetch returns nothing
-    // the modal used to silently render an empty step 2 (no rows, no explanation)
-    // and leave the user stuck. This tells them why and how to fix it.
-    if (this._nestedMappings.length === 0) {
-      const typeName = this.data?.nestedSchemaTypeName || '(unknown)';
+  private _renderBlockRow(row: BlockRow, index: number) {
+    if (!row.mapped) {
       return html`
-        <div class="empty-mappings-hint">
-          <uui-icon name="icon-alert"></uui-icon>
-          <p>
-            <strong>No properties loaded for <code>${typeName}</code>.</strong>
-          </p>
-          <p>
-            The registry returned zero properties for this schema type. Likely causes:
-          </p>
-          <ul>
-            <li>The Schema.org type name doesn't exactly match a Schema.NET class — check the dev-tools console for the normalised type name SchemeWeaver tried.</li>
-            <li>The schema-type-properties API returned an empty array (check Network tab for <code>/schema-types/${typeName}/properties?ranked=true</code>).</li>
-            <li>Container was restarted mid-request — reload the backoffice.</li>
-          </ul>
+        <div class="block-row unmapped">
+          <div class="block-row-main">
+            <div class="block-identity">
+              <strong>${row.name}</strong>
+              <small class="block-alias">${row.alias}</small>
+            </div>
+            <uui-tag look="secondary" class="not-mapped-badge">${this.localize.term('schemeWeaver_notMapped')}</uui-tag>
+            <uui-button
+              class="map-block-btn"
+              look="secondary"
+              compact
+              @click=${() => this._enableRow(index)}
+              label=${this.localize.term('schemeWeaver_mapThisBlock')}
+            >
+              ${this.localize.term('schemeWeaver_mapThisBlock')}
+            </uui-button>
+          </div>
         </div>
       `;
     }
 
-    // Partition while preserving the original index so mutation handlers keep working.
-    const popular: Array<{ mapping: NestedMappingEntry; index: number }> = [];
-    const other: Array<{ mapping: NestedMappingEntry; index: number }> = [];
-    this._nestedMappings.forEach((mapping, index) => {
-      (mapping.isPopular ? popular : other).push({ mapping, index });
-    });
-
+    const mapped = this._mappedCount(row);
     return html`
-      ${popular.length > 0
-        ? html`
-            <div class="section-header">
-              <uui-icon name="icon-wand"></uui-icon>
-              <span>${this.localize.term('schemeWeaver_popularProperties')}</span>
-              <uui-tag look="secondary" size="s">${popular.length}</uui-tag>
-            </div>
-            ${this._renderMappingTable(popular)}
-          `
-        : nothing}
+      <div class="block-row mapped">
+        <div class="block-row-main">
+          <div class="block-identity">
+            <strong>${row.name}</strong>
+            <small class="block-alias">${row.alias}</small>
+          </div>
 
-      ${other.length > 0
-        ? html`
-            <div class="disclosure-wrap">
-              <uui-button
-                look="secondary"
-                class="disclosure-toggle"
-                @click=${() => { this._showAdditional = !this._showAdditional; }}
-                label=${this._showAdditional
-                  ? this.localize.term('schemeWeaver_hideAdditionalProperties')
-                  : this.localize.term('schemeWeaver_showMoreProperties', other.length)}
-              >
-                <uui-icon name=${this._showAdditional ? 'icon-navigation-up' : 'icon-navigation-down'}></uui-icon>
-                ${this._showAdditional
-                  ? this.localize.term('schemeWeaver_hideAdditionalProperties')
-                  : this.localize.term('schemeWeaver_showMoreProperties', other.length)}
-              </uui-button>
-            </div>
-            ${this._showAdditional ? this._renderMappingTable(other) : nothing}
-          `
-        : nothing}
+          <uui-input
+            class="schema-type-input"
+            .value=${row.nestedSchemaType}
+            placeholder=${this.localize.term('schemeWeaver_nestedSchemaType')}
+            label=${this.localize.term('schemeWeaver_nestedSchemaType')}
+            @change=${(e: Event) => this._handleSchemaTypeChange(index, (e.target as HTMLInputElement).value)}
+          ></uui-input>
+
+          <uui-select
+            class="target-select"
+            label=${this.localize.term('schemeWeaver_targetProperty')}
+            .options=${this._targetOptions.map((t) => ({ name: t, value: t, selected: row.targetProperty === t }))}
+            @change=${(e: Event) => this._handleTargetChange(index, (e.target as HTMLSelectElement).value)}
+          ></uui-select>
+
+          <uui-tag look="secondary" color="positive" class="mapped-badge">
+            ${this.localize.term('schemeWeaver_mappedCount', mapped, row.totalSchemaProps)}
+          </uui-tag>
+
+          <uui-button
+            compact
+            look="secondary"
+            class="row-auto-map"
+            label=${this.localize.term('schemeWeaver_autoMapNested')}
+            @click=${() => this._handleAutoMapRow(index)}
+          >
+            <uui-icon name="icon-wand"></uui-icon>
+          </uui-button>
+
+          <uui-button
+            compact
+            look="secondary"
+            class="row-expand"
+            label=${row.expanded ? this.localize.term('schemeWeaver_collapse') : this.localize.term('schemeWeaver_expand')}
+            @click=${() => this._toggleExpand(index)}
+          >
+            <uui-icon name=${row.expanded ? 'icon-navigation-up' : 'icon-navigation-down'}></uui-icon>
+          </uui-button>
+
+          <uui-button
+            compact
+            look="secondary"
+            class="row-unmap"
+            label=${this.localize.term('schemeWeaver_unmapBlock')}
+            @click=${() => this._disableRow(index)}
+          >
+            <uui-icon name="icon-trash"></uui-icon>
+          </uui-button>
+        </div>
+
+        ${row.expanded ? this._renderRowTable(row, index) : nothing}
+      </div>
     `;
   }
 
-  private _renderMappingTable(rows: Array<{ mapping: NestedMappingEntry; index: number }>) {
-    // Prefer the pinned block type's properties; otherwise aggregate properties
-    // from every block type the data type allows so multi-block resolver configs
-    // (e.g. the home contentGrid spans hero / feature / quote blocks) can pick
-    // from a real dropdown instead of falling back to free-text.
-    const blockProperties = this._selectedBlockType?.properties
-      ?? Array.from(new Set(this._blockElementTypes.flatMap((bt) => bt.properties))).sort();
+  private _renderRowTable(row: BlockRow, index: number) {
+    if (row.propertyMappings.length === 0) {
+      return html`<p class="row-empty-hint">${this.localize.term('schemeWeaver_blockTableEmptyHint')}</p>`;
+    }
 
     return html`
-      <uui-table aria-label=${this.localize.term('schemeWeaver_nestedMappings')}>
+      <uui-table class="nested-mapping-table" aria-label=${this.localize.term('schemeWeaver_nestedMappings')}>
         <uui-table-head>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_wrapInType')}</uui-table-head-cell>
         </uui-table-head>
-
-        ${rows.map(({ mapping, index }) => html`
+        ${row.propertyMappings.map((m, propIndex) => html`
           <uui-table-row>
             <uui-table-cell>
               <div>
-                <strong>${mapping.schemaProperty}</strong>
-                <small class="type-label">${mapping.schemaPropertyType}</small>
+                <strong>${m.schemaProperty}</strong>
+                <small class="type-label">${m.schemaPropertyType}</small>
               </div>
             </uui-table-cell>
             <uui-table-cell>
-              ${blockProperties.length > 0
-                ? html`
-                    <uui-select
-                      label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
-                      .options=${[
-                        { name: this.localize.term('schemeWeaver_none'), value: '', selected: !mapping.contentProperty },
-                        ...blockProperties.map((p) => ({
-                          name: p,
-                          value: p,
-                          selected: mapping.contentProperty === p,
-                        })),
-                      ]}
-                      @change=${(e: Event) => this._handleContentPropertyChange(index, (e.target as HTMLSelectElement).value)}
-                    ></uui-select>
-                  `
-                : html`
-                    <uui-input
-                      .value=${mapping.contentProperty}
-                      @input=${(e: Event) => this._handleContentPropertyChange(index, (e.target as HTMLInputElement).value)}
-                      placeholder=${this.localize.term('schemeWeaver_blockPropertyPlaceholder')}
-                      label=${this.localize.term('schemeWeaver_valueForProperty', mapping.schemaProperty)}
-                    ></uui-input>
-                  `}
+              <uui-select
+                label=${this.localize.term('schemeWeaver_valueForProperty', m.schemaProperty)}
+                .options=${[
+                  { name: this.localize.term('schemeWeaver_none'), value: '', selected: !m.contentProperty },
+                  ...row.properties.map((p) => ({ name: p, value: p, selected: m.contentProperty === p })),
+                ]}
+                @change=${(e: Event) => this._handleContentPropertyChange(index, propIndex, (e.target as HTMLSelectElement).value)}
+              ></uui-select>
             </uui-table-cell>
             <uui-table-cell>
-              ${this._renderWrapColumn(mapping, index)}
+              ${m.isComplexType
+                ? html`
+                    <uui-input
+                      .value=${m.wrapInType}
+                      placeholder=${this.localize.term('schemeWeaver_wrapInType')}
+                      label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
+                      @change=${(e: Event) => this._handleWrapInTypeChange(index, propIndex, (e.target as HTMLInputElement).value)}
+                    ></uui-input>
+                  `
+                : html`<span class="type-label">--</span>`}
             </uui-table-cell>
           </uui-table-row>
         `)}
       </uui-table>
-    `;
-  }
-
-  private _renderWrapColumn(mapping: NestedMappingEntry, index: number) {
-    // Non-complex types don't need wrapping
-    if (!mapping.isComplexType) {
-      return html`<span class="type-label">--</span>`;
-    }
-
-    // If only one accepted type, wrapping is required — show as badge (no None option).
-    // The wrapInType is set when the content property changes (_handleContentPropertyChange)
-    // or when existing config is loaded (_ensureSingleTypeWrapping).
-    if (mapping.acceptedTypes.length === 1) {
-      const singleType = mapping.acceptedTypes[0];
-      if (mapping.contentProperty) {
-        return html`
-          <uui-tag color="positive" look="secondary" class="wrap-tag">
-            ${singleType}${mapping.wrapInProperty ? `.${mapping.wrapInProperty}` : ''}
-          </uui-tag>
-        `;
-      }
-      return html`<span class="type-label">--</span>`;
-    }
-
-    // Show override dropdown if user clicked edit (multiple accepted types — show None option)
-    if (this._wrapOverrideRows.has(index)) {
-      return html`
-        <div class="wrap-override-row">
-          ${mapping.acceptedTypes.length > 0
-            ? html`
-                <uui-select
-                  label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', mapping.schemaProperty)}
-                  .options=${[
-                    { name: this.localize.term('schemeWeaver_none'), value: '', selected: !mapping.wrapInType },
-                    ...mapping.acceptedTypes.map((t) => ({
-                      name: t,
-                      value: t,
-                      selected: mapping.wrapInType === t,
-                    })),
-                  ]}
-                  @change=${(e: Event) => this._handleWrapInTypeChange(index, (e.target as HTMLSelectElement).value)}
-                ></uui-select>
-              `
-            : html`
-                <uui-input
-                  .value=${mapping.wrapInType}
-                  @input=${(e: Event) => this._handleWrapInTypeChange(index, (e.target as HTMLInputElement).value)}
-                  placeholder=${this.localize.term('schemeWeaver_wrapInType')}
-                  label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', mapping.schemaProperty)}
-                ></uui-input>
-              `}
-          <uui-button compact look="secondary" label=${this.localize.term('schemeWeaver_done')} @click=${() => this._toggleWrapOverride(index)}>
-            <uui-icon name="icon-check"></uui-icon>
-          </uui-button>
-        </div>
-      `;
-    }
-
-    // Auto-detected wrap: show badge
-    if (mapping.wrapInType && mapping.contentProperty) {
-      return html`
-        <div class="wrap-auto-detected">
-          <uui-tag color="positive" look="secondary" class="wrap-tag">
-            ${mapping.wrapInType}${mapping.wrapInProperty ? `.${mapping.wrapInProperty}` : ''}
-          </uui-tag>
-          <uui-button compact look="secondary" label=${this.localize.term('schemeWeaver_change')} @click=${() => this._toggleWrapOverride(index)}>
-            <uui-icon name="icon-edit"></uui-icon>
-          </uui-button>
-        </div>
-      `;
-    }
-
-    // No wrap set and no content property — show placeholder
-    if (!mapping.contentProperty) {
-      return html`<span class="type-label">--</span>`;
-    }
-
-    // Content property set but no wrap detected — show "None" with edit option
-    return html`
-      <div class="wrap-auto-detected">
-        <span class="type-label">${this.localize.term('schemeWeaver_none')}</span>
-        <uui-button compact look="secondary" label=${this.localize.term('schemeWeaver_set')} @click=${() => this._toggleWrapOverride(index)}>
-          <uui-icon name="icon-edit"></uui-icon>
-        </uui-button>
-      </div>
-    `;
-  }
-
-  private _renderPreview() {
-    const activeMappings = this._nestedMappings.filter((m) => m.contentProperty.trim() !== '');
-
-    return html`
-      <uui-box headline=${this.localize.term('schemeWeaver_preview')}>
-        <div class="preview-summary">
-          <p><strong>${activeMappings.length}</strong> ${this.localize.term('schemeWeaver_propertyMappingsConfigured')} <strong>${this.data?.nestedSchemaTypeName}</strong></p>
-          ${activeMappings.map(
-            (m) => html`
-              <div class="preview-mapping-row">
-                <uui-icon name="icon-navigation-right"></uui-icon>
-                <span>${m.schemaProperty}</span>
-                <span class="preview-arrow">&larr;</span>
-                <span>${m.contentProperty}</span>
-                ${m.wrapInType
-                  ? html`<uui-tag look="secondary" class="wrap-tag">${this.localize.term('schemeWeaver_wrapPrefix')}: ${m.wrapInType}</uui-tag>`
-                  : nothing}
-              </div>
-            `
-          )}
-        </div>
-
-        <details class="json-details">
-          <summary>${this.localize.term('schemeWeaver_resolverConfigJson')}</summary>
-          <pre class="json-preview">${this._previewJson}</pre>
-        </details>
-      </uui-box>
     `;
   }
 
@@ -898,98 +628,55 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         padding: var(--uui-size-space-6);
       }
 
-      .wizard-steps {
+      .panel-header {
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: var(--uui-size-space-2);
-        padding: var(--uui-size-space-4) 0;
+        gap: var(--uui-size-space-3);
         margin-bottom: var(--uui-size-space-4);
       }
 
-      .step-indicator {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-        opacity: 0.4;
-      }
-
-      .step-indicator.active {
-        opacity: 1;
-      }
-
-      .step-indicator.completed {
-        opacity: 0.7;
-      }
-
-      .step-number {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: var(--uui-color-border);
-        font-size: 0.8rem;
-        font-weight: 600;
-      }
-
-      .step-indicator.active .step-number {
-        background: var(--uui-color-interactive);
-        color: var(--uui-color-surface);
-      }
-
-      .step-indicator.completed .step-number {
-        background: var(--uui-color-positive);
-        color: var(--uui-color-surface);
-      }
-
-      .step-label {
-        font-size: 0.85rem;
-        white-space: nowrap;
-      }
-
-      .step-divider {
-        width: 30px;
-        height: 2px;
-        background: var(--uui-color-border);
-      }
-
-      .step-description {
+      .panel-description {
         color: var(--uui-color-text-alt);
-        margin: 0 0 var(--uui-size-space-3) 0;
+        margin: 0;
+        flex: 1;
       }
 
-      .block-type-list {
+      .auto-map-all {
+        margin-left: auto;
+      }
+
+      .block-rows {
         display: flex;
         flex-direction: column;
-        gap: var(--uui-size-space-2);
+        gap: var(--uui-size-space-3);
       }
 
-      .block-type-card {
-        display: block;
-        width: 100%;
-        text-align: left;
-        --uui-button-padding-left-factor: 3;
-        --uui-button-padding-right-factor: 3;
-        border: 2px solid var(--uui-color-border);
+      .block-row {
+        border: 1px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
+        padding: var(--uui-size-space-3);
       }
 
-      .block-type-card:hover {
-        border-color: var(--uui-color-interactive);
-      }
-
-      .block-type-card.selected {
-        border-color: var(--uui-color-interactive);
+      .block-row.unmapped {
+        opacity: 0.7;
         background: var(--uui-color-surface-alt);
       }
 
-      .block-type-header {
+      .block-row.mapped {
+        border-left: 3px solid var(--uui-color-positive);
+      }
+
+      .block-row-main {
         display: flex;
-        align-items: baseline;
-        gap: var(--uui-size-space-2);
-        margin-bottom: var(--uui-size-space-2);
+        align-items: center;
+        gap: var(--uui-size-space-3);
+        flex-wrap: wrap;
+      }
+
+      .block-identity {
+        display: flex;
+        flex-direction: column;
+        min-width: 140px;
       }
 
       .block-alias {
@@ -998,65 +685,33 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         font-size: 0.8rem;
       }
 
-      .block-type-props {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--uui-size-space-1);
+      .not-mapped-badge {
+        font-size: 0.75rem;
       }
 
-      .prop-tag {
-        font-size: 0.7rem;
-        --uui-tag-min-height: 18px;
-      }
-
-      .no-block-types-hint {
-        color: var(--uui-color-text-alt);
-        margin: 0 0 var(--uui-size-space-3) 0;
-      }
-
-      .empty-mappings-hint {
-        padding: var(--uui-size-space-4);
-        border-left: 3px solid var(--uui-color-warning);
-        background: var(--uui-color-surface-alt);
-        color: var(--uui-color-text);
-      }
-
-      .empty-mappings-hint p {
-        margin: 0 0 var(--uui-size-space-2) 0;
-      }
-
-      .empty-mappings-hint ul {
-        margin: 0;
-        padding-left: 1.25rem;
-      }
-
-      .empty-mappings-hint code {
-        background: var(--uui-color-surface);
-        padding: 0 var(--uui-size-space-1);
-        border-radius: 2px;
-      }
-
-      .mapping-header-info {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-3);
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .auto-map-button {
+      .map-block-btn {
         margin-left: auto;
       }
 
-      .wrap-auto-detected {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
+      .schema-type-input {
+        min-width: 160px;
       }
 
-      .wrap-override-row {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
+      uui-select {
+        min-width: 130px;
+      }
+
+      .mapped-badge {
+        font-size: 0.75rem;
+        --uui-tag-min-height: 22px;
+      }
+
+      .row-unmap {
+        margin-left: auto;
+      }
+
+      .nested-mapping-table {
+        margin-top: var(--uui-size-space-3);
       }
 
       .type-label {
@@ -1067,73 +722,10 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         margin-top: 2px;
       }
 
-      uui-select {
-        min-width: 130px;
-      }
-
-      .preview-summary {
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .preview-mapping-row {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-        padding: var(--uui-size-space-1) 0;
-      }
-
-      .preview-arrow {
+      .row-empty-hint,
+      .no-block-types-hint {
         color: var(--uui-color-text-alt);
-      }
-
-      .wrap-tag {
-        font-size: 0.7rem;
-        --uui-tag-min-height: 18px;
-      }
-
-      .json-details {
-        margin-top: var(--uui-size-space-3);
-      }
-
-      .json-details summary {
-        cursor: pointer;
-        color: var(--uui-color-text-alt);
-        font-size: 0.85rem;
-      }
-
-      .json-preview {
-        background: var(--uui-color-surface-alt);
-        border: 1px solid var(--uui-color-border);
-        border-radius: var(--uui-border-radius);
-        padding: var(--uui-size-space-3);
-        font-family: monospace;
-        font-size: 0.8rem;
-        overflow-x: auto;
-        white-space: pre;
-      }
-
-      .section-header {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-        margin: var(--uui-size-space-4) 0 var(--uui-size-space-2);
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: var(--uui-color-text-alt);
-      }
-
-      .section-header uui-icon {
-        color: var(--uui-color-interactive);
-      }
-
-      .disclosure-wrap {
-        display: flex;
-        justify-content: center;
-        margin: var(--uui-size-space-4) 0 var(--uui-size-space-2);
-      }
-
-      .disclosure-toggle uui-icon {
-        margin-right: var(--uui-size-space-1);
+        margin: var(--uui-size-space-2) 0 0 0;
       }
     `,
   ];

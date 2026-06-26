@@ -57,6 +57,30 @@ public class SchemeWeaverOptions
 }
 
 /// <summary>
+/// Tuning knobs for the heuristic auto-mapper (<see cref="Services.SchemaAutoMapper"/>),
+/// bound to the <c>SchemeWeaver:AutoMapper</c> configuration section.
+/// </summary>
+public class SchemaAutoMapperOptions
+{
+    /// <summary>
+    /// Suggestions scoring at least this confidence are auto-applied
+    /// (<c>IsAutoMapped = true</c>) — the user sees them pre-ticked. Canonical
+    /// matches (exact alias, synonym, the built-in url/name/date fallbacks) clear
+    /// this bar. Default is <c>80</c>.
+    /// </summary>
+    public int AutoApplyConfidenceThreshold { get; set; } = 80;
+
+    /// <summary>
+    /// Suggestions scoring below this confidence are dropped entirely rather than
+    /// returned, hiding the "always wrong" rows (partial-name matches, generic
+    /// block fallbacks, no-match slots). Suggestions between this value and
+    /// <see cref="AutoApplyConfidenceThreshold"/> are returned but not auto-applied,
+    /// so the UI can offer them as "click to accept". Default is <c>60</c>.
+    /// </summary>
+    public int ShowConfidenceThreshold { get; set; } = 60;
+}
+
+/// <summary>
 /// Configures how the site-settings singleton content node is located.
 /// </summary>
 public class SiteSettingsOptions

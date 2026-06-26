@@ -259,4 +259,22 @@ public class SchemaTypeRegistryTests
         result.Should().NotBeNull($"Schema.NET should contain type '{typeName}'");
         result!.Name.Should().Be(typeName);
     }
+
+    // Regression guard for the "stale bin" class of bug: the nested-type schemas
+    // the auto-mapper points complexType/blockContent defaults at (PostalAddress,
+    // Person, GeoCoordinates, Review, ContactPoint) must each expose properties.
+    // If an assembly-scan or build-copy issue ever leaves the registry empty for
+    // these, the nested-mapping UI silently renders a blank table.
+    [Theory]
+    [InlineData("PostalAddress")]
+    [InlineData("Person")]
+    [InlineData("GeoCoordinates")]
+    [InlineData("Review")]
+    [InlineData("ContactPoint")]
+    public void GetProperties_NestedDefaultTypes_ReturnsNonEmpty(string typeName)
+    {
+        var properties = _sut.GetProperties(typeName).ToList();
+
+        properties.Should().NotBeEmpty($"Schema.NET type '{typeName}' must expose properties");
+    }
 }

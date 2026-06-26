@@ -174,6 +174,22 @@ public class SchemeWeaverApiController : ControllerBase
         }
     }
 
+    [HttpPost("content-types/{contentTypeAlias}/properties/{propertyAlias}/block-suggest")]
+    [ProducesResponseType(typeof(IEnumerable<BlockMappingSuggestion>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> SuggestBlockMappings(string contentTypeAlias, string propertyAlias)
+    {
+        try
+        {
+            var suggestions = await _service.SuggestBlockMappingsAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
+            return Ok(suggestions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to suggest block mappings for {ContentTypeAlias}/{PropertyAlias}", contentTypeAlias, propertyAlias);
+            return StatusCode(500, new { error = "An unexpected error occurred whilst suggesting block mappings." });
+        }
+    }
+
     #endregion
 
     #region Mappings

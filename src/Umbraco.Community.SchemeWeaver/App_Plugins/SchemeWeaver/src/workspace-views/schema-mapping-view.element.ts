@@ -381,14 +381,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
     const { index } = e.detail;
     const mapping = this._rows[index];
 
-    if (!mapping || !mapping.nestedSchemaTypeName) {
-      this.#notificationContext?.peek('warning', {
-        data: { message: this.localize.term('schemeWeaver_pleaseEnterNestedSchemaType') },
-      });
-      return;
-    }
-
-    if (!mapping.contentTypePropertyAlias) {
+    // The flat block-mapping panel configures the whole block-list property —
+    // it only needs the property alias, not a pre-chosen nested schema type.
+    if (!mapping || !mapping.contentTypePropertyAlias) {
       this.#notificationContext?.peek('warning', {
         data: { message: this.localize.term('schemeWeaver_pleaseSelectBlockContentProperty') },
       });
@@ -397,25 +392,72 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
     if (!this.#modalManagerContext) return;
 
+    const blockListProp = mapping.contentTypePropertyAlias;
+
+    const existingMappings = this._rows
+      .filter((m) => m.sourceType === SourceType.BlockContent && m.contentTypePropertyAlias === blockListProp)
+      .map((m) => ({
+        schemaPropertyName: m.schemaPropertyName,
+        nestedSchemaTypeName: m.nestedSchemaTypeName || null,
+        resolverConfig: m.resolverConfig,
+      }));
+
     const modalHandler = this.#modalManagerContext.open(this, SCHEMEWEAVER_NESTED_MAPPING_MODAL, {
       data: {
-        nestedSchemaTypeName: mapping.nestedSchemaTypeName,
-        contentTypePropertyAlias: mapping.contentTypePropertyAlias,
         contentTypeAlias: this._contentTypeAlias,
-        existingConfig: mapping.resolverConfig,
+        contentTypePropertyAlias: blockListProp,
+        existingMappings,
       },
     });
 
     try {
       const result = await modalHandler.onSubmit();
-      if (result?.resolverConfig) {
-        const updated = [...this._rows];
-        updated[index] = { ...updated[index], resolverConfig: result.resolverConfig };
-        this._rows = updated;
+      if (result?.mappings) {
+        this._applyBlockMappings(blockListProp, mapping.editorAlias, result.mappings);
       }
     } catch {
       // Modal was rejected / closed — do nothing
     }
+  }
+
+  /**
+   * Replace every blockContent row for a block-list property with the panel's
+   * grouped target mappings — one row per target page property.
+   */
+  private _applyBlockMappings(
+    blockListProp: string,
+    editorAlias: string,
+    mappings: Array<{ schemaPropertyName: string; contentTypePropertyAlias: string; resolverConfig: string }>,
+  ) {
+    const retained = this._rows.filter(
+      (m) => !(m.sourceType === SourceType.BlockContent && m.contentTypePropertyAlias === blockListProp),
+    );
+
+    const newRows: PropertyMappingRow[] = mappings.map((tm) => {
+      const sp = this._allSchemaProperties.find(
+        (s) => s.name.toLowerCase() === tm.schemaPropertyName.toLowerCase(),
+      );
+      return {
+        schemaPropertyName: tm.schemaPropertyName,
+        schemaPropertyType: sp?.propertyType || '',
+        sourceType: SourceType.BlockContent,
+        contentTypePropertyAlias: tm.contentTypePropertyAlias,
+        sourceContentTypeAlias: '',
+        staticValue: '',
+        confidence: null,
+        editorAlias,
+        nestedSchemaTypeName: '',
+        resolverConfig: tm.resolverConfig,
+        acceptedTypes: sp?.acceptedTypes || [],
+        isComplexType: sp?.isComplexType || false,
+        expanded: false,
+        subMappings: [],
+        selectedSubType: '',
+        sourceContentTypeProperties: [],
+      };
+    });
+
+    this._rows = sortMappingRows([...retained, ...newRows]);
   }
 
   private async _handleConfigureComplexTypeMapping(e: CustomEvent) {

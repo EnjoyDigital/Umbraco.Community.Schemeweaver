@@ -28,6 +28,13 @@ export const handlers = [
     return HttpResponse.json(schemeWeaverDb.getBlockElementTypes(alias, propertyAlias));
   }),
 
+  /** Returns flat array of BlockMappingSuggestion (one per target page property) */
+  http.post(`${BASE}/content-types/:alias/properties/:propertyAlias/block-suggest`, ({ params }) => {
+    const alias = params.alias as string;
+    const propertyAlias = params.propertyAlias as string;
+    return HttpResponse.json(schemeWeaverDb.suggestBlockMappings(alias, propertyAlias));
+  }),
+
   http.get(`${BASE}/content-types/:alias/properties`, ({ params }) => {
     const alias = params.alias as string;
     return HttpResponse.json(schemeWeaverDb.getContentTypeProperties(alias));

@@ -221,21 +221,34 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     const index = detail.index as number;
     const mapping = this._mappings[index];
 
-    if (!mapping || !mapping.nestedSchemaTypeName) {
+    // The flat block-mapping panel configures the WHOLE block-list property, so
+    // it only needs the property alias — not a pre-chosen nested schema type.
+    if (!mapping || !mapping.contentTypePropertyAlias) {
       this.#notificationContext?.peek('warning', {
         data: {
-          message: this.localize.term('schemeWeaver_pleaseEnterNestedSchemaType'),
+          message: this.localize.term('schemeWeaver_pleaseSelectBlockContentProperty'),
         },
       });
       return;
     }
 
+    const blockListProp = mapping.contentTypePropertyAlias;
+
+    // Pre-fill from every existing blockContent row that targets the same
+    // block-list property (each is a separate target page property).
+    const existingMappings = this._mappings
+      .filter((m) => m.sourceType === SourceType.BlockContent && m.contentTypePropertyAlias === blockListProp)
+      .map((m) => ({
+        schemaPropertyName: m.schemaPropertyName,
+        nestedSchemaTypeName: m.nestedSchemaTypeName || null,
+        resolverConfig: m.resolverConfig,
+      }));
+
     const modalHandler = this.#modalManagerContext?.open(this, SCHEMEWEAVER_NESTED_MAPPING_MODAL, {
       data: {
-        nestedSchemaTypeName: mapping.nestedSchemaTypeName,
-        contentTypePropertyAlias: mapping.contentTypePropertyAlias,
         contentTypeAlias: this.data?.contentTypeAlias || '',
-        existingConfig: mapping.resolverConfig,
+        contentTypePropertyAlias: blockListProp,
+        existingMappings,
       },
     });
 
@@ -243,14 +256,54 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
     try {
       const result = await modalHandler.onSubmit();
-      if (result?.resolverConfig) {
-        const updated = [...this._mappings];
-        updated[index] = { ...updated[index], resolverConfig: result.resolverConfig };
-        this._mappings = updated;
+      if (result?.mappings) {
+        this._applyBlockMappings(blockListProp, mapping.editorAlias, result.mappings);
       }
     } catch {
       // Modal was rejected / closed — do nothing
     }
+  }
+
+  /**
+   * Replace every blockContent row for a given block-list property with the
+   * panel's grouped target mappings — one PropertyMappingRow per target page
+   * property (mainEntity / hasPart / about / …).
+   */
+  private _applyBlockMappings(
+    blockListProp: string,
+    editorAlias: string,
+    mappings: Array<{ schemaPropertyName: string; contentTypePropertyAlias: string; resolverConfig: string }>,
+  ) {
+    // Drop existing blockContent rows for this block-list property.
+    const retained = this._mappings.filter(
+      (m) => !(m.sourceType === SourceType.BlockContent && m.contentTypePropertyAlias === blockListProp),
+    );
+
+    const newRows: PropertyMappingRow[] = mappings.map((tm) => {
+      const sp = this._allSchemaProperties.find(
+        (s) => s.name.toLowerCase() === tm.schemaPropertyName.toLowerCase(),
+      );
+      return {
+        schemaPropertyName: tm.schemaPropertyName,
+        schemaPropertyType: sp?.propertyType || '',
+        sourceType: SourceType.BlockContent,
+        contentTypePropertyAlias: tm.contentTypePropertyAlias,
+        sourceContentTypeAlias: '',
+        staticValue: '',
+        confidence: null,
+        editorAlias,
+        nestedSchemaTypeName: '',
+        resolverConfig: tm.resolverConfig,
+        acceptedTypes: sp?.acceptedTypes || [],
+        isComplexType: sp?.isComplexType || false,
+        expanded: false,
+        subMappings: [],
+        selectedSubType: '',
+        sourceContentTypeProperties: [],
+      };
+    });
+
+    this._mappings = [...retained, ...newRows];
   }
 
   private async _handleSave() {

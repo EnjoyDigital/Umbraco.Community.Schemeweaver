@@ -55,6 +55,27 @@ public class BlockContentResolver : IPropertyValueResolver
             return strings.Count > 0 ? strings : null;
         }
 
+        // New routed form: each block ELEMENT TYPE has its own route (its own
+        // nested schema type + property mappings). A single block list referenced
+        // by several property mappings carries, on each mapping, only the routes
+        // (block element types) that feed that mapping's own target schema property.
+        // Block items whose alias has no route are skipped (debug, not warn-spammed),
+        // so a heterogeneous list emits a differently-typed Thing per element type.
+        // When routes are present the mapping-level NestedSchemaTypeName is irrelevant
+        // and its absence must NOT abort resolution.
+        if (resolverConfig?.Routes is { Count: > 0 } routes)
+        {
+            var routedThings = blockItems
+                .Select(blockContent => MapBlockViaRoute(blockContent, routes, context))
+                .Where(thing => thing is not null)
+                .Cast<Thing>()
+                .ToList();
+
+            return routedThings.Count > 0 ? routedThings : null;
+        }
+
+        // Legacy single-route form: one NestedSchemaTypeName + a flat NestedMappings
+        // list applies to every block in the list. Treated as one implicit route.
         var nestedSchemaTypeName = context.Mapping.NestedSchemaTypeName;
         if (string.IsNullOrEmpty(nestedSchemaTypeName))
         {
@@ -65,12 +86,42 @@ public class BlockContentResolver : IPropertyValueResolver
         }
 
         var things = blockItems
-            .Select(blockContent => MapBlockToThing(blockContent, nestedSchemaTypeName, resolverConfig, context))
+            .Select(blockContent => MapBlockToThing(blockContent, nestedSchemaTypeName, resolverConfig?.NestedMappings, context))
             .Where(thing => thing is not null)
             .Cast<Thing>()
             .ToList();
 
         return things.Count > 0 ? things : null;
+    }
+
+    /// <summary>
+    /// Resolves the route for a single block item by its content type alias and maps
+    /// it to a typed Schema.NET Thing. An exact <see cref="BlockRoute.BlockAlias"/>
+    /// match wins; otherwise a wildcard route (empty <see cref="BlockRoute.BlockAlias"/>)
+    /// applies to any block. Returns null (logged at debug) when no route matches or
+    /// the matched route has no nested schema type — those block items are simply
+    /// dropped from this mapping's output rather than aborting the whole list.
+    /// </summary>
+    private Thing? MapBlockViaRoute(
+        IPublishedElement blockContent,
+        List<BlockRoute> routes,
+        PropertyResolverContext context)
+    {
+        var blockAlias = blockContent.ContentType.Alias;
+
+        var route = routes.FirstOrDefault(r =>
+                        string.Equals(r.BlockAlias, blockAlias, StringComparison.OrdinalIgnoreCase))
+                    ?? routes.FirstOrDefault(r => string.IsNullOrEmpty(r.BlockAlias));
+
+        if (route is null || string.IsNullOrEmpty(route.NestedSchemaType))
+        {
+            _logger.LogDebug(
+                "Block '{BlockAlias}' on content '{ContentName}' (property '{PropertyAlias}') has no schema route — skipping",
+                blockAlias, context.Content.Name, context.PropertyAlias);
+            return null;
+        }
+
+        return MapBlockToThing(blockContent, route.NestedSchemaType, route.PropertyMappings, context);
     }
 
     private static IEnumerable<IPublishedElement>? ExtractBlockItems(object value)
@@ -86,7 +137,7 @@ public class BlockContentResolver : IPropertyValueResolver
     private Thing? MapBlockToThing(
         IPublishedElement blockContent,
         string schemaTypeName,
-        ResolverConfigModel? config,
+        List<NestedPropertyMapping>? configuredMappings,
         PropertyResolverContext context)
     {
         var clrType = context.SchemaTypeRegistry.GetClrType(schemaTypeName);
@@ -98,8 +149,11 @@ public class BlockContentResolver : IPropertyValueResolver
 
         var blockAlias = blockContent.ContentType.Alias;
 
-        // Get nested mappings from config for this block type, or fall back to auto-map by name
-        var nestedMappings = config?.NestedMappings?
+        // Filter the supplied mappings to those applicable to this block type
+        // (empty BlockAlias matches all), or fall back to auto-map by name.
+        // Route property mappings carry no per-mapping BlockAlias (the route itself
+        // is keyed by block alias), so they pass through this filter untouched.
+        var nestedMappings = configuredMappings?
             .Where(m => string.IsNullOrEmpty(m.BlockAlias) ||
                         string.Equals(m.BlockAlias, blockAlias, StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -312,6 +366,20 @@ public class BlockContentResolver : IPropertyValueResolver
 /// </summary>
 public class ResolverConfigModel
 {
+    /// <summary>
+    /// New per-block-type routing form. Each route targets one block ELEMENT TYPE
+    /// (by <see cref="BlockRoute.BlockAlias"/>) and gives it its own nested Schema.org
+    /// type and property mappings. When present this takes precedence over the legacy
+    /// <see cref="NestedMappings"/> + mapping-level NestedSchemaTypeName shape, and the
+    /// mapping-level NestedSchemaTypeName is ignored.
+    /// </summary>
+    public List<BlockRoute>? Routes { get; set; }
+
+    /// <summary>
+    /// Legacy flat mappings list (back-compat). Applies to every block in the list,
+    /// using the mapping-level NestedSchemaTypeName as the single implicit route's
+    /// nested schema type.
+    /// </summary>
     public List<NestedPropertyMapping>? NestedMappings { get; set; }
 
     /// <summary>
@@ -324,6 +392,34 @@ public class ResolverConfigModel
     /// The block element property alias to read when using string extraction mode.
     /// </summary>
     public string? ContentProperty { get; set; }
+}
+
+/// <summary>
+/// A per-block-type route: maps one block element type to a specific Schema.org
+/// nested type with its own property mappings. The TARGET page schema property is
+/// the owning <see cref="Models.Entities.PropertyMapping.SchemaPropertyName"/> — the
+/// multi-target fan-out (dominant block → mainEntity, the rest → hasPart/about) is
+/// achieved by spreading routes across several property mappings, one per target.
+/// </summary>
+public class BlockRoute
+{
+    /// <summary>
+    /// The block element type alias this route applies to. Empty matches any block.
+    /// </summary>
+    public string? BlockAlias { get; set; }
+
+    /// <summary>
+    /// The Schema.NET type to instantiate for blocks of this element type
+    /// (e.g. "Question", "Person", "Place").
+    /// </summary>
+    public string? NestedSchemaType { get; set; }
+
+    /// <summary>
+    /// The property mappings to apply to the instantiated nested Thing. Uses the same
+    /// shape as <see cref="NestedPropertyMapping"/>; the per-mapping BlockAlias is
+    /// unused here because the route itself is already block-type scoped.
+    /// </summary>
+    public List<NestedPropertyMapping>? PropertyMappings { get; set; }
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
 using Umbraco.Cms.Core.Models;
@@ -82,8 +83,10 @@ public class SchemaAutoMapperTests
     }
 
     [Fact]
-    public void SuggestMappings_PartialMatch_ReturnsConfidence50()
+    public void SuggestMappings_PartialMatch_IsDroppedAsJunk()
     {
+        // A partial-name match scores 50 internally — below the show threshold (60),
+        // so it is dropped entirely rather than offered as a (usually wrong) suggestion.
         var contentType = CreateContentTypeWithProperties("blogHeadline");
         _contentTypeService.Get("article").Returns(contentType);
         _schemaTypeRegistry.GetProperties("Article").Returns(new[]
@@ -93,15 +96,13 @@ public class SchemaAutoMapperTests
 
         var result = _sut.SuggestMappings("article", "Article").ToList();
 
-        result.Should().ContainSingle();
-        result[0].Confidence.Should().Be(50);
-        result[0].SuggestedContentTypePropertyAlias.Should().Be("blogHeadline");
-        result[0].IsAutoMapped.Should().BeTrue();
+        result.Should().BeEmpty("partial-name matches (confidence 50) are below the show threshold");
     }
 
     [Fact]
-    public void SuggestMappings_NoMatch_ReturnsConfidence0()
+    public void SuggestMappings_NoMatch_IsDropped()
     {
+        // No match at all scores 0 — dropped, never surfaced to the UI.
         var contentType = CreateContentTypeWithProperties("somethingUnrelated");
         _contentTypeService.Get("article").Returns(contentType);
         _schemaTypeRegistry.GetProperties("Article").Returns(new[]
@@ -111,10 +112,7 @@ public class SchemaAutoMapperTests
 
         var result = _sut.SuggestMappings("article", "Article").ToList();
 
-        result.Should().ContainSingle();
-        result[0].Confidence.Should().Be(0);
-        result[0].IsAutoMapped.Should().BeFalse();
-        result[0].SuggestedContentTypePropertyAlias.Should().BeNull();
+        result.Should().BeEmpty("no-match rows (confidence 0) are below the show threshold");
     }
 
     [Fact]
@@ -164,7 +162,8 @@ public class SchemaAutoMapperTests
     [Fact]
     public void SuggestMappings_SortedBySchemaProperty_NotConfidence()
     {
-        // Verify suggestions are returned in schema property order (one per schema prop)
+        // Verify suggestions are returned in schema property order (one per schema prop).
+        // The no-match "unknownProp" row (confidence 0) is filtered out as junk.
         var contentType = CreateContentTypeWithProperties("title", "unrelated");
         _contentTypeService.Get("article").Returns(contentType);
         _schemaTypeRegistry.GetProperties("Article").Returns(new[]
@@ -175,11 +174,10 @@ public class SchemaAutoMapperTests
 
         var result = _sut.SuggestMappings("article", "Article").ToList();
 
-        result.Should().HaveCount(2);
+        result.Should().ContainSingle();
         result[0].SchemaPropertyName.Should().Be("headline");
         result[0].Confidence.Should().Be(80); // synonym match: title -> headline
-        result[1].SchemaPropertyName.Should().Be("unknownProp");
-        result[1].Confidence.Should().Be(0);
+        result.Should().NotContain(s => s.SchemaPropertyName == "unknownProp");
     }
 
     #region Complex Type Intelligence
@@ -206,11 +204,12 @@ public class SchemaAutoMapperTests
         var result = _sut.SuggestMappings("product", "Product").ToList();
 
         result.Should().ContainSingle();
-        // Synonym match "reviews" → "review" + BlockList editor → blockContent, confidence 70
+        // Synonym match "reviews" → "review" + BlockList editor → blockContent.
+        // Confidence stays at the synonym score (80) and auto-applies.
         result[0].SuggestedSourceType.Should().Be("blockContent");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("Review");
         result[0].SuggestedResolverConfig.Should().NotBeNullOrEmpty();
-        result[0].Confidence.Should().Be(70);
+        result[0].Confidence.Should().Be(80);
         result[0].IsAutoMapped.Should().BeTrue();
     }
 
@@ -237,14 +236,15 @@ public class SchemaAutoMapperTests
         result[0].SuggestedSourceType.Should().Be("complexType");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("Offer");
         result[0].Confidence.Should().Be(60);
-        result[0].IsAutoMapped.Should().BeTrue();
+        // complexType popular default with no content-property match — shown but not auto-applied.
+        result[0].IsAutoMapped.Should().BeFalse();
     }
 
     [Fact]
-    public void ComplexProperty_BlockContentDefault_NoBlockProperty_ReturnsConfidence0()
+    public void ComplexProperty_BlockContentDefault_NoBlockProperty_IsDropped()
     {
         // blockContent popular default but NO BlockList/BlockGrid property on content type
-        // → confidence 0, IsAutoMapped false
+        // → confidence 0 → dropped (there is nothing actionable to offer).
         var contentType = CreateContentTypeWithEditors(
             ("someTextField", "Umbraco.TextBox"));
         _contentTypeService.Get("faqPage").Returns(contentType);
@@ -261,19 +261,14 @@ public class SchemaAutoMapperTests
 
         var result = _sut.SuggestMappings("faqPage", "FAQPage").ToList();
 
-        var mainEntity = result.First(s => s.SchemaPropertyName == "mainEntity");
-        mainEntity.Confidence.Should().Be(0);
-        mainEntity.IsAutoMapped.Should().BeFalse();
-        // Still populates the default source type and nested schema type for user to configure
-        mainEntity.SuggestedSourceType.Should().Be("blockContent");
-        mainEntity.SuggestedNestedSchemaTypeName.Should().Be("Question");
+        result.Should().NotContain(s => s.SchemaPropertyName == "mainEntity");
     }
 
     [Fact]
-    public void ComplexProperty_NoPopularDefault_NoMatch_ReturnsConfidence0()
+    public void ComplexProperty_NoPopularDefault_NoMatch_IsDropped()
     {
         // Complex type without popular default and no matching property
-        // → confidence 0, IsAutoMapped false
+        // → confidence 0 → dropped.
         var contentType = CreateContentTypeWithProperties("unrelated");
         _contentTypeService.Get("custom").Returns(contentType);
         _schemaTypeRegistry.GetProperties("CustomType").Returns(new[]
@@ -289,18 +284,15 @@ public class SchemaAutoMapperTests
 
         var result = _sut.SuggestMappings("custom", "CustomType").ToList();
 
-        result.Should().ContainSingle();
-        result[0].Confidence.Should().Be(0);
-        result[0].IsAutoMapped.Should().BeFalse();
-        result[0].SuggestedSourceType.Should().Be("complexType");
-        result[0].SuggestedNestedSchemaTypeName.Should().Be("SomeCustomType");
-        result[0].SuggestedContentTypePropertyAlias.Should().BeNull();
+        result.Should().BeEmpty();
     }
 
     [Fact]
-    public void ComplexProperty_BlockContentDefault_WithBlockList_ReturnsConfidence60()
+    public void ComplexProperty_BlockContentDefault_WithBlockList_IsShownButNotAutoApplied()
     {
-        // blockContent popular default AND a BlockList property → confidence 60, IsAutoMapped true
+        // blockContent popular default AND a BlockList property → confidence 60: a plausible
+        // guess (the block property might hold these items) so it is shown for the user to
+        // accept, but it is NOT auto-applied because the name never matched.
         var contentType = CreateContentTypeWithEditors(
             ("faqItems", "Umbraco.BlockList"));
         _contentTypeService.Get("faqPage").Returns(contentType);
@@ -319,7 +311,7 @@ public class SchemaAutoMapperTests
 
         var mainEntity = result.First(s => s.SchemaPropertyName == "mainEntity");
         mainEntity.Confidence.Should().Be(60);
-        mainEntity.IsAutoMapped.Should().BeTrue();
+        mainEntity.IsAutoMapped.Should().BeFalse();
         mainEntity.SuggestedSourceType.Should().Be("blockContent");
         mainEntity.SuggestedNestedSchemaTypeName.Should().Be("Question");
         mainEntity.SuggestedContentTypePropertyAlias.Should().Be("faqItems");
@@ -471,9 +463,9 @@ public class SchemaAutoMapperTests
     }
 
     [Fact]
-    public void SuggestedNestedSchemaTypeName_PopulatedFromAcceptedTypes()
+    public void SuggestedNestedSchemaTypeName_ComplexNoMatch_IsDropped()
     {
-        // Complex type with no popular default — should use first non-primitive from AcceptedTypes
+        // Complex type with no popular default and no property match → confidence 0 → dropped.
         var contentType = CreateContentTypeWithProperties("unrelated");
         _contentTypeService.Get("custom").Returns(contentType);
         _schemaTypeRegistry.GetProperties("CustomType").Returns(new[]
@@ -489,12 +481,7 @@ public class SchemaAutoMapperTests
 
         var result = _sut.SuggestMappings("custom", "CustomType").ToList();
 
-        result.Should().ContainSingle();
-        result[0].SuggestedSourceType.Should().Be("complexType");
-        result[0].SuggestedNestedSchemaTypeName.Should().Be("SomeType");
-        // No popular default and no property match → confidence 0, not auto-mapped
-        result[0].Confidence.Should().Be(0);
-        result[0].IsAutoMapped.Should().BeFalse();
+        result.Should().BeEmpty();
     }
 
     [Fact]
@@ -519,7 +506,7 @@ public class SchemaAutoMapperTests
         result.Should().ContainSingle();
         result[0].SuggestedSourceType.Should().Be("blockContent");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("Thing");
-        result[0].Confidence.Should().Be(70);
+        result[0].Confidence.Should().Be(100); // exact name match drives confidence, block editor doesn't lower it
     }
 
     [Fact]
@@ -694,7 +681,7 @@ public class SchemaAutoMapperTests
         recipeCuisine.SuggestedContentTypePropertyAlias.Should().Be("recipeCuisine");
         recipeCuisine.Confidence.Should().Be(100);
 
-        // recipeInstructions → instructions (synonym + BlockList → blockContent, 70)
+        // recipeInstructions → instructions (synonym + BlockList → blockContent, 80)
         var instructions = result.First(s => s.SchemaPropertyName == "recipeInstructions");
         instructions.SuggestedContentTypePropertyAlias.Should().Be("instructions");
         instructions.SuggestedSourceType.Should().Be("blockContent");
@@ -702,15 +689,15 @@ public class SchemaAutoMapperTests
         instructions.SuggestedResolverConfig.Should().NotBeNullOrEmpty();
         instructions.SuggestedResolverConfig.Should().Contain("stepName");
         instructions.SuggestedResolverConfig.Should().Contain("stepText");
-        instructions.Confidence.Should().Be(70);
+        instructions.Confidence.Should().Be(80);
 
-        // recipeIngredient → ingredients (synonym + BlockList → blockContent, 70)
+        // recipeIngredient → ingredients (synonym + BlockList → blockContent, 80)
         var ingredients = result.First(s => s.SchemaPropertyName == "recipeIngredient");
         ingredients.SuggestedContentTypePropertyAlias.Should().Be("ingredients");
         ingredients.SuggestedSourceType.Should().Be("blockContent");
         ingredients.SuggestedResolverConfig.Should().NotBeNullOrEmpty();
         ingredients.SuggestedResolverConfig.Should().Contain("ingredient");
-        ingredients.Confidence.Should().Be(70);
+        ingredients.Confidence.Should().Be(80);
 
         // All suggestions should be auto-mapped
         result.Should().OnlyContain(s => s.IsAutoMapped);
@@ -777,7 +764,7 @@ public class SchemaAutoMapperTests
         brand.SuggestedSourceType.Should().Be("complexType");
         brand.SuggestedNestedSchemaTypeName.Should().Be("Brand");
 
-        // review → reviews (synonym + BlockList → blockContent with Review config, 70)
+        // review → reviews (synonym + BlockList → blockContent with Review config, 80)
         var review = result.First(s => s.SchemaPropertyName == "review");
         review.SuggestedContentTypePropertyAlias.Should().Be("reviews");
         review.SuggestedSourceType.Should().Be("blockContent");
@@ -786,7 +773,7 @@ public class SchemaAutoMapperTests
         review.SuggestedResolverConfig.Should().Contain("reviewAuthor");
         review.SuggestedResolverConfig.Should().Contain("reviewBody");
         review.SuggestedResolverConfig.Should().Contain("ratingValue");
-        review.Confidence.Should().Be(70);
+        review.Confidence.Should().Be(80);
 
         // offers — no content property match, popular default kicks in
         var offers = result.First(s => s.SchemaPropertyName == "offers");
@@ -858,10 +845,9 @@ public class SchemaAutoMapperTests
         endDate.SuggestedContentTypePropertyAlias.Should().Be("endDate");
         endDate.Confidence.Should().Be(100);
 
-        // url → ticketUrl (partial match: "ticketUrl" contains "url", 50)
-        var url = result.First(s => s.SchemaPropertyName == "url");
-        url.SuggestedContentTypePropertyAlias.Should().Be("ticketUrl");
-        url.Confidence.Should().Be(50);
+        // url → ticketUrl would be a partial match (confidence 50) — dropped as junk,
+        // so no "url" suggestion is returned at all.
+        result.Should().NotContain(s => s.SchemaPropertyName == "url");
 
         // location — locationName matches via synonym, but location is a complex type
         // "locationName" is a synonym for "location", so synonym match applies
@@ -1020,7 +1006,9 @@ public class SchemaAutoMapperTests
         mainEntityMapping.ResolverConfig.Should().Contain("acceptedAnswer");
         mainEntityMapping.ResolverConfig.Should().Contain("Answer");
         mainEntityMapping.ResolverConfig.Should().Contain("question");
-        mainEntityMapping.IsAutoMapped.Should().BeTrue();
+        // mainEntity is a blockContent popular default (confidence 60) with no name match —
+        // shown for the user to accept, but not auto-applied.
+        mainEntityMapping.IsAutoMapped.Should().BeFalse();
 
         // Verify the name mapping (synonym: title → name)
         var nameSuggestion = suggestions.First(s => s.SchemaPropertyName == "name");
@@ -1157,7 +1145,8 @@ public class SchemaAutoMapperTests
         result[0].SuggestedSourceType.Should().Be("complexType");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("Organization");
         result[0].Confidence.Should().Be(60);
-        result[0].IsAutoMapped.Should().BeTrue();
+        // complexType popular default with no content-property match — shown but not auto-applied.
+        result[0].IsAutoMapped.Should().BeFalse();
     }
 
     [Fact]
@@ -1210,7 +1199,8 @@ public class SchemaAutoMapperTests
         result[0].SuggestedSourceType.Should().Be("complexType");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("Person");
         result[0].Confidence.Should().Be(60);
-        result[0].IsAutoMapped.Should().BeTrue();
+        // complexType popular default with no content-property match — shown but not auto-applied.
+        result[0].IsAutoMapped.Should().BeFalse();
     }
 
     [Fact]
@@ -1235,7 +1225,8 @@ public class SchemaAutoMapperTests
         result[0].SuggestedSourceType.Should().Be("complexType");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("Offer");
         result[0].Confidence.Should().Be(60);
-        result[0].IsAutoMapped.Should().BeTrue();
+        // complexType popular default with no content-property match — shown but not auto-applied.
+        result[0].IsAutoMapped.Should().BeFalse();
     }
 
     [Fact]
@@ -1260,7 +1251,8 @@ public class SchemaAutoMapperTests
         result[0].SuggestedSourceType.Should().Be("complexType");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("Organization");
         result[0].Confidence.Should().Be(60);
-        result[0].IsAutoMapped.Should().BeTrue();
+        // complexType popular default with no content-property match — shown but not auto-applied.
+        result[0].IsAutoMapped.Should().BeFalse();
     }
 
     #endregion
@@ -1282,7 +1274,7 @@ public class SchemaAutoMapperTests
         result.Should().ContainSingle();
         result[0].SuggestedContentTypePropertyAlias.Should().Be("__url");
         result[0].EditorAlias.Should().Be(SchemeWeaverConstants.BuiltInProperties.EditorAlias);
-        result[0].Confidence.Should().Be(70);
+        result[0].Confidence.Should().Be(80);
         result[0].IsAutoMapped.Should().BeTrue();
     }
 
@@ -1317,7 +1309,7 @@ public class SchemaAutoMapperTests
 
         result.Should().ContainSingle();
         result[0].SuggestedContentTypePropertyAlias.Should().Be("__name");
-        result[0].Confidence.Should().Be(70);
+        result[0].Confidence.Should().Be(80);
         result[0].IsAutoMapped.Should().BeTrue();
     }
 
@@ -1335,7 +1327,8 @@ public class SchemaAutoMapperTests
 
         result.Should().ContainSingle();
         result[0].SuggestedContentTypePropertyAlias.Should().Be("__updateDate");
-        result[0].Confidence.Should().Be(70);
+        result[0].Confidence.Should().Be(80);
+        result[0].IsAutoMapped.Should().BeTrue();
     }
 
     [Fact]
@@ -1352,7 +1345,8 @@ public class SchemaAutoMapperTests
 
         result.Should().ContainSingle();
         result[0].SuggestedContentTypePropertyAlias.Should().Be("__createDate");
-        result[0].Confidence.Should().Be(70);
+        result[0].Confidence.Should().Be(80);
+        result[0].IsAutoMapped.Should().BeTrue();
     }
 
     #endregion
@@ -1414,15 +1408,15 @@ public class SchemaAutoMapperTests
         result[0].SuggestedSourceType.Should().Be("blockContent");
         result[0].SuggestedNestedSchemaTypeName.Should().Be("CustomItem");
         result[0].EditorAlias.Should().Be("Umbraco.BlockList");
-        result[0].Confidence.Should().Be(70); // exact name match + block editor → blockContent at 70
+        result[0].Confidence.Should().Be(100); // exact name match → 100; block editor doesn't lower it
         result[0].IsAutoMapped.Should().BeTrue();
     }
 
     [Fact]
-    public void SuggestMappings_MultiplePartialMatches_BestMatchWins()
+    public void SuggestMappings_MultiplePartialMatches_AllDroppedAsJunk()
     {
-        // Two content properties partially match a schema property name;
-        // the auto-mapper should pick one (the first found) and return exactly one suggestion
+        // Two content properties only partially match the schema property name (both score 50).
+        // Partial matches are below the show threshold, so nothing is returned.
         var contentType = CreateContentTypeWithProperties("blogHeadline", "headlineText");
         _contentTypeService.Get("article").Returns(contentType);
         _schemaTypeRegistry.GetProperties("Article").Returns(new[]
@@ -1432,13 +1426,112 @@ public class SchemaAutoMapperTests
 
         var result = _sut.SuggestMappings("article", "Article").ToList();
 
-        // Should produce exactly one suggestion per schema property (not two)
+        result.Should().BeEmpty("partial-name matches (confidence 50) are dropped");
+    }
+
+    #endregion
+
+    #region Confidence Filtering (junk dropped, plausible shown, canonical auto-applied)
+
+    [Fact]
+    public void SuggestMappings_GenericBlockFallback_IsDroppedAsJunk()
+    {
+        // A complex array property with no popular default and no name match falls back to a
+        // generic BlockList guess at confidence 40 — pure noise, so it must be dropped.
+        var contentType = CreateContentTypeWithEditors(
+            ("blocks", "Umbraco.BlockList"));
+        _contentTypeService.Get("page").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("CustomType").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "widgets",
+                PropertyType = "OneOrMany<Widget>",
+                IsComplexType = true,
+                AcceptedTypes = ["Widget"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("page", "CustomType").ToList();
+
+        result.Should().BeEmpty("generic block fallbacks (confidence 40) are below the show threshold");
+    }
+
+    [Fact]
+    public void SuggestMappings_PlausibleComplexDefault_ShownButNotAutoApplied()
+    {
+        // A complexType popular default with no content-property match scores 60: plausible,
+        // so returned for the user to accept, but never auto-ticked.
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("product").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Product").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "offers", PropertyType = "Offer",
+                IsComplexType = true, AcceptedTypes = ["Offer"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("product", "Product").ToList();
+
         result.Should().ContainSingle();
-        result[0].SchemaPropertyName.Should().Be("headline");
-        result[0].Confidence.Should().Be(50); // partial match
-        result[0].IsAutoMapped.Should().BeTrue();
-        // Either partial match is acceptable, but only one should be selected
-        result[0].SuggestedContentTypePropertyAlias.Should().BeOneOf("blogHeadline", "headlineText");
+        result[0].Confidence.Should().Be(60);
+        result[0].IsAutoMapped.Should().BeFalse("60 is below the auto-apply threshold of 80");
+    }
+
+    [Fact]
+    public void SuggestMappings_CanonicalBuiltInRows_AreAutoApplied()
+    {
+        // The built-in url/name/datePublished/dateModified fallbacks are canonical mappings
+        // (schema url → node url, name → node Name, dates → Create/Update date) and must clear
+        // the auto-apply bar so they stay pre-ticked.
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("page").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Article").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "url", PropertyType = "URL", AcceptedTypes = ["URL"] },
+            new SchemaPropertyInfo { Name = "name", PropertyType = "Text", AcceptedTypes = ["Text"] },
+            new SchemaPropertyInfo { Name = "datePublished", PropertyType = "Date", AcceptedTypes = ["Date"] },
+            new SchemaPropertyInfo { Name = "dateModified", PropertyType = "Date", AcceptedTypes = ["Date"] },
+        });
+
+        var result = _sut.SuggestMappings("page", "Article").ToList();
+
+        result.Should().HaveCount(4);
+        result.Should().OnlyContain(s => s.Confidence >= 80 && s.IsAutoMapped);
+        result.Select(s => s.SuggestedContentTypePropertyAlias).Should()
+            .BeEquivalentTo(new[] { "__url", "__name", "__createDate", "__updateDate" });
+    }
+
+    [Fact]
+    public void SuggestMappings_ConfiguredThresholds_AreHonoured()
+    {
+        // Lowering the auto-apply threshold to 60 (and show to 40) via options must make the
+        // 60-confidence complexType default auto-apply.
+        var options = Options.Create(new SchemaAutoMapperOptions
+        {
+            AutoApplyConfidenceThreshold = 60,
+            ShowConfidenceThreshold = 40,
+        });
+        var sut = new SchemaAutoMapper(_contentTypeService, _schemaTypeRegistry, options);
+
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("product").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Product").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "offers", PropertyType = "Offer",
+                IsComplexType = true, AcceptedTypes = ["Offer"]
+            }
+        });
+
+        var result = sut.SuggestMappings("product", "Product").ToList();
+
+        result.Should().ContainSingle();
+        result[0].Confidence.Should().Be(60);
+        result[0].IsAutoMapped.Should().BeTrue("the configured auto-apply threshold is 60");
     }
 
     #endregion

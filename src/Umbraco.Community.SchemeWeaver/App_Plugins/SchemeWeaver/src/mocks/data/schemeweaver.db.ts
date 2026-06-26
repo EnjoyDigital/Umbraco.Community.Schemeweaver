@@ -1,4 +1,4 @@
-import type { SchemaMappingDto, SchemaTypeInfo, SchemaPropertyInfo, ContentTypeInfo, PropertyMappingSuggestion, JsonLdPreviewResponse, BlockElementTypeInfo } from '../../api/types.js';
+import type { SchemaMappingDto, SchemaTypeInfo, SchemaPropertyInfo, ContentTypeInfo, PropertyMappingSuggestion, JsonLdPreviewResponse, BlockElementTypeInfo, BlockMappingSuggestion, BlockRouteSuggestion, BlockRoutePropertyMapping } from '../../api/types.js';
 
 interface ContentTypeWithProperties extends ContentTypeInfo {
   properties?: Array<{ alias: string; editorAlias: string }>;
@@ -69,6 +69,47 @@ const BLOCK_ELEMENT_TYPES: Record<string, BlockElementTypeInfo[]> = {
   ],
   'restaurantPage.openingHours': [
     { alias: 'openingHoursItem', name: 'Opening Hours', properties: ['dayOfWeek', 'opens', 'closes'] },
+  ],
+  // Heterogeneous block list exercising the routed flat-panel: a dominant FAQ
+  // block (→ mainEntity), team + hero blocks (→ hasPart) and a rich-text block
+  // the suggester SKIPs.
+  'homePage.contentBlocks': [
+    {
+      alias: 'faqBlock',
+      name: 'FAQ Block',
+      properties: ['name', 'text'],
+      propertyInfos: [
+        { alias: 'name', name: 'Name', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'text', name: 'Text', editorAlias: 'Umbraco.TextArea' },
+      ],
+    },
+    {
+      alias: 'teamBlock',
+      name: 'Team Block',
+      properties: ['name', 'jobTitle', 'email'],
+      propertyInfos: [
+        { alias: 'name', name: 'Name', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'jobTitle', name: 'Job Title', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'email', name: 'Email', editorAlias: 'Umbraco.TextBox' },
+      ],
+    },
+    {
+      alias: 'heroBlock',
+      name: 'Hero Block',
+      properties: ['heading', 'subheading'],
+      propertyInfos: [
+        { alias: 'heading', name: 'Heading', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'subheading', name: 'Subheading', editorAlias: 'Umbraco.TextBox' },
+      ],
+    },
+    {
+      alias: 'richTextBlock',
+      name: 'Rich Text Block',
+      properties: ['bodyText'],
+      propertyInfos: [
+        { alias: 'bodyText', name: 'Body Text', editorAlias: 'Umbraco.RichText' },
+      ],
+    },
   ],
 };
 
@@ -1320,7 +1361,104 @@ class SchemeWeaverMockDb {
   /** Get block element types for a content type's block list property */
   getBlockElementTypes(contentTypeAlias: string, propertyAlias: string): BlockElementTypeInfo[] {
     const key = `${contentTypeAlias}.${propertyAlias}`;
-    return BLOCK_ELEMENT_TYPES[key] || [];
+    const entries = BLOCK_ELEMENT_TYPES[key] || [];
+    // Back-fill propertyInfos for fixtures that only declare plain aliases, so
+    // the extended block-types contract is honoured everywhere.
+    return entries.map((bt) => ({
+      ...bt,
+      propertyInfos: bt.propertyInfos ?? bt.properties.map((alias) => ({
+        alias,
+        name: alias.charAt(0).toUpperCase() + alias.slice(1).replace(/([A-Z])/g, ' $1'),
+        editorAlias: 'Umbraco.TextBox',
+      })),
+    }));
+  }
+
+  // ── Block-mapping suggester (mirrors C# BlockSchemaSuggester) ─────────────
+
+  /** Catalogue: keyword → nested Schema.org type @ default target page property. */
+  private _blockCatalogue: Array<{ keywords: string[]; type: string; target: string }> = [
+    { keywords: ['faq', 'question', 'accordion'], type: 'Question', target: 'mainEntity' },
+    { keywords: ['team', 'member', 'people', 'staff'], type: 'Person', target: 'hasPart' },
+    { keywords: ['contact', 'address', 'locationdetails'], type: 'PostalAddress', target: 'about' },
+    { keywords: ['map', 'geo', 'coordinates'], type: 'Place', target: 'hasPart' },
+    { keywords: ['testimonial', 'review', 'quote'], type: 'Review', target: 'hasPart' },
+    { keywords: ['hero', 'banner', 'masthead'], type: 'WPHeader', target: 'hasPart' },
+    { keywords: ['service', 'feature', 'offering'], type: 'Service', target: 'hasPart' },
+    { keywords: ['logo', 'partner', 'client'], type: 'Organization', target: 'hasPart' },
+  ];
+
+  private _blockSkip = ['richtext', 'body', 'cta', 'calltoaction', 'link', 'button'];
+
+  private _normalise(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  /**
+   * Suggest routed block mappings for a block-list property. Returns one
+   * suggestion per TARGET page property, with dominance applied (at most one
+   * block type targets mainEntity; the rest fall back to hasPart).
+   */
+  suggestBlockMappings(contentTypeAlias: string, propertyAlias: string): BlockMappingSuggestion[] {
+    const blocks = this.getBlockElementTypes(contentTypeAlias, propertyAlias);
+
+    interface Routed { route: BlockRouteSuggestion; target: string }
+    const routed: Routed[] = [];
+
+    for (const block of blocks) {
+      const identity = `${this._normalise(block.alias)} ${this._normalise(block.name)}`;
+      if (this._blockSkip.some((s) => identity.includes(s))) continue; // SKIP by block identity
+
+      const hit = this._blockCatalogue.find((c) => c.keywords.some((k) => identity.includes(k)));
+      if (!hit) continue; // no catalogue hit → skip
+
+      const propertyMappings = this._suggestRoutePropertyMappings(block, hit.type);
+      routed.push({
+        target: hit.target,
+        route: { blockAlias: block.alias, nestedSchemaType: hit.type, confidence: 80, propertyMappings },
+      });
+    }
+
+    // Dominance: at most ONE block type may target mainEntity (highest confidence,
+    // ties by input order). The rest fall back to hasPart.
+    const mainCandidates = routed.filter((r) => r.target === 'mainEntity');
+    if (mainCandidates.length > 1) {
+      mainCandidates.slice(1).forEach((r) => (r.target = 'hasPart'));
+    }
+
+    // Group routes by their final target property.
+    const byTarget = new Map<string, BlockRouteSuggestion[]>();
+    for (const { target, route } of routed) {
+      const list = byTarget.get(target) ?? [];
+      list.push(route);
+      byTarget.set(target, list);
+    }
+
+    return [...byTarget.entries()].map(([schemaProperty, routes]) => ({
+      schemaProperty,
+      confidence: Math.max(...routes.map((r) => r.confidence)),
+      routes,
+    }));
+  }
+
+  private _suggestRoutePropertyMappings(block: BlockElementTypeInfo, nestedType: string): BlockRoutePropertyMapping[] {
+    const nestedProps = this._schemaProperties[nestedType] ?? [];
+    const blockAliases = block.properties;
+    const used = new Set<string>();
+    const mappings: BlockRoutePropertyMapping[] = [];
+    for (const sp of nestedProps) {
+      const match = blockAliases.find(
+        (a) => !used.has(a) &&
+          (a.toLowerCase() === sp.name.toLowerCase() ||
+            a.toLowerCase().includes(sp.name.toLowerCase()) ||
+            sp.name.toLowerCase().includes(a.toLowerCase())),
+      );
+      if (match) {
+        used.add(match);
+        mappings.push({ schemaProperty: sp.name, contentProperty: match, wrapInType: null, wrapInProperty: null });
+      }
+    }
+    return mappings;
   }
 
   getSchemaTypes(search?: string): SchemaTypeInfo[] {

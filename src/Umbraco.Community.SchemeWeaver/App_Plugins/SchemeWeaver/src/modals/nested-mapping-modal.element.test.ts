@@ -13,7 +13,7 @@ async function waitForLoad(el: any): Promise<void> {
   await el.updateComplete;
 }
 
-describe('NestedMappingModalElement', () => {
+describe('NestedMappingModalElement (flat block-mapping panel)', () => {
   let worker: SetupWorker;
 
   before(async () => {
@@ -25,14 +25,18 @@ describe('NestedMappingModalElement', () => {
     stopMockServiceWorker();
   });
 
-  function createElement(nestedSchemaTypeName = 'Question', existingConfig: string | null = null): any {
+  // homePage.contentBlocks is a heterogeneous mock block list:
+  //   faqBlock  → Question @ mainEntity
+  //   teamBlock → Person   @ hasPart
+  //   heroBlock → WPHeader @ hasPart
+  //   richTextBlock → SKIP (rich text)
+  function createElement(
+    contentTypeAlias = 'homePage',
+    contentTypePropertyAlias = 'contentBlocks',
+    existingMappings: any[] | undefined = undefined,
+  ): any {
     const el = document.createElement('schemeweaver-nested-mapping-modal') as any;
-    el.data = {
-      nestedSchemaTypeName,
-      contentTypePropertyAlias: 'questions',
-      contentTypeAlias: 'faqPage',
-      existingConfig,
-    };
+    el.data = { contentTypeAlias, contentTypePropertyAlias, existingMappings };
     document.body.appendChild(el);
     return el;
   }
@@ -41,178 +45,129 @@ describe('NestedMappingModalElement', () => {
     document.querySelectorAll('schemeweaver-nested-mapping-modal').forEach((el) => el.remove());
   });
 
-  it('shows loading state initially', async () => {
+  it('renders one row per block element type', async () => {
     const el = createElement();
+    await waitForLoad(el);
+    const rows = el.shadowRoot!.querySelectorAll('.block-row');
+    expect(rows.length).to.equal(4);
+  });
+
+  it('pre-fills mapped rows from the block-suggest response and marks SKIP blocks unmapped', async () => {
+    const el = createElement();
+    await waitForLoad(el);
+    const mapped = el.shadowRoot!.querySelectorAll('.block-row.mapped');
+    const unmapped = el.shadowRoot!.querySelectorAll('.block-row.unmapped');
+    expect(mapped.length).to.equal(3);
+    expect(unmapped.length).to.equal(1);
+
+    // The rich-text block is the SKIP row.
+    const richTextRow = el._blockRows.find((r: any) => r.alias === 'richTextBlock');
+    expect(richTextRow.mapped).to.equal(false);
+  });
+
+  it('routes the dominant FAQ block to mainEntity and the rest to hasPart', async () => {
+    const el = createElement();
+    await waitForLoad(el);
+    const faq = el._blockRows.find((r: any) => r.alias === 'faqBlock');
+    const team = el._blockRows.find((r: any) => r.alias === 'teamBlock');
+    const hero = el._blockRows.find((r: any) => r.alias === 'heroBlock');
+    expect(faq.targetProperty).to.equal('mainEntity');
+    expect(faq.nestedSchemaType).to.equal('Question');
+    expect(team.targetProperty).to.equal('hasPart');
+    expect(team.nestedSchemaType).to.equal('Person');
+    expect(hero.targetProperty).to.equal('hasPart');
+  });
+
+  it('Auto-map all re-fills every mapped row', async () => {
+    const el = createElement();
+    await waitForLoad(el);
+
+    // Clear all rows, then auto-map all should restore the suggestions.
+    el._blockRows = el._blockRows.map((r: any) => ({ ...r, mapped: false, nestedSchemaType: '', targetProperty: '' }));
     await el.updateComplete;
-    expect(el.shadowRoot).to.exist;
-  });
 
-  it('renders wizard step indicators', async () => {
-    const el = createElement();
-    await waitForLoad(el);
-    const steps = el.shadowRoot!.querySelectorAll('.step-indicator');
-    expect(steps.length).to.equal(3);
-  });
-
-  it('auto-selects single block type and shows mappings step', async () => {
-    const el = createElement();
-    await waitForLoad(el);
-    // With only 1 block type (faqItem), wizard auto-advances to mappings step
-    const table = el.shadowRoot!.querySelector('uui-table');
-    expect(table).to.exist;
-    const mappingInfo = el.shadowRoot!.querySelector('.mapping-header-info');
-    expect(mappingInfo).to.exist;
-  });
-
-  it('renders all 3 schema property rows once the Other disclosure is expanded', async () => {
-    const el = createElement();
-    await waitForLoad(el);
-    // Question has 3 properties: name (popular), acceptedAnswer (complex/popular), text (other).
-    // The "other" row sits behind the Show-more disclosure by default.
-    const collapsedRows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    expect(collapsedRows.length).to.equal(2);
-
-    el._showAdditional = true;
+    await el._handleAutoMapAll();
     await el.updateComplete;
-    const expandedRows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    expect(expandedRows.length).to.equal(3);
+
+    const faq = el._blockRows.find((r: any) => r.alias === 'faqBlock');
+    expect(faq.mapped).to.equal(true);
+    expect(faq.nestedSchemaType).to.equal('Question');
+    expect(faq.targetProperty).to.equal('mainEntity');
   });
 
-  it('has Back and Preview buttons on mappings step', async () => {
+  it('editing a block property mapping updates state', async () => {
     const el = createElement();
     await waitForLoad(el);
-    const buttons = el.shadowRoot!.querySelectorAll('uui-button');
-    const labels = Array.from(buttons).map((b) => (b as Element).getAttribute('label'));
-    expect(labels).to.include('Back');
-    expect(labels).to.include('Preview');
+    const faqIndex = el._blockRows.findIndex((r: any) => r.alias === 'faqBlock');
+
+    el._handleContentPropertyChange(faqIndex, 0, 'text');
+    await el.updateComplete;
+
+    expect(el._blockRows[faqIndex].propertyMappings[0].contentProperty).to.equal('text');
   });
 
-  it('loads existing config when provided', async () => {
-    const config = JSON.stringify({
-      nestedMappings: [
-        { blockAlias: 'faqItem', schemaProperty: 'name', contentProperty: 'question' },
-        { blockAlias: 'faqItem', schemaProperty: 'acceptedAnswer', contentProperty: 'answer', wrapInType: 'Answer' },
-      ],
-    });
-    const el = createElement('Question', config);
+  it('save serialises rows grouped by target property into routed ResolverConfig', async () => {
+    const el = createElement();
     await waitForLoad(el);
 
-    // Should have rows for the existing mappings (schema has 3 props, merged with config)
-    const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    expect(rows.length).to.be.greaterThan(0);
+    const targetMappings = el._buildTargetMappings();
+    // Two targets: mainEntity (faqBlock) and hasPart (teamBlock + heroBlock).
+    const targets = targetMappings.map((m: any) => m.schemaPropertyName).sort();
+    expect(targets).to.deep.equal(['hasPart', 'mainEntity']);
+
+    const mainEntity = targetMappings.find((m: any) => m.schemaPropertyName === 'mainEntity');
+    expect(mainEntity.contentTypePropertyAlias).to.equal('contentBlocks');
+    const mainConfig = JSON.parse(mainEntity.resolverConfig);
+    expect(mainConfig.routes).to.have.length(1);
+    expect(mainConfig.routes[0].blockAlias).to.equal('faqBlock');
+    expect(mainConfig.routes[0].nestedSchemaType).to.equal('Question');
+    // name←name and text←text were auto-mapped; acceptedAnswer was not.
+    const mappedSchemaProps = mainConfig.routes[0].propertyMappings.map((p: any) => p.schemaProperty);
+    expect(mappedSchemaProps).to.include('name');
+
+    const hasPart = targetMappings.find((m: any) => m.schemaPropertyName === 'hasPart');
+    const hasPartConfig = JSON.parse(hasPart.resolverConfig);
+    const blockAliases = hasPartConfig.routes.map((r: any) => r.blockAlias).sort();
+    expect(blockAliases).to.deep.equal(['heroBlock', 'teamBlock']);
   });
 
-  it('shows schema type name in headline', async () => {
-    const el = createElement('Question');
+  it('opting a SKIP block in marks it mapped', async () => {
+    const el = createElement();
+    await waitForLoad(el);
+    const richIndex = el._blockRows.findIndex((r: any) => r.alias === 'richTextBlock');
+    await el._enableRow(richIndex);
+    await el.updateComplete;
+    expect(el._blockRows[richIndex].mapped).to.equal(true);
+  });
+
+  it('pre-fills from existing saved routed config when re-editing', async () => {
+    const existing = [
+      {
+        schemaPropertyName: 'about',
+        nestedSchemaTypeName: null,
+        resolverConfig: JSON.stringify({
+          routes: [
+            {
+              blockAlias: 'teamBlock',
+              nestedSchemaType: 'Organization',
+              propertyMappings: [{ schemaProperty: 'name', contentProperty: 'name' }],
+            },
+          ],
+        }),
+      },
+    ];
+    const el = createElement('homePage', 'contentBlocks', existing);
+    await waitForLoad(el);
+    const team = el._blockRows.find((r: any) => r.alias === 'teamBlock');
+    // Existing config wins over the heuristic suggestion (Person @ hasPart).
+    expect(team.targetProperty).to.equal('about');
+    expect(team.nestedSchemaType).to.equal('Organization');
+  });
+
+  it('shows the block-list property alias in the headline', async () => {
+    const el = createElement();
     await waitForLoad(el);
     const headline = el.shadowRoot!.querySelector('umb-body-layout');
-    expect(headline).to.exist;
-    expect(headline!.getAttribute('headline')).to.contain('Question');
-  });
-
-  it('renders property dropdowns from block element type properties', async () => {
-    const el = createElement();
-    await waitForLoad(el);
-    // Should be on mappings step with dropdowns for block type properties
-    const selects = el.shadowRoot!.querySelectorAll('uui-table-row uui-select');
-    expect(selects.length).to.be.greaterThan(0);
-  });
-
-  it('renders auto-detected wrap badge for complex schema properties with existing config', async () => {
-    const el = createElement();
-    await waitForLoad(el);
-    // Question.acceptedAnswer has wrapInType: 'Answer' in existing config
-    // So it should show an auto-detected wrap badge (uui-tag), not a manual dropdown
-    const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
-    // Find the acceptedAnswer row (index 1)
-    const acceptedAnswerRow = rows[1];
-    if (acceptedAnswerRow) {
-      const cells = acceptedAnswerRow.querySelectorAll('uui-table-cell');
-      // Last cell should have a uui-tag badge for auto-detected wrap
-      const wrapTag = cells[2]?.querySelector('uui-tag');
-      expect(wrapTag).to.exist;
-      expect(wrapTag!.textContent!.trim()).to.contain('Answer');
-    }
-  });
-
-  it('shows block type picker on step 1 when navigating back', async () => {
-    const el = createElement();
-    await waitForLoad(el);
-    // Currently on mappings step. Click Back to go to block-type step
-    const backButton = (Array.from(el.shadowRoot!.querySelectorAll('uui-button')) as HTMLElement[])
-      .find((b) => b.getAttribute('label') === 'Back') as HTMLElement;
-    expect(backButton).to.exist;
-    backButton?.click();
-    await el.updateComplete;
-    await new Promise((r) => requestAnimationFrame(r));
-    await el.updateComplete;
-    // Should show block type picker (either list or fallback input)
-    const blockTypeList = el.shadowRoot!.querySelector('.block-type-list');
-    const fallbackHint = el.shadowRoot!.querySelector('.no-block-types-hint');
-    expect(blockTypeList || fallbackHint).to.exist;
-  });
-
-  it('shows preview step with Save button when advancing from mappings', async () => {
-    const config = JSON.stringify({
-      nestedMappings: [
-        { blockAlias: 'faqItem', schemaProperty: 'name', contentProperty: 'question' },
-      ],
-    });
-    const el = createElement('Question', config);
-    await waitForLoad(el);
-    // Click Preview button
-    const previewButton = (Array.from(el.shadowRoot!.querySelectorAll('uui-button')) as HTMLElement[])
-      .find((b) => b.getAttribute('label') === 'Preview') as HTMLElement;
-    expect(previewButton).to.exist;
-    previewButton?.click();
-    await el.updateComplete;
-    await new Promise((r) => requestAnimationFrame(r));
-    await el.updateComplete;
-    // Should be on preview step with Save button
-    const buttons = (Array.from(el.shadowRoot!.querySelectorAll('uui-button')) as HTMLElement[]);
-    const labels = buttons.map((b) => b.getAttribute('label'));
-    expect(labels).to.include('Save Mapping');
-    // Should show preview content
-    const previewSummary = el.shadowRoot!.querySelector('.preview-summary');
-    expect(previewSummary).to.exist;
-  });
-
-  it('shows JSON preview in collapsible details on preview step', async () => {
-    const config = JSON.stringify({
-      nestedMappings: [
-        { blockAlias: 'faqItem', schemaProperty: 'name', contentProperty: 'question' },
-      ],
-    });
-    const el = createElement('Question', config);
-    await waitForLoad(el);
-    // Advance to preview
-    const previewButton = (Array.from(el.shadowRoot!.querySelectorAll('uui-button')) as HTMLElement[])
-      .find((b) => b.getAttribute('label') === 'Preview') as HTMLElement;
-    previewButton?.click();
-    await el.updateComplete;
-    await new Promise((r) => requestAnimationFrame(r));
-    await el.updateComplete;
-    const jsonDetails = el.shadowRoot!.querySelector('.json-details');
-    expect(jsonDetails).to.exist;
-    const jsonPreview = el.shadowRoot!.querySelector('.json-preview');
-    expect(jsonPreview).to.exist;
-    expect(jsonPreview!.textContent).to.contain('nestedMappings');
-  });
-
-  it('shows fallback input when no block element types are available', async () => {
-    // Use a property that has no mock block types
-    const el = document.createElement('schemeweaver-nested-mapping-modal') as any;
-    el.data = {
-      nestedSchemaTypeName: 'Question',
-      contentTypePropertyAlias: 'nonexistentProperty',
-      contentTypeAlias: 'faqPage',
-      existingConfig: null,
-    };
-    document.body.appendChild(el);
-    await waitForLoad(el);
-    // Should show step 1 with fallback input (no block types found)
-    const hint = el.shadowRoot!.querySelector('.no-block-types-hint');
-    expect(hint).to.exist;
-    el.remove();
+    expect(headline!.getAttribute('headline')).to.contain('contentBlocks');
   });
 });

@@ -855,6 +855,197 @@ public class BlockContentResolverTests
         place.Geo.Count.Should().Be(0, "no map values resolved so no empty GeoCoordinates should be emitted");
     }
 
+    // --- WS3/WS4: per-block-type routes ---
+
+    // New routed form: a heterogeneous block list (hero + team + map) feeding a single
+    // property mapping. Each block element type resolves via its own route to a DIFFERENT
+    // Schema.org type. Blocks with no matching route are skipped (not aborted).
+    [Fact]
+    public void Resolve_RoutedConfig_HeterogeneousBlocks_ProduceDifferentTypedThings()
+    {
+        var hero = CreateBlockElement("heroBlock", new Dictionary<string, object?>
+        {
+            ["heading"] = "Welcome"
+        });
+        var team = CreateBlockElement("teamBlock", new Dictionary<string, object?>
+        {
+            ["personName"] = "Ada Lovelace"
+        });
+        var map = CreateBlockElement("mapBlock", new Dictionary<string, object?>
+        {
+            ["placeName"] = "Leeds Office"
+        });
+        // A block element type with no route — must be skipped, not abort the list.
+        var unmapped = CreateBlockElement("richTextBlock", new Dictionary<string, object?>
+        {
+            ["body"] = "Some prose"
+        });
+        var blockListModel = CreateBlockListModel(hero, team, map, unmapped);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "heroBlock",
+                    NestedSchemaType = "WPHeader",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "heading" }
+                    }
+                },
+                new()
+                {
+                    BlockAlias = "teamBlock",
+                    NestedSchemaType = "Person",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "personName" }
+                    }
+                },
+                new()
+                {
+                    BlockAlias = "mapBlock",
+                    NestedSchemaType = "Place",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "placeName" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        // Routes present — the mapping-level NestedSchemaTypeName is deliberately null and
+        // must NOT abort resolution.
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(3, "the unmapped richTextBlock is skipped, not aborted");
+        things.Should().ContainSingle(t => t is Schema.NET.WPHeader);
+        things.Should().ContainSingle(t => t is Schema.NET.Person);
+        things.Should().ContainSingle(t => t is Schema.NET.Place);
+
+        ((Schema.NET.Person)things.Single(t => t is Schema.NET.Person)).Name.First()
+            .Should().Be("Ada Lovelace");
+    }
+
+    // Routes present but NestedSchemaTypeName missing must NOT abort (regression of the
+    // old silent-failure mode that returned null whenever NestedSchemaTypeName was empty).
+    [Fact]
+    public void Resolve_RoutedConfig_NoMappingLevelNestedSchemaType_StillResolves()
+    {
+        var faq = CreateBlockElement("faqBlock", new Dictionary<string, object?>
+        {
+            ["question"] = "What is this?"
+        });
+        var blockListModel = CreateBlockListModel(faq);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "faqBlock",
+                    NestedSchemaType = "Question",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "question" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().ContainSingle();
+        things[0].Should().BeOfType<Schema.NET.Question>();
+    }
+
+    // Routed form where a route's blockAlias matches NONE of the blocks → that block is
+    // skipped; if no block matches any route the resolver returns null (empty output).
+    [Fact]
+    public void Resolve_RoutedConfig_NoBlockMatchesAnyRoute_ReturnsNull()
+    {
+        var block = CreateBlockElement("unknownBlock", new Dictionary<string, object?>
+        {
+            ["foo"] = "bar"
+        });
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "faqBlock",
+                    NestedSchemaType = "Question",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "question" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull();
+    }
+
+    // Back-compat: the legacy flat NestedMappings + mapping-level NestedSchemaTypeName
+    // shape must still parse and resolve as a single implicit route.
+    [Fact]
+    public void Resolve_LegacyFlatConfig_StillResolvesAsSingleImplicitRoute()
+    {
+        var blockElement = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["questionText"] = "Legacy still works?"
+        });
+        var blockListModel = CreateBlockListModel(blockElement);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new() { BlockAlias = "faqItem", SchemaProperty = "name", ContentProperty = "questionText" }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, nestedSchemaTypeName: "Question", resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().ContainSingle();
+        things[0].Should().BeOfType<Schema.NET.Question>();
+        ((Schema.NET.Question)things[0]).Name.First().Should().Be("Legacy still works?");
+    }
+
     private static IPublishedElement CreateBlockElement(string contentTypeAlias, Dictionary<string, object?> properties)
     {
         var element = Substitute.For<IPublishedElement>();

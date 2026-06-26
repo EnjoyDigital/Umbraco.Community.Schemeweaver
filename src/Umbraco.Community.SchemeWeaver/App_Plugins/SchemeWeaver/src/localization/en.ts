@@ -178,6 +178,16 @@ export default {
     // showMoreProperties is defined above and shared with the nested-type modal disclosure.
     hideAdditionalProperties: 'Hide additional properties',
 
+    // Flat block-mapping panel (replaces the old 3-step nested-mapping wizard)
+    blockMappings: 'Block Mappings',
+    blockMappingsDescription: 'Each block type can map to its own Schema.org type and target property. Auto-map fills these from the heuristic suggester.',
+    autoMapAll: 'Auto-map all',
+    targetProperty: 'Target Property',
+    mapThisBlock: 'Map this block',
+    unmapBlock: 'Remove mapping',
+    blockNoSuggestion: 'No suggestion available for this block type.',
+    blockTableEmptyHint: 'Choose a Schema.org type to map this block’s properties.',
+
     // AI features (require SchemeWeaver.AI satellite package)
     aiAnalyse: 'AI Analyse',
     aiAnalyseAll: 'AI Analyse All',
@@ -239,5 +249,6 @@ export default {
     staticValueForProperty: 'Static value for {0}',
     nestedTypeForProperty: 'Nested type for {0}',
     wrapInTypeForProperty: 'Wrap-in type for {0}',
+    mappedCount: '{0}/{1} mapped',
   },
 };

@@ -64,6 +64,11 @@ export class SchemeWeaverRepository extends UmbControllerBase {
     return this.#dataSource.getBlockElementTypes(contentTypeAlias, propertyAlias);
   }
 
+  /** Suggest routed block mappings (one per target page property) for a block-list property. */
+  async requestBlockSuggestions(contentTypeAlias: string, propertyAlias: string) {
+    return this.#dataSource.suggestBlockMappings(contentTypeAlias, propertyAlias);
+  }
+
   async generateContentType(request: ContentTypeGenerationRequest) {
     return this.#dataSource.generateContentType(request);
   }

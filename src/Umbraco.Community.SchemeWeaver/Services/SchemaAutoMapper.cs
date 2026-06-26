@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 
@@ -12,6 +13,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 {
     private readonly IContentTypeService _contentTypeService;
     private readonly ISchemaTypeRegistry _schemaTypeRegistry;
+    private readonly int _autoApplyThreshold;
+    private readonly int _showThreshold;
 
     private static HashSet<string> BlockEditorAliases => SchemeWeaverConstants.PropertyEditors.BlockEditorAliases;
 
@@ -343,10 +346,17 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["SearchResultsPage.breadcrumb"] = new("reference", null, null, "breadcrumb"),
     };
 
-    public SchemaAutoMapper(IContentTypeService contentTypeService, ISchemaTypeRegistry schemaTypeRegistry)
+    public SchemaAutoMapper(
+        IContentTypeService contentTypeService,
+        ISchemaTypeRegistry schemaTypeRegistry,
+        IOptions<SchemaAutoMapperOptions>? options = null)
     {
         _contentTypeService = contentTypeService;
         _schemaTypeRegistry = schemaTypeRegistry;
+
+        var opts = options?.Value ?? new SchemaAutoMapperOptions();
+        _autoApplyThreshold = opts.AutoApplyConfidenceThreshold;
+        _showThreshold = opts.ShowConfidenceThreshold;
     }
 
     /// <summary>
@@ -441,7 +451,10 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 {
                     suggestion.SuggestedContentTypePropertyAlias = builtInAlias;
                     suggestion.EditorAlias = SchemeWeaverConstants.BuiltInProperties.EditorAlias;
-                    suggestion.Confidence = 70;
+                    // Canonical built-in mappings (schema url → node url, name → node Name,
+                    // datePublished → CreateDate, dateModified → UpdateDate). Scored at the
+                    // auto-apply bar so they stay pre-ticked after the confidence filter.
+                    suggestion.Confidence = 80;
                     suggestion.IsAutoMapped = true;
                     suggestions.Add(suggestion);
                     continue;
@@ -553,7 +566,17 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             suggestions.Add(suggestion);
         }
 
-        return suggestions;
+        // Threshold pass (authoritative over the per-branch IsAutoMapped values above):
+        //  - auto-apply only the genuinely-reliable rows (>= AutoApplyConfidenceThreshold);
+        //  - keep plausible rows (>= ShowConfidenceThreshold) as "click to accept";
+        //  - drop the junk below the show threshold (partial-name matches at 50, generic
+        //    block fallbacks at 40, no-match slots at 0) so it never reaches the UI.
+        foreach (var suggestion in suggestions)
+            suggestion.IsAutoMapped = suggestion.Confidence >= _autoApplyThreshold;
+
+        return suggestions
+            .Where(s => s.Confidence >= _showThreshold)
+            .ToList();
     }
 
     public IEnumerable<RankedSchemaPropertyInfo> RankSchemaProperties(string schemaTypeName)
@@ -618,19 +641,21 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
         if (BlockEditorAliases.Contains(editorAlias))
         {
+            // Confidence stays at whatever the name match earned (exact 100 / synonym 80 /
+            // partial 50). A block editor doesn't make a strong name match weaker, nor a
+            // weak one stronger — so partial-name block matches stay below the show
+            // threshold and drop out, while exact/synonym block matches auto-apply.
             if (hasPopularDefault)
             {
                 suggestion.SuggestedSourceType = popularDefault!.SourceType;
                 suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
                 suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
                 suggestion.SuggestedTargetPieceKey = popularDefault.TargetPieceKey;
-                suggestion.Confidence = 70;
             }
             else
             {
                 suggestion.SuggestedSourceType = "blockContent";
                 suggestion.SuggestedNestedSchemaTypeName = GetFirstNonPrimitiveAcceptedType(suggestion.AcceptedTypes);
-                suggestion.Confidence = 70;
             }
         }
         else if (ContentPickerAliases.Contains(editorAlias))

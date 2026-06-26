@@ -23,6 +23,7 @@ import type {
   JsonLdPreviewResponse,
   ContentTypeGenerationRequest,
   BlockElementTypeInfo,
+  BlockMappingSuggestion,
   SchemaTypeSuggestion,
   BulkSchemaTypeSuggestion,
 } from '../api/types.js';
@@ -256,6 +257,22 @@ export class SchemeWeaverServerDataSource {
     return fetchApi<BlockElementTypeInfo[]>(
       this.#host,
       `/content-types/${encodeURIComponent(contentTypeAlias)}/properties/${encodeURIComponent(propertyAlias)}/block-types`,
+    );
+  }
+
+  /**
+   * Suggest routed block mappings for a block-list property. Returns one
+   * suggestion per TARGET page property (mainEntity / hasPart / about / …),
+   * each carrying the block-element routes that feed it.
+   */
+  async suggestBlockMappings(
+    contentTypeAlias: string,
+    propertyAlias: string,
+  ): Promise<BlockMappingSuggestion[] | undefined> {
+    return fetchApi<BlockMappingSuggestion[]>(
+      this.#host,
+      `/content-types/${encodeURIComponent(contentTypeAlias)}/properties/${encodeURIComponent(propertyAlias)}/block-suggest`,
+      { method: 'POST' },
     );
   }
 

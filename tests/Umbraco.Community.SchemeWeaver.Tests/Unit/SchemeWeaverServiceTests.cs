@@ -26,6 +26,7 @@ public class SchemeWeaverServiceTests
     private readonly IContentTypeService _contentTypeService = Substitute.For<IContentTypeService>();
     private readonly IDataTypeService _dataTypeService = Substitute.For<IDataTypeService>();
     private readonly ISchemaValidator _validator = Substitute.For<ISchemaValidator>();
+    private readonly IBlockSchemaSuggester _blockSchemaSuggester = Substitute.For<IBlockSchemaSuggester>();
     private readonly ILogger<SchemeWeaverService> _logger = Substitute.For<ILogger<SchemeWeaverService>>();
 
     // Existing preview tests assert against the legacy single-Thing string;
@@ -45,7 +46,7 @@ public class SchemeWeaverServiceTests
         _sut = new SchemeWeaverService(
             _registry, _autoMapper, _generator, _graphGenerator,
             _repository, _contentTypeService, _dataTypeService,
-            _validator, Options.Create(_options), _logger);
+            _validator, _blockSchemaSuggester, Options.Create(_options), _logger);
     }
 
     [Fact]

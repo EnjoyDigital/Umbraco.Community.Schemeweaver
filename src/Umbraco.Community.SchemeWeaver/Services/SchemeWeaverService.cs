@@ -24,6 +24,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly IContentTypeService _contentTypeService;
     private readonly IDataTypeService _dataTypeService;
     private readonly ISchemaValidator _validator;
+    private readonly IBlockSchemaSuggester _blockSchemaSuggester;
     private readonly SchemeWeaverOptions _options;
     private readonly ILogger<SchemeWeaverService> _logger;
 
@@ -36,6 +37,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         IContentTypeService contentTypeService,
         IDataTypeService dataTypeService,
         ISchemaValidator validator,
+        IBlockSchemaSuggester blockSchemaSuggester,
         IOptions<SchemeWeaverOptions> options,
         ILogger<SchemeWeaverService> logger)
     {
@@ -47,6 +49,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         _contentTypeService = contentTypeService;
         _dataTypeService = dataTypeService;
         _validator = validator;
+        _blockSchemaSuggester = blockSchemaSuggester;
         _options = options.Value;
         _logger = logger;
     }
@@ -279,9 +282,21 @@ public class SchemeWeaverService : ISchemeWeaverService
             {
                 Alias = elementType!.Alias,
                 Name = elementType.Name ?? elementType.Alias,
-                Properties = elementType.PropertyTypes.Select(p => p.Alias).ToList()
+                Properties = elementType.PropertyTypes.Select(p => p.Alias).ToList(),
+                PropertyInfos = elementType.PropertyTypes.Select(p => new BlockElementPropertyInfo
+                {
+                    Alias = p.Alias,
+                    Name = p.Name ?? p.Alias,
+                    EditorAlias = p.PropertyEditorAlias
+                }).ToList()
             })
             .ToList();
+    }
+
+    public async Task<IEnumerable<BlockMappingSuggestion>> SuggestBlockMappingsAsync(string contentTypeAlias, string propertyAlias)
+    {
+        var elementTypes = await GetBlockElementTypesAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
+        return _blockSchemaSuggester.Suggest(elementTypes);
     }
 
     /// <summary>

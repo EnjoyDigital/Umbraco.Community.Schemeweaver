@@ -21,4 +21,11 @@ public interface ISchemeWeaverService
     IEnumerable<SchemaPropertyInfo> GetSchemaProperties(string typeName);
     IEnumerable<SchemaMappingDto> GetAllMappings();
     Task<IEnumerable<BlockElementTypeInfo>> GetBlockElementTypesAsync(string contentTypeAlias, string propertyAlias);
+
+    /// <summary>
+    /// Suggests routed block mappings for a BlockList/BlockGrid property: each block
+    /// element type is matched to a best-fit Schema.org type and target page property,
+    /// grouped one suggestion per target property.
+    /// </summary>
+    Task<IEnumerable<BlockMappingSuggestion>> SuggestBlockMappingsAsync(string contentTypeAlias, string propertyAlias);
 }

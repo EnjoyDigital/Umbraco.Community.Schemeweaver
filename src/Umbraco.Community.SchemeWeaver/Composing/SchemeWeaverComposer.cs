@@ -26,6 +26,10 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddOptions<SchemeWeaverOptions>()
             .BindConfiguration("SchemeWeaver");
 
+        // Confidence thresholds for the heuristic auto-mapper (auto-apply 80, show 60).
+        builder.Services.AddOptions<SchemaAutoMapperOptions>()
+            .BindConfiguration("SchemeWeaver:AutoMapper");
+
         builder.Services.AddControllers()
             .AddApplicationPart(typeof(SchemeWeaverComposer).Assembly);
 
@@ -37,6 +41,7 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<ISchemaMappingRepository, SchemaMappingRepository>();
         builder.Services.AddScoped<ISchemeWeaverService, SchemeWeaverService>();
         builder.Services.AddScoped<ISchemaAutoMapper, SchemaAutoMapper>();
+        builder.Services.AddScoped<IBlockSchemaSuggester, BlockSchemaSuggester>();
         builder.Services.AddScoped<IJsonLdGenerator, JsonLdGenerator>();
         builder.Services.AddScoped<IContentTypeGenerator, ContentTypeGenerator>();
 
