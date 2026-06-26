@@ -73,8 +73,14 @@ export default {
     enterStaticValue: 'Enter static value...',
     staticValueFor: 'Static value for',
     contentTypeAliasPlaceholder: 'Content type alias...',
-    valid: 'Valid',
+    // Qualified: IsValid reflects backoffice-context structural validity only —
+    // the resolved host is the backoffice host, so @id/url differ from the live
+    // render. For live validity, check the live page.
+    valid: 'Valid (backoffice preview)',
     invalid: 'Invalid',
+    // Short label for the per-row range-compatibility badge; the full server
+    // message is carried on the badge's title/aria-label.
+    rangeWarning: 'Out of range',
     publishRequired: 'Publish this content first, then refresh to preview JSON-LD output.',
     noMappingForPreview: 'No Schema.org mapping exists for this content type. Map it first from the document type editor.',
     sourceBlockContent: 'Block Content',

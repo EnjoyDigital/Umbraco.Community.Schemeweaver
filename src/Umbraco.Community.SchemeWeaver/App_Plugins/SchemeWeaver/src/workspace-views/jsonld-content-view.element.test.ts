@@ -71,6 +71,13 @@ describe('JsonLdContentViewElement', () => {
     expect(preview).to.exist;
   });
 
+  it('uses the qualified "Valid (backoffice preview)" label for the validity badge', async () => {
+    // IsValid reflects backoffice-context structural validity only, so the
+    // badge must qualify itself rather than imply live-render validity.
+    const en = (await import('../localization/en.js')).default;
+    expect(en.schemeWeaver.valid).to.equal('Valid (backoffice preview)');
+  });
+
   it('renders invalid tag when preview response has errors', async () => {
     const el = (await fixture<JsonLdContentViewElement>(
       html`<schemeweaver-jsonld-content-view></schemeweaver-jsonld-content-view>`,

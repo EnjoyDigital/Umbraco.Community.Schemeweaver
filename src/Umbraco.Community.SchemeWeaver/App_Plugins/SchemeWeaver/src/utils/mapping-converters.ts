@@ -1,4 +1,4 @@
-import type { PropertyMappingDto, PropertyMappingSuggestion } from '../api/types.js';
+import type { PropertyMappingDto, PropertyMappingSuggestion, ValidationIssue } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
 
@@ -142,6 +142,31 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
     subMappings: newSourceType === SourceType.ComplexType ? row.subMappings : [],
     selectedSubType: newSourceType === SourceType.ComplexType ? row.selectedSubType : '',
   };
+}
+
+/**
+ * Applies server-authoritative range warnings to rows, keyed by
+ * `warning.path === row.schemaPropertyName`. Multiple warnings for one property
+ * (e.g. several offending block routes) are joined onto one badge. Returns a new
+ * array; rows with no matching warning have `rangeWarning` cleared. Matching the
+ * server's `Path` exactly is what keeps the badge in sync after a live save.
+ */
+export function applyWarningsToRows(
+  rows: PropertyMappingRow[],
+  warnings: ValidationIssue[] | undefined,
+): PropertyMappingRow[] {
+  const byProperty = new Map<string, string[]>();
+  for (const w of warnings ?? []) {
+    if (w.severity !== 'warning' || !w.path) continue;
+    const list = byProperty.get(w.path) ?? [];
+    list.push(w.message);
+    byProperty.set(w.path, list);
+  }
+
+  return rows.map((row) => {
+    const messages = byProperty.get(row.schemaPropertyName);
+    return { ...row, rangeWarning: messages?.length ? messages.join('\n') : undefined };
+  });
 }
 
 export function sortMappingRows(rows: PropertyMappingRow[]): PropertyMappingRow[] {

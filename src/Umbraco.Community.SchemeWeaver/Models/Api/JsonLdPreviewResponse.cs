@@ -30,4 +30,23 @@ public class JsonLdPreviewResponse
     /// so editors can fix the exact node that tripped the rule.
     /// </summary>
     public List<ValidationIssueDto> Issues { get; set; } = [];
+
+    /// <summary>
+    /// The context this preview was generated in. Always
+    /// <c>backoffice-preview</c> from the management API. A reminder that
+    /// <see cref="IsValid"/> reflects backoffice-context structural validity
+    /// only — the resolved host (see <see cref="ResolvedBaseUrl"/>) is the
+    /// backoffice host, so <c>@id</c>/<c>url</c> values differ from the live
+    /// render. For live validity, check the live page.
+    /// </summary>
+    public string Context { get; set; } = "backoffice-preview";
+
+    /// <summary>
+    /// The base URL the generator resolved from the current request when
+    /// building this preview. In the backoffice this is the backoffice host,
+    /// not the public site host, which is why preview <c>@id</c>/<c>url</c>
+    /// tokens can diverge from what the live site emits. Surfaced so editors
+    /// can see the divergence.
+    /// </summary>
+    public string? ResolvedBaseUrl { get; set; }
 }

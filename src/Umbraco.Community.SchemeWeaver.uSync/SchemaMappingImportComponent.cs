@@ -84,20 +84,25 @@ public class SchemaMappingImportNotificationHandler : INotificationAsyncHandler<
         }
 
         var imported = 0;
-        foreach (var file in xmlFiles)
+        // Belt-and-braces: suppress export-on-save while importing so a future
+        // service-routed import path can't trigger an import → export loop.
+        using (SchemeWeaverImportGuard.Enter())
         {
-            try
+            foreach (var file in xmlFiles)
             {
-                var xml = XElement.Load(file);
-                var result = await serializer.DeserializeAsync(xml, new SyncSerializerOptions());
-                if (result.Success)
-                    imported++;
-                else
-                    _logger.LogWarning("Failed to import mapping from {File}: {Message}", file, result.Name);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error importing mapping from {File}", file);
+                try
+                {
+                    var xml = XElement.Load(file);
+                    var result = await serializer.DeserializeAsync(xml, new SyncSerializerOptions());
+                    if (result.Success)
+                        imported++;
+                    else
+                        _logger.LogWarning("Failed to import mapping from {File}: {Message}", file, result.Name);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error importing mapping from {File}", file);
+                }
             }
         }
 

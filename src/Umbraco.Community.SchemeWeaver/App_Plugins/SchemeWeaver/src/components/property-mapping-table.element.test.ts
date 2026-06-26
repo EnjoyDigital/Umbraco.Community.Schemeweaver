@@ -385,4 +385,38 @@ describe('PropertyMappingTableElement', () => {
     const configButton = el.shadowRoot!.querySelector('.block-actions uui-button');
     expect(configButton).to.exist;
   });
+
+  describe('range warning badge (server-authoritative)', () => {
+    it('renders a warning badge with accessible title/aria-label when rangeWarning is set', async () => {
+      const message = "'HasPart' accepts CreativeWork but is mapped to 'Person', which is not in that range — the value will be dropped. Map it to 'About' instead, or change the block/nested type.";
+      const rows: PropertyMappingRow[] = [
+        { schemaPropertyName: 'hasPart', schemaPropertyType: 'CreativeWork', sourceType: SourceType.ComplexType, contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: 'Person', resolverConfig: null, acceptedTypes: ['CreativeWork'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [], rangeWarning: message },
+      ];
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${rows}></schemeweaver-property-mapping-table>`);
+      const badge = el.shadowRoot!.querySelector('uui-tag.range-warning-badge');
+      expect(badge).to.exist;
+      expect(badge!.getAttribute('color')).to.equal('warning');
+      expect(badge!.getAttribute('title')).to.equal(message);
+      expect(badge!.getAttribute('aria-label')).to.equal(message);
+    });
+
+    it('renders no badge when rangeWarning is absent', async () => {
+      const rows: PropertyMappingRow[] = [
+        { schemaPropertyName: 'headline', schemaPropertyType: 'Text', sourceType: SourceType.Property, contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: 95, editorAlias: 'Umbraco.TextBox', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      ];
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${rows}></schemeweaver-property-mapping-table>`);
+      expect(el.shadowRoot!.querySelector('uui-tag.range-warning-badge')).to.not.exist;
+    });
+
+    it('renders no badge for a legitimate subtype row (false-positive guard — no server warning)', async () => {
+      // LocalBusiness is in range for an Organization-ranged property, so the
+      // server emits no warning and rangeWarning stays undefined. The browser
+      // must NOT synthesise a badge from a client-side membership test.
+      const rows: PropertyMappingRow[] = [
+        { schemaPropertyName: 'author', schemaPropertyType: 'Organization | Person', sourceType: SourceType.ComplexType, contentTypePropertyAlias: '', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: '', nestedSchemaTypeName: 'LocalBusiness', resolverConfig: null, acceptedTypes: ['Organization', 'Person'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      ];
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${rows}></schemeweaver-property-mapping-table>`);
+      expect(el.shadowRoot!.querySelector('uui-tag.range-warning-badge')).to.not.exist;
+    });
+  });
 });

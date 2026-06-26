@@ -89,8 +89,19 @@ public static class SchemaPropertySetter
                 // Re-enter the main setter with the wrapped Thing — it will match the
                 // normal Thing-handling paths (implicit conversion / OneOrMany / Values).
                 SetPropertyValue(instance, propertyName, wrapped, logger);
+                return;
             }
         }
+
+        // Nothing matched: the value's type can't be converted to the target
+        // Schema.NET property's type (e.g. a Thing assigned to a scalar-only
+        // property, or an object outside the property's range). Schema.NET would
+        // silently drop it; log so the server isn't silent. The structural
+        // SchemaRangeValidator surfaces the same problem to editors at save/preview.
+        logger?.LogWarning(
+            "Could not set Schema property '{PropertyName}' on {SchemaType}: value of type {ValueType} " +
+            "is not convertible to the property's type {TargetType} and was dropped",
+            propertyName, instance.GetType().Name, value.GetType().Name, targetType.Name);
     }
 
     /// <summary>

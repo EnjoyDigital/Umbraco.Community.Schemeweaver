@@ -37,4 +37,8 @@
     <PackageReference Include="uSync.BackOffice" Version="$(SchemeWeaverUSyncVersion)" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Umbraco.Community.SchemeWeaver.Tests" />
+  </ItemGroup>
+
 </Project>

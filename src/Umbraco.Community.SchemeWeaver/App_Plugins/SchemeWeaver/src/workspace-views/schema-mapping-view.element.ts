@@ -17,7 +17,7 @@ import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from '../modals/complex-type-
 import type { SchemaMappingDto, ContentTypeProperty, SchemaPropertyInfo } from '../api/types.js';
 import { SourceType } from '../constants/source-type.js';
 
-import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange } from '../utils/mapping-converters.js';
+import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange, applyWarningsToRows } from '../utils/mapping-converters.js';
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
@@ -172,6 +172,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
         });
         this._rows = sortMappingRows(this._rows);
       }
+
+      // Server-authoritative range warnings, keyed back to rows by schema
+      // property name. Refreshed on every fetch — including the re-fetch after
+      // save — so badges stay in sync with the persisted mapping.
+      this._rows = applyWarningsToRows(this._rows, mapping.warnings);
 
       const props = await this.#context?.requestContentTypeProperties(this._contentTypeAlias);
       if (props) {

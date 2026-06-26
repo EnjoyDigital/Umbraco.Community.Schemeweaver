@@ -1,11 +1,13 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
+using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
 
@@ -25,6 +27,9 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly IDataTypeService _dataTypeService;
     private readonly ISchemaValidator _validator;
     private readonly IBlockSchemaSuggester _blockSchemaSuggester;
+    private readonly ISchemaRangeValidator _rangeValidator;
+    private readonly IMappingReachabilityClassifier _reachabilityClassifier;
+    private readonly IEventAggregator _eventAggregator;
     private readonly SchemeWeaverOptions _options;
     private readonly ILogger<SchemeWeaverService> _logger;
 
@@ -38,6 +43,9 @@ public class SchemeWeaverService : ISchemeWeaverService
         IDataTypeService dataTypeService,
         ISchemaValidator validator,
         IBlockSchemaSuggester blockSchemaSuggester,
+        ISchemaRangeValidator rangeValidator,
+        IMappingReachabilityClassifier reachabilityClassifier,
+        IEventAggregator eventAggregator,
         IOptions<SchemeWeaverOptions> options,
         ILogger<SchemeWeaverService> logger)
     {
@@ -50,6 +58,9 @@ public class SchemeWeaverService : ISchemeWeaverService
         _dataTypeService = dataTypeService;
         _validator = validator;
         _blockSchemaSuggester = blockSchemaSuggester;
+        _rangeValidator = rangeValidator;
+        _reachabilityClassifier = reachabilityClassifier;
+        _eventAggregator = eventAggregator;
         _options = options.Value;
         _logger = logger;
     }
@@ -60,7 +71,13 @@ public class SchemeWeaverService : ISchemeWeaverService
         if (mapping is null) return null;
 
         var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
-        return ToDto(mapping, propertyMappings);
+        var dto = ToDto(mapping, propertyMappings);
+
+        // Single read: enrich with both reachability (cheap) and structural
+        // range warnings (a registry walk per property mapping).
+        dto.Reachability = _reachabilityClassifier.Classify(dto.ContentTypeAlias);
+        dto.Warnings = BuildWarningDtos(dto);
+        return dto;
     }
 
     public IEnumerable<SchemaMappingDto> GetAllMappings()
@@ -71,8 +88,23 @@ public class SchemeWeaverService : ISchemeWeaverService
         var mappings = _repository.GetAll();
         var propertyMappingsByMappingId = _repository.GetAllPropertyMappingsByMappingId();
         return mappings.Select(m =>
-            ToDto(m, propertyMappingsByMappingId.GetValueOrDefault(m.Id) ?? []));
+        {
+            var dto = ToDto(m, propertyMappingsByMappingId.GetValueOrDefault(m.Id) ?? []);
+            // List view: reachability only. The range validator is bounded out
+            // here to keep a many-mapping listing cheap.
+            dto.Reachability = _reachabilityClassifier.Classify(dto.ContentTypeAlias);
+            return dto;
+        });
     }
+
+    /// <summary>
+    /// Runs the structural range validator over a DTO and maps each finding to a
+    /// camelCase <see cref="ValidationIssueDto"/> with severity <c>warning</c>.
+    /// </summary>
+    private List<ValidationIssueDto> BuildWarningDtos(SchemaMappingDto dto)
+        => _rangeValidator.Validate(dto)
+            .Select(i => new ValidationIssueDto("warning", i.SchemaType, i.Path, i.Message))
+            .ToList();
 
     public SchemaMappingDto SaveMapping(SchemaMappingDto dto)
     {
@@ -117,17 +149,30 @@ public class SchemeWeaverService : ISchemeWeaverService
         _logger.LogInformation("Saved schema mapping for {Alias} -> {SchemaType}",
             dto.ContentTypeAlias, dto.SchemaTypeName);
 
-        return GetMapping(dto.ContentTypeAlias)
+        // Re-fetch so the returned DTO carries the persisted property mappings
+        // plus Reachability + Warnings enrichment (done inside GetMapping).
+        var result = GetMapping(dto.ContentTypeAlias)
             ?? throw new InvalidOperationException($"Failed to retrieve mapping after save for '{dto.ContentTypeAlias}'.");
+
+        // Publish AFTER children are persisted. Service-layer publishing makes the
+        // uSync import → save → export loop structurally impossible: the importer
+        // writes through the repository directly, bypassing this method entirely.
+        _eventAggregator.Publish(new SchemaMappingSavedNotification(saved.ContentTypeAlias, saved.ContentTypeKey));
+
+        return result;
     }
 
     public void DeleteMapping(string contentTypeAlias)
     {
         var mapping = _repository.GetByContentTypeAlias(contentTypeAlias);
-        if (mapping is not null)
-        {
-            _repository.Delete(mapping.Id);
-        }
+        if (mapping is null)
+            return;
+
+        _repository.Delete(mapping.Id);
+
+        // Only publish when a mapping actually existed, so satellites don't act on
+        // a no-op delete.
+        _eventAggregator.Publish(new SchemaMappingDeletedNotification(mapping.ContentTypeAlias, mapping.ContentTypeKey));
     }
 
     public IEnumerable<PropertyMappingSuggestion> AutoMap(string contentTypeAlias, string schemaTypeName)
@@ -167,6 +212,12 @@ public class SchemeWeaverService : ISchemeWeaverService
                 $"JSON-LD generation failed: {ex.Message}"));
             _logger.LogError(ex, "Error generating JSON-LD preview for content {ContentId}", content.Id);
         }
+
+        // The resolved base URL is the backoffice host in this context, so it's
+        // surfaced to make the preview-vs-live @id divergence visible. Resolved
+        // regardless of UseGraphModel — both paths read the same HttpContext host.
+        response.ResolvedBaseUrl = _generator.GetResolvedBaseUrl();
+        AppendStructuralWarnings(response, content.ContentType.Alias);
 
         return response;
     }
@@ -208,7 +259,38 @@ public class SchemeWeaverService : ISchemeWeaverService
         response.JsonLd = JsonSerializer.Serialize(result,
             new JsonSerializerOptions { WriteIndented = true });
         ApplyValidation(response, response.JsonLd);
+        response.ResolvedBaseUrl = _generator.GetResolvedBaseUrl();
+        AppendStructuralWarnings(response, contentTypeAlias);
         return response;
+    }
+
+    /// <summary>
+    /// Appends structural (range + reachability) warnings to a preview response
+    /// as <c>warning</c> issues. These never flip <see cref="JsonLdPreviewResponse.IsValid"/>
+    /// — that flag tracks Rich Results critical errors only. Safe to call when no
+    /// mapping exists (no-op).
+    /// </summary>
+    private void AppendStructuralWarnings(JsonLdPreviewResponse response, string? contentTypeAlias)
+    {
+        if (string.IsNullOrWhiteSpace(contentTypeAlias))
+            return;
+
+        var dto = GetMapping(contentTypeAlias);
+        if (dto is null)
+            return;
+
+        // Range warnings (GetMapping already ran the validator).
+        response.Issues.AddRange(dto.Warnings);
+
+        // Reachability: hedge that element/block types only emit when a page routes them.
+        if (string.Equals(dto.Reachability, MappingReachabilityClassifier.ComposedFromBlock, StringComparison.Ordinal))
+        {
+            response.Issues.Add(new ValidationIssueDto(
+                "warning",
+                dto.SchemaTypeName,
+                contentTypeAlias,
+                MappingReachabilityClassifier.ComposedFromBlockWarning));
+        }
     }
 
     /// <summary>

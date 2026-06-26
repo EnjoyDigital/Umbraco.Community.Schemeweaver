@@ -54,6 +54,17 @@ public class SchemeWeaverOptions
     /// SchemaMapping drives the site-level part of the graph.
     /// </summary>
     public SiteSettingsOptions SiteSettings { get; set; } = new();
+
+    /// <summary>
+    /// When <c>true</c>, the optional uSync addon exports a mapping to its uSync
+    /// data folder every time it is saved or deleted in the backoffice, so the
+    /// change is ready to commit to source control. Default is <c>false</c> —
+    /// this is a SchemeWeaver-owned flag, deliberately independent of uSync's
+    /// global <c>ExportOnSave</c> so enabling doc-type export-on-save never
+    /// silently starts writing mapping files. Has no effect without the
+    /// <c>Umbraco.Community.SchemeWeaver.uSync</c> package installed.
+    /// </summary>
+    public bool ExportMappingsToUSyncOnSave { get; set; }
 }
 
 /// <summary>
