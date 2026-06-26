@@ -76,6 +76,18 @@ export interface SchemaMappingDto {
    */
   idOverride?: string | null;
   propertyMappings: PropertyMappingDto[];
+  /**
+   * Output-only. How this content type emits JSON-LD: `routed-page`,
+   * `composed-from-block` or `unknown`. Set by the server on read/save; ignored
+   * on input. May be omitted by older backends.
+   */
+  reachability?: string | null;
+  /**
+   * Output-only. Structural range-compatibility warnings, keyed back to a
+   * mapping row by `path === propertyMapping.schemaPropertyName`. Set by the
+   * server on single read and save. May be omitted by older backends.
+   */
+  warnings?: ValidationIssue[];
 }
 
 /** Matches C# PropertyMappingSuggestion — returned as flat array by POST /mappings/{alias}/auto-map */
@@ -192,6 +204,18 @@ export interface JsonLdPreviewResponse {
   errors: string[];
   /** Structured validator findings grouped by severity. May be omitted by older backends. */
   issues?: ValidationIssue[];
+  /**
+   * The context this preview was generated in — always `backoffice-preview`
+   * from the management API. A reminder that `isValid` reflects
+   * backoffice-context structural validity only. May be omitted by older backends.
+   */
+  context?: string;
+  /**
+   * The base URL the generator resolved for `@id`/`url` tokens. In the
+   * backoffice this is the backoffice host, so preview URLs can diverge from
+   * the live render. May be omitted by older backends.
+   */
+  resolvedBaseUrl?: string | null;
 }
 
 /** Matches C# SchemaTypeSuggestion from SchemeWeaver.AI */

@@ -50,6 +50,14 @@ export interface PropertyMappingRow {
   sourceContentTypeProperties: string[];
   dynamicRootConfig?: DynamicRootConfig;
   sourceDocumentTypeUnique?: string;
+  /**
+   * Server-authoritative range-compatibility warning for this row, if any.
+   * Populated from the saved mapping's Warnings (keyed by SchemaPropertyName).
+   * The browser has no Schema.org inheritance graph, so this is never computed
+   * client-side — a literal membership test would mis-fire on legitimate
+   * subtypes (e.g. LocalBusiness under an Organization-ranged property).
+   */
+  rangeWarning?: string;
 }
 
 /** Map of complex editor aliases to their display badge labels */
@@ -241,6 +249,21 @@ export class PropertyMappingTableElement extends UmbLitElement {
     return html`<uui-tag look="secondary" class="editor-badge">${this.localize.term(termKey)}</uui-tag>`;
   }
 
+  /**
+   * Server-authoritative range warning badge. The full message is carried on
+   * title + aria-label; the visible text is a short, localised label.
+   */
+  private _renderRangeWarningBadge(mapping: PropertyMappingRow) {
+    if (!mapping.rangeWarning) return nothing;
+    return html`<uui-tag
+      look="secondary"
+      color="warning"
+      class="range-warning-badge"
+      title=${mapping.rangeWarning}
+      aria-label=${mapping.rangeWarning}
+    >${this.localize.term('schemeWeaver_rangeWarning')}</uui-tag>`;
+  }
+
   private _handleConfigureComplexType(index: number) {
     const mapping = this.mappings[index];
     this.dispatchEvent(
@@ -362,6 +385,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
               ? html`<span>${mapping.sourceType === SourceType.Static ? mapping.staticValue : mapping.contentTypePropertyAlias}</span>`
               : this._renderValueInput(mapping, index)}
             ${this._renderConfidenceTag(mapping)}
+            ${this._renderRangeWarningBadge(mapping)}
           </div>
         </uui-table-cell>
       </uui-table-row>
@@ -570,6 +594,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
             @change=${(e: CustomEvent) => this._handlePropertyChange(index, e.detail.value)}
           ></schemeweaver-property-combobox>
           ${this._renderEditorBadge(mapping.editorAlias)}
+          ${this._renderRangeWarningBadge(mapping)}
         </div>
         ${hasAcceptedTypes
           ? html`

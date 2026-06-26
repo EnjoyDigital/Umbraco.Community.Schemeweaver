@@ -1,8 +1,8 @@
 import { expect } from '@open-wc/testing';
-import type { PropertyMappingDto, PropertyMappingSuggestion } from '../api/types.js';
+import type { PropertyMappingDto, PropertyMappingSuggestion, ValidationIssue } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import { SourceType } from '../constants/source-type.js';
-import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, applySourceTypeChange } from './mapping-converters.js';
+import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, applySourceTypeChange, applyWarningsToRows } from './mapping-converters.js';
 
 /** Helper to create a minimal PropertyMappingDto */
 function makeDto(overrides: Partial<PropertyMappingDto> & { schemaPropertyName: string }): PropertyMappingDto {
@@ -341,5 +341,43 @@ describe('applySourceTypeChange', () => {
     };
     const result = applySourceTypeChange(row, SourceType.Ancestor);
     expect(result.dynamicRootConfig).to.deep.equal({ originAlias: 'Root' });
+  });
+});
+
+describe('applyWarningsToRows', () => {
+  const warn = (path: string, message: string): ValidationIssue => ({
+    severity: 'warning', schemaType: 'Article', path, message,
+  });
+
+  it('keys a warning to the row whose schemaPropertyName matches path', () => {
+    const rows = [makeRow({ schemaPropertyName: 'hasPart' }), makeRow({ schemaPropertyName: 'name' })];
+    const result = applyWarningsToRows(rows, [warn('hasPart', 'out of range')]);
+    expect(result[0].rangeWarning).to.equal('out of range');
+    expect(result[1].rangeWarning).to.be.undefined;
+  });
+
+  it('joins multiple warnings for the same property (e.g. several block routes)', () => {
+    const rows = [makeRow({ schemaPropertyName: 'hasPart' })];
+    const result = applyWarningsToRows(rows, [warn('hasPart', 'route A bad'), warn('hasPart', 'route B bad')]);
+    expect(result[0].rangeWarning).to.equal('route A bad\nroute B bad');
+  });
+
+  it('clears stale warnings when none match', () => {
+    const rows = [makeRow({ schemaPropertyName: 'hasPart', rangeWarning: 'stale' })];
+    const result = applyWarningsToRows(rows, []);
+    expect(result[0].rangeWarning).to.be.undefined;
+  });
+
+  it('ignores non-warning severities', () => {
+    const rows = [makeRow({ schemaPropertyName: 'hasPart' })];
+    const info: ValidationIssue = { severity: 'info', schemaType: 'Article', path: 'hasPart', message: 'fyi' };
+    const result = applyWarningsToRows(rows, [info]);
+    expect(result[0].rangeWarning).to.be.undefined;
+  });
+
+  it('treats undefined warnings as no-op', () => {
+    const rows = [makeRow({ schemaPropertyName: 'hasPart' })];
+    const result = applyWarningsToRows(rows, undefined);
+    expect(result[0].rangeWarning).to.be.undefined;
   });
 });
