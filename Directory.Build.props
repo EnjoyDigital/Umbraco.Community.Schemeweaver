@@ -41,7 +41,7 @@
     <!-- uSync line for this major (stable) -->
     <SchemeWeaverUSyncVersion>17.3.0</SchemeWeaverUSyncVersion>
     <!-- Major-aligned stable package version for the Umbraco 17 line -->
-    <SchemeWeaverPackageVersion>17.5.1</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>17.5.2</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -53,7 +53,7 @@
     <!-- Major-aligned stable package version for the Umbraco 18 line. Its
          [18.0.0, 19.0.0) Umbraco.Cms range is mutually exclusive with the 17 leg's
          [17.0.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->
-    <SchemeWeaverPackageVersion>18.0.0</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>18.0.1</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>
