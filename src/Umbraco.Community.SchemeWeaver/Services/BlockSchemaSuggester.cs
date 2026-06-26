@@ -11,12 +11,15 @@ namespace Umbraco.Community.SchemeWeaver.Services;
 public class BlockSchemaSuggester : IBlockSchemaSuggester
 {
     private readonly ISchemaAutoMapper _autoMapper;
+    private readonly ISchemaTypeRegistry _registry;
 
     /// <summary>Base confidence awarded to a catalogue (keyword) hit.</summary>
     private const int CatalogueConfidence = 80;
 
     private const string MainEntity = "mainEntity";
     private const string HasPart = "hasPart";
+    private const string About = "about";
+    private const string CreativeWork = "CreativeWork";
 
     /// <summary>
     /// Keyword catalogue. Keywords match (after alphanumeric-lowercasing) the block
@@ -48,9 +51,10 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
     private static readonly string[] SkipKeywords =
         ["richtext", "body", "cta", "calltoaction", "link", "button"];
 
-    public BlockSchemaSuggester(ISchemaAutoMapper autoMapper)
+    public BlockSchemaSuggester(ISchemaAutoMapper autoMapper, ISchemaTypeRegistry registry)
     {
         _autoMapper = autoMapper;
+        _registry = registry;
     }
 
     public IEnumerable<BlockMappingSuggestion> Suggest(IEnumerable<BlockElementTypeInfo> elementTypes)
@@ -92,7 +96,7 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
                 PropertyMappings = BuildPropertyMappings(element.Alias, entry.SchemaType)
             };
 
-            routed.Add(new RoutePlan(route, entry.TargetProperty, entry.CanBeMainEntity));
+            routed.Add(new RoutePlan(route, ResolveTarget(entry.SchemaType, entry.TargetProperty), entry.CanBeMainEntity));
         }
 
         ApplyMainEntityDominance(routed);
@@ -158,7 +162,7 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
     /// highest-confidence candidate keeps it; the rest fall back to hasPart. Ties are
     /// broken by input order (the first catalogue match wins).
     /// </summary>
-    private static void ApplyMainEntityDominance(List<RoutePlan> routed)
+    private void ApplyMainEntityDominance(List<RoutePlan> routed)
     {
         var mainCandidates = routed
             .Select((plan, index) => (plan, index))
@@ -169,8 +173,46 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
         if (mainCandidates.Count <= 1)
             return;
 
+        // The highest-confidence candidate keeps mainEntity; the rest fall back to a
+        // range-safe supporting target (hasPart for CreativeWork, else about).
         foreach (var (plan, index) in mainCandidates.Skip(1))
-            routed[index] = plan with { Target = HasPart };
+            routed[index] = plan with { Target = ResolveTarget(plan.Route.NestedSchemaType, HasPart) };
+    }
+
+    /// <summary>
+    /// Resolves a range-safe target page property for a nested schema type. The most
+    /// common catalogue target, <c>hasPart</c>, only accepts <c>CreativeWork</c> — so a
+    /// non-CreativeWork type (Person, Place, Service, Organization) routed there would be
+    /// silently discarded by the strongly-typed Schema.NET model at generation time.
+    /// Those fall back to <c>about</c> (range <c>Thing</c>), which accepts any entity.
+    /// <c>mainEntity</c> and <c>about</c> are already <c>Thing</c>-range and pass through.
+    /// </summary>
+    private string ResolveTarget(string schemaType, string desiredTarget)
+    {
+        if (string.Equals(desiredTarget, HasPart, StringComparison.Ordinal)
+            && !IsCreativeWork(schemaType))
+            return About;
+
+        return desiredTarget;
+    }
+
+    /// <summary>
+    /// Walks the registry's parent-type chain to determine whether <paramref name="schemaType"/>
+    /// is (or descends from) <c>CreativeWork</c>. The guard caps the walk defensively in
+    /// case of an unexpected cycle in the type metadata.
+    /// </summary>
+    private bool IsCreativeWork(string schemaType)
+    {
+        var name = schemaType;
+        for (var guard = 0; !string.IsNullOrEmpty(name) && guard < 50; guard++)
+        {
+            if (string.Equals(name, CreativeWork, StringComparison.Ordinal))
+                return true;
+
+            name = _registry.GetType(name)?.ParentTypeName;
+        }
+
+        return false;
     }
 
     /// <summary>Lowercases and strips all non-alphanumeric characters for tolerant matching.</summary>

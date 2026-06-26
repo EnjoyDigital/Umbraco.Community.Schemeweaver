@@ -17,7 +17,10 @@ public class BlockSchemaSuggesterTests
         // property mappings. Catalogue/target/dominance behaviour is what we assert here.
         _autoMapper.SuggestMappings(Arg.Any<string>(), Arg.Any<string>())
             .Returns([]);
-        _sut = new BlockSchemaSuggester(_autoMapper);
+        // Real registry so the range-aware target check (IsCreativeWork) walks the
+        // genuine Schema.NET parent chain (WPHeader/Review -> CreativeWork; Person/
+        // Place/Service/Organization -> not).
+        _sut = new BlockSchemaSuggester(_autoMapper, new SchemaTypeRegistry());
     }
 
     private static BlockElementTypeInfo Element(string alias, string? name = null, params string[] propertyAliases)
@@ -43,24 +46,49 @@ public class BlockSchemaSuggesterTests
         result[0].Routes[0].NestedSchemaType.Should().Be("Question");
     }
 
+    // Person is not a CreativeWork, so it cannot live under hasPart (which would silently
+    // drop it at generation time) — it routes to the Thing-range `about` instead.
     [Fact]
-    public void Suggest_TeamBlock_RoutesToPersonAtHasPart()
+    public void Suggest_TeamBlock_RoutesToPersonAtAbout()
     {
         var result = _sut.Suggest([Element("teamMemberBlock", "Team Member", "memberName")]).ToList();
 
         result.Should().ContainSingle();
-        result[0].SchemaProperty.Should().Be("hasPart");
+        result[0].SchemaProperty.Should().Be("about");
         result[0].Routes[0].NestedSchemaType.Should().Be("Person");
     }
 
     [Fact]
-    public void Suggest_MapBlock_RoutesToPlaceAtHasPart()
+    public void Suggest_MapBlock_RoutesToPlaceAtAbout()
     {
         var result = _sut.Suggest([Element("mapBlock", "Map", "latitude", "longitude")]).ToList();
 
         result.Should().ContainSingle();
-        result[0].SchemaProperty.Should().Be("hasPart");
+        result[0].SchemaProperty.Should().Be("about");
         result[0].Routes[0].NestedSchemaType.Should().Be("Place");
+    }
+
+    // Regression: a non-CreativeWork type (Service) must never be routed to hasPart,
+    // because Schema.NET's typed hasPart (OneOrMany<ICreativeWork>) silently discards it.
+    [Fact]
+    public void Suggest_FeatureBlock_RoutesServiceToAbout_NotHasPart()
+    {
+        var result = _sut.Suggest([Element("featureBlock", "Feature", "title", "description")]).ToList();
+
+        result.Should().ContainSingle();
+        result[0].Routes[0].NestedSchemaType.Should().Be("Service");
+        result[0].SchemaProperty.Should().Be("about", "Service is not a CreativeWork so hasPart would drop it");
+    }
+
+    // CreativeWork-derived types (WPHeader -> WebPageElement -> CreativeWork) stay on hasPart.
+    [Fact]
+    public void Suggest_HeroBlock_RoutesWPHeaderToHasPart()
+    {
+        var result = _sut.Suggest([Element("heroBlock", "Hero", "title", "subtitle")]).ToList();
+
+        result.Should().ContainSingle();
+        result[0].Routes[0].NestedSchemaType.Should().Be("WPHeader");
+        result[0].SchemaProperty.Should().Be("hasPart");
     }
 
     [Fact]
@@ -101,16 +129,16 @@ public class BlockSchemaSuggesterTests
             Element("richTextBlock", "Rich Text", "body")
         ]).ToList();
 
-        // mainEntity (faq) + hasPart (team + map). Rich text skipped.
+        // mainEntity (faq) + about (team + map, neither a CreativeWork). Rich text skipped.
         result.Should().HaveCount(2);
 
         var mainEntity = result.Single(r => r.SchemaProperty == "mainEntity");
         mainEntity.Routes.Should().ContainSingle();
         mainEntity.Routes[0].NestedSchemaType.Should().Be("Question");
 
-        var hasPart = result.Single(r => r.SchemaProperty == "hasPart");
-        hasPart.Routes.Should().HaveCount(2);
-        hasPart.Routes.Select(r => r.NestedSchemaType).Should().BeEquivalentTo(["Person", "Place"]);
+        var about = result.Single(r => r.SchemaProperty == "about");
+        about.Routes.Should().HaveCount(2);
+        about.Routes.Select(r => r.NestedSchemaType).Should().BeEquivalentTo(["Person", "Place"]);
     }
 
     // Dominance rule: at most ONE block element type may target mainEntity.
