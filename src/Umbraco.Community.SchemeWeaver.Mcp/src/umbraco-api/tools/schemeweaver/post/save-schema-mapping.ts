@@ -122,7 +122,27 @@ const inputSchema = {
     ),
 };
 
-const outputSchema = postSchemeweaverMappingsResponse;
+// Forward-compatible: the save response is re-fetched through the single-read
+// path, so it carries `reachability` (routed-page | composed-from-block |
+// unknown) and structural `warnings` — properties mapped outside their
+// Schema.org range that will be SILENTLY DROPPED from the emitted JSON-LD.
+// Surface them via .extend() so the generated zod object does not strip them
+// before the Orval client is regenerated. Both optional → inert when absent.
+// NOTE (leader): drop this shim once `npm run generate` folds the fields into
+// the generated postSchemeweaverMappingsResponse schema.
+const outputSchema = postSchemeweaverMappingsResponse.extend({
+  reachability: z.string().optional(),
+  warnings: z
+    .array(
+      z.object({
+        severity: z.string(),
+        schemaType: z.string().nullish(),
+        path: z.string().nullish(),
+        message: z.string(),
+      })
+    )
+    .optional(),
+});
 
 const saveSchemaMappingTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "save-schema-mapping",
@@ -132,6 +152,10 @@ const saveSchemaMappingTool: ToolDefinition<typeof inputSchema, typeof outputSch
     "to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property " +
     "semantically — correct bad suggestions, add mappings the heuristic missed, use nested types for complex values — " +
     "then save with this tool, and (4) verify with preview-json-ld and fix any validation issues it reports. " +
+    "IMPORTANT: inspect the `warnings` array on the response — it flags properties mapped outside their Schema.org range " +
+    "that will be SILENTLY DROPPED from the JSON-LD (e.g. a non-CreativeWork type under hasPart); re-home those to a property " +
+    "like about/mainEntity. Also check `reachability`: composed-from-block means this type only emits inside a containing " +
+    "page's block mapping, never on its own URL. " +
     "Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.",
   inputSchema,
   outputSchema,

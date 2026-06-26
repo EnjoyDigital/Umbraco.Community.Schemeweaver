@@ -31381,7 +31381,7 @@ var EMPTY_COMPLETION_RESULT = {
 
 // package.json
 var package_default = {
-  version: "1.0.0"};
+  version: "1.0.1"};
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var ReadBuffer = class {
@@ -33242,7 +33242,6 @@ var getSchemeweaverMappingsResponseItem = object2({
     "targetPieceKey": string2().nullish()
   }))
 });
-var getSchemeweaverMappingsResponse = array(getSchemeweaverMappingsResponseItem);
 object2({
   "contentTypeAlias": string2(),
   "contentTypeKey": uuid2(),
@@ -33515,10 +33514,16 @@ var getBlockElementTypesTool = {
 var get_block_element_types_default = withStandardDecorators(getBlockElementTypesTool);
 
 // src/umbraco-api/tools/schemeweaver/get/get-all-schema-mappings.ts
-var outputSchema6 = external_exports.object({ items: getSchemeweaverMappingsResponse });
+var outputSchema6 = external_exports.object({
+  items: external_exports.array(
+    getSchemeweaverMappingsResponseItem.extend({
+      reachability: external_exports.string().optional()
+    })
+  )
+});
 var getAllSchemaMappingsTool = {
   name: "get-all-schema-mappings",
-  description: "Lists every SchemeWeaver mapping in the site: which Umbraco content type maps to which Schema.org type, whether it is enabled and inherited by descendant content, and all of its property mappings. Useful for auditing existing structured-data coverage and for copying patterns from mappings that already work.",
+  description: "Lists every SchemeWeaver mapping in the site: which Umbraco content type maps to which Schema.org type, whether it is enabled and inherited by descendant content, and all of its property mappings. Each mapping also carries `reachability` (routed-page emits on its own URL; composed-from-block only emits inside a containing page's block mapping) so you can spot mappings that will never emit on their own. Useful for auditing existing structured-data coverage and for copying patterns from mappings that already work.",
   outputSchema: outputSchema6,
   slices: ["list"],
   annotations: {
@@ -33534,10 +33539,20 @@ var get_all_schema_mappings_default = withStandardDecorators(getAllSchemaMapping
 
 // src/umbraco-api/tools/schemeweaver/get/get-schema-mapping.ts
 var inputSchema5 = getSchemeweaverMappingsByContentTypeAliasParams.shape;
-var outputSchema7 = getSchemeweaverMappingsByContentTypeAliasResponse;
+var outputSchema7 = getSchemeweaverMappingsByContentTypeAliasResponse.extend({
+  reachability: external_exports.string().optional(),
+  warnings: external_exports.array(
+    external_exports.object({
+      severity: external_exports.string(),
+      schemaType: external_exports.string().nullish(),
+      path: external_exports.string().nullish(),
+      message: external_exports.string()
+    })
+  ).optional()
+});
 var getSchemaMappingTool = {
   name: "get-schema-mapping",
-  description: "Gets the SchemeWeaver mapping for one Umbraco content type (404 if none exists). Returns the mapped Schema.org type, enabled/inherited flags, optional @id override template and the full list of property mappings. Call this before save-schema-mapping when changing an existing mapping, so unchanged property mappings are preserved \u2014 saving replaces the whole mapping, it does not merge.",
+  description: "Gets the SchemeWeaver mapping for one Umbraco content type (404 if none exists). Returns the mapped Schema.org type, enabled/inherited flags, optional @id override template and the full list of property mappings. Also returns `reachability` (routed-page emits on its own URL; composed-from-block only emits inside a containing page's block mapping) and `warnings` (properties mapped outside their Schema.org range that would be silently dropped from the JSON-LD). Call this before save-schema-mapping when changing an existing mapping, so unchanged property mappings are preserved \u2014 saving replaces the whole mapping, it does not merge.",
   inputSchema: inputSchema5,
   outputSchema: outputSchema7,
   slices: ["read"],
@@ -33729,10 +33744,20 @@ var inputSchema8 = {
     "The complete set of property mappings. Saving REPLACES the existing mapping wholesale \u2014 include every mapping you want to keep, not just the changed ones."
   )
 };
-var outputSchema10 = postSchemeweaverMappingsResponse;
+var outputSchema10 = postSchemeweaverMappingsResponse.extend({
+  reachability: external_exports.string().optional(),
+  warnings: external_exports.array(
+    external_exports.object({
+      severity: external_exports.string(),
+      schemaType: external_exports.string().nullish(),
+      path: external_exports.string().nullish(),
+      message: external_exports.string()
+    })
+  ).optional()
+});
 var saveSchemaMappingTool = {
   name: "save-schema-mapping",
-  description: "Creates or replaces the SchemeWeaver mapping for an Umbraco content type, defining how its content is expressed as Schema.org JSON-LD. Recommended workflow: (1) get-content-type-properties and get-schema-type-properties (ranked=true) to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property semantically \u2014 correct bad suggestions, add mappings the heuristic missed, use nested types for complex values \u2014 then save with this tool, and (4) verify with preview-json-ld and fix any validation issues it reports. Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.",
+  description: "Creates or replaces the SchemeWeaver mapping for an Umbraco content type, defining how its content is expressed as Schema.org JSON-LD. Recommended workflow: (1) get-content-type-properties and get-schema-type-properties (ranked=true) to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property semantically \u2014 correct bad suggestions, add mappings the heuristic missed, use nested types for complex values \u2014 then save with this tool, and (4) verify with preview-json-ld and fix any validation issues it reports. IMPORTANT: inspect the `warnings` array on the response \u2014 it flags properties mapped outside their Schema.org range that will be SILENTLY DROPPED from the JSON-LD (e.g. a non-CreativeWork type under hasPart); re-home those to a property like about/mainEntity. Also check `reachability`: composed-from-block means this type only emits inside a containing page's block mapping, never on its own URL. Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.",
   inputSchema: inputSchema8,
   outputSchema: outputSchema10,
   slices: ["create", "update"],

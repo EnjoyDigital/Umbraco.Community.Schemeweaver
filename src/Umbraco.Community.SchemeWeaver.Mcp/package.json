@@ -1,6 +1,6 @@
 {
   "name": "@umbraco-community/schemeweaver-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "MCP server for Umbraco.Community.SchemeWeaver — lets AI assistants browse Schema.org types, inspect Umbraco content types, and create/verify schema mappings",
   "main": "dist/index.js",
