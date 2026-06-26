@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
 using NSubstitute;
+using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
@@ -10,6 +11,7 @@ using Umbraco.Community.SchemeWeaver;
 using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
+using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
@@ -27,6 +29,9 @@ public class SchemeWeaverServiceTests
     private readonly IDataTypeService _dataTypeService = Substitute.For<IDataTypeService>();
     private readonly ISchemaValidator _validator = Substitute.For<ISchemaValidator>();
     private readonly IBlockSchemaSuggester _blockSchemaSuggester = Substitute.For<IBlockSchemaSuggester>();
+    private readonly ISchemaRangeValidator _rangeValidator = Substitute.For<ISchemaRangeValidator>();
+    private readonly IMappingReachabilityClassifier _reachabilityClassifier = Substitute.For<IMappingReachabilityClassifier>();
+    private readonly IEventAggregator _eventAggregator = Substitute.For<IEventAggregator>();
     private readonly ILogger<SchemeWeaverService> _logger = Substitute.For<ILogger<SchemeWeaverService>>();
 
     // Existing preview tests assert against the legacy single-Thing string;
@@ -43,10 +48,14 @@ public class SchemeWeaverServiceTests
         // ApplyValidation NPEs before the assertion runs.
         _validator.Validate(Arg.Any<string>()).Returns(ValidationResult.Empty);
 
+        // Default to no structural warnings; tests that care override per-test.
+        _rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(Array.Empty<ValidationIssue>());
+
         _sut = new SchemeWeaverService(
             _registry, _autoMapper, _generator, _graphGenerator,
             _repository, _contentTypeService, _dataTypeService,
-            _validator, _blockSchemaSuggester, Options.Create(_options), _logger);
+            _validator, _blockSchemaSuggester, _rangeValidator,
+            _reachabilityClassifier, _eventAggregator, Options.Create(_options), _logger);
     }
 
     [Fact]
@@ -356,5 +365,128 @@ public class SchemeWeaverServiceTests
         result.Should().NotBeNull();
         _contentTypeService.Received(1).Get("article");
         _repository.Received(1).Save(Arg.Is<SchemaMapping>(m => m.ContentTypeKey == expectedKey));
+    }
+
+    [Fact]
+    public void SaveMapping_SetsReachabilityAndWarnings_AndPublishesSavedNotification()
+    {
+        var key = Guid.NewGuid();
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            ContentTypeKey = key,
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings = new List<PropertyMappingDto>()
+        };
+
+        var savedEntity = new SchemaMapping
+        {
+            Id = 1,
+            ContentTypeAlias = "article",
+            ContentTypeKey = key,
+            SchemaTypeName = "Article",
+            IsEnabled = true
+        };
+        _repository.GetByContentTypeAlias("article").Returns(null as SchemaMapping, savedEntity);
+        _repository.Save(Arg.Any<SchemaMapping>()).Returns(savedEntity);
+        _repository.GetPropertyMappings(1).Returns(Enumerable.Empty<PropertyMapping>());
+
+        _reachabilityClassifier.Classify("article").Returns("routed-page");
+        _rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(new[]
+        {
+            new ValidationIssue(ValidationSeverity.Warning, "Article", "HasPart", "out of range")
+        });
+
+        var result = _sut.SaveMapping(dto);
+
+        result.Reachability.Should().Be("routed-page");
+        result.Warnings.Should().ContainSingle();
+        result.Warnings[0].Severity.Should().Be("warning");
+        result.Warnings[0].Path.Should().Be("HasPart");
+        result.Warnings[0].Message.Should().Be("out of range");
+
+        _eventAggregator.Received(1).Publish(Arg.Is<SchemaMappingSavedNotification>(
+            n => n.ContentTypeAlias == "article" && n.ContentTypeKey == key));
+    }
+
+    [Fact]
+    public void DeleteMapping_PublishesDeletedNotification_WhenMappingExisted()
+    {
+        var key = Guid.NewGuid();
+        var existing = new SchemaMapping { Id = 5, ContentTypeAlias = "article", ContentTypeKey = key };
+        _repository.GetByContentTypeAlias("article").Returns(existing);
+
+        _sut.DeleteMapping("article");
+
+        _repository.Received(1).Delete(5);
+        _eventAggregator.Received(1).Publish(Arg.Is<SchemaMappingDeletedNotification>(
+            n => n.ContentTypeAlias == "article" && n.ContentTypeKey == key));
+    }
+
+    [Fact]
+    public void DeleteMapping_DoesNotPublish_WhenNoMappingExisted()
+    {
+        _repository.GetByContentTypeAlias("ghost").Returns((SchemaMapping?)null);
+
+        _sut.DeleteMapping("ghost");
+
+        _repository.DidNotReceive().Delete(Arg.Any<int>());
+        _eventAggregator.DidNotReceive().Publish(Arg.Any<SchemaMappingDeletedNotification>());
+    }
+
+    [Fact]
+    public void GeneratePreview_SetsContextAndResolvedBaseUrl_AppendsStructuralWarnings_WithoutFlippingIsValid()
+    {
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns("article");
+        var content = Substitute.For<IPublishedContent>();
+        content.ContentType.Returns(contentType);
+        _generator.GenerateJsonLdString(content).Returns("{\"@type\": \"Article\"}");
+        _generator.GetResolvedBaseUrl().Returns("https://backoffice.example.com");
+
+        // AppendStructuralWarnings re-reads the mapping for the alias.
+        var mapping = new SchemaMapping { Id = 9, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true };
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(9).Returns(Enumerable.Empty<PropertyMapping>());
+        _reachabilityClassifier.Classify("article").Returns(MappingReachabilityClassifier.ComposedFromBlock);
+        _rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(new[]
+        {
+            new ValidationIssue(ValidationSeverity.Warning, "Article", "HasPart", "out of range")
+        });
+
+        var result = _sut.GeneratePreview(content);
+
+        result.IsValid.Should().BeTrue("structural warnings never flip the Rich Results validity flag");
+        result.Context.Should().Be("backoffice-preview");
+        result.ResolvedBaseUrl.Should().Be("https://backoffice.example.com");
+
+        // One range warning + one hedged reachability warning.
+        result.Issues.Should().Contain(i => i.Severity == "warning" && i.Path == "HasPart");
+        result.Issues.Should().Contain(i =>
+            i.Severity == "warning" && i.Message == MappingReachabilityClassifier.ComposedFromBlockWarning);
+    }
+
+    [Fact]
+    public void GenerateMockPreview_SetsContextAndResolvedBaseUrl_AppendsWarnings()
+    {
+        var mapping = new SchemaMapping { Id = 3, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true };
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(3).Returns(Enumerable.Empty<PropertyMapping>());
+        _generator.GetResolvedBaseUrl().Returns("https://backoffice.example.com");
+        _reachabilityClassifier.Classify("article").Returns("routed-page");
+        _rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(new[]
+        {
+            new ValidationIssue(ValidationSeverity.Warning, "Article", "Author", "out of range")
+        });
+
+        var result = _sut.GenerateMockPreview("article");
+
+        result.Context.Should().Be("backoffice-preview");
+        result.ResolvedBaseUrl.Should().Be("https://backoffice.example.com");
+        result.IsValid.Should().BeTrue();
+        result.Issues.Should().Contain(i => i.Severity == "warning" && i.Path == "Author");
+        // routed-page must NOT add the composed-from-block hedge.
+        result.Issues.Should().NotContain(i => i.Message == MappingReachabilityClassifier.ComposedFromBlockWarning);
     }
 }

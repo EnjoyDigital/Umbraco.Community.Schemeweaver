@@ -19,6 +19,22 @@ public class SchemaMappingDto
     public string? IdOverride { get; set; }
 
     public List<PropertyMappingDto> PropertyMappings { get; set; } = [];
+
+    /// <summary>
+    /// Output-only. How this mapped content type can emit JSON-LD:
+    /// <c>routed-page</c>, <c>composed-from-block</c> or <c>unknown</c>. Set by
+    /// the service on read/save; ignored on input (never written back to the
+    /// entity).
+    /// </summary>
+    public string? Reachability { get; set; }
+
+    /// <summary>
+    /// Output-only. Structural warnings about this mapping (e.g. a property
+    /// mapped to an object type outside its Schema.org range, which would be
+    /// silently dropped at generation time). Set by the service on single read
+    /// and save; ignored on input.
+    /// </summary>
+    public List<ValidationIssueDto> Warnings { get; set; } = [];
 }
 
 /// <summary>

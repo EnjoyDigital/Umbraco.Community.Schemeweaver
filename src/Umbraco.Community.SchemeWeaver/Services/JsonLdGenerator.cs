@@ -321,6 +321,9 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         return null;
     }
 
+    /// <inheritdoc />
+    public string? GetResolvedBaseUrl() => ResolveSiteUrl();
+
     private string? ResolveIdFromOverrideOrDefault(
         SchemaMapping mapping,
         IPublishedContent content,

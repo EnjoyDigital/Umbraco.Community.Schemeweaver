@@ -41,4 +41,14 @@ public interface IJsonLdGenerator
     /// Properties already explicitly mapped via blockContent source type are skipped.
     /// </summary>
     IEnumerable<string> GenerateBlockElementJsonLdStrings(IPublishedContent content, string? culture = null);
+
+    /// <summary>
+    /// Returns the base URL (scheme + host) the generator resolves <c>@id</c>
+    /// and <c>url</c> tokens against for the current request, or null when no
+    /// HTTP context is available. In the backoffice this is the backoffice host,
+    /// so a preview's resolved URLs can differ from the live render — callers
+    /// surface it so editors can see that divergence. Resolves from the same
+    /// <c>HttpContext</c> host regardless of the graph/non-graph mode.
+    /// </summary>
+    string? GetResolvedBaseUrl();
 }

@@ -45,6 +45,12 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<IJsonLdGenerator, JsonLdGenerator>();
         builder.Services.AddScoped<IContentTypeGenerator, ContentTypeGenerator>();
 
+        // Structural pre-checks surfaced on Save + Preview. Both scoped to match
+        // the scoped SchemeWeaverService and the scoped IContentTypeService the
+        // reachability classifier depends on.
+        builder.Services.AddScoped<ISchemaRangeValidator, SchemaRangeValidator>();
+        builder.Services.AddScoped<IMappingReachabilityClassifier, MappingReachabilityClassifier>();
+
         // JSON-LD blocks are cached in-process, keyed on (contentKey, culture). Singleton
         // so the per-content CancellationTokenSource dictionary persists across requests;
         // the generator itself is resolved per-call via IServiceScopeFactory because it's
