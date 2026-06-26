@@ -33,7 +33,7 @@ public class SchemaTypeRegistry : ISchemaTypeRegistry
             var assembly = thingType.Assembly;
 
             var schemaTypes = assembly.GetExportedTypes()
-                .Where(t => t is { IsClass: true } && thingType.IsAssignableFrom(t));
+                .Where(t => t is { IsClass: true, IsAbstract: false } && thingType.IsAssignableFrom(t));
 
             foreach (var type in schemaTypes)
             {
