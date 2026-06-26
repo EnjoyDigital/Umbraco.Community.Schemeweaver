@@ -13,6 +13,7 @@ import getContentTypePropertiesTool from "./get/get-content-type-properties.js";
 import getBlockElementTypesTool from "./get/get-block-element-types.js";
 import getAllSchemaMappingsTool from "./get/get-all-schema-mappings.js";
 import getSchemaMappingTool from "./get/get-schema-mapping.js";
+import getRenderedJsonLdTool from "./get/get-rendered-json-ld.js";
 import suggestPropertyMappingsTool from "./post/suggest-property-mappings.js";
 import saveSchemaMappingTool from "./post/save-schema-mapping.js";
 import previewJsonLdTool from "./post/preview-json-ld.js";
@@ -46,6 +47,8 @@ const collection: ToolCollectionExport = {
     deleteSchemaMappingTool,
     // Verification
     previewJsonLdTool,
+    // Live Delivery-API render (ground truth, bypasses the management client)
+    getRenderedJsonLdTool,
     // Scaffolding
     generateContentTypeTool,
   ],

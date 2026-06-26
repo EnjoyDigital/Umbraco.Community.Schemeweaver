@@ -17,6 +17,7 @@ import {
   type ToolDefinition,
   type HttpResponse,
 } from "@umbraco-cms/mcp-server-sdk";
+import { resolveBaseUrl } from "../../../base-url.js";
 
 interface ServerInfo {
   version: string;
@@ -26,7 +27,8 @@ interface ServerInfo {
 const getServerInfoTool: ToolDefinition = {
   name: "get-server-info",
   description:
-    "Gets Umbraco server information including version and runtime details.",
+    "Gets Umbraco server information including version and runtime details, " +
+    "and the configured Umbraco base URL that {siteUrl}/absolute-URL tokens derive from.",
   slices: ["read"],
   annotations: {
     readOnlyHint: true,
@@ -42,7 +44,7 @@ const getServerInfoTool: ToolDefinition = {
       CAPTURE_RAW_HTTP_RESPONSE,
     ) as unknown as HttpResponse<ServerInfo>;
 
-    return createToolResult(response.data);
+    return createToolResult({ ...response.data, configuredBaseUrl: resolveBaseUrl() });
   },
 };
 

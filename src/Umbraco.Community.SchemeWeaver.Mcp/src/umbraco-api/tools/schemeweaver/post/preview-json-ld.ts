@@ -14,6 +14,9 @@ import { postSchemeweaverMappingsByContentTypeAliasPreviewResponse } from "../..
 
 type SchemeWeaverApiClient = ReturnType<typeof getSchemeWeaverManagementAPI>;
 
+// TODO(block-context): add pageNodeId/blockInstanceKey here after the backend
+// Preview(...) signature change + Orval regen — adding them now would advertise
+// params the generated client silently drops.
 const inputSchema = {
   contentTypeAlias: z.string().describe("Umbraco content type alias whose mapping should be previewed"),
   contentKey: z
@@ -30,7 +33,15 @@ const inputSchema = {
     .describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content"),
 };
 
-const outputSchema = postSchemeweaverMappingsByContentTypeAliasPreviewResponse;
+// Surface forward-compatible context fields via .extend() so the generated zod
+// object does not strip them once the backend ships them. Both are optional, so
+// this is inert today and survives Orval regen.
+// NOTE (leader): remove this .extend() shim once regen folds context/
+// resolvedBaseUrl into the generated postSchemeweaver...PreviewResponse schema.
+const outputSchema = postSchemeweaverMappingsByContentTypeAliasPreviewResponse.extend({
+  context: z.string().optional(),
+  resolvedBaseUrl: z.string().nullable().optional(),
+});
 
 const previewJsonLdTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "preview-json-ld",
@@ -39,7 +50,12 @@ const previewJsonLdTool: ToolDefinition<typeof inputSchema, typeof outputSchema>
     "This is the feedback loop after save-schema-mapping: check isValid and the issues array " +
     "(each issue has severity, schemaType, path and message — e.g. missing required/recommended properties for Google rich results) " +
     "and refine the mapping until the output is clean. Pass a contentKey of a real published node for a realistic preview; " +
-    "without one you get placeholder values that only prove the structure.",
+    "without one you get placeholder values that only prove the structure. " +
+    "This is a BACKOFFICE-CONTEXT preview: URL/@id resolution can differ from the live render because the " +
+    "resolved base URL is the management host, not the public site. isValid here reflects backoffice-context " +
+    "structural validity ONLY — it does NOT imply the live structured data is valid. For authoritative live " +
+    "output use get-rendered-json-ld. The response reports context ('backoffice-preview') and resolvedBaseUrl " +
+    "(base URL actually used).",
   inputSchema,
   outputSchema,
   slices: ["read"],
