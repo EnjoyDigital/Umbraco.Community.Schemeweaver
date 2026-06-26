@@ -31141,13 +31141,13 @@ var McpServer = class {
     }
     return registeredPrompt;
   }
-  _createRegisteredTool(name, title, description, inputSchema11, outputSchema12, annotations, execution, _meta, handler) {
+  _createRegisteredTool(name, title, description, inputSchema12, outputSchema13, annotations, execution, _meta, handler) {
     validateAndWarnToolName(name);
     const registeredTool = {
       title,
       description,
-      inputSchema: getZodSchemaObject(inputSchema11),
-      outputSchema: getZodSchemaObject(outputSchema12),
+      inputSchema: getZodSchemaObject(inputSchema12),
+      outputSchema: getZodSchemaObject(outputSchema13),
       annotations,
       execution,
       _meta,
@@ -31197,8 +31197,8 @@ var McpServer = class {
       throw new Error(`Tool ${name} is already registered`);
     }
     let description;
-    let inputSchema11;
-    let outputSchema12;
+    let inputSchema12;
+    let outputSchema13;
     let annotations;
     if (typeof rest[0] === "string") {
       description = rest.shift();
@@ -31206,7 +31206,7 @@ var McpServer = class {
     if (rest.length > 1) {
       const firstArg = rest[0];
       if (isZodRawShapeCompat(firstArg)) {
-        inputSchema11 = rest.shift();
+        inputSchema12 = rest.shift();
         if (rest.length > 1 && typeof rest[0] === "object" && rest[0] !== null && !isZodRawShapeCompat(rest[0])) {
           annotations = rest.shift();
         }
@@ -31218,7 +31218,7 @@ var McpServer = class {
       }
     }
     const callback = rest[0];
-    return this._createRegisteredTool(name, void 0, description, inputSchema11, outputSchema12, annotations, { taskSupport: "forbidden" }, void 0, callback);
+    return this._createRegisteredTool(name, void 0, description, inputSchema12, outputSchema13, annotations, { taskSupport: "forbidden" }, void 0, callback);
   }
   /**
    * Registers a tool with a config object and callback.
@@ -31227,8 +31227,8 @@ var McpServer = class {
     if (this._registeredTools[name]) {
       throw new Error(`Tool ${name} is already registered`);
     }
-    const { title, description, inputSchema: inputSchema11, outputSchema: outputSchema12, annotations, _meta } = config3;
-    return this._createRegisteredTool(name, title, description, inputSchema11, outputSchema12, annotations, { taskSupport: "forbidden" }, _meta, cb);
+    const { title, description, inputSchema: inputSchema12, outputSchema: outputSchema13, annotations, _meta } = config3;
+    return this._createRegisteredTool(name, title, description, inputSchema12, outputSchema13, annotations, { taskSupport: "forbidden" }, _meta, cb);
   }
   prompt(name, ...rest) {
     if (this._registeredPrompts[name]) {
@@ -31381,7 +31381,7 @@ var EMPTY_COMPLETION_RESULT = {
 
 // package.json
 var package_default = {
-  version: "0.1.0"};
+  version: "1.0.0"};
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var ReadBuffer = class {
@@ -33552,19 +33552,125 @@ var getSchemaMappingTool = {
 };
 var get_schema_mapping_default = withStandardDecorators(getSchemaMappingTool);
 
-// src/umbraco-api/tools/schemeweaver/post/suggest-property-mappings.ts
+// src/umbraco-api/base-url.ts
+var DEFAULT_BASE_URL = "https://localhost:44308";
+function resolveBaseUrl() {
+  return (process.env.UMBRACO_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
+}
+function buildRenderedJsonLdUrl({
+  base,
+  route,
+  scope,
+  culture
+}) {
+  const qs = new URLSearchParams({ route });
+  if (scope !== void 0) {
+    qs.set("scope", scope);
+  }
+  if (culture !== void 0) {
+    qs.set("culture", culture);
+  }
+  return `${base}/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route?${qs}`;
+}
+
+// src/umbraco-api/tools/schemeweaver/get/get-rendered-json-ld.ts
 var inputSchema6 = {
+  route: external_exports.string().describe(
+    "Site-relative route to render, e.g. '/' or '/blog/my-post'. This is the live, public Delivery-API render (ground truth) \u2014 NOT a backoffice preview. Use this to confirm what structured data a real page actually emits."
+  ),
+  scope: external_exports.enum(["site", "page", "all"]).optional().describe(
+    "Which JSON-LD blocks to return: 'page' (this node only), 'site' (site-level), or 'all'. Omit for the endpoint default."
+  ),
+  culture: external_exports.string().optional().describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content")
+};
+var outputSchema8 = external_exports.object({
+  requestUrl: external_exports.string(),
+  httpStatus: external_exports.number(),
+  // Body shape is opaque to this tool: the endpoint returns an OBJECT
+  // { "schemaOrg": [ ...json-ld blocks... ] }, not a bare array.
+  jsonLd: external_exports.unknown(),
+  note: external_exports.string()
+});
+var getRenderedJsonLdTool = {
+  name: "get-rendered-json-ld",
+  description: "Fetches the LIVE JSON-LD a published page actually emits, straight from SchemeWeaver's anonymous Delivery API (/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route). This is the authoritative ground truth for verifying structured data \u2014 distinct from preview-json-ld, which renders in the backoffice/management context and can resolve URLs (@id) differently. The response always surfaces requestUrl and httpStatus (even on 404/401/empty) and a 'note' explaining the result, including the case where HTTP 200 returns ZERO JSON-LD blocks. The Delivery API is OFF by default in Umbraco; an Api-Key may be required (UMBRACO_DELIVERY_API_KEY).",
+  inputSchema: inputSchema6,
+  outputSchema: outputSchema8,
+  slices: ["read"],
+  annotations: {
+    readOnlyHint: true
+  },
+  handler: async ({ route, scope, culture }) => {
+    const base = resolveBaseUrl();
+    const requestUrl = buildRenderedJsonLdUrl({ base, route, scope, culture });
+    const headers = {};
+    const apiKey = process.env.UMBRACO_DELIVERY_API_KEY;
+    if (apiKey) {
+      headers["Api-Key"] = apiKey;
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1e4);
+    try {
+      const res = await fetch(requestUrl, {
+        method: "GET",
+        headers,
+        signal: controller.signal
+      });
+      const rawText = await res.text();
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        parsed = rawText;
+      }
+      const schemaOrg = parsed?.schemaOrg;
+      const hasBlocks = Array.isArray(schemaOrg) && schemaOrg.length > 0;
+      let note;
+      if (res.ok && hasBlocks) {
+        note = "Live Delivery-API render (ground truth). Distinct from preview-json-ld (backoffice context).";
+      } else if (res.ok) {
+        note = "HTTP 200 but ZERO JSON-LD blocks \u2014 this page/scope has no mapping or nothing resolved. This is NOT proof the page renders structured data.";
+      } else if (res.status === 401) {
+        note = "Delivery API requires an Api-Key, or PublicAccess is disabled (DeliveryApi:PublicAccess). The Delivery API is OFF by default in Umbraco \u2014 this may not be about the route.";
+      } else if (res.status === 404) {
+        note = "EITHER the route did not resolve to a published node OR the Delivery API is not enabled (it is off by default).";
+      } else {
+        note = `HTTP ${res.status} ${res.statusText}. Body: ${rawText.slice(0, 500)}`;
+      }
+      return createToolResult({
+        requestUrl,
+        httpStatus: res.status,
+        jsonLd: parsed,
+        note
+      });
+    } catch (error51) {
+      const message = error51 instanceof Error ? error51.message : String(error51);
+      return createToolResult({
+        requestUrl,
+        httpStatus: 0,
+        jsonLd: [],
+        note: `Network failure calling ${requestUrl}: ${message}. Likely connection refused, DNS failure, or TLS rejection. Against a self-signed localhost host, set NODE_TLS_REJECT_UNAUTHORIZED=0 in the environment (note: as a Claude Code plugin only the UMBRACO_* vars are forwarded, so this var may not propagate \u2014 same limitation as the management tools).`
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+};
+var get_rendered_json_ld_default = withStandardDecorators(getRenderedJsonLdTool);
+
+// src/umbraco-api/tools/schemeweaver/post/suggest-property-mappings.ts
+var inputSchema7 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias to suggest mappings for"),
   schemaTypeName: external_exports.string().describe("Schema.org type name to map to, e.g. 'Article'")
 };
-var outputSchema8 = external_exports.object({
+var outputSchema9 = external_exports.object({
   items: postSchemeweaverMappingsByContentTypeAliasAutoMapResponse
 });
 var suggestPropertyMappingsTool = {
   name: "suggest-property-mappings",
   description: "Runs SchemeWeaver's built-in heuristic auto-mapper (exact/synonym/substring name matching) and returns property mapping suggestions with a confidence score per schema property (0-100; >=80 high, >=50 medium). Treat this as a BASELINE, not the answer: review each suggestion semantically, drop bad matches, fill in the gaps the heuristic missed (it cannot reason about meaning, units, nested objects or content structure), then build the final mapping yourself and persist it with save-schema-mapping. Suggestions with isAutoMapped=false are unmapped schema properties listed for completeness \u2014 good candidates for manual reasoning.",
-  inputSchema: inputSchema6,
-  outputSchema: outputSchema8,
+  inputSchema: inputSchema7,
+  outputSchema: outputSchema9,
   slices: ["read"],
   annotations: {
     readOnlyHint: true,
@@ -33608,7 +33714,7 @@ var propertyMappingSchema = external_exports.object({
   dynamicRootConfig: external_exports.string().nullish().describe("JSON string for dynamic-root node selection (advanced; usually omit)"),
   targetPieceKey: external_exports.string().nullish().describe("For 'reference' source type: the graph piece key to link to, e.g. 'organization', 'website'")
 });
-var inputSchema7 = {
+var inputSchema8 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias being mapped, e.g. 'blogPost'"),
   contentTypeKey: external_exports.string().uuid().describe("The content type's GUID key \u2014 get it from list-content-types"),
   schemaTypeName: external_exports.string().describe("Schema.org type name to map to, e.g. 'BlogPosting'"),
@@ -33623,12 +33729,12 @@ var inputSchema7 = {
     "The complete set of property mappings. Saving REPLACES the existing mapping wholesale \u2014 include every mapping you want to keep, not just the changed ones."
   )
 };
-var outputSchema9 = postSchemeweaverMappingsResponse;
+var outputSchema10 = postSchemeweaverMappingsResponse;
 var saveSchemaMappingTool = {
   name: "save-schema-mapping",
   description: "Creates or replaces the SchemeWeaver mapping for an Umbraco content type, defining how its content is expressed as Schema.org JSON-LD. Recommended workflow: (1) get-content-type-properties and get-schema-type-properties (ranked=true) to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property semantically \u2014 correct bad suggestions, add mappings the heuristic missed, use nested types for complex values \u2014 then save with this tool, and (4) verify with preview-json-ld and fix any validation issues it reports. Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.",
-  inputSchema: inputSchema7,
-  outputSchema: outputSchema9,
+  inputSchema: inputSchema8,
+  outputSchema: outputSchema10,
   slices: ["create", "update"],
   annotations: {
     destructiveHint: false,
@@ -33643,19 +33749,22 @@ var saveSchemaMappingTool = {
 var save_schema_mapping_default = withStandardDecorators(saveSchemaMappingTool);
 
 // src/umbraco-api/tools/schemeweaver/post/preview-json-ld.ts
-var inputSchema8 = {
+var inputSchema9 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias whose mapping should be previewed"),
   contentKey: external_exports.string().uuid().optional().describe(
     "GUID key of a published content node of this type. When provided, real JSON-LD is generated from that node's values; when omitted, a mock preview with placeholder values is returned."
   ),
   culture: external_exports.string().optional().describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content")
 };
-var outputSchema10 = postSchemeweaverMappingsByContentTypeAliasPreviewResponse;
+var outputSchema11 = postSchemeweaverMappingsByContentTypeAliasPreviewResponse.extend({
+  context: external_exports.string().optional(),
+  resolvedBaseUrl: external_exports.string().nullable().optional()
+});
 var previewJsonLdTool = {
   name: "preview-json-ld",
-  description: "Generates the JSON-LD a content node would emit with the saved mapping, plus Rich Results validation. This is the feedback loop after save-schema-mapping: check isValid and the issues array (each issue has severity, schemaType, path and message \u2014 e.g. missing required/recommended properties for Google rich results) and refine the mapping until the output is clean. Pass a contentKey of a real published node for a realistic preview; without one you get placeholder values that only prove the structure.",
-  inputSchema: inputSchema8,
-  outputSchema: outputSchema10,
+  description: "Generates the JSON-LD a content node would emit with the saved mapping, plus Rich Results validation. This is the feedback loop after save-schema-mapping: check isValid and the issues array (each issue has severity, schemaType, path and message \u2014 e.g. missing required/recommended properties for Google rich results) and refine the mapping until the output is clean. Pass a contentKey of a real published node for a realistic preview; without one you get placeholder values that only prove the structure. This is a BACKOFFICE-CONTEXT preview: URL/@id resolution can differ from the live render because the resolved base URL is the management host, not the public site. isValid here reflects backoffice-context structural validity ONLY \u2014 it does NOT imply the live structured data is valid. For authoritative live output use get-rendered-json-ld. The response reports context ('backoffice-preview') and resolvedBaseUrl (base URL actually used).",
+  inputSchema: inputSchema9,
+  outputSchema: outputSchema11,
   slices: ["read"],
   annotations: {
     readOnlyHint: true
@@ -33673,7 +33782,7 @@ var previewJsonLdTool = {
 var preview_json_ld_default = withStandardDecorators(previewJsonLdTool);
 
 // src/umbraco-api/tools/schemeweaver/post/generate-content-type.ts
-var inputSchema9 = {
+var inputSchema10 = {
   schemaTypeName: external_exports.string().describe("Schema.org type to scaffold from, e.g. 'Recipe'"),
   documentTypeName: external_exports.string().describe("Display name for the new Umbraco document type, e.g. 'Recipe Page'"),
   documentTypeAlias: external_exports.string().describe("Alias for the new document type (camelCase), e.g. 'recipePage'"),
@@ -33682,14 +33791,14 @@ var inputSchema9 = {
   ),
   propertyGroupName: external_exports.string().optional().default("Content").describe("Tab/group name the new properties are placed under (default 'Content')")
 };
-var outputSchema11 = external_exports.object({
+var outputSchema12 = external_exports.object({
   key: external_exports.string().describe("GUID key of the created document type")
 });
 var generateContentTypeTool = {
   name: "generate-content-type",
   description: "Creates a brand-new Umbraco document type scaffolded from a Schema.org type, with properties (and sensible property editors) for the selected schema properties, plus a SchemeWeaver mapping wired up automatically. Use this for greenfield modelling \u2014 when content should be structured around a schema from the start. For existing content types, use save-schema-mapping instead.",
-  inputSchema: inputSchema9,
-  outputSchema: outputSchema11,
+  inputSchema: inputSchema10,
+  outputSchema: outputSchema12,
   slices: ["create"],
   annotations: {
     destructiveHint: false,
@@ -33713,13 +33822,13 @@ var generateContentTypeTool = {
 var generate_content_type_default = withStandardDecorators(generateContentTypeTool);
 
 // src/umbraco-api/tools/schemeweaver/delete/delete-schema-mapping.ts
-var inputSchema10 = {
+var inputSchema11 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias whose mapping should be deleted")
 };
 var deleteSchemaMappingTool = {
   name: "delete-schema-mapping",
   description: "Permanently deletes the SchemeWeaver mapping for a content type, including all of its property mappings. Content of this type will stop emitting JSON-LD. To temporarily switch a mapping off instead, save it with isEnabled=false rather than deleting.",
-  inputSchema: inputSchema10,
+  inputSchema: inputSchema11,
   slices: ["delete"],
   annotations: {
     destructiveHint: true,
@@ -33756,6 +33865,8 @@ var collection = {
     delete_schema_mapping_default,
     // Verification
     preview_json_ld_default,
+    // Live Delivery-API render (ground truth, bypasses the management client)
+    get_rendered_json_ld_default,
     // Scaffolding
     generate_content_type_default
   ]
@@ -33765,7 +33876,7 @@ var schemeweaver_default = collection;
 // src/umbraco-api/tools/umbraco-server/get/get-server-info.ts
 var getServerInfoTool = {
   name: "get-server-info",
-  description: "Gets Umbraco server information including version and runtime details.",
+  description: "Gets Umbraco server information including version and runtime details, and the configured Umbraco base URL that {siteUrl}/absolute-URL tokens derive from.",
   slices: ["read"],
   annotations: {
     readOnlyHint: true
@@ -33775,7 +33886,7 @@ var getServerInfoTool = {
       { url: "/umbraco/management/api/v1/server/information", method: "GET" },
       CAPTURE_RAW_HTTP_RESPONSE
     );
-    return createToolResult(response.data);
+    return createToolResult({ ...response.data, configuredBaseUrl: resolveBaseUrl() });
   }
 };
 var get_server_info_default = withStandardDecorators(getServerInfoTool);
@@ -33843,7 +33954,7 @@ function clearConfigCache() {
 
 // src/index.ts
 var SERVER_NAME = "schemeweaver-mcp";
-var baseUrl = process.env.UMBRACO_BASE_URL || "https://localhost:44308";
+var baseUrl = resolveBaseUrl();
 var clientId = process.env.UMBRACO_CLIENT_ID || "";
 var clientSecret = process.env.UMBRACO_CLIENT_SECRET || "";
 if (clientId) {

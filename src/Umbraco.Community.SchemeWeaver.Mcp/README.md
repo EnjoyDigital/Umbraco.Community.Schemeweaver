@@ -17,13 +17,29 @@ The idea: SchemeWeaver's built-in auto-mapper is a name-matching heuristic. An L
 | `suggest-property-mappings` | The heuristic auto-mapper baseline (confidence 0–100) |
 | `save-schema-mapping` | Create/replace a mapping (full property-mapping model: property, static, parent, ancestor, sibling, blockContent, reference) |
 | `delete-schema-mapping` | Remove a mapping |
-| `preview-json-ld` | Generate JSON-LD for a content node + Rich Results validation issues |
+| `preview-json-ld` | Generate JSON-LD for a content node + Rich Results validation issues (backoffice-context preview; reports `context`/`resolvedBaseUrl`) |
+| `get-rendered-json-ld` | Fetch the **live** JSON-LD a published page emits, straight from the anonymous Delivery API (ground truth; distinct from the backoffice preview) |
 | `generate-content-type` | Scaffold a new document type from a Schema.org type |
 
-The base SDK also registers a `get-server-info` tool (server version/runtime — handy as an
-auth smoke test), so `--list-tools` reports 13 in total.
+The base SDK also registers a `get-server-info` tool (server version/runtime + the configured base
+URL — handy as an auth smoke test), so `--list-tools` reports 14 in total.
 
 The recommended AI workflow (also sent to clients as server `instructions`): inspect both sides → heuristic baseline → reason semantically → save → preview → fix validation issues.
+
+### preview vs live render
+
+`preview-json-ld` renders in the **backoffice/management context**, so its URL/`@id` resolution
+(and therefore its `isValid` verdict) reflect the management host, not the public site —
+it is not proof the live structured data is valid. For the **authoritative** output a public visitor
+sees, use `get-rendered-json-ld`, which calls SchemeWeaver's anonymous Delivery API
+(`/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route`). That endpoint is **OFF by default** in
+Umbraco (enable the Delivery API; optionally protect it with an API key — see
+`UMBRACO_DELIVERY_API_KEY` in `.env.example`). The tool always surfaces `requestUrl` and `httpStatus`
+even on 404/401/empty, and flags the HTTP-200-but-zero-blocks case rather than claiming success.
+
+**Self-signed TLS:** `get-rendered-json-ld` uses a plain `fetch`, so a self-signed localhost host
+needs `NODE_TLS_REJECT_UNAUTHORIZED=0`. As a Claude Code plugin only the `UMBRACO_*` vars are
+forwarded, so that var does not propagate — the same limitation the management-API tools have.
 
 ## Install as a Claude Code plugin
 

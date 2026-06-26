@@ -20,6 +20,8 @@ import suggestPropertyMappingsTool from "../post/suggest-property-mappings.js";
 import saveSchemaMappingTool from "../post/save-schema-mapping.js";
 import previewJsonLdTool from "../post/preview-json-ld.js";
 import deleteSchemaMappingTool from "../delete/delete-schema-mapping.js";
+import getRenderedJsonLdTool from "../get/get-rendered-json-ld.js";
+import getServerInfoTool from "../../umbraco-server/get/get-server-info.js";
 
 describe("schemeweaver tools", () => {
   setupTestEnvironment();
@@ -183,5 +185,91 @@ describe("schemeweaver tools", () => {
       context
     );
     expect(afterDelete.isError).toBe(true);
+  });
+
+  // ==========================================================================
+  // HOST-DEPENDENT: Delivery API + base-URL transparency.
+  // These need a live TestHost (https://localhost:44308) with the Delivery API
+  // enabled. They are authored for the leader/CI to run against the TestHost and
+  // are NOT executed in the worktree.
+  // ==========================================================================
+
+  it("get-rendered-json-ld returns live JSON-LD for '/' (HOST-DEPENDENT)", async () => {
+    const result = await getRenderedJsonLdTool.handler(
+      { route: "/", scope: undefined, culture: undefined },
+      context
+    );
+
+    expect(result.isError).toBeFalsy();
+    const out = result.structuredContent as {
+      requestUrl: string;
+      httpStatus: number;
+      jsonLd: { schemaOrg?: unknown };
+      note: string;
+    };
+    expect(out.httpStatus).toBe(200);
+    expect(out.requestUrl).toContain(
+      "/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route"
+    );
+    // Body is an object { schemaOrg: [...] }, NOT a bare array (DA-FIX 4).
+    expect(Array.isArray(out.jsonLd.schemaOrg)).toBe(true);
+    expect((out.jsonLd.schemaOrg as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  it("get-rendered-json-ld surfaces an empty graph rather than claiming success (HOST-DEPENDENT)", async () => {
+    // A published page with no SchemeWeaver mapping: HTTP 200 + empty schemaOrg.
+    const result = await getRenderedJsonLdTool.handler(
+      { route: "/", scope: "page", culture: undefined },
+      context
+    );
+
+    expect(result.isError).toBeFalsy();
+    const out = result.structuredContent as { note: string; jsonLd: { schemaOrg?: unknown[] } };
+    const blocks = out.jsonLd.schemaOrg ?? [];
+    if (blocks.length === 0) {
+      // Empty-graph must be visible, never silently reported as ground truth.
+      expect(out.note).toContain("ZERO JSON-LD blocks");
+    }
+  });
+
+  it("get-rendered-json-ld surfaces status for a bogus route without throwing (HOST-DEPENDENT)", async () => {
+    const result = await getRenderedJsonLdTool.handler(
+      { route: "/definitely-not-a-real-route-xyz", scope: undefined, culture: undefined },
+      context
+    );
+
+    // Non-2xx is surfaced as data, never thrown: 404/401/200-empty depending on config.
+    expect(result.isError).toBeFalsy();
+    const out = result.structuredContent as { httpStatus: number; requestUrl: string };
+    expect(typeof out.httpStatus).toBe("number");
+    expect(out.requestUrl).toContain("/json-ld/by-route");
+  });
+
+  it("preview-json-ld reports backoffice context once the backend ships the fields (HOST-DEPENDENT)", async () => {
+    const result = await previewJsonLdTool.handler(
+      { contentTypeAlias: "definitely-not-a-real-alias", contentKey: undefined, culture: undefined },
+      context
+    );
+
+    // Soft-guarded: context/resolvedBaseUrl are only present after the backend
+    // ships them — this assertion is meaningful only then.
+    const preview = result.structuredContent as {
+      context?: string;
+      resolvedBaseUrl?: string;
+    } | null;
+    if (preview && preview.context) {
+      expect(preview.context).toBe("backoffice-preview");
+      expect(typeof preview.resolvedBaseUrl).toBe("string");
+    }
+  });
+
+  it("get-server-info reports the configured base URL (HOST-DEPENDENT)", async () => {
+    const result = await getServerInfoTool.handler(context);
+
+    expect(result.isError).toBeFalsy();
+    const info = result.structuredContent as { configuredBaseUrl: string };
+    expect(info.configuredBaseUrl).toBe(
+      (process.env.UMBRACO_BASE_URL || "https://localhost:44308").replace(/\/+$/, "")
+    );
   });
 });

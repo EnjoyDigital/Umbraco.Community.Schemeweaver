@@ -31,11 +31,14 @@ import umbracoServerCollection from "./umbraco-api/tools/umbraco-server/index.js
 // Import registries for tool filtering
 import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
 
+// Shared base-URL resolution (single source of truth across tools)
+import { resolveBaseUrl } from "./umbraco-api/base-url.js";
+
 const SERVER_NAME = "schemeweaver-mcp";
 
 // Initialize the SDK's fetch client for real Umbraco API calls.
 // This enables the Orval-generated client to authenticate via client_credentials.
-const baseUrl = process.env.UMBRACO_BASE_URL || "https://localhost:44308";
+const baseUrl = resolveBaseUrl();
 const clientId = process.env.UMBRACO_CLIENT_ID || "";
 const clientSecret = process.env.UMBRACO_CLIENT_SECRET || "";
 if (clientId) {
