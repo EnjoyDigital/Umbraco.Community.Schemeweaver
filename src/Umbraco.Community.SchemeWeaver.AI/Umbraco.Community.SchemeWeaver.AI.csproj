@@ -46,8 +46,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Provider-agnostic: the satellite depends on Umbraco.AI.Core only.
-         The Anthropic provider (Umbraco.AI.Anthropic) is installed by the host. -->
+    <!-- Depend on the umbrella Umbraco.AI package so installing this satellite brings
+         the full AI framework: the backoffice AI section UI (Umbraco.AI.Web.StaticAssets),
+         the startup wiring, and persistence (Sqlite/SqlServer) for storing connections
+         and profiles. Umbraco.AI.Core alone has none of that, so the section never
+         renders and the feature can't be configured. The umbrella pulls NO LLM provider,
+         so the satellite stays provider-agnostic — the host installs its own provider
+         (e.g. Umbraco.AI.Anthropic). Umbraco.AI.Core is also referenced explicitly
+         because the satellite's C# compiles against Umbraco.AI.Core.* directly (it comes
+         transitively via the umbrella, but referencing what you compile against is clearer). -->
+    <PackageReference Include="Umbraco.AI" Version="[1.14.0, 2.0.0)" />
     <PackageReference Include="Umbraco.AI.Core" Version="[1.14.0, 2.0.0)" />
   </ItemGroup>
 

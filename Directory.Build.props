@@ -41,7 +41,7 @@
     <!-- uSync line for this major (stable) -->
     <SchemeWeaverUSyncVersion>17.3.0</SchemeWeaverUSyncVersion>
     <!-- Major-aligned stable package version for the Umbraco 17 line -->
-    <SchemeWeaverPackageVersion>17.5.0</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>17.5.1</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
