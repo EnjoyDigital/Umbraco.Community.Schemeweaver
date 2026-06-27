@@ -34,7 +34,7 @@ const propertyMappingSchema = z.object({
         "'parent' = a property on the direct parent node (set contentTypePropertyAlias); " +
         "'ancestor' = a property on the nearest ancestor of a given content type (set sourceContentTypeAlias + contentTypePropertyAlias); " +
         "'sibling' = a property on a sibling node of a given content type (set sourceContentTypeAlias + contentTypePropertyAlias); " +
-        "'blockContent' = map Block List/Grid items to nested schema objects or string lists (set contentTypePropertyAlias to the block property, nestedSchemaTypeName, and resolverConfig); " +
+        "'blockContent' = map Block List/Grid items (including blocks nested inside blocks and Block Grid areas) to nested schema objects or string lists (set contentTypePropertyAlias to the block property, nestedSchemaTypeName, and a `routes` resolverConfig — nestable for blocks-within-blocks); " +
         "'reference' = link to a shared graph piece by key (set targetPieceKey, e.g. 'organization' or 'website') — used for publisher/author organisation references."
     ),
   contentTypePropertyAlias: z
@@ -71,9 +71,24 @@ const propertyMappingSchema = z.object({
     .string()
     .nullish()
     .describe(
-      "JSON string with advanced nested-mapping config. " +
-        "For 'blockContent': {\"nestedMappings\":[{\"blockAlias\":\"...\",\"schemaProperty\":\"...\",\"contentProperty\":\"...\",\"wrapInType\":\"...\",\"wrapInProperty\":\"...\"}]} " +
-        "or {\"extractAs\":\"stringList\",\"contentProperty\":\"...\"} for string-array properties like recipeIngredient. " +
+      "JSON string with advanced nested-mapping config (passed through verbatim to the C# resolvers). " +
+        "For 'blockContent', the preferred shape is `routes` — one route per block element type: " +
+        '{"routes":[{"blockAlias":"...","nestedSchemaType":"...","propertyMappings":[' +
+        '{"schemaProperty":"...","contentProperty":"...","wrapInType":"...?","wrapInProperty":"...?",' +
+        '"extractAs":"stringList?","nestedContentProperty":"...?","routes":[ ...same route shape... ]}]}]}. ' +
+        "A propertyMappings entry whose `contentProperty` is itself a nested Block List/Grid (a block inside a " +
+        "block, or a Block Grid area) carries its own `routes`, recursing one level deeper — discover the allowed " +
+        "nested element types via get-block-element-types (`propertyInfos[].nestedBlockElementTypes`). " +
+        "Nested-routes example — an FAQPage whose `sections` blocks each contain a nested `questions` Block List: " +
+        '{"routes":[{"blockAlias":"faqSection","nestedSchemaType":"ItemList","propertyMappings":[' +
+        '{"schemaProperty":"itemListElement","contentProperty":"questions","routes":[' +
+        '{"blockAlias":"faqItem","nestedSchemaType":"Question","propertyMappings":[' +
+        '{"schemaProperty":"name","contentProperty":"questionText"},' +
+        '{"schemaProperty":"acceptedAnswer","contentProperty":"answerText","wrapInType":"Answer","wrapInProperty":"text"}]}]}]}]}. ' +
+        "For a flat string array (e.g. recipeIngredient) use the top-level string-list mode: " +
+        '{"extractAs":"stringList","contentProperty":"..."}. ' +
+        "The legacy flat shape {\"nestedMappings\":[{\"blockAlias\":\"...\",\"schemaProperty\":\"...\",\"contentProperty\":\"...\",\"wrapInType\":\"...\",\"wrapInProperty\":\"...\"}]} " +
+        "is still accepted for single-level blocks but `routes` is preferred and required for nesting. " +
         "For complex types: {\"selectedSubType\":\"...\",\"complexTypeMappings\":[{\"schemaProperty\":\"...\",\"sourceType\":\"property|static\",\"contentTypePropertyAlias\":\"...\",\"staticValue\":\"...\"}]}"
     ),
   dynamicRootConfig: z

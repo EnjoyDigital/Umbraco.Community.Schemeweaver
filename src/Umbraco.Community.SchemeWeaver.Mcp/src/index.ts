@@ -69,7 +69,10 @@ const server = new McpServer(
       "(5) persist with save-schema-mapping (it replaces the whole mapping), " +
       "(6) verify with preview-json-ld against a real content node and resolve reported validation issues. " +
       "Prefer mapping the properties Google rich results require/recommend (high confidence in ranked results) " +
-      "over mapping everything.",
+      "over mapping everything. " +
+      "Block List/Grid properties (including blocks nested inside blocks and Block Grid areas) can be mapped to " +
+      "nested Schema.org objects: inspect them with get-block-element-types — its propertyInfos[].nestedBlockElementTypes " +
+      "surfaces blocks-within-blocks — and route them with the nestable `routes` resolverConfig on a 'blockContent' mapping.",
   }
 );
 
