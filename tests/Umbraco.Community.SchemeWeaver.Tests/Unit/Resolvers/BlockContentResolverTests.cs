@@ -1046,6 +1046,282 @@ public class BlockContentResolverTests
         ((Schema.NET.Question)things[0]).Name.First().Should().Be("Legacy still works?");
     }
 
+    // --- WS-A: nested blocks (block-editor inside a block) + Block Grid areas ---
+
+    // A block element whose own property is itself a Block List (a block nested inside a
+    // block). The outer route maps the nested-block property to a schema property and carries
+    // child routes; resolution must recurse and emit the inner Things.
+    [Fact]
+    public void Resolve_NestedBlockEditorProperty_RecursesToInnerThings()
+    {
+        var innerFaq = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["question"] = "Nested question?"
+        });
+        var innerList = CreateBlockListModel(innerFaq);
+
+        var section = CreateBlockElementWithNestedBlock(
+            "sectionBlock", "items", "Umbraco.BlockList", innerList);
+
+        var outerList = CreateBlockListModel(section);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "sectionBlock",
+                    NestedSchemaType = "FAQPage",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new()
+                        {
+                            SchemaProperty = "mainEntity",
+                            ContentProperty = "items",
+                            Routes = new List<BlockRoute>
+                            {
+                                new()
+                                {
+                                    BlockAlias = "faqItem",
+                                    NestedSchemaType = "Question",
+                                    PropertyMappings = new List<NestedPropertyMapping>
+                                    {
+                                        new() { SchemaProperty = "name", ContentProperty = "question" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(outerList);
+
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().ContainSingle();
+        var faqPage = things[0].Should().BeOfType<Schema.NET.FAQPage>().Subject;
+
+        var jsonLd = faqPage.ToString();
+        jsonLd.Should().Contain("Question");
+        jsonLd.Should().Contain("Nested question?");
+    }
+
+    // Block Grid stores nested blocks inside layout Areas. A block placed in an area must
+    // resolve just like a top-level grid block (areas are flattened, not dropped).
+    [Fact]
+    public void Resolve_BlockGridAreas_TraversesNestedAreaBlocks()
+    {
+        var topFaq = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["question"] = "Top-level grid question"
+        });
+        var areaFaq = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["question"] = "Area-nested grid question"
+        });
+
+        var areaItem = new BlockGridItem(Guid.NewGuid(), areaFaq, null, null);
+        var area = new BlockGridArea(new List<BlockGridItem> { areaItem }, "main", 1, 1);
+        var topItem = new BlockGridItem(Guid.NewGuid(), topFaq, null, null) { Areas = new[] { area } };
+        var grid = new BlockGridModel(new List<BlockGridItem> { topItem }, 12);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "faqItem",
+                    NestedSchemaType = "Question",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "question" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(grid);
+
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().HaveCount(2, "the top-level grid block AND the area-nested block both resolve");
+        things.Should().AllBeOfType<Schema.NET.Question>();
+        var names = things.Cast<Schema.NET.Question>().SelectMany(q => q.Name).ToList();
+        names.Should().Contain("Top-level grid question");
+        names.Should().Contain("Area-nested grid question");
+    }
+
+    // The nested property is skipped once recursion would exceed MaxRecursionDepth, so the
+    // outer Thing is still produced but its nested schema property stays empty.
+    [Fact]
+    public void Resolve_NestedBlockEditorProperty_DepthCapped_DoesNotRecurse()
+    {
+        var innerFaq = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["question"] = "Should not appear"
+        });
+        var innerList = CreateBlockListModel(innerFaq);
+        var section = CreateBlockElementWithNestedBlock(
+            "sectionBlock", "items", "Umbraco.BlockList", innerList);
+        var outerList = CreateBlockListModel(section);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "sectionBlock",
+                    NestedSchemaType = "FAQPage",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new()
+                        {
+                            SchemaProperty = "mainEntity",
+                            ContentProperty = "items",
+                            Routes = new List<BlockRoute>
+                            {
+                                new()
+                                {
+                                    BlockAlias = "faqItem",
+                                    NestedSchemaType = "Question",
+                                    PropertyMappings = new List<NestedPropertyMapping>
+                                    {
+                                        new() { SchemaProperty = "name", ContentProperty = "question" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(outerList);
+
+        // Start one below the cap: resolving the section is allowed (depth 2 < 3), but
+        // recursing into its nested "items" (depth 3) is not.
+        var context = CreateContext(property, nestedSchemaTypeName: null,
+            resolverConfig: resolverConfig, recursionDepth: 2);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().NotBeNull();
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().ContainSingle();
+        things[0].Should().BeOfType<Schema.NET.FAQPage>();
+        things[0].ToString().Should().NotContain("Should not appear");
+    }
+
+    // A block whose nested Block List contains the same block element (a cycle) must
+    // terminate via the VisitedContentKeys guard rather than recurse forever.
+    [Fact]
+    public void Resolve_NestedBlockEditorProperty_SelfReference_Terminates()
+    {
+        var section = Substitute.For<IPublishedElement>();
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns("sectionBlock");
+        section.ContentType.Returns(contentType);
+        section.Key.Returns(Guid.NewGuid());
+
+        // The section's nested "items" Block List references the section itself.
+        var selfList = CreateBlockListModel(section);
+        var itemsProp = Substitute.For<IPublishedProperty>();
+        var itemsPropType = Substitute.For<IPublishedPropertyType>();
+        itemsPropType.EditorAlias.Returns("Umbraco.BlockList");
+        itemsProp.PropertyType.Returns(itemsPropType);
+        itemsProp.Alias.Returns("items");
+        itemsProp.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(selfList);
+        section.GetProperty("items").Returns(itemsProp);
+
+        var outerList = CreateBlockListModel(section);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "sectionBlock",
+                    NestedSchemaType = "FAQPage",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new()
+                        {
+                            SchemaProperty = "mainEntity",
+                            ContentProperty = "items",
+                            Routes = new List<BlockRoute>
+                            {
+                                new() { BlockAlias = "sectionBlock", NestedSchemaType = "FAQPage" }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(outerList);
+
+        var context = CreateContext(property, nestedSchemaTypeName: null, resolverConfig: resolverConfig);
+
+        var act = () => _sut.Resolve(context);
+
+        act.Should().NotThrow("the cycle guard must stop self-referential block recursion");
+        var things = ((IEnumerable<Schema.NET.Thing>)act()!).ToList();
+        things.Should().ContainSingle();
+        things[0].Should().BeOfType<Schema.NET.FAQPage>();
+    }
+
+    private static IPublishedElement CreateBlockElementWithNestedBlock(
+        string contentTypeAlias,
+        string nestedPropertyAlias,
+        string editorAlias,
+        object nestedValue,
+        Dictionary<string, object?>? scalarProperties = null)
+    {
+        var element = Substitute.For<IPublishedElement>();
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns(contentTypeAlias);
+        element.ContentType.Returns(contentType);
+        element.Key.Returns(Guid.NewGuid());
+
+        var prop = Substitute.For<IPublishedProperty>();
+        var propType = Substitute.For<IPublishedPropertyType>();
+        propType.EditorAlias.Returns(editorAlias);
+        prop.PropertyType.Returns(propType);
+        prop.Alias.Returns(nestedPropertyAlias);
+        prop.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(nestedValue);
+        element.GetProperty(nestedPropertyAlias).Returns(prop);
+
+        if (scalarProperties is not null)
+        {
+            foreach (var kvp in scalarProperties)
+            {
+                var scalarProp = Substitute.For<IPublishedProperty>();
+                scalarProp.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(kvp.Value);
+                element.GetProperty(kvp.Key).Returns(scalarProp);
+            }
+        }
+
+        return element;
+    }
+
     private static IPublishedElement CreateBlockElement(string contentTypeAlias, Dictionary<string, object?> properties)
     {
         var element = Substitute.For<IPublishedElement>();

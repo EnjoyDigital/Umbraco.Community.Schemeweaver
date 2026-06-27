@@ -170,4 +170,83 @@ describe('NestedMappingModalElement (flat block-mapping panel)', () => {
     const headline = el.shadowRoot!.querySelector('umb-body-layout');
     expect(headline!.getAttribute('headline')).to.contain('contentBlocks');
   });
+
+  // companyPage.blocks is a NESTED block list: a Company block whose `member`
+  // property is itself a Block List of Member Card blocks (→ Person).
+  describe('nested blocks', () => {
+    function companyRow(el: any) {
+      return el._blockRows.find((r: any) => r.alias === 'companyBlock');
+    }
+
+    it('seeds nested routes from the block-suggest response', async () => {
+      const el = createElement('companyPage', 'blocks');
+      await waitForLoad(el);
+
+      const company = companyRow(el);
+      expect(company.mapped).to.equal(true);
+      expect(company.targetProperty).to.equal('mainEntity');
+      expect(company.nestedSchemaType).to.equal('Organization');
+
+      const member = company.propertyMappings.find((m: any) => m.schemaProperty === 'member');
+      expect(member, 'member mapping exists').to.not.equal(undefined);
+      expect(member.contentProperty).to.equal('member');
+      // The `member` block property is itself a block list → nested routing is offered.
+      expect(member.nestedBlockElementTypes.length).to.equal(1);
+      expect(member.nestedBlockElementTypes[0].alias).to.equal('memberBlock');
+      // Nested routes were suggested: memberBlock → Person.
+      expect(member.nestedRoutes.length).to.equal(1);
+      expect(member.nestedRoutes[0].blockAlias).to.equal('memberBlock');
+      expect(member.nestedRoutes[0].nestedSchemaType).to.equal('Person');
+    });
+
+    it('expands the nested block routing tree into a child editor', async () => {
+      const el = createElement('companyPage', 'blocks');
+      await waitForLoad(el);
+
+      const rowIndex = el._blockRows.findIndex((r: any) => r.alias === 'companyBlock');
+      const propIndex = el._blockRows[rowIndex].propertyMappings.findIndex((m: any) => m.schemaProperty === 'member');
+
+      el._toggleExpand(rowIndex);
+      await el.updateComplete;
+      el._toggleNested(rowIndex, propIndex);
+      await el.updateComplete;
+
+      const child = el.shadowRoot!.querySelector('schemeweaver-nested-block-routes');
+      expect(child, 'nested editor mounted').to.not.equal(null);
+    });
+
+    it('save emits recursive nested routes on the member property mapping', async () => {
+      const el = createElement('companyPage', 'blocks');
+      await waitForLoad(el);
+
+      const targetMappings = el._buildTargetMappings();
+      const mainEntity = targetMappings.find((m: any) => m.schemaPropertyName === 'mainEntity');
+      expect(mainEntity, 'mainEntity target emitted').to.not.equal(undefined);
+
+      const config = JSON.parse(mainEntity.resolverConfig);
+      expect(config.routes[0].blockAlias).to.equal('companyBlock');
+      const member = config.routes[0].propertyMappings.find((p: any) => p.schemaProperty === 'member');
+      expect(member, 'member property mapping serialised').to.not.equal(undefined);
+      expect(member.routes, 'nested routes serialised').to.not.equal(undefined);
+      expect(member.routes[0].blockAlias).to.equal('memberBlock');
+      expect(member.routes[0].nestedSchemaType).to.equal('Person');
+      const nestedProps = member.routes[0].propertyMappings.map((p: any) => p.schemaProperty);
+      expect(nestedProps).to.include('name');
+    });
+
+    it('clearing the value of a nested-block property drops its nested routes', async () => {
+      const el = createElement('companyPage', 'blocks');
+      await waitForLoad(el);
+
+      const rowIndex = el._blockRows.findIndex((r: any) => r.alias === 'companyBlock');
+      const propIndex = el._blockRows[rowIndex].propertyMappings.findIndex((m: any) => m.schemaProperty === 'member');
+
+      el._handleContentPropertyChange(rowIndex, propIndex, '');
+      await el.updateComplete;
+
+      const member = el._blockRows[rowIndex].propertyMappings[propIndex];
+      expect(member.nestedBlockElementTypes.length).to.equal(0);
+      expect(member.nestedRoutes.length).to.equal(0);
+    });
+  });
 });

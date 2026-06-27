@@ -41,4 +41,12 @@ public class BlockRoutePropertyMappingSuggestion
     public string ContentProperty { get; set; } = string.Empty;
     public string? WrapInType { get; set; }
     public string? WrapInProperty { get; set; }
+
+    /// <summary>
+    /// When <see cref="ContentProperty"/> is itself a Block List/Grid (a block nested inside a
+    /// block), the suggested routes for that nested block's element types. Serialised onto the
+    /// stored mapping as the nested property mapping's own <c>routes</c>, recursing the routing
+    /// model one level deeper. Null/empty for ordinary scalar properties.
+    /// </summary>
+    public List<BlockRouteSuggestion>? Routes { get; set; }
 }

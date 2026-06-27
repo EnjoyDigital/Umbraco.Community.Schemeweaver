@@ -8,8 +8,8 @@ using uSync.Core.Serialization;
 namespace Umbraco.Community.SchemeWeaver.uSync;
 
 /// <summary>
-/// Registers SchemeWeaver uSync serializers, the first-boot mapping importer,
-/// and the export-on-save handler.
+/// Registers SchemeWeaver uSync serializers, the dashboard handler, the
+/// first-boot mapping importer, and the export-on-save handler.
 /// </summary>
 public class SchemeWeaverUSyncComposer : IComposer
 {
@@ -18,6 +18,20 @@ public class SchemeWeaverUSyncComposer : IComposer
         builder.WithCollectionBuilder<SyncSerializerCollectionBuilder>()
             .Add<SchemaMappingSerializer>();
 
+        // The dashboard handler (SchemaMappingHandler) is intentionally NOT added
+        // to the SyncHandlerCollectionBuilder here: uSync discovers every
+        // ISyncHandler automatically through its type loader
+        // (TypeLoader.GetTypes<ISyncHandler>()), so an explicit Add would register
+        // — and draw — the handler twice. It surfaces SchemeWeaver mappings in the
+        // uSync dashboard and powers Import All / Export All.
+
+        // First-boot seeding is kept alongside the dashboard handler on purpose:
+        // uSync's own startup import only runs when the global
+        // Settings:ImportAtStartup flag is enabled (off by default), so it does
+        // not reliably seed the mappings a package ships in its uSync folder on a
+        // fresh boot. The importer below always runs, but it is idempotent — it
+        // skips when any mapping already exists and wraps its work in the import
+        // guard — so it can never double-import or fight the dashboard handler.
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, SchemaMappingImportNotificationHandler>();
 
         // Export-on-save: writes a mapping back to its uSync data folder when it

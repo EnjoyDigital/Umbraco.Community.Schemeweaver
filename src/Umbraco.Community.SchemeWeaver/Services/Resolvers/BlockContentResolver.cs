@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Community.SchemeWeaver.Models.Entities;
 
 namespace Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
@@ -129,9 +130,29 @@ public class BlockContentResolver : IPropertyValueResolver
         return value switch
         {
             BlockListModel blockList => blockList.Select(b => b.Content),
-            BlockGridModel blockGrid => blockGrid.Select(b => b.Content),
+            // Block Grid stores nested blocks inside layout Areas. Flatten the whole grid
+            // (top-level items + every area, recursively) so blocks placed in an area are
+            // not silently dropped. Area layout itself carries no Schema.org meaning, so it
+            // is flattened into one ordered sequence.
+            BlockGridModel blockGrid => FlattenGridItems(blockGrid),
             _ => null
         };
+    }
+
+    /// <summary>
+    /// Depth-first flatten of a Block Grid's items, descending through each item's
+    /// <see cref="BlockGridItem.Areas"/> so that blocks nested inside grid areas are included.
+    /// </summary>
+    private static IEnumerable<IPublishedElement> FlattenGridItems(IEnumerable<BlockGridItem> items)
+    {
+        foreach (var item in items)
+        {
+            yield return item.Content;
+
+            foreach (var area in item.Areas)
+                foreach (var areaItem in FlattenGridItems(area))
+                    yield return areaItem;
+        }
     }
 
     private Thing? MapBlockToThing(
@@ -242,7 +263,7 @@ public class BlockContentResolver : IPropertyValueResolver
             SchemaPropertySetter.SetPropertyValue(instance, schemaProperty, wrapInstance);
     }
 
-    private static void MapPropertyFromConfig(
+    private void MapPropertyFromConfig(
         Thing instance,
         IPublishedElement blockContent,
         NestedPropertyMapping mapping,
@@ -250,6 +271,18 @@ public class BlockContentResolver : IPropertyValueResolver
     {
         if (string.IsNullOrEmpty(mapping.SchemaProperty) || string.IsNullOrEmpty(mapping.ContentProperty))
             return;
+
+        // Nested block editor: when the mapped block property is itself a Block List/Grid,
+        // recurse to produce nested Schema.NET Things (or a string list) rather than the
+        // useless ToString() of the block model. Assigned directly to the schema property.
+        var nestedProperty = blockContent.GetProperty(mapping.ContentProperty);
+        if (IsBlockEditor(nestedProperty?.PropertyType?.EditorAlias))
+        {
+            var nested = ResolveNestedBlockProperty(blockContent, nestedProperty!, mapping, context);
+            if (nested is not null)
+                SchemaPropertySetter.SetPropertyValue(instance, mapping.SchemaProperty, nested);
+            return;
+        }
 
         // Use the full resolver pipeline when available (handles media pickers, dates, etc.)
         var rawValue = ResolveBlockElementProperty(blockContent, mapping.ContentProperty, context);
@@ -293,6 +326,69 @@ public class BlockContentResolver : IPropertyValueResolver
             blockContent, propertyAlias, context.HttpContextAccessor);
     }
 
+    /// <summary>True when the editor alias is a Block List or Block Grid.</summary>
+    internal static bool IsBlockEditor(string? editorAlias) =>
+        editorAlias is "Umbraco.BlockList" or "Umbraco.BlockGrid";
+
+    /// <summary>
+    /// Resolves a block element property that is itself a Block List/Grid (a block nested
+    /// inside a block) by re-entering <see cref="Resolve"/> with a child context one level
+    /// deeper. The nested route config (<see cref="NestedPropertyMapping.Routes"/> or a
+    /// <c>stringList</c> extraction) is serialised onto a synthetic <see cref="PropertyMapping"/>.
+    /// Depth- and cycle-guarded so a block referencing its own type cannot loop forever.
+    /// </summary>
+    private object? ResolveNestedBlockProperty(
+        IPublishedElement blockContent,
+        IPublishedProperty nestedProperty,
+        NestedPropertyMapping mapping,
+        PropertyResolverContext context)
+    {
+        // One level deeper than the current block. Bail before exceeding the cap (Resolve
+        // also guards, but checking here avoids building a throwaway child context).
+        if (context.RecursionDepth + 1 >= context.MaxRecursionDepth)
+        {
+            _logger.LogDebug(
+                "Nested block property '{PropertyAlias}' on block '{BlockAlias}' skipped — recursion depth {Depth} would exceed max {Max}",
+                nestedProperty.Alias, blockContent.ContentType.Alias, context.RecursionDepth + 1, context.MaxRecursionDepth);
+            return null;
+        }
+
+        if (context.VisitedContentKeys.Contains(blockContent.Key))
+            return null;
+
+        var nestedConfig = mapping.ExtractAs == "stringList"
+            ? new ResolverConfigModel { ExtractAs = "stringList", ContentProperty = mapping.NestedContentProperty }
+            : new ResolverConfigModel { Routes = mapping.Routes };
+
+        var childMapping = new PropertyMapping
+        {
+            SchemaPropertyName = mapping.SchemaProperty!,
+            SourceType = "blockContent",
+            ContentTypePropertyAlias = nestedProperty.Alias,
+            ResolverConfig = JsonSerializer.Serialize(nestedConfig)
+        };
+
+        var childVisited = new HashSet<Guid>(context.VisitedContentKeys) { blockContent.Key };
+
+        var childContext = new PropertyResolverContext
+        {
+            Content = context.Content,
+            Mapping = childMapping,
+            PropertyAlias = nestedProperty.Alias,
+            SchemaTypeRegistry = context.SchemaTypeRegistry,
+            MappingRepository = context.MappingRepository,
+            HttpContextAccessor = context.HttpContextAccessor,
+            ResolverFactory = context.ResolverFactory,
+            Property = nestedProperty,
+            RecursionDepth = context.RecursionDepth + 1,
+            MaxRecursionDepth = context.MaxRecursionDepth,
+            VisitedContentKeys = childVisited,
+            Culture = context.Culture
+        };
+
+        return Resolve(childContext);
+    }
+
     /// <summary>
     /// Infers the best property on the wrapper type to set the value on,
     /// by matching the content property name against the wrapper type's schema properties.
@@ -331,6 +427,12 @@ public class BlockContentResolver : IPropertyValueResolver
 
         foreach (var schemaProp in schemaProperties)
         {
+            // Skip nested Block List/Grid properties — auto-map has no schema route for their
+            // child blocks, and ResolveElementPropertyValue would otherwise stamp the block
+            // model's ToString() onto the schema property. Nested blocks require explicit routes.
+            if (IsBlockEditor(blockContent.GetProperty(schemaProp.Name)?.PropertyType?.EditorAlias))
+                continue;
+
             // Try exact name match (case-insensitive) between block property and schema property
             var rawValue = SchemaPropertySetter.ResolveElementPropertyValue(
                 blockContent, schemaProp.Name, context.HttpContextAccessor);
@@ -451,6 +553,28 @@ public class NestedPropertyMapping
     /// Optional: the property on the wrap type to set the value on (defaults to "Text").
     /// </summary>
     public string? WrapInProperty { get; set; }
+
+    /// <summary>
+    /// Optional: when <see cref="ContentProperty"/> points at a block element property that is
+    /// itself a Block List/Grid (a block nested inside a block), these routes map that nested
+    /// block's element types to their own Schema.NET types — exactly like the top-level
+    /// <see cref="BlockRoute"/> list. Resolution recurses (depth-capped) and the resulting
+    /// nested Things are assigned to <see cref="SchemaProperty"/>.
+    /// </summary>
+    public List<BlockRoute>? Routes { get; set; }
+
+    /// <summary>
+    /// Optional: when <see cref="ContentProperty"/> points at a nested Block List/Grid and this
+    /// is "stringList", the nested blocks are extracted as a string array (using
+    /// <see cref="NestedContentProperty"/> as the inner block property) instead of Things —
+    /// e.g. nested "ingredient" blocks feeding a recipeIngredient string[].
+    /// </summary>
+    public string? ExtractAs { get; set; }
+
+    /// <summary>
+    /// The inner block property alias to read when <see cref="ExtractAs"/> is "stringList".
+    /// </summary>
+    public string? NestedContentProperty { get; set; }
 }
 
 /// <summary>

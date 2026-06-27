@@ -12,10 +12,10 @@ The idea: SchemeWeaver's built-in auto-mapper is a name-matching heuristic. An L
 | `get-schema-type-properties` | Properties of a type, optionally ranked by real-world importance |
 | `list-content-types` | All Umbraco content types with aliases and keys |
 | `get-content-type-properties` | Properties + editor aliases of a content type (incl. built-ins `__name`, `__url`, …) |
-| `get-block-element-types` | Element types inside a Block List/Grid property |
+| `get-block-element-types` | Element types inside a Block List/Grid property, recursively surfacing blocks nested inside blocks (and Block Grid areas) via `propertyInfos[].nestedBlockElementTypes` |
 | `get-all-schema-mappings` / `get-schema-mapping` | Existing mappings |
 | `suggest-property-mappings` | The heuristic auto-mapper baseline (confidence 0–100) |
-| `save-schema-mapping` | Create/replace a mapping (full property-mapping model: property, static, parent, ancestor, sibling, blockContent, reference) |
+| `save-schema-mapping` | Create/replace a mapping (full property-mapping model: property, static, parent, ancestor, sibling, blockContent, reference). `blockContent` uses a nestable `routes` resolverConfig that maps blocks — and blocks nested inside blocks / Block Grid areas — to nested Schema.org objects |
 | `delete-schema-mapping` | Remove a mapping |
 | `preview-json-ld` | Generate JSON-LD for a content node + Rich Results validation issues (backoffice-context preview; reports `context`/`resolvedBaseUrl`) |
 | `get-rendered-json-ld` | Fetch the **live** JSON-LD a published page emits, straight from the anonymous Delivery API (ground truth; distinct from the backoffice preview) |

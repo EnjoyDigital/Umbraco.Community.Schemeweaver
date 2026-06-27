@@ -193,6 +193,10 @@ export default {
     unmapBlock: 'Remove mapping',
     blockNoSuggestion: 'No suggestion available for this block type.',
     blockTableEmptyHint: 'Choose a Schema.org type to map this block’s properties.',
+    // Nested blocks (a block whose property is itself a Block List/Grid)
+    routeNestedBlock: 'Route nested block',
+    collapseNestedBlock: 'Collapse nested block routing',
+    noNestedBlockTypesHint: 'No nested block element types were found for this property.',
 
     // AI features (require SchemeWeaver.AI satellite package)
     aiAnalyse: 'AI Analyse',

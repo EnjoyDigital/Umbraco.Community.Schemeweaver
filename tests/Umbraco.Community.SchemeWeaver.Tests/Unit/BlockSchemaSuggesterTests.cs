@@ -34,6 +34,43 @@ public class BlockSchemaSuggesterTests
                 .ToList()
         };
 
+    // A block whose own property is a nested Block List of faq items: the parent route gets a
+    // property mapping keyed by the nested block property, carrying the nested block's routes.
+    [Fact]
+    public void Suggest_NestedBlockProperty_AttachesNestedRoutesToParentRoute()
+    {
+        var nestedFaq = Element("faqItemBlock", "FAQ Item", "question", "answer");
+
+        var section = new BlockElementTypeInfo
+        {
+            Alias = "faqSectionBlock",
+            Name = "FAQ Section",
+            Properties = ["items"],
+            PropertyInfos =
+            [
+                new BlockElementPropertyInfo
+                {
+                    Alias = "items",
+                    Name = "Items",
+                    EditorAlias = "Umbraco.BlockList",
+                    NestedBlockElementTypes = [nestedFaq]
+                }
+            ]
+        };
+
+        var result = _sut.Suggest([section]).ToList();
+
+        result.Should().ContainSingle();
+        var parentRoute = result[0].Routes.Should().ContainSingle().Subject;
+        parentRoute.BlockAlias.Should().Be("faqSectionBlock");
+
+        var nestedMapping = parentRoute.PropertyMappings
+            .Should().ContainSingle(pm => pm.ContentProperty == "items").Subject;
+        nestedMapping.Routes.Should().NotBeNullOrEmpty();
+        nestedMapping.Routes!.Should().ContainSingle(r => r.BlockAlias == "faqItemBlock"
+            && r.NestedSchemaType == "Question");
+    }
+
     [Fact]
     public void Suggest_FaqBlock_RoutesToQuestionAtMainEntity()
     {

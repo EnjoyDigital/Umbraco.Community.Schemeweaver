@@ -33208,12 +33208,11 @@ object2({
   "contentTypeAlias": string2(),
   "propertyAlias": string2()
 });
-var getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesResponseItem = object2({
+object2({
   "alias": string2(),
   "name": string2(),
   "properties": array(string2())
 });
-var getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesResponse = array(getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesResponseItem);
 object2({
   "schemaTypeName": string2(),
   "documentTypeName": string2(),
@@ -33489,12 +33488,30 @@ var inputSchema4 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias that owns the block property"),
   propertyAlias: external_exports.string().describe("Alias of a Block List / Block Grid property on that content type")
 };
+var blockElementTypeInfoSchema = external_exports.lazy(
+  () => external_exports.object({
+    alias: external_exports.string().describe("Element type alias"),
+    name: external_exports.string().describe("Element type display name"),
+    properties: external_exports.array(external_exports.string()).describe("Property aliases on this element type (plain list, kept for backward compatibility)"),
+    propertyInfos: external_exports.array(blockElementPropertyInfoSchema).optional().describe(
+      "Full per-property info (alias, name, editorAlias). A property whose editorAlias is a Block List/Grid carries its own nestedBlockElementTypes \u2014 the blocks nested inside this block."
+    )
+  })
+);
+var blockElementPropertyInfoSchema = external_exports.object({
+  alias: external_exports.string().describe("Property alias on the element type"),
+  name: external_exports.string().describe("Property display name"),
+  editorAlias: external_exports.string().describe("Umbraco property editor alias (e.g. Umbraco.BlockList, Umbraco.BlockGrid)"),
+  nestedBlockElementTypes: external_exports.array(blockElementTypeInfoSchema).optional().describe(
+    "When this property is itself a Block List/Grid (a block nested inside a block), the element types allowed within it \u2014 resolved recursively (depth-capped). Empty for non-block properties. Use these to build nested `routes`-within-a-property-mapping configs in save-schema-mapping."
+  )
+});
 var outputSchema5 = external_exports.object({
-  items: getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesResponse
+  items: external_exports.array(blockElementTypeInfoSchema)
 });
 var getBlockElementTypesTool = {
   name: "get-block-element-types",
-  description: "Gets the element types allowed inside a Block List or Block Grid property, with each element type's alias, name and property aliases. Needed when creating a property mapping with sourceType 'blockContent': blocks of a given element type can be mapped to a nested Schema.org object (e.g. a 'faqBlock' element type mapped to a Question for an FAQPage).",
+  description: "Gets the element types allowed inside a Block List or Block Grid property, with each element type's alias, name and property aliases (both the flat `properties` list and richer `propertyInfos` with editor aliases). Blocks can be nested inside blocks (and Block Grid areas): when an element-type property is itself a Block List/Grid, its `propertyInfos[].nestedBlockElementTypes` lists the element types allowed one level deeper, resolved recursively (depth-capped). Needed when creating a property mapping with sourceType 'blockContent': blocks of a given element type can be mapped to a nested Schema.org object (e.g. a 'faqBlock' element type mapped to a Question for an FAQPage), and nested block properties can be routed deeper via nested `routes` in the resolverConfig.",
   inputSchema: inputSchema4,
   outputSchema: outputSchema5,
   slices: ["read"],
@@ -33709,7 +33726,7 @@ var propertyMappingSchema = external_exports.object({
     "Schema.org property name, e.g. 'headline', 'datePublished', 'author'. Matched case-insensitively; camelCase (as emitted in JSON-LD) is the convention even though get-schema-type-properties lists names in PascalCase."
   ),
   sourceType: external_exports.enum(["property", "static", "parent", "ancestor", "sibling", "blockContent", "reference"]).describe(
-    "Where the value comes from: 'property' = a property on the content node itself (set contentTypePropertyAlias); 'static' = a fixed value for all content of this type (set staticValue); 'parent' = a property on the direct parent node (set contentTypePropertyAlias); 'ancestor' = a property on the nearest ancestor of a given content type (set sourceContentTypeAlias + contentTypePropertyAlias); 'sibling' = a property on a sibling node of a given content type (set sourceContentTypeAlias + contentTypePropertyAlias); 'blockContent' = map Block List/Grid items to nested schema objects or string lists (set contentTypePropertyAlias to the block property, nestedSchemaTypeName, and resolverConfig); 'reference' = link to a shared graph piece by key (set targetPieceKey, e.g. 'organization' or 'website') \u2014 used for publisher/author organisation references."
+    "Where the value comes from: 'property' = a property on the content node itself (set contentTypePropertyAlias); 'static' = a fixed value for all content of this type (set staticValue); 'parent' = a property on the direct parent node (set contentTypePropertyAlias); 'ancestor' = a property on the nearest ancestor of a given content type (set sourceContentTypeAlias + contentTypePropertyAlias); 'sibling' = a property on a sibling node of a given content type (set sourceContentTypeAlias + contentTypePropertyAlias); 'blockContent' = map Block List/Grid items (including blocks nested inside blocks and Block Grid areas) to nested schema objects or string lists (set contentTypePropertyAlias to the block property, nestedSchemaTypeName, and a `routes` resolverConfig \u2014 nestable for blocks-within-blocks); 'reference' = link to a shared graph piece by key (set targetPieceKey, e.g. 'organization' or 'website') \u2014 used for publisher/author organisation references."
   ),
   contentTypePropertyAlias: external_exports.string().nullish().describe(
     "Umbraco property alias supplying the value. Built-in node aliases ('__name', '__url', '__createDate', '__updateDate') are allowed alongside editor-defined aliases."
@@ -33724,7 +33741,7 @@ var propertyMappingSchema = external_exports.object({
     "For complex-type properties (isComplexType=true) and 'blockContent': the Schema.org type of the nested object, e.g. 'Person' for author, 'ImageObject' for image, 'Question' for FAQ blocks"
   ),
   resolverConfig: external_exports.string().nullish().describe(
-    `JSON string with advanced nested-mapping config. For 'blockContent': {"nestedMappings":[{"blockAlias":"...","schemaProperty":"...","contentProperty":"...","wrapInType":"...","wrapInProperty":"..."}]} or {"extractAs":"stringList","contentProperty":"..."} for string-array properties like recipeIngredient. For complex types: {"selectedSubType":"...","complexTypeMappings":[{"schemaProperty":"...","sourceType":"property|static","contentTypePropertyAlias":"...","staticValue":"..."}]}`
+    'JSON string with advanced nested-mapping config (passed through verbatim to the C# resolvers). For \'blockContent\', the preferred shape is `routes` \u2014 one route per block element type: {"routes":[{"blockAlias":"...","nestedSchemaType":"...","propertyMappings":[{"schemaProperty":"...","contentProperty":"...","wrapInType":"...?","wrapInProperty":"...?","extractAs":"stringList?","nestedContentProperty":"...?","routes":[ ...same route shape... ]}]}]}. A propertyMappings entry whose `contentProperty` is itself a nested Block List/Grid (a block inside a block, or a Block Grid area) carries its own `routes`, recursing one level deeper \u2014 discover the allowed nested element types via get-block-element-types (`propertyInfos[].nestedBlockElementTypes`). Nested-routes example \u2014 an FAQPage whose `sections` blocks each contain a nested `questions` Block List: {"routes":[{"blockAlias":"faqSection","nestedSchemaType":"ItemList","propertyMappings":[{"schemaProperty":"itemListElement","contentProperty":"questions","routes":[{"blockAlias":"faqItem","nestedSchemaType":"Question","propertyMappings":[{"schemaProperty":"name","contentProperty":"questionText"},{"schemaProperty":"acceptedAnswer","contentProperty":"answerText","wrapInType":"Answer","wrapInProperty":"text"}]}]}]}]}. For a flat string array (e.g. recipeIngredient) use the top-level string-list mode: {"extractAs":"stringList","contentProperty":"..."}. The legacy flat shape {"nestedMappings":[{"blockAlias":"...","schemaProperty":"...","contentProperty":"...","wrapInType":"...","wrapInProperty":"..."}]} is still accepted for single-level blocks but `routes` is preferred and required for nesting. For complex types: {"selectedSubType":"...","complexTypeMappings":[{"schemaProperty":"...","sourceType":"property|static","contentTypePropertyAlias":"...","staticValue":"..."}]}'
   ),
   dynamicRootConfig: external_exports.string().nullish().describe("JSON string for dynamic-root node selection (advanced; usually omit)"),
   targetPieceKey: external_exports.string().nullish().describe("For 'reference' source type: the graph piece key to link to, e.g. 'organization', 'website'")
@@ -33992,7 +34009,7 @@ var server = new McpServer(
     version: package_default.version
   },
   {
-    instructions: "SchemeWeaver maps Umbraco content types to Schema.org types and emits JSON-LD structured data. When asked to map a content type: (1) inspect it with get-content-type-properties, (2) choose the most specific fitting Schema.org type via search-schema-types, (3) review its properties with get-schema-type-properties ranked=true, (4) get the heuristic baseline from suggest-property-mappings but improve on it semantically \u2014 the heuristic only matches names, it cannot reason about meaning, (5) persist with save-schema-mapping (it replaces the whole mapping), (6) verify with preview-json-ld against a real content node and resolve reported validation issues. Prefer mapping the properties Google rich results require/recommend (high confidence in ranked results) over mapping everything."
+    instructions: "SchemeWeaver maps Umbraco content types to Schema.org types and emits JSON-LD structured data. When asked to map a content type: (1) inspect it with get-content-type-properties, (2) choose the most specific fitting Schema.org type via search-schema-types, (3) review its properties with get-schema-type-properties ranked=true, (4) get the heuristic baseline from suggest-property-mappings but improve on it semantically \u2014 the heuristic only matches names, it cannot reason about meaning, (5) persist with save-schema-mapping (it replaces the whole mapping), (6) verify with preview-json-ld against a real content node and resolve reported validation issues. Prefer mapping the properties Google rich results require/recommend (high confidence in ranked results) over mapping everything. Block List/Grid properties (including blocks nested inside blocks and Block Grid areas) can be mapped to nested Schema.org objects: inspect them with get-block-element-types \u2014 its propertyInfos[].nestedBlockElementTypes surfaces blocks-within-blocks \u2014 and route them with the nestable `routes` resolverConfig on a 'blockContent' mapping."
   }
 );
 clearConfigCache();

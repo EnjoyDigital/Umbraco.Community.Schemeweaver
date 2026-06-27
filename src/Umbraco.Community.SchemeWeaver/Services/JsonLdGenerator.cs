@@ -771,17 +771,11 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             if (value is null)
                 continue;
 
-            IEnumerable<IPublishedElement>? blockElements = value switch
-            {
-                Umbraco.Cms.Core.Models.Blocks.BlockListModel blockList => blockList.Select(b => b.Content),
-                Umbraco.Cms.Core.Models.Blocks.BlockGridModel blockGrid => blockGrid.Select(b => b.Content),
-                _ => null
-            };
-
-            if (blockElements is null)
-                continue;
-
-            foreach (var element in blockElements)
+            // Walk the whole block subtree: top-level blocks, Block Grid area blocks, AND
+            // blocks nested inside a block's own Block List/Grid properties — so a nested
+            // block that carries its own mapping still emits a standalone JSON-LD script.
+            var visited = new HashSet<Guid>();
+            foreach (var element in EnumerateNestedBlockElements(value, culture, 0, visited))
             {
                 if (!allMappings.TryGetValue(element.ContentType.Alias, out var mapping))
                     continue;
@@ -795,6 +789,65 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                         yield return jsonLd;
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Maximum block-nesting depth walked when discovering standalone block-element JSON-LD,
+    /// matching <see cref="Resolvers.PropertyResolverContext.MaxRecursionDepth"/>.
+    /// </summary>
+    private const int MaxBlockDiscoveryDepth = 3;
+
+    /// <summary>
+    /// Depth-first enumeration of every block element reachable from a Block List/Grid value:
+    /// top-level blocks, Block Grid area blocks, and blocks held in a block element's own
+    /// Block List/Grid properties. Depth-capped and de-duplicated by element key to guard
+    /// against deep or cyclic structures.
+    /// </summary>
+    private static IEnumerable<IPublishedElement> EnumerateNestedBlockElements(
+        object? value, string? culture, int depth, HashSet<Guid> visited)
+    {
+        if (depth > MaxBlockDiscoveryDepth)
+            yield break;
+
+        IEnumerable<IPublishedElement>? items = value switch
+        {
+            Umbraco.Cms.Core.Models.Blocks.BlockListModel blockList => blockList.Select(b => b.Content),
+            Umbraco.Cms.Core.Models.Blocks.BlockGridModel blockGrid => FlattenGrid(blockGrid),
+            _ => null
+        };
+
+        if (items is null)
+            yield break;
+
+        foreach (var element in items)
+        {
+            if (!visited.Add(element.Key))
+                continue;
+
+            yield return element;
+
+            foreach (var nestedProperty in element.Properties
+                .Where(p => p.PropertyType?.EditorAlias is "Umbraco.BlockList" or "Umbraco.BlockGrid"))
+            {
+                var nestedValue = nestedProperty.GetValue(culture: culture);
+                foreach (var nested in EnumerateNestedBlockElements(nestedValue, culture, depth + 1, visited))
+                    yield return nested;
+            }
+        }
+    }
+
+    /// <summary>Flattens a Block Grid (top-level items plus every nested area) into one sequence.</summary>
+    private static IEnumerable<IPublishedElement> FlattenGrid(
+        IEnumerable<Umbraco.Cms.Core.Models.Blocks.BlockGridItem> items)
+    {
+        foreach (var item in items)
+        {
+            yield return item.Content;
+
+            foreach (var area in item.Areas)
+                foreach (var areaItem in FlattenGrid(area))
+                    yield return areaItem;
         }
     }
 
