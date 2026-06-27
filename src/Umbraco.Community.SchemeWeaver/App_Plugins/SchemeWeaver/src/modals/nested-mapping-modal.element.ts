@@ -2,11 +2,22 @@ import { css, html, customElement, state, nothing, repeat } from '@umbraco-cms/b
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import '../components/nested-block-routes.element.js';
+import type { NestedBlockRoutesElement } from '../components/nested-block-routes.element.js';
+import {
+  type BlockMappingRow as BlockRow,
+  type RoutePropEntry,
+  makeBlockRow,
+  seedEntriesFromRaw,
+  threadNestedSuggestions,
+  alignPropertyMappings,
+  resolveNestedBlockTypes,
+  serialisePropertyMappings,
+  mappedCount,
+} from '../components/block-route-model.js';
 import type {
-  SchemaPropertyInfo,
   RankedSchemaPropertyInfo,
   BlockElementTypeInfo,
-  BlockElementPropertyInfo,
   BlockMappingSuggestion,
   BlockRouteSuggestion,
   BlockRoutePropertyMapping,
@@ -18,34 +29,6 @@ import type {
   NestedMappingModalValue,
   NestedMappingModalTargetMapping,
 } from './nested-mapping-modal.token.js';
-
-/** A single nested-property mapping row inside one block's expandable table. */
-interface RoutePropEntry {
-  schemaProperty: string;
-  schemaPropertyType: string;
-  contentProperty: string;
-  wrapInType: string;
-  wrapInProperty: string;
-  isComplexType: boolean;
-}
-
-/** One block element type as a flat-panel row. */
-interface BlockRow {
-  alias: string;
-  name: string;
-  /** Block element property aliases (drive the value dropdown). */
-  properties: string[];
-  propertyInfos: BlockElementPropertyInfo[];
-  /** false === SKIP / not mapped (opt-in). */
-  mapped: boolean;
-  nestedSchemaType: string;
-  targetProperty: string;
-  propertyMappings: RoutePropEntry[];
-  /** Total nested schema properties for the chosen type (denominator of the badge). */
-  totalSchemaProps: number;
-  expanded: boolean;
-  confidence: number | null;
-}
 
 /** Target page properties offered for routing block content. */
 const DEFAULT_TARGET_PROPERTIES = ['mainEntity', 'hasPart', 'about', 'mentions'];
@@ -67,7 +50,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   private _blockRows: BlockRow[] = [];
 
   /** Cache of ranked schema-type properties keyed by type name. */
-  private _typePropsCache: Record<string, SchemaPropertyInfo[]> = {};
+  private _typePropsCache: Record<string, RankedSchemaPropertyInfo[]> = {};
 
   constructor() {
     super();
@@ -181,63 +164,47 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     suggestion?: { target: string; route: BlockRouteSuggestion; confidence: number },
     existing?: { target: string; nestedSchemaType: string; propertyMappings: BlockRoutePropertyMapping[] },
   ): BlockRow {
-    const properties = bt.propertyInfos?.length ? bt.propertyInfos.map((p) => p.alias) : bt.properties;
-    const source = existing ?? (suggestion
-      ? { target: suggestion.target, nestedSchemaType: suggestion.route.nestedSchemaType, propertyMappings: suggestion.route.propertyMappings }
-      : undefined);
-
-    return {
-      alias: bt.alias,
-      name: bt.name || bt.alias,
-      properties,
-      propertyInfos: bt.propertyInfos ?? properties.map((alias) => ({ alias, name: alias, editorAlias: '' })),
-      mapped: !!source,
-      nestedSchemaType: source?.nestedSchemaType ?? '',
-      targetProperty: source?.target ?? '',
-      // Seeded mappings; replaced with a full editable table during hydration.
-      propertyMappings: (source?.propertyMappings ?? []).map((m) => ({
-        schemaProperty: m.schemaProperty,
-        schemaPropertyType: '',
-        contentProperty: m.contentProperty || '',
-        wrapInType: m.wrapInType || '',
-        wrapInProperty: m.wrapInProperty || '',
-        isComplexType: false,
-      })),
-      totalSchemaProps: source?.propertyMappings?.length ?? 0,
-      expanded: false,
-      confidence: suggestion?.confidence ?? null,
-    };
+    const propertyInfos = makeBlockRow(bt).propertyInfos;
+    if (existing) {
+      const entries = seedEntriesFromRaw(existing.propertyMappings, propertyInfos, false);
+      // Stored routes carry no suggestions; thread the heuristic's nested suggestions through
+      // so the nested editor can still offer "Auto-map nested" when re-editing.
+      threadNestedSuggestions(entries, suggestion?.route.propertyMappings);
+      return makeBlockRow(bt, {
+        targetProperty: existing.target,
+        nestedSchemaType: existing.nestedSchemaType,
+        propertyMappings: entries,
+        confidence: suggestion?.confidence ?? null,
+      });
+    }
+    if (suggestion) {
+      return makeBlockRow(bt, {
+        targetProperty: suggestion.target,
+        nestedSchemaType: suggestion.route.nestedSchemaType,
+        propertyMappings: seedEntriesFromRaw(suggestion.route.propertyMappings, propertyInfos, true),
+        confidence: suggestion.confidence,
+      });
+    }
+    return makeBlockRow(bt);
   }
 
   /**
    * Fetch the chosen nested schema type's properties and align the row's
-   * property table to them, preserving any already-chosen content properties.
+   * property table to them, preserving any already-chosen content properties
+   * and nested-block routes.
    */
   private async _hydrateRow(index: number): Promise<void> {
     const row = this._blockRows[index];
     if (!row || !row.mapped || !row.nestedSchemaType) return;
 
-    const seed = new Map(row.propertyMappings.map((m) => [m.schemaProperty.toLowerCase(), m]));
     const props = await this._getTypeProperties(row.nestedSchemaType);
-
     if (props.length === 0) {
       // Unknown nested type — keep whatever was seeded.
       this._blockRows[index] = { ...row, totalSchemaProps: row.propertyMappings.length };
       return;
     }
 
-    const propertyMappings: RoutePropEntry[] = props.map((sp) => {
-      const existing = seed.get(sp.name.toLowerCase());
-      return {
-        schemaProperty: sp.name,
-        schemaPropertyType: sp.propertyType,
-        contentProperty: existing?.contentProperty ?? '',
-        wrapInType: existing?.wrapInType ?? '',
-        wrapInProperty: existing?.wrapInProperty ?? '',
-        isComplexType: sp.isComplexType,
-      };
-    });
-
+    const propertyMappings = alignPropertyMappings(props, row.propertyMappings, row.propertyInfos);
     this._blockRows[index] = { ...row, propertyMappings, totalSchemaProps: props.length };
   }
 
@@ -246,7 +213,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       const props = await this.#repository.requestSchemaTypeProperties(typeName, true);
       this._typePropsCache[typeName] = props || [];
     }
-    return this._typePropsCache[typeName] as RankedSchemaPropertyInfo[];
+    return this._typePropsCache[typeName];
   }
 
   // ── Auto-map ───────────────────────────────────────────────────────────────
@@ -301,14 +268,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       nestedSchemaType: route.nestedSchemaType,
       targetProperty: target,
       confidence,
-      propertyMappings: route.propertyMappings.map((m) => ({
-        schemaProperty: m.schemaProperty,
-        schemaPropertyType: '',
-        contentProperty: m.contentProperty || '',
-        wrapInType: m.wrapInType || '',
-        wrapInProperty: m.wrapInProperty || '',
-        isComplexType: false,
-      })),
+      propertyMappings: seedEntriesFromRaw(route.propertyMappings, row.propertyInfos, true),
       totalSchemaProps: route.propertyMappings.length,
     };
   }
@@ -316,7 +276,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   // ── Row edits ──────────────────────────────────────────────────────────────
 
   private _mappedCount(row: BlockRow): number {
-    return row.propertyMappings.filter((m) => m.contentProperty.trim() !== '').length;
+    return mappedCount(row);
   }
 
   private async _enableRow(index: number) {
@@ -351,24 +311,44 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     this._blockRows = updated;
   }
 
-  private _handleContentPropertyChange(rowIndex: number, propIndex: number, value: string) {
+  private _setEntry(rowIndex: number, propIndex: number, patch: Partial<RoutePropEntry>) {
     const updated = [...this._blockRows];
     const row = { ...updated[rowIndex] };
     const mappings = [...row.propertyMappings];
-    mappings[propIndex] = { ...mappings[propIndex], contentProperty: value };
+    mappings[propIndex] = { ...mappings[propIndex], ...patch };
     row.propertyMappings = mappings;
     updated[rowIndex] = row;
     this._blockRows = updated;
   }
 
+  private _handleContentPropertyChange(rowIndex: number, propIndex: number, value: string) {
+    const row = this._blockRows[rowIndex];
+    const nestedBlockElementTypes = resolveNestedBlockTypes(row.propertyInfos, value);
+    // Manually picking a value always resets nested routing — any previously-seeded routes
+    // belonged to a different content property (or no longer apply to this block set).
+    this._setEntry(rowIndex, propIndex, {
+      contentProperty: value,
+      nestedBlockElementTypes,
+      nestedSeed: [],
+      nestedRoutes: [],
+      nestedSuggestedRoutes: [],
+      nestedExpanded: false,
+    });
+  }
+
   private _handleWrapInTypeChange(rowIndex: number, propIndex: number, value: string) {
-    const updated = [...this._blockRows];
-    const row = { ...updated[rowIndex] };
-    const mappings = [...row.propertyMappings];
-    mappings[propIndex] = { ...mappings[propIndex], wrapInType: value };
-    row.propertyMappings = mappings;
-    updated[rowIndex] = row;
-    this._blockRows = updated;
+    this._setEntry(rowIndex, propIndex, { wrapInType: value });
+  }
+
+  private _toggleNested(rowIndex: number, propIndex: number) {
+    const entry = this._blockRows[rowIndex].propertyMappings[propIndex];
+    this._setEntry(rowIndex, propIndex, { nestedExpanded: !entry.nestedExpanded });
+  }
+
+  private _onNestedChange(rowIndex: number, propIndex: number, e: Event) {
+    e.stopPropagation();
+    const child = e.target as NestedBlockRoutesElement;
+    this._setEntry(rowIndex, propIndex, { nestedRoutes: child.value });
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
@@ -380,20 +360,11 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
     for (const row of this._blockRows) {
       if (!row.mapped || !row.nestedSchemaType || !row.targetProperty) continue;
-      const propertyMappings = row.propertyMappings
-        .filter((m) => m.contentProperty.trim() !== '')
-        .map((m) => ({
-          schemaProperty: m.schemaProperty,
-          contentProperty: m.contentProperty,
-          wrapInType: m.wrapInType || null,
-          wrapInProperty: m.wrapInProperty || null,
-        }));
-
       const config = byTarget.get(row.targetProperty) ?? { routes: [] };
       config.routes.push({
         blockAlias: row.alias,
         nestedSchemaType: row.nestedSchemaType,
-        propertyMappings,
+        propertyMappings: serialisePropertyMappings(row.propertyMappings),
       });
       byTarget.set(row.targetProperty, config);
     }
@@ -578,39 +549,71 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_wrapInType')}</uui-table-head-cell>
         </uui-table-head>
-        ${row.propertyMappings.map((m, propIndex) => html`
-          <uui-table-row>
-            <uui-table-cell>
-              <div>
-                <strong>${m.schemaProperty}</strong>
-                <small class="type-label">${m.schemaPropertyType}</small>
-              </div>
-            </uui-table-cell>
-            <uui-table-cell>
-              <uui-select
-                label=${this.localize.term('schemeWeaver_valueForProperty', m.schemaProperty)}
-                .options=${[
-                  { name: this.localize.term('schemeWeaver_none'), value: '', selected: !m.contentProperty },
-                  ...row.properties.map((p) => ({ name: p, value: p, selected: m.contentProperty === p })),
-                ]}
-                @change=${(e: Event) => this._handleContentPropertyChange(index, propIndex, (e.target as HTMLSelectElement).value)}
-              ></uui-select>
-            </uui-table-cell>
-            <uui-table-cell>
-              ${m.isComplexType
-                ? html`
-                    <uui-input
-                      .value=${m.wrapInType}
-                      placeholder=${this.localize.term('schemeWeaver_wrapInType')}
-                      label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
-                      @change=${(e: Event) => this._handleWrapInTypeChange(index, propIndex, (e.target as HTMLInputElement).value)}
-                    ></uui-input>
-                  `
-                : html`<span class="type-label">--</span>`}
-            </uui-table-cell>
-          </uui-table-row>
-        `)}
+        ${row.propertyMappings.map((m, propIndex) => this._renderTableRow(row, index, m, propIndex))}
       </uui-table>
+    `;
+  }
+
+  private _renderTableRow(row: BlockRow, index: number, m: RoutePropEntry, propIndex: number) {
+    const isNestedBlock = m.nestedBlockElementTypes.length > 0;
+    return html`
+      <uui-table-row>
+        <uui-table-cell>
+          <div>
+            <strong>${m.schemaProperty}</strong>
+            <small class="type-label">${m.schemaPropertyType}</small>
+          </div>
+        </uui-table-cell>
+        <uui-table-cell>
+          <div class="value-cell">
+            <uui-select
+              label=${this.localize.term('schemeWeaver_valueForProperty', m.schemaProperty)}
+              .options=${[
+                { name: this.localize.term('schemeWeaver_none'), value: '', selected: !m.contentProperty },
+                ...row.properties.map((p) => ({ name: p, value: p, selected: m.contentProperty === p })),
+              ]}
+              @change=${(e: Event) => this._handleContentPropertyChange(index, propIndex, (e.target as HTMLSelectElement).value)}
+            ></uui-select>
+            ${isNestedBlock
+              ? html`<uui-button
+                  compact
+                  look="secondary"
+                  class="nested-toggle"
+                  label=${m.nestedExpanded ? this.localize.term('schemeWeaver_collapseNestedBlock') : this.localize.term('schemeWeaver_routeNestedBlock')}
+                  @click=${() => this._toggleNested(index, propIndex)}
+                >
+                  <uui-icon name="icon-box"></uui-icon>
+                  ${m.nestedExpanded ? this.localize.term('schemeWeaver_collapse') : this.localize.term('schemeWeaver_routeNestedBlock')}
+                </uui-button>`
+              : nothing}
+          </div>
+        </uui-table-cell>
+        <uui-table-cell>
+          ${m.isComplexType && !isNestedBlock
+            ? html`
+                <uui-input
+                  .value=${m.wrapInType}
+                  placeholder=${this.localize.term('schemeWeaver_wrapInType')}
+                  label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
+                  @change=${(e: Event) => this._handleWrapInTypeChange(index, propIndex, (e.target as HTMLInputElement).value)}
+                ></uui-input>
+              `
+            : html`<span class="type-label">--</span>`}
+        </uui-table-cell>
+      </uui-table-row>
+      ${isNestedBlock && m.nestedExpanded
+        ? html`<uui-table-row class="nested-editor-row">
+            <uui-table-cell colspan="3">
+              <schemeweaver-nested-block-routes
+                .blockElementTypes=${m.nestedBlockElementTypes}
+                .routes=${m.nestedSeed}
+                .suggestedRoutes=${m.nestedSuggestedRoutes}
+                .depth=${1}
+                @change=${(e: Event) => this._onNestedChange(index, propIndex, e)}
+              ></schemeweaver-nested-block-routes>
+            </uui-table-cell>
+          </uui-table-row>`
+        : nothing}
     `;
   }
 
@@ -712,6 +715,16 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
       .nested-mapping-table {
         margin-top: var(--uui-size-space-3);
+      }
+
+      .value-cell {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+      }
+
+      .nested-editor-row uui-table-cell {
+        background: var(--uui-color-surface-alt);
       }
 
       .type-label {

@@ -112,6 +112,12 @@ export interface BlockElementPropertyInfo {
   alias: string;
   name: string;
   editorAlias: string;
+  /**
+   * When this property is itself a Block List/Grid (a block nested inside a block),
+   * the element types allowed within it — resolved recursively (depth-capped) so the
+   * UI and the suggester can route nested blocks. Empty/omitted for non-block properties.
+   */
+  nestedBlockElementTypes?: BlockElementTypeInfo[];
 }
 
 /** Matches C# BlockElementTypeInfo — returned by GET /content-types/{alias}/properties/{propertyAlias}/block-types */
@@ -126,13 +132,27 @@ export interface BlockElementTypeInfo {
 
 /**
  * A single property mapping within a block route: block content property → nested schema property.
- * Matches C# NestedPropertyMapping / BlockRoutePropertyMappingSuggestion (camelCase).
+ * Matches C# NestedPropertyMapping (the stored/save shape, camelCase).
+ *
+ * The shape is recursive: when `contentProperty` points at a block element property that is
+ * itself a Block List/Grid, `routes` maps that nested block's element types to their own
+ * Schema.org types — exactly like the top-level {@link BlockRoute} list. The C# resolver
+ * (`BlockContentResolver.NestedPropertyMapping`) reads `routes` and recurses.
  */
 export interface BlockRoutePropertyMapping {
   schemaProperty: string;
   contentProperty: string;
   wrapInType?: string | null;
   wrapInProperty?: string | null;
+  /** Recursive: routes for the nested Block List/Grid this property's value points at. */
+  routes?: BlockRoute[];
+  /**
+   * When the nested block list should be flattened to a `string[]` (rather than nested
+   * Things) — e.g. nested "ingredient" blocks feeding `recipeIngredient`.
+   */
+  extractAs?: string | null;
+  /** Inner block property alias read when `extractAs === 'stringList'`. */
+  nestedContentProperty?: string | null;
 }
 
 /**
@@ -154,12 +174,26 @@ export interface RoutedResolverConfig {
   routes: BlockRoute[];
 }
 
+/**
+ * Matches C# BlockRoutePropertyMappingSuggestion — a suggested property mapping within a
+ * suggested route. Like {@link BlockRoutePropertyMapping} but its nested `routes` carry the
+ * suggestion shape (with `confidence`).
+ */
+export interface BlockRoutePropertyMappingSuggestion {
+  schemaProperty: string;
+  contentProperty: string;
+  wrapInType?: string | null;
+  wrapInProperty?: string | null;
+  /** Suggested nested routes when `contentProperty` is itself a block list. */
+  routes?: BlockRouteSuggestion[];
+}
+
 /** Matches C# BlockRouteSuggestion — a suggested route for one block element type. */
 export interface BlockRouteSuggestion {
   blockAlias: string;
   nestedSchemaType: string;
   confidence: number;
-  propertyMappings: BlockRoutePropertyMapping[];
+  propertyMappings: BlockRoutePropertyMappingSuggestion[];
 }
 
 /**

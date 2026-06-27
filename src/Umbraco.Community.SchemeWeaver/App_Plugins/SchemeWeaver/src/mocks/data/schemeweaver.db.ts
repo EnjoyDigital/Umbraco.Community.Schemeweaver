@@ -1,4 +1,4 @@
-import type { SchemaMappingDto, SchemaTypeInfo, SchemaPropertyInfo, ContentTypeInfo, PropertyMappingSuggestion, JsonLdPreviewResponse, BlockElementTypeInfo, BlockMappingSuggestion, BlockRouteSuggestion, BlockRoutePropertyMapping } from '../../api/types.js';
+import type { SchemaMappingDto, SchemaTypeInfo, SchemaPropertyInfo, ContentTypeInfo, PropertyMappingSuggestion, JsonLdPreviewResponse, BlockElementTypeInfo, BlockMappingSuggestion, BlockRouteSuggestion, BlockRoutePropertyMappingSuggestion } from '../../api/types.js';
 
 interface ContentTypeWithProperties extends ContentTypeInfo {
   properties?: Array<{ alias: string; editorAlias: string }>;
@@ -108,6 +108,35 @@ const BLOCK_ELEMENT_TYPES: Record<string, BlockElementTypeInfo[]> = {
       properties: ['bodyText'],
       propertyInfos: [
         { alias: 'bodyText', name: 'Body Text', editorAlias: 'Umbraco.RichText' },
+      ],
+    },
+  ],
+  // Nested block list: a Company block whose `members` property is ITSELF a Block List
+  // of Member Card blocks — exercises the recursive routing tree.
+  'companyPage.blocks': [
+    {
+      alias: 'companyBlock',
+      name: 'Company Block',
+      properties: ['name', 'member'],
+      propertyInfos: [
+        { alias: 'name', name: 'Name', editorAlias: 'Umbraco.TextBox' },
+        {
+          alias: 'member',
+          name: 'Members',
+          editorAlias: 'Umbraco.BlockList',
+          nestedBlockElementTypes: [
+            {
+              alias: 'memberBlock',
+              name: 'Member Block',
+              properties: ['name', 'jobTitle', 'email'],
+              propertyInfos: [
+                { alias: 'name', name: 'Name', editorAlias: 'Umbraco.TextBox' },
+                { alias: 'jobTitle', name: 'Job Title', editorAlias: 'Umbraco.TextBox' },
+                { alias: 'email', name: 'Email', editorAlias: 'Umbraco.TextBox' },
+              ],
+            },
+          ],
+        },
       ],
     },
   ],
@@ -561,6 +590,16 @@ class SchemeWeaverMockDb {
         { alias: 'organisationEmail', editorAlias: 'Umbraco.TextBox' },
         { alias: 'organisationTelephone', editorAlias: 'Umbraco.TextBox' },
         { alias: 'sameAs', editorAlias: 'Umbraco.TextArea' },
+      ],
+    },
+    {
+      alias: 'companyPage',
+      name: 'Company Page',
+      key: '00000000-0000-0000-0000-000000000040',
+      propertyCount: 2,
+      properties: [
+        { alias: 'title', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'blocks', editorAlias: 'Umbraco.BlockList' },
       ],
     },
     {
@@ -1101,6 +1140,7 @@ class SchemeWeaverMockDb {
       { name: 'url', propertyType: 'URL', isRequired: false, acceptedTypes: ['Uri'], isComplexType: false },
       { name: 'logo', propertyType: 'ImageObject', isRequired: false, acceptedTypes: ['ImageObject'], isComplexType: true },
       { name: 'contactPoint', propertyType: 'ContactPoint', isRequired: false, acceptedTypes: ['ContactPoint'], isComplexType: true },
+      { name: 'member', propertyType: 'IOrganization | IPerson', isRequired: false, acceptedTypes: ['Person', 'Organization'], isComplexType: true },
       { name: 'email', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },
       { name: 'telephone', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },
       { name: 'taxID', propertyType: 'Text', isRequired: false, acceptedTypes: ['String'], isComplexType: false },
@@ -1378,6 +1418,7 @@ class SchemeWeaverMockDb {
 
   /** Catalogue: keyword → nested Schema.org type @ default target page property. */
   private _blockCatalogue: Array<{ keywords: string[]; type: string; target: string }> = [
+    { keywords: ['company', 'organisation', 'organization'], type: 'Organization', target: 'mainEntity' },
     { keywords: ['faq', 'question', 'accordion'], type: 'Question', target: 'mainEntity' },
     { keywords: ['team', 'member', 'people', 'staff'], type: 'Person', target: 'hasPart' },
     { keywords: ['contact', 'address', 'locationdetails'], type: 'PostalAddress', target: 'about' },
@@ -1441,11 +1482,11 @@ class SchemeWeaverMockDb {
     }));
   }
 
-  private _suggestRoutePropertyMappings(block: BlockElementTypeInfo, nestedType: string): BlockRoutePropertyMapping[] {
+  private _suggestRoutePropertyMappings(block: BlockElementTypeInfo, nestedType: string): BlockRoutePropertyMappingSuggestion[] {
     const nestedProps = this._schemaProperties[nestedType] ?? [];
     const blockAliases = block.properties;
     const used = new Set<string>();
-    const mappings: BlockRoutePropertyMapping[] = [];
+    const mappings: BlockRoutePropertyMappingSuggestion[] = [];
     for (const sp of nestedProps) {
       const match = blockAliases.find(
         (a) => !used.has(a) &&
@@ -1455,10 +1496,42 @@ class SchemeWeaverMockDb {
       );
       if (match) {
         used.add(match);
-        mappings.push({ schemaProperty: sp.name, contentProperty: match, wrapInType: null, wrapInProperty: null });
+        const mapping: BlockRoutePropertyMappingSuggestion = {
+          schemaProperty: sp.name,
+          contentProperty: match,
+          wrapInType: null,
+          wrapInProperty: null,
+        };
+        // When the matched block property is itself a Block List/Grid, recurse: suggest
+        // routes for its nested block element types (mirrors C# BlockSchemaSuggester).
+        const matchedInfo = (block.propertyInfos ?? []).find((p) => p.alias === match);
+        const nestedBlocks = matchedInfo?.nestedBlockElementTypes ?? [];
+        if (nestedBlocks.length > 0) {
+          const nestedRoutes = this._suggestNestedRoutes(nestedBlocks);
+          if (nestedRoutes.length > 0) mapping.routes = nestedRoutes;
+        }
+        mappings.push(mapping);
       }
     }
     return mappings;
+  }
+
+  /** Suggest routes for a nested block list's element types (recursive). */
+  private _suggestNestedRoutes(nestedBlocks: BlockElementTypeInfo[]): BlockRouteSuggestion[] {
+    const routes: BlockRouteSuggestion[] = [];
+    for (const block of nestedBlocks) {
+      const identity = `${this._normalise(block.alias)} ${this._normalise(block.name)}`;
+      if (this._blockSkip.some((s) => identity.includes(s))) continue;
+      const hit = this._blockCatalogue.find((c) => c.keywords.some((k) => identity.includes(k)));
+      if (!hit) continue;
+      routes.push({
+        blockAlias: block.alias,
+        nestedSchemaType: hit.type,
+        confidence: 70,
+        propertyMappings: this._suggestRoutePropertyMappings(block, hit.type),
+      });
+    }
+    return routes;
   }
 
   getSchemaTypes(search?: string): SchemaTypeInfo[] {
