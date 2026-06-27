@@ -47,7 +47,8 @@ public class SchemaMappingHandlerTests
     public void Handler_ExposesExpectedMetadata()
     {
         _sut.Alias.Should().Be("schemeWeaverMappingHandler");
-        _sut.Name.Should().Be("SchemeWeaver Mappings");
+        _sut.Name.Should().Be("Schemas");
+        _sut.Icon.Should().Be("icon-brackets");
         // Must match SchemeWeaverMappingPaths.MappingsFolderName so the dashboard
         // export lands where the export-on-save handler / first-boot importer read.
         _sut.DefaultFolder.Should().Be("SchemeWeaverMappings");

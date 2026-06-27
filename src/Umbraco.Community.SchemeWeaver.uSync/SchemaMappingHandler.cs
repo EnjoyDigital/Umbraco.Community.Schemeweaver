@@ -50,10 +50,13 @@ namespace Umbraco.Community.SchemeWeaver.uSync;
 /// </remarks>
 [SyncHandler(
     "schemeWeaverMappingHandler",
-    "SchemeWeaver Mappings",
+    // Short dashboard label — uSync prefixes it with the count ("147 Schemas").
+    "Schemas",
     SchemeWeaverMappingPaths.MappingsFolderName,
     SchemeWeaverMappingHandlerPriority,
-    Icon = "icon-diagram-alt",
+    // SchemeWeaver's own brand icon (the { } "brackets" used by its entity action and
+    // workspace tabs), so the handler is recognisably SchemeWeaver in the uSync dashboard.
+    Icon = "icon-brackets",
     EntityType = SchemeWeaverMappingConstants.ItemType)]
 public class SchemaMappingHandler : SyncHandlerRoot<SchemaMapping, SchemaMapping>, ISyncHandler
 {
