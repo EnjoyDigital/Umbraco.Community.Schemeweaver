@@ -53,7 +53,14 @@ export const getSchemeweaverMappingsResponseItem = zod.object({
   "resolverConfig": zod.string().nullish(),
   "dynamicRootConfig": zod.string().nullish(),
   "targetPieceKey": zod.string().nullish()
-}))
+})),
+  "reachability": zod.string().nullish(),
+  "warnings": zod.array(zod.object({
+  "severity": zod.string(),
+  "schemaType": zod.string(),
+  "path": zod.string(),
+  "message": zod.string()
+})).nullish()
 })
 export const getSchemeweaverMappingsResponse = zod.array(getSchemeweaverMappingsResponseItem)
 
@@ -77,7 +84,14 @@ export const postSchemeweaverMappingsBody = zod.object({
   "resolverConfig": zod.string().nullish(),
   "dynamicRootConfig": zod.string().nullish(),
   "targetPieceKey": zod.string().nullish()
-}))
+})),
+  "reachability": zod.string().nullish(),
+  "warnings": zod.array(zod.object({
+  "severity": zod.string(),
+  "schemaType": zod.string(),
+  "path": zod.string(),
+  "message": zod.string()
+})).nullish()
 })
 
 export const postSchemeweaverMappingsResponse = zod.object({
@@ -99,7 +113,14 @@ export const postSchemeweaverMappingsResponse = zod.object({
   "resolverConfig": zod.string().nullish(),
   "dynamicRootConfig": zod.string().nullish(),
   "targetPieceKey": zod.string().nullish()
-}))
+})),
+  "reachability": zod.string().nullish(),
+  "warnings": zod.array(zod.object({
+  "severity": zod.string(),
+  "schemaType": zod.string(),
+  "path": zod.string(),
+  "message": zod.string()
+})).nullish()
 })
 
 
@@ -126,7 +147,14 @@ export const getSchemeweaverMappingsByContentTypeAliasResponse = zod.object({
   "resolverConfig": zod.string().nullish(),
   "dynamicRootConfig": zod.string().nullish(),
   "targetPieceKey": zod.string().nullish()
-}))
+})),
+  "reachability": zod.string().nullish(),
+  "warnings": zod.array(zod.object({
+  "severity": zod.string(),
+  "schemaType": zod.string(),
+  "path": zod.string(),
+  "message": zod.string()
+})).nullish()
 })
 
 

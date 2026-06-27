@@ -114,6 +114,10 @@ export interface RankedSchemaPropertyInfo {
 
 export type SchemaMappingDtoIdOverride = null | string;
 
+export type SchemaMappingDtoReachability = null | string;
+
+export type SchemaMappingDtoWarnings = null | ValidationIssueDto[];
+
 export interface SchemaMappingDto {
   contentTypeAlias: string;
   contentTypeKey: string;
@@ -122,6 +126,8 @@ export interface SchemaMappingDto {
   isInherited: boolean;
   idOverride?: SchemaMappingDtoIdOverride;
   propertyMappings: PropertyMappingDto[];
+  reachability?: SchemaMappingDtoReachability;
+  warnings?: SchemaMappingDtoWarnings;
 }
 
 export type SchemaTypeInfoDescription = null | string;

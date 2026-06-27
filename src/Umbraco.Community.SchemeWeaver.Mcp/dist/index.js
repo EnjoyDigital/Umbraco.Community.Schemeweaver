@@ -31381,7 +31381,7 @@ var EMPTY_COMPLETION_RESULT = {
 
 // package.json
 var package_default = {
-  version: "1.1.0"};
+  version: "1.1.1"};
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var ReadBuffer = class {
@@ -33239,7 +33239,14 @@ var getSchemeweaverMappingsResponseItem = object2({
     "resolverConfig": string2().nullish(),
     "dynamicRootConfig": string2().nullish(),
     "targetPieceKey": string2().nullish()
-  }))
+  })),
+  "reachability": string2().nullish(),
+  "warnings": array(object2({
+    "severity": string2(),
+    "schemaType": string2(),
+    "path": string2(),
+    "message": string2()
+  })).nullish()
 });
 object2({
   "contentTypeAlias": string2(),
@@ -33260,7 +33267,14 @@ object2({
     "resolverConfig": string2().nullish(),
     "dynamicRootConfig": string2().nullish(),
     "targetPieceKey": string2().nullish()
-  }))
+  })),
+  "reachability": string2().nullish(),
+  "warnings": array(object2({
+    "severity": string2(),
+    "schemaType": string2(),
+    "path": string2(),
+    "message": string2()
+  })).nullish()
 });
 var postSchemeweaverMappingsResponse = object2({
   "contentTypeAlias": string2(),
@@ -33281,7 +33295,14 @@ var postSchemeweaverMappingsResponse = object2({
     "resolverConfig": string2().nullish(),
     "dynamicRootConfig": string2().nullish(),
     "targetPieceKey": string2().nullish()
-  }))
+  })),
+  "reachability": string2().nullish(),
+  "warnings": array(object2({
+    "severity": string2(),
+    "schemaType": string2(),
+    "path": string2(),
+    "message": string2()
+  })).nullish()
 });
 var getSchemeweaverMappingsByContentTypeAliasParams = object2({
   "contentTypeAlias": string2()
@@ -33305,7 +33326,14 @@ var getSchemeweaverMappingsByContentTypeAliasResponse = object2({
     "resolverConfig": string2().nullish(),
     "dynamicRootConfig": string2().nullish(),
     "targetPieceKey": string2().nullish()
-  }))
+  })),
+  "reachability": string2().nullish(),
+  "warnings": array(object2({
+    "severity": string2(),
+    "schemaType": string2(),
+    "path": string2(),
+    "message": string2()
+  })).nullish()
 });
 object2({
   "contentTypeAlias": string2()
@@ -33761,17 +33789,7 @@ var inputSchema8 = {
     "The complete set of property mappings. Saving REPLACES the existing mapping wholesale \u2014 include every mapping you want to keep, not just the changed ones."
   )
 };
-var outputSchema10 = postSchemeweaverMappingsResponse.extend({
-  reachability: external_exports.string().optional(),
-  warnings: external_exports.array(
-    external_exports.object({
-      severity: external_exports.string(),
-      schemaType: external_exports.string().nullish(),
-      path: external_exports.string().nullish(),
-      message: external_exports.string()
-    })
-  ).optional()
-});
+var outputSchema10 = postSchemeweaverMappingsResponse;
 var saveSchemaMappingTool = {
   name: "save-schema-mapping",
   description: "Creates or replaces the SchemeWeaver mapping for an Umbraco content type, defining how its content is expressed as Schema.org JSON-LD. Recommended workflow: (1) get-content-type-properties and get-schema-type-properties (ranked=true) to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property semantically \u2014 correct bad suggestions, add mappings the heuristic missed, use nested types for complex values \u2014 then save with this tool, and (4) verify with preview-json-ld and fix any validation issues it reports. IMPORTANT: inspect the `warnings` array on the response \u2014 it flags properties mapped outside their Schema.org range that will be SILENTLY DROPPED from the JSON-LD (e.g. a non-CreativeWork type under hasPart); re-home those to a property like about/mainEntity. Also check `reachability`: composed-from-block means this type only emits inside a containing page's block mapping, never on its own URL. Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.",

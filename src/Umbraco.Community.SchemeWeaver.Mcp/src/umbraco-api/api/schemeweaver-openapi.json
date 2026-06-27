@@ -913,6 +913,21 @@
             "items": {
               "$ref": "#/components/schemas/PropertyMappingDto"
             }
+          },
+          "reachability": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "warnings": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssueDto"
+            }
           }
         }
       },

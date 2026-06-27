@@ -137,27 +137,12 @@ const inputSchema = {
     ),
 };
 
-// Forward-compatible: the save response is re-fetched through the single-read
-// path, so it carries `reachability` (routed-page | composed-from-block |
-// unknown) and structural `warnings` — properties mapped outside their
-// Schema.org range that will be SILENTLY DROPPED from the emitted JSON-LD.
-// Surface them via .extend() so the generated zod object does not strip them
-// before the Orval client is regenerated. Both optional → inert when absent.
-// NOTE (leader): drop this shim once `npm run generate` folds the fields into
-// the generated postSchemeweaverMappingsResponse schema.
-const outputSchema = postSchemeweaverMappingsResponse.extend({
-  reachability: z.string().optional(),
-  warnings: z
-    .array(
-      z.object({
-        severity: z.string(),
-        schemaType: z.string().nullish(),
-        path: z.string().nullish(),
-        message: z.string(),
-      })
-    )
-    .optional(),
-});
+// The save response is re-fetched through the single-read path, so it carries
+// `reachability` (routed-page | composed-from-block | unknown) and structural
+// `warnings` — properties mapped outside their Schema.org range that will be
+// SILENTLY DROPPED from the emitted JSON-LD. Both now flow straight from the
+// generated client (folded into the OpenAPI SchemaMappingDto), so no shim.
+const outputSchema = postSchemeweaverMappingsResponse;
 
 const saveSchemaMappingTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "save-schema-mapping",
