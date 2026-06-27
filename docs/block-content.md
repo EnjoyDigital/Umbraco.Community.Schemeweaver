@@ -35,6 +35,59 @@ Recursion is limited to a maximum depth of 3 (configurable via `PropertyResolver
 
 ---
 
+## Nested Blocks (Blocks Inside Blocks) and Block Grid Areas
+
+Real-world content is rarely one level deep. SchemeWeaver resolves two forms of nesting:
+
+1. **A block whose own property is itself a Block List/Grid** — e.g. a `section` block that
+   contains a nested `questions` Block List of `faqItem` blocks. When a route's property
+   mapping targets such a property, give it its own `routes` and resolution recurses, emitting
+   the inner blocks as nested Things.
+2. **Block Grid areas** — blocks placed inside a Block Grid item's layout *areas* are traversed
+   too (previously only top-level grid items were read). Area layout carries no Schema.org
+   meaning, so area blocks are flattened into the parent collection.
+
+Both are depth-capped (max 3) and cycle-guarded.
+
+The route shape is **recursive**: a route's `propertyMappings` entry may itself carry `routes`,
+nesting the routing model one level deeper. For example, an outer `section` block routed to a
+`WebPage` whose nested `questions` Block List routes each `faqItem` to a `Question`:
+
+```json
+{
+  "routes": [
+    {
+      "blockAlias": "section",
+      "nestedSchemaType": "WebPage",
+      "propertyMappings": [
+        { "schemaProperty": "name", "contentProperty": "heading" },
+        {
+          "schemaProperty": "mainEntity",
+          "contentProperty": "questions",
+          "routes": [
+            {
+              "blockAlias": "faqItem",
+              "nestedSchemaType": "Question",
+              "propertyMappings": [
+                { "schemaProperty": "name", "contentProperty": "question" },
+                { "schemaProperty": "acceptedAnswer", "contentProperty": "answer",
+                  "wrapInType": "Answer", "wrapInProperty": "text" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+This produces a `WebPage` with a `mainEntity` array of `Question` objects resolved from the
+section's *own* nested Block List. In the backoffice the block-mapping panel surfaces nested
+block element types as an expandable tree, and "Auto-map all" proposes nested routes.
+
+---
+
 ## String Extraction Mode
 
 Some Schema.org properties expect flat string arrays rather than nested objects. For example, `recipeIngredient` expects a list of ingredient strings, not a list of `Thing` objects.
