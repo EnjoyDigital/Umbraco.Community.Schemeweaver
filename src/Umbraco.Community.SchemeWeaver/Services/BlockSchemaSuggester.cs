@@ -57,7 +57,13 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
         _registry = registry;
     }
 
+    /// <summary>Maximum block-nesting depth the suggester will descend.</summary>
+    private const int MaxNestDepth = 3;
+
     public IEnumerable<BlockMappingSuggestion> Suggest(IEnumerable<BlockElementTypeInfo> elementTypes)
+        => Suggest(elementTypes, depth: 0);
+
+    private List<BlockMappingSuggestion> Suggest(IEnumerable<BlockElementTypeInfo> elementTypes, int depth)
     {
         // Each entry: the built route plus its (mutable) target property.
         var routed = new List<RoutePlan>();
@@ -95,6 +101,10 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
                 Confidence = CatalogueConfidence,
                 PropertyMappings = BuildPropertyMappings(element.Alias, entry.SchemaType)
             };
+
+            // Recurse into any property that is itself a Block List/Grid, attaching the nested
+            // block's suggested routes to a property mapping keyed by that block property.
+            route.PropertyMappings.AddRange(BuildNestedBlockMappings(element, depth));
 
             routed.Add(new RoutePlan(route, ResolveTarget(entry.SchemaType, entry.TargetProperty), entry.CanBeMainEntity));
         }
@@ -152,6 +162,38 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
                 SchemaProperty = s.SchemaPropertyName,
                 ContentProperty = s.SuggestedContentTypePropertyAlias
             });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// For each property on the element type that is itself a Block List/Grid, suggests routes
+    /// for the nested block's element types and returns them as property mappings keyed by the
+    /// nested block property. Each carries child <c>Routes</c>, recursing the routing model one
+    /// level deeper. Depth-capped to mirror the resolver's nesting limit.
+    /// </summary>
+    private List<BlockRoutePropertyMappingSuggestion> BuildNestedBlockMappings(
+        BlockElementTypeInfo element, int depth)
+    {
+        var result = new List<BlockRoutePropertyMappingSuggestion>();
+        if (depth + 1 >= MaxNestDepth)
+            return result;
+
+        foreach (var propInfo in element.PropertyInfos.Where(p => p.NestedBlockElementTypes.Count > 0))
+        {
+            foreach (var suggestion in Suggest(propInfo.NestedBlockElementTypes, depth + 1))
+            {
+                if (suggestion.Routes.Count == 0)
+                    continue;
+
+                result.Add(new BlockRoutePropertyMappingSuggestion
+                {
+                    SchemaProperty = suggestion.SchemaProperty,
+                    ContentProperty = propInfo.Alias,
+                    Routes = suggestion.Routes
+                });
+            }
         }
 
         return result;

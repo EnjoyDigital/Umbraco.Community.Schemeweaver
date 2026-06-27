@@ -30,4 +30,11 @@ public class BlockElementPropertyInfo
     public string Alias { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string EditorAlias { get; set; } = string.Empty;
+
+    /// <summary>
+    /// When this property is itself a Block List/Grid (a block nested inside a block), the
+    /// element types allowed within it — resolved recursively (depth-capped) so the UI and
+    /// the suggester can route nested blocks. Empty for non-block properties.
+    /// </summary>
+    public List<BlockElementTypeInfo> NestedBlockElementTypes { get; set; } = [];
 }

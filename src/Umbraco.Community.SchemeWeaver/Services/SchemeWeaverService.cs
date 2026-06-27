@@ -357,22 +357,76 @@ public class SchemeWeaverService : ISchemeWeaverService
         if (elementTypeKeys.Count == 0)
             return [];
 
-        return elementTypeKeys
-            .Select(key => _contentTypeService.Get(key))
-            .Where(elementType => elementType is not null)
-            .Select(elementType => new BlockElementTypeInfo
+        return await BuildBlockElementTypeInfosAsync(elementTypeKeys, depth: 0, ancestorKeys: []).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Maximum block-nesting depth walked when discovering element types, matching
+    /// <see cref="Resolvers.PropertyResolverContext.MaxRecursionDepth"/>.
+    /// </summary>
+    private const int MaxBlockElementDiscoveryDepth = 3;
+
+    /// <summary>
+    /// Builds <see cref="BlockElementTypeInfo"/> for each element-type key, recursing into any
+    /// property that is itself a Block List/Grid so nested blocks surface as
+    /// <see cref="BlockElementPropertyInfo.NestedBlockElementTypes"/>. Depth-capped, and
+    /// cycle-guarded by the current ancestor path so an element type that (transitively)
+    /// contains itself cannot recurse forever.
+    /// </summary>
+    private async Task<List<BlockElementTypeInfo>> BuildBlockElementTypeInfosAsync(
+        IReadOnlyCollection<Guid> elementTypeKeys, int depth, HashSet<Guid> ancestorKeys)
+    {
+        var result = new List<BlockElementTypeInfo>();
+
+        foreach (var key in elementTypeKeys)
+        {
+            // Cycle guard: skip an element type already open on the current branch.
+            if (ancestorKeys.Contains(key))
+                continue;
+
+            var elementType = _contentTypeService.Get(key);
+            if (elementType is null)
+                continue;
+
+            var info = new BlockElementTypeInfo
             {
-                Alias = elementType!.Alias,
+                Alias = elementType.Alias,
                 Name = elementType.Name ?? elementType.Alias,
                 Properties = elementType.PropertyTypes.Select(p => p.Alias).ToList(),
-                PropertyInfos = elementType.PropertyTypes.Select(p => new BlockElementPropertyInfo
+                PropertyInfos = []
+            };
+
+            ancestorKeys.Add(key);
+            foreach (var p in elementType.PropertyTypes)
+            {
+                var propInfo = new BlockElementPropertyInfo
                 {
                     Alias = p.Alias,
                     Name = p.Name ?? p.Alias,
                     EditorAlias = p.PropertyEditorAlias
-                }).ToList()
-            })
-            .ToList();
+                };
+
+                if (depth < MaxBlockElementDiscoveryDepth
+                    && SchemeWeaverConstants.PropertyEditors.BlockEditorAliases.Contains(p.PropertyEditorAlias))
+                {
+                    var nestedDataType = await _dataTypeService.GetAsync(p.DataTypeKey).ConfigureAwait(false);
+                    if (nestedDataType is not null)
+                    {
+                        var nestedKeys = ExtractBlockElementTypeKeys(nestedDataType);
+                        if (nestedKeys.Count > 0)
+                            propInfo.NestedBlockElementTypes = await BuildBlockElementTypeInfosAsync(
+                                nestedKeys, depth + 1, ancestorKeys).ConfigureAwait(false);
+                    }
+                }
+
+                info.PropertyInfos.Add(propInfo);
+            }
+            ancestorKeys.Remove(key);
+
+            result.Add(info);
+        }
+
+        return result;
     }
 
     public async Task<IEnumerable<BlockMappingSuggestion>> SuggestBlockMappingsAsync(string contentTypeAlias, string propertyAlias)
