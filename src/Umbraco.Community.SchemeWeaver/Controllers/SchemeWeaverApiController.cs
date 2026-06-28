@@ -328,7 +328,7 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpPost("mappings/{contentTypeAlias}/preview")]
     [ProducesResponseType(typeof(JsonLdPreviewResponse), StatusCodes.Status200OK)]
-    public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid? contentKey = null, [FromQuery] string? culture = null)
+    public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid? contentKey = null, [FromQuery] Guid? blockInstanceKey = null, [FromQuery] string? culture = null)
     {
         try
         {
@@ -342,6 +342,13 @@ public class SchemeWeaverApiController : ControllerBase
 
                 var content = umbracoContext.Content?.GetById(contentKey.Value);
                 if (content == null) return NotFound("Content not found.");
+
+                // Block-instance preview: render the real JSON-LD a single nested block contributes
+                // to its page (via the page mapping's route for that block type).
+                if (blockInstanceKey is { } bik && bik != Guid.Empty)
+                {
+                    return Ok(_service.GenerateBlockInstancePreview(content, bik, culture));
+                }
 
                 var preview = _service.GeneratePreview(content, culture);
                 return Ok(preview);

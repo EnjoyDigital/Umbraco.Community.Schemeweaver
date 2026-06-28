@@ -145,33 +145,9 @@ const inputSchema = {
     ),
 };
 
-// Forward-compatible: the save response is re-fetched through the single-read
-// path, so it carries `reachability` (routed-page | composed-from-block |
-// unknown) and structural `warnings` — properties mapped outside their
-// Schema.org range that will be SILENTLY DROPPED from the emitted JSON-LD.
-// Surface them via .extend() so the generated zod object does not strip them
-// before the Orval client is regenerated. Both optional → inert when absent.
-// NOTE (leader): drop this shim once `npm run generate` folds the fields into
-// the generated postSchemeweaverMappingsResponse schema.
-const outputSchema = postSchemeweaverMappingsResponse.extend({
-  reachability: z.string().optional(),
-  // Where the mapping was persisted: 'database' (DB only — the default) or 'database+usync'
-  // (also written to disk, when export-on-save is enabled).
-  persistedTo: z.string().optional(),
-  // Disk/DB drift vs the mapping's uSync .config after saving: in-sync | db-only |
-  // content-differs | usync-unavailable.
-  driftStatus: z.string().optional(),
-  warnings: z
-    .array(
-      z.object({
-        severity: z.string(),
-        schemaType: z.string().nullish(),
-        path: z.string().nullish(),
-        message: z.string(),
-      })
-    )
-    .optional(),
-});
+// The generated schema (regenerated from the C# DTO) already carries reachability,
+// warnings, driftStatus and persistedTo, so no shim is needed — use it directly.
+export const outputSchema = postSchemeweaverMappingsResponse;
 
 const saveSchemaMappingTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "save-schema-mapping",

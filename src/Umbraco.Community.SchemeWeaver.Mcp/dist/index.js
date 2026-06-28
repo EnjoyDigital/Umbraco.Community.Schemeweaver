@@ -33436,6 +33436,7 @@ object2({
 });
 object2({
   "contentKey": uuid2().optional(),
+  "blockInstanceKey": uuid2().optional(),
   "culture": string2().optional()
 });
 var postSchemeweaverMappingsByContentTypeAliasPreviewResponse = object2({
@@ -33657,14 +33658,7 @@ var get_block_element_types_default = withStandardDecorators(getBlockElementType
 
 // src/umbraco-api/tools/schemeweaver/get/get-all-schema-mappings.ts
 var outputSchema6 = external_exports.object({
-  items: external_exports.array(
-    getSchemeweaverMappingsResponseItem.extend({
-      reachability: external_exports.string().optional(),
-      // Disk/DB drift vs the mapping's uSync .config: in-sync | db-only | disk-only |
-      // content-differs | usync-unavailable (when the uSync addon isn't installed).
-      driftStatus: external_exports.string().optional()
-    })
-  )
+  items: external_exports.array(getSchemeweaverMappingsResponseItem)
 });
 var getAllSchemaMappingsTool = {
   name: "get-all-schema-mappings",
@@ -33684,20 +33678,7 @@ var get_all_schema_mappings_default = withStandardDecorators(getAllSchemaMapping
 
 // src/umbraco-api/tools/schemeweaver/get/get-schema-mapping.ts
 var inputSchema5 = getSchemeweaverMappingsByContentTypeAliasParams.shape;
-var outputSchema7 = getSchemeweaverMappingsByContentTypeAliasResponse.extend({
-  reachability: external_exports.string().optional(),
-  // Disk/DB drift vs the mapping's uSync .config: in-sync | db-only | disk-only |
-  // content-differs | usync-unavailable (when the uSync addon isn't installed).
-  driftStatus: external_exports.string().optional(),
-  warnings: external_exports.array(
-    external_exports.object({
-      severity: external_exports.string(),
-      schemaType: external_exports.string().nullish(),
-      path: external_exports.string().nullish(),
-      message: external_exports.string()
-    })
-  ).optional()
-});
+var outputSchema7 = getSchemeweaverMappingsByContentTypeAliasResponse;
 var getSchemaMappingTool = {
   name: "get-schema-mapping",
   description: "Gets the SchemeWeaver mapping for one Umbraco content type (404 if none exists). Returns the mapped Schema.org type, enabled/inherited flags, optional @id override template and the full list of property mappings. Also returns `reachability` (routed-page emits on its own URL; composed-from-block only emits inside a containing page's block mapping) and `warnings` (properties mapped outside their Schema.org range that would be silently dropped from the JSON-LD). Call this before save-schema-mapping when changing an existing mapping, so unchanged property mappings are preserved \u2014 saving replaces the whole mapping, it does not merge.",
@@ -33920,23 +33901,7 @@ var inputSchema8 = {
     "The complete set of property mappings. Saving REPLACES the existing mapping wholesale \u2014 include every mapping you want to keep, not just the changed ones."
   )
 };
-var outputSchema11 = postSchemeweaverMappingsResponse.extend({
-  reachability: external_exports.string().optional(),
-  // Where the mapping was persisted: 'database' (DB only — the default) or 'database+usync'
-  // (also written to disk, when export-on-save is enabled).
-  persistedTo: external_exports.string().optional(),
-  // Disk/DB drift vs the mapping's uSync .config after saving: in-sync | db-only |
-  // content-differs | usync-unavailable.
-  driftStatus: external_exports.string().optional(),
-  warnings: external_exports.array(
-    external_exports.object({
-      severity: external_exports.string(),
-      schemaType: external_exports.string().nullish(),
-      path: external_exports.string().nullish(),
-      message: external_exports.string()
-    })
-  ).optional()
-});
+var outputSchema11 = postSchemeweaverMappingsResponse;
 var saveSchemaMappingTool = {
   name: "save-schema-mapping",
   description: "Creates or replaces the SchemeWeaver mapping for an Umbraco content type, defining how its content is expressed as Schema.org JSON-LD. Recommended workflow: (1) get-content-type-properties and get-schema-type-properties (ranked=true) to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property semantically \u2014 correct bad suggestions, add mappings the heuristic missed, use nested types for complex values \u2014 then save with this tool, and (4) verify with preview-json-ld and fix any validation issues it reports. IMPORTANT: inspect the `warnings` array on the response \u2014 it flags properties mapped outside their Schema.org range that will be SILENTLY DROPPED from the JSON-LD (e.g. a non-CreativeWork type under hasPart); re-home those to a property like about/mainEntity. Also check `reachability`: composed-from-block means this type only emits inside a containing page's block mapping, never on its own URL. The response reports `persistedTo`: by default a save lands in the DATABASE ONLY (`database`) \u2014 to reproduce it as config-as-code, run export-mappings-to-usync (or check get-usync-drift). `database+usync` means export-on-save is enabled and it also reached disk. Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.",
@@ -33961,26 +33926,26 @@ var inputSchema9 = {
   contentKey: external_exports.string().uuid().optional().describe(
     "GUID key of a published content node of this type. When provided, real JSON-LD is generated from that node's values; when omitted, a mock preview with placeholder values is returned."
   ),
+  blockInstanceKey: external_exports.string().uuid().optional().describe(
+    "GUID key of a single nested block element inside the page identified by contentKey. When set, renders the REAL JSON-LD that one block instance contributes to the page (via the page mapping's route for that block type) \u2014 use this to see real nested values (e.g. a Question's name/answer) instead of the page-level placeholder. Requires contentKey."
+  ),
   culture: external_exports.string().optional().describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content")
 };
-var outputSchema12 = postSchemeweaverMappingsByContentTypeAliasPreviewResponse.extend({
-  context: external_exports.string().optional(),
-  resolvedBaseUrl: external_exports.string().nullable().optional()
-});
+var outputSchema12 = postSchemeweaverMappingsByContentTypeAliasPreviewResponse;
 var previewJsonLdTool = {
   name: "preview-json-ld",
-  description: "Generates the JSON-LD a content node would emit with the saved mapping, plus Rich Results validation. This is the feedback loop after save-schema-mapping: check isValid and the issues array (each issue has severity, schemaType, path and message \u2014 e.g. missing required/recommended properties for Google rich results) and refine the mapping until the output is clean. Pass a contentKey of a real published node for a realistic preview; without one you get placeholder values that only prove the structure. This is a BACKOFFICE-CONTEXT preview: URL/@id resolution can differ from the live render because the resolved base URL is the management host, not the public site. isValid here reflects backoffice-context structural validity ONLY \u2014 it does NOT imply the live structured data is valid. For authoritative live output use get-rendered-json-ld. The response reports context ('backoffice-preview') and resolvedBaseUrl (base URL actually used).",
+  description: "Generates the JSON-LD a content node would emit with the saved mapping, plus Rich Results validation. This is the feedback loop after save-schema-mapping: check isValid and the issues array (each issue has severity, schemaType, path and message \u2014 e.g. missing required/recommended properties for Google rich results) and refine the mapping until the output is clean. Pass a contentKey of a real published node for a realistic preview; without one you get placeholder values that only prove the structure. This is a BACKOFFICE-CONTEXT preview: URL/@id resolution can differ from the live render because the resolved base URL is the management host, not the public site. isValid here reflects backoffice-context structural validity ONLY \u2014 it does NOT imply the live structured data is valid. For authoritative live output use get-rendered-json-ld. The response reports context ('backoffice-preview') and resolvedBaseUrl (base URL actually used). To preview a single nested block in isolation, pass contentKey (the page) AND blockInstanceKey (the block's GUID Key) \u2014 the response renders that block's real values and an info issue naming the page node it resolved from.",
   inputSchema: inputSchema9,
   outputSchema: outputSchema12,
   slices: ["read"],
   annotations: {
     readOnlyHint: true
   },
-  handler: async ({ contentTypeAlias, contentKey, culture }) => {
+  handler: async ({ contentTypeAlias, contentKey, blockInstanceKey, culture }) => {
     return executeGetApiCall(
       (client) => client.postSchemeweaverMappingsByContentTypeAliasPreview(
         contentTypeAlias,
-        { contentKey, culture },
+        { contentKey, blockInstanceKey, culture },
         CAPTURE_RAW_HTTP_RESPONSE
       )
     );

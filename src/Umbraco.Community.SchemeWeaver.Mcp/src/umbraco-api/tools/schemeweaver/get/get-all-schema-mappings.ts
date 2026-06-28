@@ -14,22 +14,10 @@ import { getSchemeweaverMappingsResponseItem } from "../../../api/generated/sche
 
 type SchemeWeaverApiClient = ReturnType<typeof getSchemeWeaverManagementAPI>;
 
-// Forward-compatible: the list view enriches each mapping with `reachability`
-// (routed-page | composed-from-block | unknown). The per-property range
-// `warnings` are intentionally NOT computed here (bounded out to keep a
-// many-mapping listing cheap) — fetch a single mapping with get-schema-mapping
-// for those. .extend() so the generated zod item does not strip the field
-// before Orval is regenerated; optional → inert when absent.
-// NOTE (leader): drop this shim once `npm run generate` folds reachability in.
-const outputSchema = z.object({
-  items: z.array(
-    getSchemeweaverMappingsResponseItem.extend({
-      reachability: z.string().optional(),
-      // Disk/DB drift vs the mapping's uSync .config: in-sync | db-only | disk-only |
-      // content-differs | usync-unavailable (when the uSync addon isn't installed).
-      driftStatus: z.string().optional(),
-    })
-  ),
+// The generated item schema (regenerated from the C# DTO) already carries reachability,
+// driftStatus (and warnings), so no shim is needed — wrap it directly.
+export const outputSchema = z.object({
+  items: z.array(getSchemeweaverMappingsResponseItem),
 });
 
 const getAllSchemaMappingsTool: ToolDefinition<undefined, typeof outputSchema> = {

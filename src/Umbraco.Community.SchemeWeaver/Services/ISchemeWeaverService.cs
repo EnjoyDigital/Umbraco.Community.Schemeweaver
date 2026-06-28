@@ -16,6 +16,13 @@ public interface ISchemeWeaverService
     Task<IEnumerable<PropertyMappingSuggestion>> AutoMapAsync(string contentTypeAlias, string schemaTypeName);
     JsonLdPreviewResponse GeneratePreview(IPublishedContent content, string? culture = null);
     JsonLdPreviewResponse GenerateMockPreview(string contentTypeAlias);
+
+    /// <summary>
+    /// Real preview for a single nested block instance on a page (located by
+    /// <paramref name="blockInstanceKey"/>), rendered through the page mapping's route for that
+    /// block type. The response carries an <c>info</c> issue naming the page node it resolved from.
+    /// </summary>
+    JsonLdPreviewResponse GenerateBlockInstancePreview(IPublishedContent page, Guid blockInstanceKey, string? culture = null);
     IEnumerable<SchemaTypeInfo> GetSchemaTypes();
     IEnumerable<SchemaTypeInfo> SearchSchemaTypes(string query);
     IEnumerable<SchemaPropertyInfo> GetSchemaProperties(string typeName);

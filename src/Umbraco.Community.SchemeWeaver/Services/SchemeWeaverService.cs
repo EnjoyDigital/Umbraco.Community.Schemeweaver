@@ -243,6 +243,44 @@ public class SchemeWeaverService : ISchemeWeaverService
         return response;
     }
 
+    public JsonLdPreviewResponse GenerateBlockInstancePreview(IPublishedContent page, Guid blockInstanceKey, string? culture = null)
+    {
+        var response = new JsonLdPreviewResponse { ResolvedBaseUrl = _generator.GetResolvedBaseUrl() };
+        var result = _generator.GenerateBlockInstanceJsonLd(page, blockInstanceKey, culture);
+
+        switch (result.Status)
+        {
+            case BlockInstanceResolutionStatus.BlockNotFound:
+                response.Errors.Add($"Block instance {blockInstanceKey} was not found on '{page.Name}'.");
+                break;
+
+            case BlockInstanceResolutionStatus.NoRouteForBlock:
+                response.Errors.Add(
+                    $"Block type '{result.BlockAlias}' exists on '{page.Name}' but no route on the page's mapping maps it to a schema type.");
+                AppendStructuralWarnings(response, page.ContentType.Alias);
+                break;
+
+            case BlockInstanceResolutionStatus.EmptyAfterRender:
+                response.Issues.Add(new ValidationIssueDto(
+                    "info", result.SchemaType, result.BlockAlias,
+                    "The block resolved no usable (or required) properties, so it would not be emitted on the page."));
+                AppendStructuralWarnings(response, result.BlockAlias);
+                break;
+
+            case BlockInstanceResolutionStatus.Rendered:
+                response.JsonLd = result.JsonLd!;
+                ApplyValidation(response, result.JsonLd!);
+                // Make the resolution source explicit (acceptance: "output states the node").
+                response.Issues.Add(new ValidationIssueDto(
+                    "info", result.SchemaType, page.ContentType.Alias,
+                    $"Resolved from page node '{result.ResolvedFromNodeName}' ({result.ResolvedFromNodeKey}); block '{result.BlockAlias}' → {result.SchemaType}."));
+                AppendStructuralWarnings(response, result.BlockAlias);
+                break;
+        }
+
+        return response;
+    }
+
     public JsonLdPreviewResponse GenerateMockPreview(string contentTypeAlias)
     {
         // Always report the base URL the preview resolves @id against — even when no mapping

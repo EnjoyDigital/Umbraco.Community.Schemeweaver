@@ -307,6 +307,35 @@ public class SchemeWeaverApiControllerTests : UmbracoIntegrationTestBase
         doc.RootElement.ValueKind.Should().Be(JsonValueKind.Object);
     }
 
+    [Fact]
+    public async Task Preview_WithBlockInstanceKey_UnresolvableContent_Returns404()
+    {
+        // P1.2 wiring: the endpoint accepts blockInstanceKey and routes through the contentKey
+        // branch. The temp DB has no published content, so the page key cannot resolve → 404.
+        // Real-value block-instance rendering is covered by BlockInstancePreviewTests (unit) and
+        // the live MCP/CLI E2E against the TestHost's populated fixtures.
+        SeedMapping("faqPage", "FAQPage");
+
+        var response = await Client.PostAsync(
+            $"{BaseRoute}/mappings/faqPage/preview?contentKey={Guid.NewGuid()}&blockInstanceKey={Guid.NewGuid()}",
+            content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Preview_WithoutBlockInstanceKey_StillReturnsMockPreview()
+    {
+        // Back-compat: omitting blockInstanceKey behaves exactly as before (mock preview here).
+        SeedMapping("faqPage", "FAQPage");
+
+        var response = await Client.PostAsync($"{BaseRoute}/mappings/faqPage/preview", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.ValueKind.Should().Be(JsonValueKind.Object);
+    }
+
     [Fact(Skip = "Requires variant seed from feature/variants-testhost")]
     public async Task Preview_WithCultureParam_ReturnsOkWithCulturedPreview()
     {

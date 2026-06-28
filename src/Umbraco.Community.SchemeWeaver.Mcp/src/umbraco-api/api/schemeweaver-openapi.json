@@ -517,6 +517,14 @@
             }
           },
           {
+            "name": "blockInstanceKey",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
             "name": "culture",
             "in": "query",
             "schema": {

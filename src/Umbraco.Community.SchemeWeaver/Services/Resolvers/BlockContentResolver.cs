@@ -156,6 +156,20 @@ public class BlockContentResolver : IPropertyValueResolver
     }
 
     /// <summary>
+    /// Renders a single block element instance to a Schema.NET Thing using a supplied route —
+    /// the faithful per-block rendering (wrapping, transforms, empty-drop, nested-route recursion)
+    /// exactly as it would emit inside its page. Used by block-instance preview. Returns null when
+    /// the route has no nested schema type or the element resolves no usable properties (P2.1).
+    /// </summary>
+    public Thing? MapElementViaRoute(IPublishedElement element, BlockRoute route, PropertyResolverContext context)
+    {
+        if (route is null || string.IsNullOrEmpty(route.NestedSchemaType))
+            return null;
+
+        return MapBlockToThing(element, route.NestedSchemaType, route.PropertyMappings, context, route.RequiredProperties);
+    }
+
+    /// <summary>
     /// Resolves the route for a single block item by its content type alias and maps
     /// it to a typed Schema.NET Thing. An exact <see cref="BlockRoute.BlockAlias"/>
     /// match wins; otherwise a wildcard route (empty <see cref="BlockRoute.BlockAlias"/>)

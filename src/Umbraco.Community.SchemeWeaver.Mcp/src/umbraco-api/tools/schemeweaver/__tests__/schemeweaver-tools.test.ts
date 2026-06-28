@@ -173,7 +173,7 @@ describe("schemeweaver tools", () => {
 
       // Mock preview (no contentKey) proves JSON-LD structure generation
       const previewResult = await previewJsonLdTool.handler(
-        { contentTypeAlias: unmapped!.alias, contentKey: undefined, culture: undefined },
+        { contentTypeAlias: unmapped!.alias, contentKey: undefined, blockInstanceKey: undefined, culture: undefined },
         context
       );
       expect(previewResult.isError).toBeFalsy();
@@ -251,7 +251,7 @@ describe("schemeweaver tools", () => {
 
   it("preview-json-ld reports backoffice context once the backend ships the fields (HOST-DEPENDENT)", async () => {
     const result = await previewJsonLdTool.handler(
-      { contentTypeAlias: "definitely-not-a-real-alias", contentKey: undefined, culture: undefined },
+      { contentTypeAlias: "definitely-not-a-real-alias", contentKey: undefined, blockInstanceKey: undefined, culture: undefined },
       context
     );
 

@@ -234,6 +234,7 @@ schemaTypeName?: string;
 
 export type PostSchemeweaverMappingsByContentTypeAliasPreviewParams = {
 contentKey?: string;
+blockInstanceKey?: string;
 culture?: string;
 };
 

@@ -232,6 +232,7 @@ export const postSchemeweaverMappingsByContentTypeAliasPreviewParams = zod.objec
 
 export const postSchemeweaverMappingsByContentTypeAliasPreviewQueryParams = zod.object({
   "contentKey": zod.uuid().optional(),
+  "blockInstanceKey": zod.uuid().optional(),
   "culture": zod.string().optional()
 })
 

@@ -8,6 +8,7 @@ using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Graph;
+using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Cms.Core.PublishedCache;
@@ -323,6 +324,181 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
     /// <inheritdoc />
     public string? GetResolvedBaseUrl() => ResolveSiteUrl();
+
+    /// <inheritdoc />
+    public IPublishedElement? FindBlockInstance(IPublishedContent page, Guid blockInstanceKey, string? culture = null)
+    {
+        var previousContext = _variationContextAccessor.VariationContext;
+        if (culture is not null)
+            _variationContextAccessor.VariationContext = new VariationContext(culture);
+        try
+        {
+            return FindBlockInstanceCore(page, blockInstanceKey, culture);
+        }
+        finally
+        {
+            _variationContextAccessor.VariationContext = previousContext;
+        }
+    }
+
+    private IPublishedElement? FindBlockInstanceCore(IPublishedContent page, Guid blockInstanceKey, string? culture)
+    {
+        foreach (var property in page.Properties
+            .Where(p => p.PropertyType?.EditorAlias is "Umbraco.BlockList" or "Umbraco.BlockGrid"))
+        {
+            var value = property.GetValue(culture: culture);
+            if (value is null)
+                continue;
+
+            var match = EnumerateNestedBlockElements(value, culture, 0, new HashSet<Guid>())
+                .FirstOrDefault(e => e.Key == blockInstanceKey);
+            if (match is not null)
+                return match;
+        }
+
+        return null;
+    }
+
+    /// <inheritdoc />
+    public BlockInstancePreviewResult GenerateBlockInstanceJsonLd(IPublishedContent page, Guid blockInstanceKey, string? culture = null)
+    {
+        var previousContext = _variationContextAccessor.VariationContext;
+        if (culture is not null)
+            _variationContextAccessor.VariationContext = new VariationContext(culture);
+        try
+        {
+            var element = FindBlockInstanceCore(page, blockInstanceKey, culture);
+            if (element is null)
+                return new BlockInstancePreviewResult(BlockInstanceResolutionStatus.BlockNotFound, null, page.Name, page.Key, null, null);
+
+            var blockAlias = element.ContentType.Alias;
+            var pageMapping = _repository.GetByContentTypeAlias(page.ContentType.Alias);
+            var route = pageMapping is null
+                ? null
+                : FindRouteForBlock(_repository.GetPropertyMappings(pageMapping.Id).ToList(), blockAlias, depth: 0);
+
+            if (route is null)
+                return new BlockInstancePreviewResult(BlockInstanceResolutionStatus.NoRouteForBlock, null, page.Name, page.Key, blockAlias, null);
+
+            // The block-list resolver is the sole claimant of the Umbraco.BlockList alias.
+            if (_resolverFactory.GetResolver("Umbraco.BlockList") is not BlockContentResolver blockResolver)
+                return new BlockInstancePreviewResult(BlockInstanceResolutionStatus.NoRouteForBlock, null, page.Name, page.Key, blockAlias, route.NestedSchemaType);
+
+            var context = new PropertyResolverContext
+            {
+                Content = page,
+                Mapping = new PropertyMapping { SourceType = "blockContent", SchemaPropertyName = route.NestedSchemaType ?? string.Empty },
+                PropertyAlias = blockAlias,
+                SchemaTypeRegistry = _registry,
+                MappingRepository = _repository,
+                HttpContextAccessor = _httpContextAccessor,
+                ResolverFactory = _resolverFactory,
+                RecursionDepth = 0,
+                MaxRecursionDepth = _options.MaxRecursionDepth,
+                Culture = culture,
+                VisitedContentKeys = new HashSet<Guid> { element.Key }
+            };
+
+            var thing = blockResolver.MapElementViaRoute(element, route, context);
+            if (thing is null)
+                return new BlockInstancePreviewResult(BlockInstanceResolutionStatus.EmptyAfterRender, null, page.Name, page.Key, blockAlias, route.NestedSchemaType);
+
+            var json = SafeSerialize(thing);
+            if (string.IsNullOrEmpty(json))
+                return new BlockInstancePreviewResult(BlockInstanceResolutionStatus.EmptyAfterRender, null, page.Name, page.Key, blockAlias, route.NestedSchemaType);
+
+            return new BlockInstancePreviewResult(BlockInstanceResolutionStatus.Rendered, json, page.Name, page.Key, blockAlias, route.NestedSchemaType);
+        }
+        finally
+        {
+            _variationContextAccessor.VariationContext = previousContext;
+        }
+    }
+
+    /// <summary>
+    /// Finds the <see cref="BlockRoute"/> on the page mapping that maps a block of type
+    /// <paramref name="blockAlias"/> to a schema type. Searches every <c>blockContent</c> property
+    /// mapping's routes, recursing into nested routes (a block nested inside another block) up to the
+    /// configured depth. Exact alias match wins; otherwise an empty-alias wildcard; legacy
+    /// <c>NestedMappings</c> config is treated as an implicit wildcard route.
+    /// </summary>
+    private BlockRoute? FindRouteForBlock(IReadOnlyList<PropertyMapping> pagePropertyMappings, string blockAlias, int depth)
+    {
+        BlockRoute? wildcard = null;
+
+        foreach (var pm in pagePropertyMappings.Where(p => p.SourceType == "blockContent"))
+        {
+            var config = ParseResolverConfigModel(pm.ResolverConfig);
+            if (config is null)
+                continue;
+
+            if (config.Routes is { Count: > 0 } routes)
+            {
+                var (exact, wc) = SearchRoutesForBlock(routes, blockAlias, depth);
+                if (exact is not null)
+                    return exact;
+                wildcard ??= wc;
+            }
+            else if (config.NestedMappings is { Count: > 0 } && !string.IsNullOrEmpty(pm.NestedSchemaTypeName))
+            {
+                wildcard ??= new BlockRoute
+                {
+                    BlockAlias = string.Empty,
+                    NestedSchemaType = pm.NestedSchemaTypeName,
+                    PropertyMappings = config.NestedMappings,
+                    RequiredProperties = config.RequiredProperties
+                };
+            }
+        }
+
+        return wildcard;
+    }
+
+    private (BlockRoute? Exact, BlockRoute? Wildcard) SearchRoutesForBlock(List<BlockRoute> routes, string blockAlias, int depth)
+    {
+        if (depth > _options.MaxRecursionDepth)
+            return (null, null);
+
+        BlockRoute? wildcard = null;
+        foreach (var route in routes)
+        {
+            if (string.IsNullOrEmpty(route.NestedSchemaType))
+                continue;
+
+            if (string.Equals(route.BlockAlias, blockAlias, StringComparison.OrdinalIgnoreCase))
+                return (route, null);
+
+            if (string.IsNullOrEmpty(route.BlockAlias))
+                wildcard ??= route;
+
+            if (route.PropertyMappings is { Count: > 0 } nested)
+            {
+                foreach (var npm in nested.Where(m => m.Routes is { Count: > 0 }))
+                {
+                    var (nestedExact, nestedWc) = SearchRoutesForBlock(npm.Routes!, blockAlias, depth + 1);
+                    if (nestedExact is not null)
+                        return (nestedExact, null);
+                    wildcard ??= nestedWc;
+                }
+            }
+        }
+
+        return (null, wildcard);
+    }
+
+    private static ResolverConfigModel? ParseResolverConfigModel(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return null;
+        try
+        {
+            return JsonSerializer.Deserialize<ResolverConfigModel>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private string? ResolveIdFromOverrideOrDefault(
         SchemaMapping mapping,
