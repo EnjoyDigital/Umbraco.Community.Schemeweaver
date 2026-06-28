@@ -1673,6 +1673,141 @@ public class BlockContentResolverTests
         things[0].Should().BeOfType<Schema.NET.Service>("the default path emits bare Things, not ListItems");
     }
 
+    // --- v3 §4: wrap/position config must propagate one nesting level deeper ---
+
+    // Regression for the LS Services blocker: a block list nested INSIDE an ItemList stayed a bare
+    // Service[] because ResolveNestedBlockProperty copied only Routes, dropping WrapInListItem.
+    [Fact]
+    public void Resolve_NestedRoute_WrapInListItem_EmitsSequentialListItems()
+    {
+        var innerList = CreateBlockListModel(
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Alpha" }),
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Beta" }),
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Gamma" }));
+
+        var section = CreateBlockElementWithNestedBlock(
+            "servicesSection", "items", "Umbraco.BlockList", innerList);
+        var outerList = CreateBlockListModel(section);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "servicesSection",
+                    NestedSchemaType = "ItemList",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new()
+                        {
+                            SchemaProperty = "itemListElement",
+                            ContentProperty = "items",
+                            WrapInListItem = true,
+                            Routes = new List<BlockRoute>
+                            {
+                                new()
+                                {
+                                    BlockAlias = "serviceItem",
+                                    NestedSchemaType = "Service",
+                                    PropertyMappings = new List<NestedPropertyMapping>
+                                    {
+                                        new() { SchemaProperty = "name", ContentProperty = "title" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(outerList);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var itemList = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.ItemList>().Single();
+        var items = itemList.ItemListElement.OfType<Schema.NET.ListItem>().ToList();
+        items.Should().HaveCount(3, "the nested list must now wrap as ListItems, not stay bare Service[]");
+        items[0].Position.Value1.First().Should().Be(1);
+        items[1].Position.Value1.First().Should().Be(2);
+        items[2].Position.Value1.First().Should().Be(3);
+        ((Schema.NET.Service)items[0].Item.First()!).Name.First().Should().Be("Alpha");
+    }
+
+    [Fact]
+    public void Resolve_NestedStringList_StripHtml_EmitsPlainText()
+    {
+        var innerList = CreateBlockListModel(
+            CreateBlockElement("ingredientItem", new Dictionary<string, object?> { ["ingredient"] = "<p>200g <strong>flour</strong></p>" }),
+            CreateBlockElement("ingredientItem", new Dictionary<string, object?> { ["ingredient"] = "<p>2 eggs</p>" }));
+
+        var section = CreateBlockElementWithNestedBlock(
+            "recipeSection", "ingredients", "Umbraco.BlockList", innerList);
+        var outerList = CreateBlockListModel(section);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "recipeSection",
+                    NestedSchemaType = "Recipe",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new()
+                        {
+                            SchemaProperty = "recipeIngredient",
+                            ContentProperty = "ingredients",
+                            ExtractAs = "stringList",
+                            NestedContentProperty = "ingredient",
+                            TransformType = "stripHtml"
+                        }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(outerList);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var recipe = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Recipe>().Single();
+        recipe.RecipeIngredient.Should().BeEquivalentTo("200g flour", "2 eggs");
+    }
+
+    [Fact]
+    public void Resolve_StringListExtraction_StripHtml_EmitsPlainText()
+    {
+        var blockListModel = CreateBlockListModel(
+            CreateBlockElement("ingredientItem", new Dictionary<string, object?> { ["ingredient"] = "<p>200g <strong>flour</strong></p>" }),
+            CreateBlockElement("ingredientItem", new Dictionary<string, object?> { ["ingredient"] = "  <span>2 eggs</span>  " }));
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            ExtractAs = "stringList",
+            ContentProperty = "ingredient",
+            TransformType = "stripHtml"
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var list = ((IEnumerable<string>)result!).ToList();
+        list.Should().BeEquivalentTo(new[] { "200g flour", "2 eggs" });
+    }
+
     private static IPublishedElement CreateBlockElementWithNestedBlock(
         string contentTypeAlias,
         string nestedPropertyAlias,

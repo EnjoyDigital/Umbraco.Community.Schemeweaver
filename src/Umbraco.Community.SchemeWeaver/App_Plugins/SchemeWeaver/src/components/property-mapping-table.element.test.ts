@@ -419,4 +419,31 @@ describe('PropertyMappingTableElement', () => {
       expect(el.shadowRoot!.querySelector('uui-tag.range-warning-badge')).to.not.exist;
     });
   });
+
+  describe('suggestion advisory badge (server-authoritative hint)', () => {
+    it('renders a lightbulb suggestion badge with accessible title/aria-label when suggestion is set, and not as a range warning', async () => {
+      const message = "This RichText value will emit raw HTML — add a stripHtml transform to feed Schema.org plain text.";
+      const rows: PropertyMappingRow[] = [
+        { schemaPropertyName: 'description', schemaPropertyType: 'Text', sourceType: SourceType.Property, contentTypePropertyAlias: 'body', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.RichText', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [], suggestion: message },
+      ];
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${rows}></schemeweaver-property-mapping-table>`);
+      const badge = el.shadowRoot!.querySelector('uui-tag.suggestion-badge');
+      expect(badge).to.exist;
+      // Visually distinct from the red range warning — positive/neutral colour and a lightbulb icon.
+      expect(badge!.getAttribute('color')).to.equal('positive');
+      expect(badge!.getAttribute('title')).to.equal(message);
+      expect(badge!.getAttribute('aria-label')).to.equal(message);
+      expect(badge!.querySelector('uui-icon')!.getAttribute('name')).to.equal('icon-lightbulb');
+      // It must NOT render as a range-warning badge.
+      expect(el.shadowRoot!.querySelector('uui-tag.range-warning-badge')).to.not.exist;
+    });
+
+    it('renders no suggestion badge when suggestion is absent', async () => {
+      const rows: PropertyMappingRow[] = [
+        { schemaPropertyName: 'headline', schemaPropertyType: 'Text', sourceType: SourceType.Property, contentTypePropertyAlias: 'title', sourceContentTypeAlias: '', staticValue: '', confidence: 95, editorAlias: 'Umbraco.TextBox', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
+      ];
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${rows}></schemeweaver-property-mapping-table>`);
+      expect(el.shadowRoot!.querySelector('uui-tag.suggestion-badge')).to.not.exist;
+    });
+  });
 });

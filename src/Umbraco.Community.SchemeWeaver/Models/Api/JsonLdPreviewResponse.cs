@@ -24,10 +24,10 @@ public class JsonLdPreviewResponse
     public List<string> Errors { get; set; } = [];
 
     /// <summary>
-    /// Structured Rich Results compliance findings from the
-    /// <see cref="Services.Validation.ISchemaValidator"/>. Editor UI groups
-    /// by severity (Critical / Warning / Info) and surfaces the field path
-    /// so editors can fix the exact node that tripped the rule.
+    /// Structured findings from the <see cref="Services.Validation.ISchemaValidator"/> plus the
+    /// mapping's own range warnings and advisories (appended via AppendStructuralWarnings). Editor UI
+    /// groups by severity (Critical / Warning / Info / Suggestion) and surfaces the field path so
+    /// editors can fix the exact node that tripped the rule.
     /// </summary>
     public List<ValidationIssueDto> Issues { get; set; } = [];
 

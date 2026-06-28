@@ -58,5 +58,18 @@ public static class SchemeWeaverConstants
             "Umbraco.BlockList",
             "Umbraco.BlockGrid"
         };
+
+        /// <summary>
+        /// Editor aliases whose resolved value is HTML/markup. The single source of truth for
+        /// "this source produces HTML" — referenced by <see cref="Resolvers.RichTextResolver"/>
+        /// (what it resolves) and by the mapping advisor (which suggests <c>stripHtml</c> when one
+        /// of these feeds a plain-text Schema.org property).
+        /// </summary>
+        public static readonly HashSet<string> HtmlProducingEditorAliases = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Umbraco.RichText",
+            "Umbraco.TinyMCE",
+            "Umbraco.MarkdownEditor"
+        };
     }
 }

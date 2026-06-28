@@ -14,6 +14,7 @@ using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.Advisory;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
@@ -30,6 +31,7 @@ public class SchemeWeaverServiceTests
     private readonly ISchemaValidator _validator = Substitute.For<ISchemaValidator>();
     private readonly IBlockSchemaSuggester _blockSchemaSuggester = Substitute.For<IBlockSchemaSuggester>();
     private readonly ISchemaRangeValidator _rangeValidator = Substitute.For<ISchemaRangeValidator>();
+    private readonly IMappingAdvisor _advisor = Substitute.For<IMappingAdvisor>();
     private readonly IMappingReachabilityClassifier _reachabilityClassifier = Substitute.For<IMappingReachabilityClassifier>();
     private readonly IMappingDriftReporter _driftReporter = Substitute.For<IMappingDriftReporter>();
     private readonly IEventAggregator _eventAggregator = Substitute.For<IEventAggregator>();
@@ -52,6 +54,9 @@ public class SchemeWeaverServiceTests
         // Default to no structural warnings; tests that care override per-test.
         _rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(Array.Empty<ValidationIssue>());
 
+        // Default to no advisories; tests that care override per-test.
+        _advisor.AdviseEntry(Arg.Any<MappingEntryInput>()).Returns(Array.Empty<MappingAdvice>());
+
         // Default drift: addon absent (usync-unavailable). Tests that care override per-test.
         _driftReporter.GetStatus(Arg.Any<string>()).Returns(MappingDriftStatus.USyncUnavailable);
         _driftReporter.GetReport().Returns(new MappingDriftReportDto { UsyncAvailable = false, Items = [] });
@@ -59,7 +64,7 @@ public class SchemeWeaverServiceTests
         _sut = new SchemeWeaverService(
             _registry, _autoMapper, _generator, _graphGenerator,
             _repository, _contentTypeService, _dataTypeService,
-            _validator, _blockSchemaSuggester, _rangeValidator,
+            _validator, _blockSchemaSuggester, _rangeValidator, _advisor,
             _reachabilityClassifier, _driftReporter, _eventAggregator, Options.Create(_options), _logger);
     }
 
@@ -503,6 +508,99 @@ public class SchemeWeaverServiceTests
         // The report is read once for the whole list, not per-mapping.
         _driftReporter.Received(1).GetReport();
         _driftReporter.DidNotReceive().GetStatus(Arg.Any<string>());
+    }
+
+    // --- v3 §3c: advisory wiring ---
+
+    [Fact]
+    public void GetMapping_AdvisorSuggestion_AppendedAfterRangeWarnings()
+    {
+        var mapping = new SchemaMapping { Id = 1, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true };
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new[]
+        {
+            new PropertyMapping { SchemaPropertyName = "description", SourceType = "property", ContentTypePropertyAlias = "body" }
+        });
+        _rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(new[]
+        {
+            new ValidationIssue(ValidationSeverity.Warning, "Article", "HasPart", "out of range")
+        });
+        _advisor.AdviseEntry(Arg.Any<MappingEntryInput>()).Returns(new[]
+        {
+            new MappingAdvice(MappingAdviceKind.StripHtml, "Article", "description", "emits raw HTML",
+                new MappingAdviceFix(TransformType: "stripHtml"))
+        });
+
+        var result = _sut.GetMapping("article");
+
+        // Range warning first (hard drop), advisory after, with severity "suggestion".
+        result!.Warnings.Should().HaveCount(2);
+        result.Warnings[0].Severity.Should().Be("warning");
+        result.Warnings[0].Path.Should().Be("HasPart");
+        result.Warnings[1].Severity.Should().Be("suggestion");
+        result.Warnings[1].Path.Should().Be("description");
+    }
+
+    [Fact]
+    public void GetMapping_AdvisoryOnRangeFlaggedRow_IsSuppressed()
+    {
+        var mapping = new SchemaMapping { Id = 1, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true };
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new[]
+        {
+            new PropertyMapping { SchemaPropertyName = "hasPart", SourceType = "blockContent", ContentTypePropertyAlias = "blocks" }
+        });
+        _rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(new[]
+        {
+            new ValidationIssue(ValidationSeverity.Warning, "Article", "hasPart", "out of range")
+        });
+        _advisor.AdviseEntry(Arg.Any<MappingEntryInput>()).Returns(new[]
+        {
+            new MappingAdvice(MappingAdviceKind.WrapInListItem, "Article", "hasPart", "no positions",
+                new MappingAdviceFix(WrapInListItem: true))
+        });
+
+        var result = _sut.GetMapping("article");
+
+        // The row is already a hard drop — don't double-flag it with a suggestion.
+        result!.Warnings.Should().ContainSingle();
+        result.Warnings[0].Severity.Should().Be("warning");
+    }
+
+    [Fact]
+    public void SaveMapping_PersistenceAdvice_AppendedAsSuggestion()
+    {
+        var dto = new SchemaMappingDto { ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true, PropertyMappings = [] };
+        var savedEntity = new SchemaMapping { Id = 1, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true };
+        _repository.GetByContentTypeAlias("article").Returns(null as SchemaMapping, savedEntity);
+        _repository.Save(Arg.Any<SchemaMapping>()).Returns(savedEntity);
+        _repository.GetPropertyMappings(1).Returns(Enumerable.Empty<PropertyMapping>());
+        _driftReporter.GetStatus("article").Returns(MappingDriftStatus.DbOnly);
+        _advisor.AdvisePersistence(Arg.Any<string>(), Arg.Any<PersistenceFacts>())
+            .Returns(new MappingAdvice(MappingAdviceKind.ExportToUSync, "Article", "(persistence)", "enable export"));
+
+        var result = _sut.SaveMapping(dto);
+
+        result.Warnings.Should().ContainSingle(w => w.Severity == "suggestion" && w.Message == "enable export");
+    }
+
+    [Fact]
+    public void GetAllMappings_DoesNotInvokeAdvisor()
+    {
+        _repository.GetAll().Returns(new[]
+        {
+            new SchemaMapping { Id = 1, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true }
+        });
+        _repository.GetAllPropertyMappingsByMappingId().Returns(new Dictionary<int, List<PropertyMapping>>
+        {
+            [1] = [new PropertyMapping { SchemaPropertyName = "description", SourceType = "property", ContentTypePropertyAlias = "body" }]
+        });
+        _driftReporter.GetReport().Returns(new MappingDriftReportDto { UsyncAvailable = false, Items = [] });
+
+        _ = _sut.GetAllMappings().ToList();
+
+        // The many-mapping list view stays cheap — advisories are single-read/save only.
+        _advisor.DidNotReceive().AdviseEntry(Arg.Any<MappingEntryInput>());
     }
 
     [Fact]

@@ -145,27 +145,46 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
 }
 
 /**
- * Applies server-authoritative range warnings to rows, keyed by
+ * Applies server-authoritative warnings to rows, keyed by
  * `warning.path === row.schemaPropertyName`. Multiple warnings for one property
  * (e.g. several offending block routes) are joined onto one badge. Returns a new
- * array; rows with no matching warning have `rangeWarning` cleared. Matching the
- * server's `Path` exactly is what keeps the badge in sync after a live save.
+ * array; rows with no matching warning have `rangeWarning`/`suggestion` cleared.
+ * Matching the server's `Path` exactly is what keeps the badge in sync after a
+ * live save.
+ *
+ * `warning`-severity issues populate `rangeWarning` (a blocking red badge);
+ * `suggestion`-severity advisories (stripHtml/wrapInListItem/missing-required/
+ * export hints) populate the separate `suggestion` field rendered as a
+ * non-blocking lightbulb hint. Other severities are left for the JSON-LD
+ * preview's validation panel.
  */
 export function applyWarningsToRows(
   rows: PropertyMappingRow[],
   warnings: ValidationIssue[] | undefined,
 ): PropertyMappingRow[] {
   const byProperty = new Map<string, string[]>();
+  const suggestionsByProperty = new Map<string, string[]>();
   for (const w of warnings ?? []) {
-    if (w.severity !== 'warning' || !w.path) continue;
-    const list = byProperty.get(w.path) ?? [];
-    list.push(w.message);
-    byProperty.set(w.path, list);
+    if (!w.path) continue;
+    if (w.severity === 'warning') {
+      const list = byProperty.get(w.path) ?? [];
+      list.push(w.message);
+      byProperty.set(w.path, list);
+    } else if (w.severity === 'suggestion') {
+      const list = suggestionsByProperty.get(w.path) ?? [];
+      list.push(w.message);
+      suggestionsByProperty.set(w.path, list);
+    }
   }
 
   return rows.map((row) => {
     const messages = byProperty.get(row.schemaPropertyName);
-    return { ...row, rangeWarning: messages?.length ? messages.join('\n') : undefined };
+    const suggestions = suggestionsByProperty.get(row.schemaPropertyName);
+    return {
+      ...row,
+      rangeWarning: messages?.length ? messages.join('\n') : undefined,
+      suggestion: suggestions?.length ? suggestions.join('\n') : undefined,
+    };
   });
 }
 

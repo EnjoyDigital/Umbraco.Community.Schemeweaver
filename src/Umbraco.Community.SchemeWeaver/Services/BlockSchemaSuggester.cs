@@ -1,4 +1,5 @@
 using Umbraco.Community.SchemeWeaver.Models.Api;
+using Umbraco.Community.SchemeWeaver.Services.Advisory;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
 
@@ -160,12 +161,26 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
             result.Add(new BlockRoutePropertyMappingSuggestion
             {
                 SchemaProperty = s.SchemaPropertyName,
-                ContentProperty = s.SuggestedContentTypePropertyAlias
+                ContentProperty = s.SuggestedContentTypePropertyAlias,
+                // §3b: pre-fill stripHtml when a rich-text source feeds a plain-text nested property,
+                // so the suggested route emits clean text by default (revertible by the author).
+                TransformType = ShouldStripHtml(s) ? "stripHtml" : null,
             });
         }
 
         return result;
     }
+
+    /// <summary>
+    /// True when the suggested source property is a rich-text/HTML-producing editor and the nested
+    /// Schema.org target is a plain-text range — the exact case where the raw value would otherwise
+    /// emit HTML markup. Reuses the shared advisory heuristics so the suggester and the reactive
+    /// <c>MappingAdvisor</c> agree.
+    /// </summary>
+    private static bool ShouldStripHtml(PropertyMappingSuggestion s)
+        => s.EditorAlias is { } editor
+           && SchemeWeaverConstants.PropertyEditors.HtmlProducingEditorAliases.Contains(editor)
+           && SchemaPrimitiveTypes.IsPlainTextRange(s.AcceptedTypes);
 
     /// <summary>
     /// For each property on the element type that is itself a Block List/Grid, suggests routes

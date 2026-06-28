@@ -23,7 +23,7 @@ import {
   type ToolDefinition,
 } from "@umbraco-cms/mcp-server-sdk";
 import { z } from "zod";
-import { resolveBaseUrl, buildRenderedJsonLdUrl } from "../../../base-url.js";
+import { resolveRenderHost, buildRenderedJsonLdUrl } from "../../../base-url.js";
 
 const inputSchema = {
   route: z
@@ -42,6 +42,15 @@ const inputSchema = {
     .string()
     .optional()
     .describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content"),
+  host: z
+    .string()
+    .optional()
+    .describe(
+      "Optional host override (scheme + authority, e.g. 'https://www.example.com'). When set, this overrides the " +
+        "configured base URL so you can fetch the LIVE render from the real public site instead of the local " +
+        "sandbox/TestHost — letting you check ground truth against production without re-pointing UMBRACO_BASE_URL. " +
+        "Trailing slashes are stripped. When omitted, the configured UMBRACO_BASE_URL (or the TestHost default) is used."
+    ),
 };
 
 const outputSchema = z.object({
@@ -61,6 +70,9 @@ const getRenderedJsonLdTool: ToolDefinition<typeof inputSchema, typeof outputSch
     "structured data — distinct from preview-json-ld, which renders in the backoffice/management context and can " +
     "resolve URLs (@id) differently. The response always surfaces requestUrl and httpStatus (even on 404/401/empty) " +
     "and a 'note' explaining the result, including the case where HTTP 200 returns ZERO JSON-LD blocks. " +
+    "Complements preview-json-ld: use that for the in-progress backoffice render and this for the live, public ground truth. " +
+    "Pass the optional 'host' to fetch from the real public site (e.g. 'https://www.example.com') instead of the configured " +
+    "base URL, without re-pointing UMBRACO_BASE_URL. " +
     "The Delivery API is OFF by default in Umbraco; an Api-Key may be required (UMBRACO_DELIVERY_API_KEY).",
   inputSchema,
   outputSchema,
@@ -68,8 +80,8 @@ const getRenderedJsonLdTool: ToolDefinition<typeof inputSchema, typeof outputSch
   annotations: {
     readOnlyHint: true,
   },
-  handler: async ({ route, scope, culture }) => {
-    const base = resolveBaseUrl();
+  handler: async ({ route, scope, culture, host }) => {
+    const base = resolveRenderHost(host);
     const requestUrl = buildRenderedJsonLdUrl({ base, route, scope, culture });
 
     const headers: Record<string, string> = {};

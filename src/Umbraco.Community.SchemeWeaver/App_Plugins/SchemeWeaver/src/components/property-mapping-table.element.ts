@@ -58,6 +58,13 @@ export interface PropertyMappingRow {
    * subtypes (e.g. LocalBusiness under an Organization-ranged property).
    */
   rangeWarning?: string;
+  /**
+   * Server-authoritative non-blocking advisory for this row, if any (e.g. a
+   * stripHtml/wrapInListItem/missing-required hint). Populated from the saved
+   * mapping's `suggestion`-severity warnings (keyed by SchemaPropertyName).
+   * Rendered as a neutral lightbulb hint, distinct from the red range warning.
+   */
+  suggestion?: string;
 }
 
 /** Map of complex editor aliases to their display badge labels */
@@ -264,6 +271,23 @@ export class PropertyMappingTableElement extends UmbLitElement {
     >${this.localize.term('schemeWeaver_rangeWarning')}</uui-tag>`;
   }
 
+  /**
+   * Non-blocking advisory hint badge (lightbulb). Distinct from the red
+   * range-warning badge: a neutral/positive look so it reads as a helpful
+   * suggestion (e.g. stripHtml, wrap-in-list-item) rather than an error. The
+   * full advisory text is carried on title + aria-label.
+   */
+  private _renderSuggestionBadge(mapping: PropertyMappingRow) {
+    if (!mapping.suggestion) return nothing;
+    return html`<uui-tag
+      look="secondary"
+      color="positive"
+      class="suggestion-badge"
+      title=${mapping.suggestion}
+      aria-label=${mapping.suggestion}
+    ><uui-icon name="icon-lightbulb"></uui-icon>${this.localize.term('schemeWeaver_suggestionHint')}</uui-tag>`;
+  }
+
   private _handleConfigureComplexType(index: number) {
     const mapping = this.mappings[index];
     this.dispatchEvent(
@@ -386,6 +410,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
               : this._renderValueInput(mapping, index)}
             ${this._renderConfidenceTag(mapping)}
             ${this._renderRangeWarningBadge(mapping)}
+            ${this._renderSuggestionBadge(mapping)}
           </div>
         </uui-table-cell>
       </uui-table-row>
@@ -595,6 +620,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
           ></schemeweaver-property-combobox>
           ${this._renderEditorBadge(mapping.editorAlias)}
           ${this._renderRangeWarningBadge(mapping)}
+          ${this._renderSuggestionBadge(mapping)}
         </div>
         ${hasAcceptedTypes
           ? html`
@@ -693,6 +719,17 @@ export class PropertyMappingTableElement extends UmbLitElement {
       .editor-badge {
         font-size: 0.7rem;
         --uui-tag-min-height: 20px;
+      }
+
+      .suggestion-badge {
+        flex-shrink: 0;
+        font-size: 0.7rem;
+        --uui-tag-min-height: 20px;
+      }
+
+      .suggestion-badge uui-icon {
+        font-size: 0.85rem;
+        margin-right: 2px;
       }
 
       .auto-url-indicator {

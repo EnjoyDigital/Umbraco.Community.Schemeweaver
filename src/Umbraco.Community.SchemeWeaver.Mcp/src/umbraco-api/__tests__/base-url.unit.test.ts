@@ -5,7 +5,12 @@
  * (testMatch is **\/__tests__/**\/*.test.ts; this file ends in .test.ts.)
  */
 
-import { resolveBaseUrl, buildRenderedJsonLdUrl, DEFAULT_BASE_URL } from "../base-url.js";
+import {
+  resolveBaseUrl,
+  resolveRenderHost,
+  buildRenderedJsonLdUrl,
+  DEFAULT_BASE_URL,
+} from "../base-url.js";
 
 describe("resolveBaseUrl", () => {
   const original = process.env.UMBRACO_BASE_URL;
@@ -36,6 +41,46 @@ describe("resolveBaseUrl", () => {
   it("strips multiple trailing slashes", () => {
     process.env.UMBRACO_BASE_URL = "https://example.test///";
     expect(resolveBaseUrl()).toBe("https://example.test");
+  });
+});
+
+describe("resolveRenderHost", () => {
+  const original = process.env.UMBRACO_BASE_URL;
+
+  beforeEach(() => {
+    process.env.UMBRACO_BASE_URL = "https://configured.test";
+  });
+
+  afterEach(() => {
+    if (original === undefined) {
+      delete process.env.UMBRACO_BASE_URL;
+    } else {
+      process.env.UMBRACO_BASE_URL = original;
+    }
+  });
+
+  it("falls back to the configured base when host is undefined", () => {
+    expect(resolveRenderHost(undefined)).toBe("https://configured.test");
+  });
+
+  it("falls back to the configured base when host is an empty string", () => {
+    expect(resolveRenderHost("")).toBe("https://configured.test");
+  });
+
+  it("falls back to the configured base when host is whitespace only", () => {
+    expect(resolveRenderHost("   ")).toBe("https://configured.test");
+  });
+
+  it("uses an explicit host when provided", () => {
+    expect(resolveRenderHost("https://www.example.com")).toBe("https://www.example.com");
+  });
+
+  it("strips trailing slashes from an explicit host", () => {
+    expect(resolveRenderHost("https://www.example.com///")).toBe("https://www.example.com");
+  });
+
+  it("trims surrounding whitespace from an explicit host", () => {
+    expect(resolveRenderHost("  https://www.example.com/  ")).toBe("https://www.example.com");
   });
 });
 

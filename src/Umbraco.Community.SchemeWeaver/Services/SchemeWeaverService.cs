@@ -9,6 +9,7 @@ using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
+using Umbraco.Community.SchemeWeaver.Services.Advisory;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
@@ -28,6 +29,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly ISchemaValidator _validator;
     private readonly IBlockSchemaSuggester _blockSchemaSuggester;
     private readonly ISchemaRangeValidator _rangeValidator;
+    private readonly IMappingAdvisor _advisor;
     private readonly IMappingReachabilityClassifier _reachabilityClassifier;
     private readonly IMappingDriftReporter _driftReporter;
     private readonly IEventAggregator _eventAggregator;
@@ -45,6 +47,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         ISchemaValidator validator,
         IBlockSchemaSuggester blockSchemaSuggester,
         ISchemaRangeValidator rangeValidator,
+        IMappingAdvisor advisor,
         IMappingReachabilityClassifier reachabilityClassifier,
         IMappingDriftReporter driftReporter,
         IEventAggregator eventAggregator,
@@ -61,6 +64,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         _validator = validator;
         _blockSchemaSuggester = blockSchemaSuggester;
         _rangeValidator = rangeValidator;
+        _advisor = advisor;
         _reachabilityClassifier = reachabilityClassifier;
         _driftReporter = driftReporter;
         _eventAggregator = eventAggregator;
@@ -110,13 +114,71 @@ public class SchemeWeaverService : ISchemeWeaverService
     }
 
     /// <summary>
-    /// Runs the structural range validator over a DTO and maps each finding to a
-    /// camelCase <see cref="ValidationIssueDto"/> with severity <c>warning</c>.
+    /// Builds the mapping's <c>warnings[]</c>: structural range drops (severity <c>warning</c>) first,
+    /// then non-blocking advisories from <see cref="IMappingAdvisor"/> (severity <c>suggestion</c>) —
+    /// e.g. a RichText source feeding a plain-text property without <c>stripHtml</c>, a block list
+    /// feeding an unordered <c>itemListElement</c>, or a Question missing <c>acceptedAnswer</c>. An
+    /// advisory on a row the range validator already flagged as a hard drop is suppressed (the drop
+    /// is the bigger problem). None of this mutates the saved mapping.
     /// </summary>
     private List<ValidationIssueDto> BuildWarningDtos(SchemaMappingDto dto)
-        => _rangeValidator.Validate(dto)
+    {
+        var rangeIssues = _rangeValidator.Validate(dto)
             .Select(i => new ValidationIssueDto("warning", i.SchemaType, i.Path, i.Message))
             .ToList();
+
+        var warnings = new List<ValidationIssueDto>(rangeIssues);
+        if (dto.PropertyMappings.Count == 0)
+            return warnings;
+
+        var flaggedPaths = new HashSet<string>(
+            rangeIssues.Select(i => i.Path), StringComparer.OrdinalIgnoreCase);
+        var editorByAlias = ResolveEditorAliases(dto.ContentTypeAlias);
+
+        foreach (var pm in dto.PropertyMappings)
+        {
+            editorByAlias.TryGetValue(pm.ContentTypePropertyAlias ?? string.Empty, out var editorAlias);
+
+            var entry = new MappingEntryInput(
+                dto.SchemaTypeName,
+                pm.SchemaPropertyName,
+                pm.SourceType,
+                editorAlias,
+                pm.TransformType,
+                pm.NestedSchemaTypeName,
+                pm.ResolverConfig);
+
+            foreach (var advice in _advisor.AdviseEntry(entry))
+            {
+                if (flaggedPaths.Contains(advice.Path))
+                    continue;
+                warnings.Add(new ValidationIssueDto("suggestion", advice.SchemaType, advice.Path, advice.Message));
+            }
+        }
+
+        return warnings;
+    }
+
+    /// <summary>
+    /// One cached read of the content type's property editor aliases, keyed by property alias
+    /// (case-insensitive), so the advisor can reason about a source property's editor without each
+    /// check re-loading the content type. Empty when the content type is unknown.
+    /// </summary>
+    private Dictionary<string, string> ResolveEditorAliases(string contentTypeAlias)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(contentTypeAlias))
+            return map;
+
+        var contentType = _contentTypeService.Get(contentTypeAlias);
+        if (contentType is null)
+            return map;
+
+        foreach (var pt in contentType.CompositionPropertyTypes)
+            map[pt.Alias] = pt.PropertyEditorAlias;
+
+        return map;
+    }
 
     public SchemaMappingDto SaveMapping(SchemaMappingDto dto)
     {
@@ -179,6 +241,15 @@ public class SchemeWeaverService : ISchemeWeaverService
         result.PersistedTo = result.DriftStatus == MappingDriftStatus.InSync
             ? "database+usync"
             : "database";
+
+        // Persistence advisory (check 4): when uSync is installed but this save only reached the DB,
+        // loudly *suggest* exporting — never flip the option (inform + suggest, never auto-apply).
+        var persistenceAdvice = _advisor.AdvisePersistence(
+            result.SchemaTypeName,
+            new PersistenceFacts(result.DriftStatus!, _driftReporter.IsAvailable, _options.ExportMappingsToUSyncOnSave));
+        if (persistenceAdvice is not null)
+            result.Warnings.Add(new ValidationIssueDto(
+                "suggestion", persistenceAdvice.SchemaType, persistenceAdvice.Path, persistenceAdvice.Message));
 
         return result;
     }

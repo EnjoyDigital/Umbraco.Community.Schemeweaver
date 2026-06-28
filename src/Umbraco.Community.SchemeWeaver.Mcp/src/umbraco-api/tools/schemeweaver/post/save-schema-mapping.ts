@@ -87,10 +87,12 @@ const propertyMappingSchema = z.object({
         '{"blockAlias":"faqItem","nestedSchemaType":"Question","propertyMappings":[' +
         '{"schemaProperty":"name","contentProperty":"questionText"},' +
         '{"schemaProperty":"acceptedAnswer","contentProperty":"answerText","wrapInType":"Answer","wrapInProperty":"text"}]}]}]}]}. ' +
-        "Ordered ItemList (opt-in): set root-level \"wrapInListItem\":true to wrap each mapped block as a " +
+        "Ordered ItemList (opt-in): set \"wrapInListItem\":true to wrap each mapped block as a " +
         "ListItem{position,item} (auto-incremented position, or read one from a block property via " +
         "\"positionProperty\":\"...\") — use this for a numbered services/steps block feeding an " +
-        "ItemList.itemListElement. The default (omitted) emits a bare Thing array. " +
+        "ItemList.itemListElement. The default (omitted) emits a bare Thing array. Valid both at root level " +
+        "AND on a nested propertyMappings[] entry whose contentProperty is itself a block list feeding an " +
+        "ItemList (e.g. services nested inside an ItemList) — set it on that nested entry for the nested list. " +
         "Drop empty blocks (opt-in): a route may set \"requiredProperties\":[\"name\",\"acceptedAnswer\"] so a nested " +
         "Thing missing any of those is omitted (a blank block row never emits an invalid empty node). " +
         "For a flat string array (e.g. recipeIngredient) use the top-level string-list mode: " +

@@ -368,16 +368,49 @@ describe('applyWarningsToRows', () => {
     expect(result[0].rangeWarning).to.be.undefined;
   });
 
-  it('ignores non-warning severities', () => {
+  it('ignores info/non-warning severities for the range warning field', () => {
     const rows = [makeRow({ schemaPropertyName: 'hasPart' })];
     const info: ValidationIssue = { severity: 'info', schemaType: 'Article', path: 'hasPart', message: 'fyi' };
     const result = applyWarningsToRows(rows, [info]);
     expect(result[0].rangeWarning).to.be.undefined;
+    expect(result[0].suggestion).to.be.undefined;
   });
 
   it('treats undefined warnings as no-op', () => {
     const rows = [makeRow({ schemaPropertyName: 'hasPart' })];
     const result = applyWarningsToRows(rows, undefined);
     expect(result[0].rangeWarning).to.be.undefined;
+    expect(result[0].suggestion).to.be.undefined;
+  });
+
+  it('attaches a suggestion-severity advisory to the matching row (not as a range warning)', () => {
+    const rows = [makeRow({ schemaPropertyName: 'description' }), makeRow({ schemaPropertyName: 'name' })];
+    const suggestion: ValidationIssue = {
+      severity: 'suggestion', schemaType: 'Article', path: 'description',
+      message: 'Strip HTML from this RichText value',
+    };
+    const result = applyWarningsToRows(rows, [suggestion]);
+    expect(result[0].suggestion).to.equal('Strip HTML from this RichText value');
+    expect(result[0].rangeWarning).to.be.undefined;
+    expect(result[1].suggestion).to.be.undefined;
+  });
+
+  it('joins multiple suggestion advisories for the same property', () => {
+    const rows = [makeRow({ schemaPropertyName: 'description' })];
+    const result = applyWarningsToRows(rows, [
+      { severity: 'suggestion', schemaType: 'Article', path: 'description', message: 'strip HTML' },
+      { severity: 'suggestion', schemaType: 'Article', path: 'description', message: 'wrap in list item' },
+    ]);
+    expect(result[0].suggestion).to.equal('strip HTML\nwrap in list item');
+  });
+
+  it('keeps range warning and suggestion as independent fields on one row', () => {
+    const rows = [makeRow({ schemaPropertyName: 'hasPart' })];
+    const result = applyWarningsToRows(rows, [
+      warn('hasPart', 'out of range'),
+      { severity: 'suggestion', schemaType: 'Article', path: 'hasPart', message: 'consider stripHtml' },
+    ]);
+    expect(result[0].rangeWarning).to.equal('out of range');
+    expect(result[0].suggestion).to.equal('consider stripHtml');
   });
 });

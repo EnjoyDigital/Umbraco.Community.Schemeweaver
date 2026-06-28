@@ -148,4 +148,60 @@ describe('ValidationPanelElement', () => {
     const icon = el.shadowRoot!.querySelector('.issue uui-icon')!;
     expect(icon.getAttribute('name')).to.equal('icon-info');
   });
+
+  it('renders a suggestion-severity issue with its own label, icon and colour', async () => {
+    const issues: ValidationIssue[] = [
+      { severity: 'suggestion', schemaType: 'Article', path: '@graph[0].image', message: 'consider adding an image' },
+    ];
+
+    const el = await fixture<ValidationPanelElement>(
+      html`<schemeweaver-validation-panel .issues=${issues}></schemeweaver-validation-panel>`,
+    );
+
+    const row = el.shadowRoot!.querySelector('.issue')!;
+    expect(row.getAttribute('data-severity')).to.equal('suggestion');
+    expect(row.classList.contains('issue-suggestion')).to.equal(true);
+
+    const tag = row.querySelector('uui-tag.severity-tag')!;
+    // Suggestions use a positive (green) tag to distinguish them from info.
+    expect(tag.getAttribute('color')).to.equal('positive');
+    // Label falls back to the raw key when no localiser is mounted.
+    expect(tag.textContent).to.match(/Suggestion|schemeWeaver_validation_suggestion/i);
+
+    const icon = row.querySelector('uui-icon')!;
+    expect(icon.getAttribute('name')).to.equal('icon-lightbulb');
+  });
+
+  it('orders suggestion issues above info, below warning (critical → warning → suggestion → info)', async () => {
+    const issues: ValidationIssue[] = [
+      { severity: 'info', schemaType: 'Article', path: '$', message: 'i' },
+      { severity: 'suggestion', schemaType: 'Article', path: '$', message: 's' },
+      { severity: 'critical', schemaType: 'Article', path: '$', message: 'c' },
+      { severity: 'warning', schemaType: 'Article', path: '$', message: 'w' },
+    ];
+
+    const el = await fixture<ValidationPanelElement>(
+      html`<schemeweaver-validation-panel .issues=${issues}></schemeweaver-validation-panel>`,
+    );
+
+    const rows = Array.from(el.shadowRoot!.querySelectorAll<HTMLLIElement>('.issue'));
+    expect(rows.map((r) => r.dataset.severity)).to.eql(['critical', 'warning', 'suggestion', 'info']);
+  });
+
+  it('degrades gracefully for an unknown severity rather than crashing', async () => {
+    // Simulate a finding from a newer backend with a severity this build does
+    // not know about. It should still surface as a row (bucketed into info).
+    const issues = [
+      { severity: 'mystery' as ValidationIssue['severity'], schemaType: 'Article', path: '$', message: 'future' },
+    ] as ValidationIssue[];
+
+    const el = await fixture<ValidationPanelElement>(
+      html`<schemeweaver-validation-panel .issues=${issues}></schemeweaver-validation-panel>`,
+    );
+
+    const rows = el.shadowRoot!.querySelectorAll('.issue');
+    expect(rows.length).to.equal(1);
+    const message = rows[0].querySelector('.message')!;
+    expect(message.textContent!.trim()).to.equal('future');
+  });
 });

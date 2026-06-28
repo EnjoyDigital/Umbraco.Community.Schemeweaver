@@ -9,8 +9,10 @@ namespace Umbraco.Community.SchemeWeaver.Services.Resolvers;
 /// </summary>
 public class RichTextResolver : IPropertyValueResolver
 {
+    // Single source of truth shared with the mapping advisor (which suggests stripHtml when one
+    // of these HTML-producing editors feeds a plain-text Schema.org property).
     public IEnumerable<string> SupportedEditorAliases =>
-        ["Umbraco.RichText", "Umbraco.TinyMCE", "Umbraco.MarkdownEditor"];
+        SchemeWeaverConstants.PropertyEditors.HtmlProducingEditorAliases;
 
     public int Priority => 10;
 

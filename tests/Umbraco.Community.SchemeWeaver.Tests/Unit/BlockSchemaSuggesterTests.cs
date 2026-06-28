@@ -83,6 +83,50 @@ public class BlockSchemaSuggesterTests
         result[0].Routes[0].NestedSchemaType.Should().Be("Question");
     }
 
+    // --- v3 §3b: pre-fill stripHtml on a rich-text source feeding a plain-text nested property ---
+
+    [Fact]
+    public void Suggest_RichTextNestedPropertyToPlainTextTarget_PrefillsStripHtml()
+    {
+        _autoMapper.SuggestMappings("faqBlock", "Question").Returns(new List<PropertyMappingSuggestion>
+        {
+            new()
+            {
+                SchemaPropertyName = "name",
+                SuggestedContentTypePropertyAlias = "answer",
+                SuggestedSourceType = "property",
+                EditorAlias = "Umbraco.RichText",
+                AcceptedTypes = ["String"],
+            }
+        });
+
+        var result = _sut.Suggest([Element("faqBlock", "FAQ Block", "question", "answer")]).ToList();
+
+        var mapping = result[0].Routes[0].PropertyMappings.Should().ContainSingle().Subject;
+        mapping.TransformType.Should().Be("stripHtml");
+    }
+
+    [Fact]
+    public void Suggest_NonRichTextNestedProperty_NoTransform()
+    {
+        _autoMapper.SuggestMappings("faqBlock", "Question").Returns(new List<PropertyMappingSuggestion>
+        {
+            new()
+            {
+                SchemaPropertyName = "name",
+                SuggestedContentTypePropertyAlias = "question",
+                SuggestedSourceType = "property",
+                EditorAlias = "Umbraco.TextBox",
+                AcceptedTypes = ["String"],
+            }
+        });
+
+        var result = _sut.Suggest([Element("faqBlock", "FAQ Block", "question", "answer")]).ToList();
+
+        var mapping = result[0].Routes[0].PropertyMappings.Should().ContainSingle().Subject;
+        mapping.TransformType.Should().BeNull();
+    }
+
     // Person is not a CreativeWork, so it cannot live under hasPart (which would silently
     // drop it at generation time) — it routes to the Thing-range `about` instead.
     [Fact]

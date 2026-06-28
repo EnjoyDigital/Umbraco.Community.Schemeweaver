@@ -13,6 +13,7 @@ import getContentTypePropertiesTool from "./get/get-content-type-properties.js";
 import getBlockElementTypesTool from "./get/get-block-element-types.js";
 import getAllSchemaMappingsTool from "./get/get-all-schema-mappings.js";
 import getSchemaMappingTool from "./get/get-schema-mapping.js";
+import validateMappingTool from "./get/validate-mapping.js";
 import getRenderedJsonLdTool from "./get/get-rendered-json-ld.js";
 import getUsyncDriftTool from "./get/get-usync-drift.js";
 import suggestPropertyMappingsTool from "./post/suggest-property-mappings.js";
@@ -43,6 +44,7 @@ const collection: ToolCollectionExport = {
     // Mappings (read)
     getAllSchemaMappingsTool,
     getSchemaMappingTool,
+    validateMappingTool,
     suggestPropertyMappingsTool,
     // Mappings (write)
     saveSchemaMappingTool,

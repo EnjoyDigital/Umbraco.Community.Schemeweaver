@@ -18,6 +18,19 @@ export function resolveBaseUrl(): string {
   return (process.env.UMBRACO_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
 }
 
+/**
+ * Resolves the host to render against. When an explicit, non-empty host is
+ * supplied (e.g. the real public site), it is used with any trailing slashes
+ * stripped so callers can safely concatenate paths; otherwise this falls back
+ * to the configured base URL via resolveBaseUrl(). Kept pure for unit testing.
+ */
+export function resolveRenderHost(host?: string): string {
+  if (host && host.trim() !== "") {
+    return host.trim().replace(/\/+$/, "");
+  }
+  return resolveBaseUrl();
+}
+
 export interface RenderedJsonLdUrlOptions {
   /** Base URL (already trailing-slash-stripped, e.g. from resolveBaseUrl()). */
   base: string;

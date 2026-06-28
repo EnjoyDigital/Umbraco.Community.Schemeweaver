@@ -16,6 +16,7 @@ import listContentTypesTool from "../get/list-content-types.js";
 import getContentTypePropertiesTool from "../get/get-content-type-properties.js";
 import getAllSchemaMappingsTool from "../get/get-all-schema-mappings.js";
 import getSchemaMappingTool from "../get/get-schema-mapping.js";
+import validateMappingTool from "../get/validate-mapping.js";
 import suggestPropertyMappingsTool from "../post/suggest-property-mappings.js";
 import saveSchemaMappingTool from "../post/save-schema-mapping.js";
 import previewJsonLdTool from "../post/preview-json-ld.js";
@@ -97,6 +98,59 @@ describe("schemeweaver tools", () => {
     );
 
     expect(result.isError).toBe(true);
+  });
+
+  it("validate-mapping returns allClear:false with one item for an unmapped alias", async () => {
+    const result = await validateMappingTool.handler(
+      { contentTypeAlias: "definitely-not-a-real-alias" },
+      context
+    );
+
+    expect(result.isError).toBeFalsy();
+    const out = result.structuredContent as {
+      contentTypeAlias: string;
+      schemaTypeName: string;
+      allClear: boolean;
+      checklist: Array<{ severity: string; path: string; message: string }>;
+    };
+    expect(out.allClear).toBe(false);
+    expect(out.schemaTypeName).toBe("");
+    expect(out.checklist).toHaveLength(1);
+    expect(out.checklist[0].message).toMatch(/No SchemeWeaver mapping is configured/);
+  });
+
+  it("validate-mapping aggregates a ranked checklist for an existing fixture mapping (HOST-DEPENDENT, read-only)", async () => {
+    // Pick any existing fixture mapping — read-only, never mutate it.
+    const mappingsResult = await getAllSchemaMappingsTool.handler(context);
+    const mappings = (mappingsResult.structuredContent as {
+      items: Array<{ contentTypeAlias: string; schemaTypeName: string }>;
+    }).items;
+    expect(mappings.length).toBeGreaterThan(0);
+    const fixture = mappings[0];
+
+    const result = await validateMappingTool.handler(
+      { contentTypeAlias: fixture.contentTypeAlias },
+      context
+    );
+
+    expect(result.isError).toBeFalsy();
+    const out = result.structuredContent as {
+      contentTypeAlias: string;
+      schemaTypeName: string;
+      allClear: boolean;
+      checklist: Array<{ severity: string; path: string; message: string }>;
+    };
+    expect(out.contentTypeAlias).toBe(fixture.contentTypeAlias);
+    expect(out.schemaTypeName).toBe(fixture.schemaTypeName);
+    expect(Array.isArray(out.checklist)).toBe(true);
+    // Checklist must be severity-ranked: critical(0) > warning(1) > suggestion(2) > info(3).
+    const rank = (s: string) =>
+      ({ critical: 0, warning: 1, suggestion: 2, info: 3 } as Record<string, number>)[s.toLowerCase()] ?? 4;
+    const ranks = out.checklist.map((i) => rank(i.severity));
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+    // allClear is consistent with the presence of critical/warning/suggestion items.
+    const hasBlocking = ranks.some((r) => r <= 2);
+    expect(out.allClear).toBe(!hasBlocking);
   });
 
   it("completes the full mapping workflow: suggest -> save -> get -> preview -> delete", async () => {
@@ -200,7 +254,7 @@ describe("schemeweaver tools", () => {
 
   it("get-rendered-json-ld returns live JSON-LD for '/' (HOST-DEPENDENT)", async () => {
     const result = await getRenderedJsonLdTool.handler(
-      { route: "/", scope: undefined, culture: undefined },
+      { route: "/", scope: undefined, culture: undefined, host: undefined },
       context
     );
 
@@ -223,7 +277,7 @@ describe("schemeweaver tools", () => {
   it("get-rendered-json-ld surfaces an empty graph rather than claiming success (HOST-DEPENDENT)", async () => {
     // A published page with no SchemeWeaver mapping: HTTP 200 + empty schemaOrg.
     const result = await getRenderedJsonLdTool.handler(
-      { route: "/", scope: "page", culture: undefined },
+      { route: "/", scope: "page", culture: undefined, host: undefined },
       context
     );
 
@@ -238,7 +292,7 @@ describe("schemeweaver tools", () => {
 
   it("get-rendered-json-ld surfaces status for a bogus route without throwing (HOST-DEPENDENT)", async () => {
     const result = await getRenderedJsonLdTool.handler(
-      { route: "/definitely-not-a-real-route-xyz", scope: undefined, culture: undefined },
+      { route: "/definitely-not-a-real-route-xyz", scope: undefined, culture: undefined, host: undefined },
       context
     );
 

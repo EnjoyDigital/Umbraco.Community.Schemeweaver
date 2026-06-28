@@ -144,6 +144,11 @@ export interface BlockRoutePropertyMapping {
   contentProperty: string;
   wrapInType?: string | null;
   wrapInProperty?: string | null;
+  /**
+   * Optional value transform applied to the resolved property value (e.g.
+   * `"stripHtml"` to strip markup from a nested RichText before emitting it).
+   */
+  transformType?: string | null;
   /** Recursive: routes for the nested Block List/Grid this property's value points at. */
   routes?: BlockRoute[];
   /**
@@ -184,6 +189,8 @@ export interface BlockRoutePropertyMappingSuggestion {
   contentProperty: string;
   wrapInType?: string | null;
   wrapInProperty?: string | null;
+  /** Suggested value transform (e.g. `"stripHtml"` for a nested RichText property). */
+  transformType?: string | null;
   /** Suggested nested routes when `contentProperty` is itself a block list. */
   routes?: BlockRouteSuggestion[];
 }
@@ -212,7 +219,7 @@ export interface BlockMappingSuggestion {
  * Severity of a validator finding. Kept as a string union so it serialises
  * verbatim to/from the C# `ValidationIssue.Severity` enum (lower-case JSON).
  */
-export type ValidationIssueSeverity = 'critical' | 'warning' | 'info';
+export type ValidationIssueSeverity = 'critical' | 'warning' | 'info' | 'suggestion';
 
 /**
  * Matches C# `ValidationIssue` on `JsonLdPreviewResponse.Issues`.

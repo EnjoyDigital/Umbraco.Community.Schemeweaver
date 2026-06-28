@@ -660,6 +660,18 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 _ => null
             };
 
+            // Apply an optional transform to a property-sourced string sub-value (e.g. stripHtml a
+            // RichText sub-property). static stays untransformed, mirroring the top-level static
+            // behaviour; complexType yields a Thing, not a string, so the guard skips it. A transform
+            // that collapses to whitespace drops the sub-value rather than emitting it blank.
+            if (value is string sv
+                && string.Equals(subMapping.SourceType, "property", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(subMapping.TransformType))
+            {
+                var transformed = ApplyTransform(sv, subMapping.TransformType);
+                value = string.IsNullOrWhiteSpace(transformed) ? null : transformed;
+            }
+
             if (value is not null)
                 SchemaPropertySetter.SetPropertyValue(nestedInstance, subMapping.SchemaProperty, value);
         }

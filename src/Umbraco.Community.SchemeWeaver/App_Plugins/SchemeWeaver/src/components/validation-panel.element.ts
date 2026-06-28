@@ -4,9 +4,9 @@ import type { ValidationIssue, ValidationIssueSeverity } from '../api/types.js';
 
 /**
  * Renders validator findings produced by the Management API `/preview`
- * endpoint. Groups issues by severity (critical → warning → info) and
- * presents each as a row with a severity tag, schema-type chip, JSON path
- * and message — mirroring Google's Rich Results test UI.
+ * endpoint. Groups issues by severity (critical → warning → suggestion →
+ * info) and presents each as a row with a severity tag, schema-type
+ * chip, JSON path and message — mirroring Google's Rich Results test UI.
  *
  * Styling uses Umbraco UI design tokens (`--uui-color-danger`,
  * `--uui-color-warning`, `--uui-color-positive`) so the panel inherits any
@@ -22,16 +22,23 @@ export class ValidationPanelElement extends UmbLitElement {
 
   /**
    * Ordered list of severities. Iterating in this order keeps critical
-   * issues at the top and info items at the bottom regardless of server
-   * ordering.
+   * issues at the top and the lowest-urgency informational items at the
+   * bottom regardless of server ordering. Matches the MCP `validate-mapping`
+   * ranking: critical > warning > suggestion > info.
    */
-  private static readonly SEVERITY_ORDER: ValidationIssueSeverity[] = ['critical', 'warning', 'info'];
+  private static readonly SEVERITY_ORDER: ValidationIssueSeverity[] = [
+    'critical',
+    'warning',
+    'suggestion',
+    'info',
+  ];
 
   private _groupBySeverity(): Record<ValidationIssueSeverity, ValidationIssue[]> {
     const groups: Record<ValidationIssueSeverity, ValidationIssue[]> = {
       critical: [],
       warning: [],
       info: [],
+      suggestion: [],
     };
     for (const issue of this.issues ?? []) {
       // Guard against unexpected severities from a newer backend — default
@@ -48,6 +55,8 @@ export class ValidationPanelElement extends UmbLitElement {
         return 'icon-alert';
       case 'warning':
         return 'icon-alert';
+      case 'suggestion':
+        return 'icon-lightbulb';
       case 'info':
       default:
         return 'icon-info';
@@ -60,6 +69,10 @@ export class ValidationPanelElement extends UmbLitElement {
         return 'danger';
       case 'warning':
         return 'warning';
+      case 'suggestion':
+        // Suggestions are helpful, non-blocking hints — a positive (green)
+        // tag sets them apart from neutral info items.
+        return 'positive';
       case 'info':
       default:
         // The backoffice uses neutral-look tags for informational items — no
@@ -74,6 +87,8 @@ export class ValidationPanelElement extends UmbLitElement {
         return this.localize.term('schemeWeaver_validation_critical') || 'Critical';
       case 'warning':
         return this.localize.term('schemeWeaver_validation_warning') || 'Warning';
+      case 'suggestion':
+        return this.localize.term('schemeWeaver_validation_suggestion') || 'Suggestion';
       case 'info':
       default:
         return this.localize.term('schemeWeaver_validation_info') || 'Info';
@@ -243,6 +258,10 @@ export class ValidationPanelElement extends UmbLitElement {
 
       .issue-info {
         box-shadow: inset 3px 0 0 0 var(--uui-color-text-alt);
+      }
+
+      .issue-suggestion {
+        box-shadow: inset 3px 0 0 0 var(--uui-color-positive-standalone, var(--uui-color-positive));
       }
     `,
   ];

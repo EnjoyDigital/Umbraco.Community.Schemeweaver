@@ -52,7 +52,16 @@ public class BlockContentResolver : IPropertyValueResolver
             {
                 var rawValue = SchemaPropertySetter.ResolveElementPropertyValue(
                     blockContent, resolverConfig.ContentProperty, context.HttpContextAccessor);
-                if (rawValue is string s && !string.IsNullOrEmpty(s))
+                if (rawValue is not string s || string.IsNullOrEmpty(s))
+                    continue;
+
+                // Honour a transform on the string-list path too (e.g. stripHtml a RichText
+                // value pulled via extractAs:stringList). Re-check for emptiness after the
+                // transform so a value that collapses to whitespace is dropped, not emitted blank.
+                if (!string.IsNullOrEmpty(resolverConfig.TransformType))
+                    s = SchemaValueTransformer.Apply(s, resolverConfig.TransformType, context.HttpContextAccessor, _logger) ?? string.Empty;
+
+                if (!string.IsNullOrEmpty(s))
                     strings.Add(s);
             }
             return strings.Count > 0 ? strings : null;
@@ -490,9 +499,22 @@ public class BlockContentResolver : IPropertyValueResolver
         if (context.VisitedContentKeys.Contains(blockContent.Key))
             return null;
 
+        // Propagate the wrap/position/transform config one level deeper. Previously only Routes
+        // (or the stringList pair) were copied, so a nested ItemList could not emit ListItems and a
+        // nested stringList could not be transformed — the child config silently lost those fields.
         var nestedConfig = mapping.ExtractAs == "stringList"
-            ? new ResolverConfigModel { ExtractAs = "stringList", ContentProperty = mapping.NestedContentProperty }
-            : new ResolverConfigModel { Routes = mapping.Routes };
+            ? new ResolverConfigModel
+            {
+                ExtractAs = "stringList",
+                ContentProperty = mapping.NestedContentProperty,
+                TransformType = mapping.TransformType,
+            }
+            : new ResolverConfigModel
+            {
+                Routes = mapping.Routes,
+                WrapInListItem = mapping.WrapInListItem,
+                PositionProperty = mapping.PositionProperty,
+            };
 
         var childMapping = new PropertyMapping
         {
@@ -648,6 +670,13 @@ public class ResolverConfigModel
     /// the auto-incremented position. Falls back to 1-based sequence order when absent or unparseable.
     /// </summary>
     public string? PositionProperty { get; set; }
+
+    /// <summary>
+    /// Optional value transform applied to each extracted string when <see cref="ExtractAs"/> is
+    /// "stringList" — the same set <see cref="SchemaValueTransformer"/> supports (e.g. <c>stripHtml</c>
+    /// a RichText value pulled into a string array). Ignored outside the string-list path.
+    /// </summary>
+    public string? TransformType { get; set; }
 }
 
 /// <summary>
@@ -746,6 +775,21 @@ public class NestedPropertyMapping
     /// The inner block property alias to read when <see cref="ExtractAs"/> is "stringList".
     /// </summary>
     public string? NestedContentProperty { get; set; }
+
+    /// <summary>
+    /// P2.3 (opt-in) for a NESTED block list: when true, the nested blocks resolved for this
+    /// mapping (via <see cref="Routes"/>) are wrapped as <see cref="Schema.NET.ListItem"/>s with a
+    /// position, exactly like the top-level <see cref="ResolverConfigModel.WrapInListItem"/>. Needed
+    /// because wrapping config previously did not propagate past the first nesting level — a list
+    /// nested inside an ItemList (e.g. services under an ItemList) stayed a bare Thing array.
+    /// </summary>
+    public bool WrapInListItem { get; set; }
+
+    /// <summary>
+    /// Optional explicit-position block property for the nested wrap, mirroring
+    /// <see cref="ResolverConfigModel.PositionProperty"/>. Falls back to 1-based sequence order.
+    /// </summary>
+    public string? PositionProperty { get; set; }
 }
 
 /// <summary>
@@ -768,4 +812,12 @@ public class ComplexTypeMappingEntry
     public string? StaticValue { get; set; }
     public string? SourceContentTypeAlias { get; set; }
     public string? ResolverConfig { get; set; }
+
+    /// <summary>
+    /// Optional value transform applied to a resolved <c>property</c> sub-value before it is set on
+    /// the nested complex Thing — the same set <see cref="SchemaValueTransformer"/> supports (e.g.
+    /// <c>stripHtml</c> a RichText sub-property). <c>static</c> sub-values are not transformed,
+    /// mirroring the top-level static behaviour.
+    /// </summary>
+    public string? TransformType { get; set; }
 }

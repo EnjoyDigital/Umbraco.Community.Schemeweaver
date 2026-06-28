@@ -81,6 +81,9 @@ export default {
     // Short label for the per-row range-compatibility badge; the full server
     // message is carried on the badge's title/aria-label.
     rangeWarning: 'Out of range',
+    // Short label for the per-row non-blocking advisory (lightbulb) badge; the
+    // full server suggestion is carried on the badge's title/aria-label.
+    suggestionHint: 'Hint',
     publishRequired: 'Publish this content first, then refresh to preview JSON-LD output.',
     noMappingForPreview: 'No Schema.org mapping exists for this content type. Map it first from the document type editor.',
     sourceBlockContent: 'Block Content',
@@ -247,6 +250,7 @@ export default {
     validation_critical: 'Critical',
     validation_warning: 'Warning',
     validation_info: 'Info',
+    validation_suggestion: 'Suggestion',
 
     // Parameterised strings
     schemaPropertyCount: '{0} properties',

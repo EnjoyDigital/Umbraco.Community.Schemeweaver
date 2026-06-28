@@ -31141,13 +31141,13 @@ var McpServer = class {
     }
     return registeredPrompt;
   }
-  _createRegisteredTool(name, title, description, inputSchema13, outputSchema15, annotations, execution, _meta, handler) {
+  _createRegisteredTool(name, title, description, inputSchema14, outputSchema16, annotations, execution, _meta, handler) {
     validateAndWarnToolName(name);
     const registeredTool = {
       title,
       description,
-      inputSchema: getZodSchemaObject(inputSchema13),
-      outputSchema: getZodSchemaObject(outputSchema15),
+      inputSchema: getZodSchemaObject(inputSchema14),
+      outputSchema: getZodSchemaObject(outputSchema16),
       annotations,
       execution,
       _meta,
@@ -31197,8 +31197,8 @@ var McpServer = class {
       throw new Error(`Tool ${name} is already registered`);
     }
     let description;
-    let inputSchema13;
-    let outputSchema15;
+    let inputSchema14;
+    let outputSchema16;
     let annotations;
     if (typeof rest[0] === "string") {
       description = rest.shift();
@@ -31206,7 +31206,7 @@ var McpServer = class {
     if (rest.length > 1) {
       const firstArg = rest[0];
       if (isZodRawShapeCompat(firstArg)) {
-        inputSchema13 = rest.shift();
+        inputSchema14 = rest.shift();
         if (rest.length > 1 && typeof rest[0] === "object" && rest[0] !== null && !isZodRawShapeCompat(rest[0])) {
           annotations = rest.shift();
         }
@@ -31218,7 +31218,7 @@ var McpServer = class {
       }
     }
     const callback = rest[0];
-    return this._createRegisteredTool(name, void 0, description, inputSchema13, outputSchema15, annotations, { taskSupport: "forbidden" }, void 0, callback);
+    return this._createRegisteredTool(name, void 0, description, inputSchema14, outputSchema16, annotations, { taskSupport: "forbidden" }, void 0, callback);
   }
   /**
    * Registers a tool with a config object and callback.
@@ -31227,8 +31227,8 @@ var McpServer = class {
     if (this._registeredTools[name]) {
       throw new Error(`Tool ${name} is already registered`);
     }
-    const { title, description, inputSchema: inputSchema13, outputSchema: outputSchema15, annotations, _meta } = config3;
-    return this._createRegisteredTool(name, title, description, inputSchema13, outputSchema15, annotations, { taskSupport: "forbidden" }, _meta, cb);
+    const { title, description, inputSchema: inputSchema14, outputSchema: outputSchema16, annotations, _meta } = config3;
+    return this._createRegisteredTool(name, title, description, inputSchema14, outputSchema16, annotations, { taskSupport: "forbidden" }, _meta, cb);
   }
   prompt(name, ...rest) {
     if (this._registeredPrompts[name]) {
@@ -33696,10 +33696,134 @@ var getSchemaMappingTool = {
 };
 var get_schema_mapping_default = withStandardDecorators(getSchemaMappingTool);
 
+// src/umbraco-api/tools/schemeweaver/get/validate-mapping.ts
+var inputSchema6 = {
+  contentTypeAlias: external_exports.string().describe("The Umbraco content type alias whose SchemeWeaver mapping to validate.")
+};
+var checklistItemSchema = external_exports.object({
+  severity: external_exports.string().describe("critical | warning | suggestion | info \u2014 items are ranked in this order."),
+  path: external_exports.string().describe("Schema.org property path the item relates to ('' when not property-specific)."),
+  message: external_exports.string().describe("Human-readable description of what to check or clear.")
+});
+var outputSchema8 = external_exports.object({
+  contentTypeAlias: external_exports.string(),
+  schemaTypeName: external_exports.string().describe("The mapped Schema.org type ('' when no mapping is configured)."),
+  allClear: external_exports.boolean().describe(
+    "True when the checklist contains no critical/warning/suggestion items (info-only or empty) \u2014 the mapping passes the v3 litmus test."
+  ),
+  checklist: external_exports.array(checklistItemSchema)
+});
+var SEVERITY_RANK = {
+  critical: 0,
+  warning: 1,
+  suggestion: 2,
+  info: 3
+};
+function rankOf(severity) {
+  return SEVERITY_RANK[severity.toLowerCase()] ?? 4;
+}
+function rankChecklist(items) {
+  return items.map((item, index) => ({ item, index })).sort((a, b) => rankOf(a.item.severity) - rankOf(b.item.severity) || a.index - b.index).map(({ item }) => item);
+}
+function buildValidationChecklist(mapping) {
+  const warnings = mapping.warnings ?? [];
+  const checklist = warnings.map((w) => ({
+    severity: w.severity,
+    path: w.path,
+    message: w.message
+  }));
+  const reachabilityAlreadyNoted = warnings.some(
+    (w) => w.path?.toLowerCase() === "reachability" || /composed-from-block|block mapping/i.test(w.message)
+  );
+  if (mapping.reachability === "composed-from-block" && !reachabilityAlreadyNoted) {
+    checklist.push({
+      severity: "info",
+      path: "reachability",
+      message: "This type is composed-from-block: it only emits JSON-LD inside a containing page's block mapping, never on its own URL. This is expected for block element types and is informational, not a defect."
+    });
+  }
+  const driftAlreadyNoted = warnings.some(
+    (w) => w.path?.toLowerCase() === "driftstatus" || /\bdrift\b|usync|export to/i.test(w.message)
+  );
+  const drift = mapping.driftStatus;
+  if ((drift === "db-only" || drift === "content-differs") && !driftAlreadyNoted) {
+    checklist.push({
+      severity: "suggestion",
+      path: "driftStatus",
+      message: drift === "db-only" ? "This mapping is saved in the database but has never been exported to uSync (db-only). Run export-mappings-to-usync to make it reproducible from config-as-code." : "This mapping differs from its committed uSync .config on disk (content-differs). Run export-mappings-to-usync to bring the .config back in sync."
+    });
+  }
+  const ranked = rankChecklist(checklist);
+  const allClear = !ranked.some((item) => rankOf(item.severity) <= 2);
+  return {
+    contentTypeAlias: mapping.contentTypeAlias,
+    schemaTypeName: mapping.schemaTypeName,
+    allClear,
+    checklist: ranked
+  };
+}
+function noMappingResult(contentTypeAlias) {
+  return {
+    contentTypeAlias,
+    schemaTypeName: "",
+    allClear: false,
+    checklist: [
+      {
+        severity: "warning",
+        path: "",
+        message: `No SchemeWeaver mapping is configured for content type '${contentTypeAlias}'. Create one with save-schema-mapping (or generate-content-type) before this type can emit JSON-LD.`
+      }
+    ]
+  };
+}
+var validateMappingTool = {
+  name: "validate-mapping",
+  description: "Validates one content type's SchemeWeaver mapping and returns a single, severity-ranked checklist an author can clear top-to-bottom \u2014 the proactive 'doctor' form of the advisories get-schema-mapping returns inline. It aggregates: range-drop warnings (properties mapped outside their Schema.org range that would be silently dropped), missing-transform and position suggestions the engine now emits, drift (a db-only or content-differs mapping that should be exported to uSync), and reachability (a composed-from-block type only emits inside a containing page's block mapping). Items are ranked critical > warning > suggestion > info. `allClear` is true when nothing critical/warning/suggestion remains \u2014 i.e. the mapping passes the v3 litmus test (info-only notes do not fail it). Returns a clear allClear:false item when no mapping exists for the alias. This tool is READ-ONLY; it does not mutate the mapping.",
+  inputSchema: inputSchema6,
+  outputSchema: outputSchema8,
+  slices: ["read"],
+  annotations: {
+    readOnlyHint: true
+  },
+  handler: async ({ contentTypeAlias }) => {
+    const client = getApiClient();
+    const response = await client.getSchemeweaverMappingsByContentTypeAlias(
+      contentTypeAlias,
+      CAPTURE_RAW_HTTP_RESPONSE
+    );
+    if (response.status === 404) {
+      return createToolResult(noMappingResult(contentTypeAlias));
+    }
+    if (response.status >= 400) {
+      return createToolResult({
+        contentTypeAlias,
+        schemaTypeName: "",
+        allClear: false,
+        checklist: [
+          {
+            severity: "critical",
+            path: "(request)",
+            message: `Could not load the mapping (HTTP ${response.status}) \u2014 this is NOT a 'no mapping' result. ` + (response.status === 401 || response.status === 403 ? "The request was unauthorized; check the API user credentials before assuming the mapping is missing." : "The server returned an error; retry or check the server logs.")
+          }
+        ]
+      });
+    }
+    const mapping = getSchemeweaverMappingsByContentTypeAliasResponse.parse(response.data);
+    return createToolResult(buildValidationChecklist(mapping));
+  }
+};
+var validate_mapping_default = withStandardDecorators(validateMappingTool);
+
 // src/umbraco-api/base-url.ts
 var DEFAULT_BASE_URL = "https://localhost:44308";
 function resolveBaseUrl() {
   return (process.env.UMBRACO_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
+}
+function resolveRenderHost(host) {
+  if (host && host.trim() !== "") {
+    return host.trim().replace(/\/+$/, "");
+  }
+  return resolveBaseUrl();
 }
 function buildRenderedJsonLdUrl({
   base,
@@ -33718,16 +33842,19 @@ function buildRenderedJsonLdUrl({
 }
 
 // src/umbraco-api/tools/schemeweaver/get/get-rendered-json-ld.ts
-var inputSchema6 = {
+var inputSchema7 = {
   route: external_exports.string().describe(
     "Site-relative route to render, e.g. '/' or '/blog/my-post'. This is the live, public Delivery-API render (ground truth) \u2014 NOT a backoffice preview. Use this to confirm what structured data a real page actually emits."
   ),
   scope: external_exports.enum(["site", "page", "all"]).optional().describe(
     "Which JSON-LD blocks to return: 'page' (this node only), 'site' (site-level), or 'all'. Omit for the endpoint default."
   ),
-  culture: external_exports.string().optional().describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content")
+  culture: external_exports.string().optional().describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content"),
+  host: external_exports.string().optional().describe(
+    "Optional host override (scheme + authority, e.g. 'https://www.example.com'). When set, this overrides the configured base URL so you can fetch the LIVE render from the real public site instead of the local sandbox/TestHost \u2014 letting you check ground truth against production without re-pointing UMBRACO_BASE_URL. Trailing slashes are stripped. When omitted, the configured UMBRACO_BASE_URL (or the TestHost default) is used."
+  )
 };
-var outputSchema8 = external_exports.object({
+var outputSchema9 = external_exports.object({
   requestUrl: external_exports.string(),
   httpStatus: external_exports.number(),
   // Body shape is opaque to this tool: the endpoint returns an OBJECT
@@ -33737,15 +33864,15 @@ var outputSchema8 = external_exports.object({
 });
 var getRenderedJsonLdTool = {
   name: "get-rendered-json-ld",
-  description: "Fetches the LIVE JSON-LD a published page actually emits, straight from SchemeWeaver's anonymous Delivery API (/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route). This is the authoritative ground truth for verifying structured data \u2014 distinct from preview-json-ld, which renders in the backoffice/management context and can resolve URLs (@id) differently. The response always surfaces requestUrl and httpStatus (even on 404/401/empty) and a 'note' explaining the result, including the case where HTTP 200 returns ZERO JSON-LD blocks. The Delivery API is OFF by default in Umbraco; an Api-Key may be required (UMBRACO_DELIVERY_API_KEY).",
-  inputSchema: inputSchema6,
-  outputSchema: outputSchema8,
+  description: "Fetches the LIVE JSON-LD a published page actually emits, straight from SchemeWeaver's anonymous Delivery API (/umbraco/delivery/api/v2/schemeweaver/json-ld/by-route). This is the authoritative ground truth for verifying structured data \u2014 distinct from preview-json-ld, which renders in the backoffice/management context and can resolve URLs (@id) differently. The response always surfaces requestUrl and httpStatus (even on 404/401/empty) and a 'note' explaining the result, including the case where HTTP 200 returns ZERO JSON-LD blocks. Complements preview-json-ld: use that for the in-progress backoffice render and this for the live, public ground truth. Pass the optional 'host' to fetch from the real public site (e.g. 'https://www.example.com') instead of the configured base URL, without re-pointing UMBRACO_BASE_URL. The Delivery API is OFF by default in Umbraco; an Api-Key may be required (UMBRACO_DELIVERY_API_KEY).",
+  inputSchema: inputSchema7,
+  outputSchema: outputSchema9,
   slices: ["read"],
   annotations: {
     readOnlyHint: true
   },
-  handler: async ({ route, scope, culture }) => {
-    const base = resolveBaseUrl();
+  handler: async ({ route, scope, culture, host }) => {
+    const base = resolveRenderHost(host);
     const requestUrl = buildRenderedJsonLdUrl({ base, route, scope, culture });
     const headers = {};
     const apiKey = process.env.UMBRACO_DELIVERY_API_KEY;
@@ -33803,7 +33930,7 @@ var getRenderedJsonLdTool = {
 var get_rendered_json_ld_default = withStandardDecorators(getRenderedJsonLdTool);
 
 // src/umbraco-api/tools/schemeweaver/get/get-usync-drift.ts
-var outputSchema9 = external_exports.object({
+var outputSchema10 = external_exports.object({
   usyncAvailable: external_exports.boolean().describe("False when the Umbraco.Community.SchemeWeaver.uSync addon is not installed \u2014 drift cannot be computed."),
   items: external_exports.array(
     external_exports.object({
@@ -33815,7 +33942,7 @@ var outputSchema9 = external_exports.object({
 var getUsyncDriftTool = {
   name: "get-usync-drift",
   description: "Reports disk/DB drift for every SchemeWeaver mapping: whether each mapping in the database matches its committed uSync .config on disk. Statuses: in-sync (DB == disk), db-only (saved but never exported), disk-only (a committed .config with no DB mapping), content-differs (both exist but differ), usync-unavailable (the uSync addon isn't installed). Use this to check config-as-code reproducibility before committing; pair with export-mappings-to-usync to write DB mappings out to disk.",
-  outputSchema: outputSchema9,
+  outputSchema: outputSchema10,
   slices: ["read"],
   annotations: {
     readOnlyHint: true
@@ -33831,18 +33958,18 @@ var getUsyncDriftTool = {
 var get_usync_drift_default = withStandardDecorators(getUsyncDriftTool);
 
 // src/umbraco-api/tools/schemeweaver/post/suggest-property-mappings.ts
-var inputSchema7 = {
+var inputSchema8 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias to suggest mappings for"),
   schemaTypeName: external_exports.string().describe("Schema.org type name to map to, e.g. 'Article'")
 };
-var outputSchema10 = external_exports.object({
+var outputSchema11 = external_exports.object({
   items: postSchemeweaverMappingsByContentTypeAliasAutoMapResponse
 });
 var suggestPropertyMappingsTool = {
   name: "suggest-property-mappings",
   description: "Runs SchemeWeaver's built-in heuristic auto-mapper (exact/synonym/substring name matching) and returns property mapping suggestions with a confidence score per schema property (0-100; >=80 high, >=50 medium). Treat this as a BASELINE, not the answer: review each suggestion semantically, drop bad matches, fill in the gaps the heuristic missed (it cannot reason about meaning, units, nested objects or content structure), then build the final mapping yourself and persist it with save-schema-mapping. Suggestions with isAutoMapped=false are unmapped schema properties listed for completeness \u2014 good candidates for manual reasoning.",
-  inputSchema: inputSchema7,
-  outputSchema: outputSchema10,
+  inputSchema: inputSchema8,
+  outputSchema: outputSchema11,
   slices: ["read"],
   annotations: {
     readOnlyHint: true,
@@ -33881,12 +34008,12 @@ var propertyMappingSchema = external_exports.object({
     "For complex-type properties (isComplexType=true) and 'blockContent': the Schema.org type of the nested object, e.g. 'Person' for author, 'ImageObject' for image, 'Question' for FAQ blocks"
   ),
   resolverConfig: external_exports.string().nullish().describe(
-    'JSON string with advanced nested-mapping config (passed through verbatim to the C# resolvers). For \'blockContent\', the preferred shape is `routes` \u2014 one route per block element type: {"routes":[{"blockAlias":"...","nestedSchemaType":"...","propertyMappings":[{"schemaProperty":"...","contentProperty":"...","wrapInType":"...?","wrapInProperty":"...?","transformType":"stripHtml|toAbsoluteUrl|formatDate?","extractAs":"stringList?","nestedContentProperty":"...?","routes":[ ...same route shape... ]}]}]}. A nested propertyMappings entry supports the same `transformType` as a top-level mapping (e.g. stripHtml on a nested RichText answer). A propertyMappings entry whose `contentProperty` is itself a nested Block List/Grid (a block inside a block, or a Block Grid area) carries its own `routes`, recursing one level deeper \u2014 discover the allowed nested element types via get-block-element-types (`propertyInfos[].nestedBlockElementTypes`). Nested-routes example \u2014 an FAQPage whose `sections` blocks each contain a nested `questions` Block List: {"routes":[{"blockAlias":"faqSection","nestedSchemaType":"ItemList","propertyMappings":[{"schemaProperty":"itemListElement","contentProperty":"questions","routes":[{"blockAlias":"faqItem","nestedSchemaType":"Question","propertyMappings":[{"schemaProperty":"name","contentProperty":"questionText"},{"schemaProperty":"acceptedAnswer","contentProperty":"answerText","wrapInType":"Answer","wrapInProperty":"text"}]}]}]}]}. Ordered ItemList (opt-in): set root-level "wrapInListItem":true to wrap each mapped block as a ListItem{position,item} (auto-incremented position, or read one from a block property via "positionProperty":"...") \u2014 use this for a numbered services/steps block feeding an ItemList.itemListElement. The default (omitted) emits a bare Thing array. Drop empty blocks (opt-in): a route may set "requiredProperties":["name","acceptedAnswer"] so a nested Thing missing any of those is omitted (a blank block row never emits an invalid empty node). For a flat string array (e.g. recipeIngredient) use the top-level string-list mode: {"extractAs":"stringList","contentProperty":"..."}. The legacy flat shape {"nestedMappings":[{"blockAlias":"...","schemaProperty":"...","contentProperty":"...","wrapInType":"...","wrapInProperty":"..."}]} is still accepted for single-level blocks but `routes` is preferred and required for nesting. For complex types: {"selectedSubType":"...","complexTypeMappings":[{"schemaProperty":"...","sourceType":"property|static","contentTypePropertyAlias":"...","staticValue":"..."}]}'
+    'JSON string with advanced nested-mapping config (passed through verbatim to the C# resolvers). For \'blockContent\', the preferred shape is `routes` \u2014 one route per block element type: {"routes":[{"blockAlias":"...","nestedSchemaType":"...","propertyMappings":[{"schemaProperty":"...","contentProperty":"...","wrapInType":"...?","wrapInProperty":"...?","transformType":"stripHtml|toAbsoluteUrl|formatDate?","extractAs":"stringList?","nestedContentProperty":"...?","routes":[ ...same route shape... ]}]}]}. A nested propertyMappings entry supports the same `transformType` as a top-level mapping (e.g. stripHtml on a nested RichText answer). A propertyMappings entry whose `contentProperty` is itself a nested Block List/Grid (a block inside a block, or a Block Grid area) carries its own `routes`, recursing one level deeper \u2014 discover the allowed nested element types via get-block-element-types (`propertyInfos[].nestedBlockElementTypes`). Nested-routes example \u2014 an FAQPage whose `sections` blocks each contain a nested `questions` Block List: {"routes":[{"blockAlias":"faqSection","nestedSchemaType":"ItemList","propertyMappings":[{"schemaProperty":"itemListElement","contentProperty":"questions","routes":[{"blockAlias":"faqItem","nestedSchemaType":"Question","propertyMappings":[{"schemaProperty":"name","contentProperty":"questionText"},{"schemaProperty":"acceptedAnswer","contentProperty":"answerText","wrapInType":"Answer","wrapInProperty":"text"}]}]}]}]}. Ordered ItemList (opt-in): set "wrapInListItem":true to wrap each mapped block as a ListItem{position,item} (auto-incremented position, or read one from a block property via "positionProperty":"...") \u2014 use this for a numbered services/steps block feeding an ItemList.itemListElement. The default (omitted) emits a bare Thing array. Valid both at root level AND on a nested propertyMappings[] entry whose contentProperty is itself a block list feeding an ItemList (e.g. services nested inside an ItemList) \u2014 set it on that nested entry for the nested list. Drop empty blocks (opt-in): a route may set "requiredProperties":["name","acceptedAnswer"] so a nested Thing missing any of those is omitted (a blank block row never emits an invalid empty node). For a flat string array (e.g. recipeIngredient) use the top-level string-list mode: {"extractAs":"stringList","contentProperty":"..."}. The legacy flat shape {"nestedMappings":[{"blockAlias":"...","schemaProperty":"...","contentProperty":"...","wrapInType":"...","wrapInProperty":"..."}]} is still accepted for single-level blocks but `routes` is preferred and required for nesting. For complex types: {"selectedSubType":"...","complexTypeMappings":[{"schemaProperty":"...","sourceType":"property|static","contentTypePropertyAlias":"...","staticValue":"..."}]}'
   ),
   dynamicRootConfig: external_exports.string().nullish().describe("JSON string for dynamic-root node selection (advanced; usually omit)"),
   targetPieceKey: external_exports.string().nullish().describe("For 'reference' source type: the graph piece key to link to, e.g. 'organization', 'website'")
 });
-var inputSchema8 = {
+var inputSchema9 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias being mapped, e.g. 'blogPost'"),
   contentTypeKey: external_exports.string().uuid().describe("The content type's GUID key \u2014 get it from list-content-types"),
   schemaTypeName: external_exports.string().describe("Schema.org type name to map to, e.g. 'BlogPosting'"),
@@ -33901,12 +34028,12 @@ var inputSchema8 = {
     "The complete set of property mappings. Saving REPLACES the existing mapping wholesale \u2014 include every mapping you want to keep, not just the changed ones."
   )
 };
-var outputSchema11 = postSchemeweaverMappingsResponse;
+var outputSchema12 = postSchemeweaverMappingsResponse;
 var saveSchemaMappingTool = {
   name: "save-schema-mapping",
   description: "Creates or replaces the SchemeWeaver mapping for an Umbraco content type, defining how its content is expressed as Schema.org JSON-LD. Recommended workflow: (1) get-content-type-properties and get-schema-type-properties (ranked=true) to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property semantically \u2014 correct bad suggestions, add mappings the heuristic missed, use nested types for complex values \u2014 then save with this tool, and (4) verify with preview-json-ld and fix any validation issues it reports. IMPORTANT: inspect the `warnings` array on the response \u2014 it flags properties mapped outside their Schema.org range that will be SILENTLY DROPPED from the JSON-LD (e.g. a non-CreativeWork type under hasPart); re-home those to a property like about/mainEntity. Also check `reachability`: composed-from-block means this type only emits inside a containing page's block mapping, never on its own URL. The response reports `persistedTo`: by default a save lands in the DATABASE ONLY (`database`) \u2014 to reproduce it as config-as-code, run export-mappings-to-usync (or check get-usync-drift). `database+usync` means export-on-save is enabled and it also reached disk. Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.",
-  inputSchema: inputSchema8,
-  outputSchema: outputSchema11,
+  inputSchema: inputSchema9,
+  outputSchema: outputSchema12,
   slices: ["create", "update"],
   annotations: {
     destructiveHint: false,
@@ -33921,7 +34048,7 @@ var saveSchemaMappingTool = {
 var save_schema_mapping_default = withStandardDecorators(saveSchemaMappingTool);
 
 // src/umbraco-api/tools/schemeweaver/post/preview-json-ld.ts
-var inputSchema9 = {
+var inputSchema10 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias whose mapping should be previewed"),
   contentKey: external_exports.string().uuid().optional().describe(
     "GUID key of a published content node of this type. When provided, real JSON-LD is generated from that node's values; when omitted, a mock preview with placeholder values is returned."
@@ -33931,12 +34058,12 @@ var inputSchema9 = {
   ),
   culture: external_exports.string().optional().describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content")
 };
-var outputSchema12 = postSchemeweaverMappingsByContentTypeAliasPreviewResponse;
+var outputSchema13 = postSchemeweaverMappingsByContentTypeAliasPreviewResponse;
 var previewJsonLdTool = {
   name: "preview-json-ld",
   description: "Generates the JSON-LD a content node would emit with the saved mapping, plus Rich Results validation. This is the feedback loop after save-schema-mapping: check isValid and the issues array (each issue has severity, schemaType, path and message \u2014 e.g. missing required/recommended properties for Google rich results) and refine the mapping until the output is clean. Pass a contentKey of a real published node for a realistic preview; without one you get placeholder values that only prove the structure. This is a BACKOFFICE-CONTEXT preview: URL/@id resolution can differ from the live render because the resolved base URL is the management host, not the public site. isValid here reflects backoffice-context structural validity ONLY \u2014 it does NOT imply the live structured data is valid. For authoritative live output use get-rendered-json-ld. The response reports context ('backoffice-preview') and resolvedBaseUrl (base URL actually used). To preview a single nested block in isolation, pass contentKey (the page) AND blockInstanceKey (the block's GUID Key) \u2014 the response renders that block's real values and an info issue naming the page node it resolved from.",
-  inputSchema: inputSchema9,
-  outputSchema: outputSchema12,
+  inputSchema: inputSchema10,
+  outputSchema: outputSchema13,
   slices: ["read"],
   annotations: {
     readOnlyHint: true
@@ -33954,10 +34081,10 @@ var previewJsonLdTool = {
 var preview_json_ld_default = withStandardDecorators(previewJsonLdTool);
 
 // src/umbraco-api/tools/schemeweaver/post/export-mappings-to-usync.ts
-var inputSchema10 = {
+var inputSchema11 = {
   contentTypeAlias: external_exports.string().optional().describe("Omit to export ALL mappings; set to export just one content type's mapping.")
 };
-var outputSchema13 = external_exports.object({
+var outputSchema14 = external_exports.object({
   usyncAvailable: external_exports.boolean().describe("False when the Umbraco.Community.SchemeWeaver.uSync addon is not installed \u2014 nothing was written."),
   folder: external_exports.string().nullable().describe("The uSync folder the .config files were written to."),
   items: external_exports.array(
@@ -33971,8 +34098,8 @@ var outputSchema13 = external_exports.object({
 var exportMappingsToUsyncTool = {
   name: "export-mappings-to-usync",
   description: "Exports SchemeWeaver mappings from the database to their uSync .config files on disk so they can be committed to source control and reproduced in other environments via a normal uSync import \u2014 no manual file authoring. Omit contentTypeAlias to export every mapping, or pass one to export a single mapping. Per-item failures (e.g. a read-only content root) are reported as written=false with an error rather than failing the whole call. After exporting, get-usync-drift should report the mapping(s) as in-sync. Returns usyncAvailable=false (writing nothing) when the uSync addon isn't installed.",
-  inputSchema: inputSchema10,
-  outputSchema: outputSchema13,
+  inputSchema: inputSchema11,
+  outputSchema: outputSchema14,
   slices: ["update"],
   annotations: {
     destructiveHint: false,
@@ -33990,7 +34117,7 @@ var exportMappingsToUsyncTool = {
 var export_mappings_to_usync_default = withStandardDecorators(exportMappingsToUsyncTool);
 
 // src/umbraco-api/tools/schemeweaver/post/generate-content-type.ts
-var inputSchema11 = {
+var inputSchema12 = {
   schemaTypeName: external_exports.string().describe("Schema.org type to scaffold from, e.g. 'Recipe'"),
   documentTypeName: external_exports.string().describe("Display name for the new Umbraco document type, e.g. 'Recipe Page'"),
   documentTypeAlias: external_exports.string().describe("Alias for the new document type (camelCase), e.g. 'recipePage'"),
@@ -33999,14 +34126,14 @@ var inputSchema11 = {
   ),
   propertyGroupName: external_exports.string().optional().default("Content").describe("Tab/group name the new properties are placed under (default 'Content')")
 };
-var outputSchema14 = external_exports.object({
+var outputSchema15 = external_exports.object({
   key: external_exports.string().describe("GUID key of the created document type")
 });
 var generateContentTypeTool = {
   name: "generate-content-type",
   description: "Creates a brand-new Umbraco document type scaffolded from a Schema.org type, with properties (and sensible property editors) for the selected schema properties, plus a SchemeWeaver mapping wired up automatically. Use this for greenfield modelling \u2014 when content should be structured around a schema from the start. For existing content types, use save-schema-mapping instead.",
-  inputSchema: inputSchema11,
-  outputSchema: outputSchema14,
+  inputSchema: inputSchema12,
+  outputSchema: outputSchema15,
   slices: ["create"],
   annotations: {
     destructiveHint: false,
@@ -34030,13 +34157,13 @@ var generateContentTypeTool = {
 var generate_content_type_default = withStandardDecorators(generateContentTypeTool);
 
 // src/umbraco-api/tools/schemeweaver/delete/delete-schema-mapping.ts
-var inputSchema12 = {
+var inputSchema13 = {
   contentTypeAlias: external_exports.string().describe("Umbraco content type alias whose mapping should be deleted")
 };
 var deleteSchemaMappingTool = {
   name: "delete-schema-mapping",
   description: "Permanently deletes the SchemeWeaver mapping for a content type, including all of its property mappings. Content of this type will stop emitting JSON-LD. To temporarily switch a mapping off instead, save it with isEnabled=false rather than deleting.",
-  inputSchema: inputSchema12,
+  inputSchema: inputSchema13,
   slices: ["delete"],
   annotations: {
     destructiveHint: true,
@@ -34067,6 +34194,7 @@ var collection = {
     // Mappings (read)
     get_all_schema_mappings_default,
     get_schema_mapping_default,
+    validate_mapping_default,
     suggest_property_mappings_default,
     // Mappings (write)
     save_schema_mapping_default,

@@ -25,6 +25,8 @@ export interface RoutePropEntry {
   contentProperty: string;
   wrapInType: string;
   wrapInProperty: string;
+  /** Optional value transform (e.g. `"stripHtml"`) carried through suggestion → save. */
+  transformType: string;
   isComplexType: boolean;
   /** Nested block element types of the chosen content property (when it is itself a block list). */
   nestedBlockElementTypes: BlockElementTypeInfo[];
@@ -82,6 +84,7 @@ export interface PropEntrySeed {
   contentProperty?: string;
   wrapInType?: string | null;
   wrapInProperty?: string | null;
+  transformType?: string | null;
   nestedSeed?: BlockRoute[];
   nestedRoutes?: BlockRoute[];
   nestedSuggestedRoutes?: BlockRouteSuggestion[];
@@ -102,6 +105,7 @@ export function makePropEntry(
     contentProperty,
     wrapInType: seed?.wrapInType ?? '',
     wrapInProperty: seed?.wrapInProperty ?? '',
+    transformType: seed?.transformType ?? '',
     isComplexType,
     nestedBlockElementTypes: resolveNestedBlockTypes(propertyInfos, contentProperty),
     nestedSeed: seed?.nestedSeed ?? seed?.nestedRoutes ?? [],
@@ -128,6 +132,7 @@ export function seedEntriesFromRaw(
       contentProperty: m.contentProperty,
       wrapInType: m.wrapInType,
       wrapInProperty: m.wrapInProperty,
+      transformType: m.transformType,
       nestedSeed: nested,
       nestedRoutes: nested,
       nestedSuggestedRoutes: fromSuggestion
@@ -170,6 +175,7 @@ export function alignPropertyMappings(
       contentProperty: prev.contentProperty,
       wrapInType: prev.wrapInType,
       wrapInProperty: prev.wrapInProperty,
+      transformType: prev.transformType,
       nestedSeed: prev.nestedSeed,
       nestedRoutes: prev.nestedRoutes,
       nestedSuggestedRoutes: prev.nestedSuggestedRoutes,
@@ -218,6 +224,7 @@ export function serialisePropertyMappings(entries: RoutePropEntry[]): BlockRoute
         wrapInType: m.wrapInType || null,
         wrapInProperty: m.wrapInProperty || null,
       };
+      if (m.transformType) pm.transformType = m.transformType;
       if (m.nestedRoutes.length > 0) pm.routes = m.nestedRoutes;
       return pm;
     });
@@ -247,6 +254,7 @@ export function convertSuggestedRoutes(routes?: BlockRouteSuggestion[]): BlockRo
         wrapInType: m.wrapInType ?? null,
         wrapInProperty: m.wrapInProperty ?? null,
       };
+      if (m.transformType) pm.transformType = m.transformType;
       const nested = convertSuggestedRoutes(m.routes);
       if (nested.length) pm.routes = nested;
       return pm;

@@ -43,6 +43,14 @@ public class BlockRoutePropertyMappingSuggestion
     public string? WrapInProperty { get; set; }
 
     /// <summary>
+    /// §3b pre-fill: <c>stripHtml</c> when the source block property is a rich-text editor feeding a
+    /// plain-text nested Schema.org property, so the suggested route emits clean text by default.
+    /// Serialised onto the stored route as the nested mapping's <c>transformType</c> (the author can
+    /// still revert it). Null when no transform is suggested.
+    /// </summary>
+    public string? TransformType { get; set; }
+
+    /// <summary>
     /// When <see cref="ContentProperty"/> is itself a Block List/Grid (a block nested inside a
     /// block), the suggested routes for that nested block's element types. Serialised onto the
     /// stored mapping as the nested property mapping's own <c>routes</c>, recursing the routing

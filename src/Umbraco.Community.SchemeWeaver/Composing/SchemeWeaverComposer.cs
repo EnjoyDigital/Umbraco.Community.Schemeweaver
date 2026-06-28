@@ -10,6 +10,7 @@ using Umbraco.Community.SchemeWeaver.Graph.Pieces;
 using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.Advisory;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
 using Umbraco.Community.SchemeWeaver.Services.Validation.Rules;
@@ -49,6 +50,7 @@ public class SchemeWeaverComposer : IComposer
         // the scoped SchemeWeaverService and the scoped IContentTypeService the
         // reachability classifier depends on.
         builder.Services.AddScoped<ISchemaRangeValidator, SchemaRangeValidator>();
+        builder.Services.AddScoped<IMappingAdvisor, MappingAdvisor>();
         builder.Services.AddScoped<IMappingReachabilityClassifier, MappingReachabilityClassifier>();
 
         // uSync config-as-code seams. Null defaults keep the management API + MCP surface alive
