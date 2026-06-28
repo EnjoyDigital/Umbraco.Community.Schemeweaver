@@ -6,10 +6,12 @@ name: Release to NuGet
 # listing to appear on marketplace.umbraco.com within ~24 hours.
 #
 # Trigger by pushing a tag like `v18.0.0`, or by dispatching manually from the
-# Actions tab. The tag is only a trigger + GitHub-release label — the packed
-# version comes from $(SchemeWeaverPackageVersion) in Directory.Build.props, which
-# is major-aligned per leg (17.x for the Umbraco 17 build, 18.x for the Umbraco 18
-# build), so both ship as stable and NuGet auto-selects the right one per consumer.
+# Actions tab. The trigger is only a trigger — the packed version comes from
+# $(SchemeWeaverPackageVersion) in Directory.Build.props, major-aligned per leg
+# (17.x for the Umbraco 17 build, 18.x for the Umbraco 18 build), so both ship as
+# stable and NuGet auto-selects the right one per consumer. Each leg also publishes
+# its OWN GitHub release (v17.x and v18.x) with its own packages, so both lines are
+# visible in the Releases section.
 
 on:
   push:
@@ -67,6 +69,12 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }}
 
+      # The per-leg package version (17.x / 18.x) from Directory.Build.props — used as
+      # this leg's GitHub release tag + name so each major shows up as its own release.
+      - name: Resolve package version
+        id: ver
+        run: echo "version=$(dotnet msbuild src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj -getProperty:SchemeWeaverPackageVersion -p:UmbracoMajor=${{ matrix.umbraco }})" >> "$GITHUB_OUTPUT"
+
       - name: Test
         run: dotnet test --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal
 
@@ -114,16 +122,19 @@ jobs:
             --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
             --skip-duplicate
 
-      # Create the GitHub release once (on the 17 leg). Both per-major packages are
-      # already pushed to NuGet by their own matrix legs above (17.x and 18.x, both
-      # stable); the 18.x nupkg can be attached to the release manually when finalising
-      # a dual release.
-      # NB: generate_release_notes produces near-empty notes here — overwrite with
-      # hand-crafted notes via `gh release edit` before considering the release shipped.
-      - name: Create GitHub release
-        if: github.event_name == 'push' && matrix.umbraco == '17'
+      # One GitHub release PER major, each at its own version (v17.x / v18.x) with its
+      # own packages attached, so both lines appear in the Releases section (like uSync).
+      # The trigger tag/dispatch is only a trigger — each leg derives its own release tag
+      # from $(SchemeWeaverPackageVersion). action-gh-release creates the tag if missing
+      # and updates the release if it already exists, so this is idempotent across re-runs.
+      # NB: generate_release_notes produces near-empty notes — overwrite with hand-crafted
+      # notes via `gh release edit` before considering the release shipped.
+      - name: Create GitHub release (Umbraco ${{ matrix.umbraco }})
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           files: ./artifacts/*.nupkg
