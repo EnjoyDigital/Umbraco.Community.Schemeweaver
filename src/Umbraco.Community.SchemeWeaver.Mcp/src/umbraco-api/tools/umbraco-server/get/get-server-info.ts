@@ -24,11 +24,19 @@ interface ServerInfo {
   assemblyVersion: string;
 }
 
+interface ServerContext {
+  hasPublishedContent: boolean;
+  isTestHost: boolean;
+}
+
 const getServerInfoTool: ToolDefinition = {
   name: "get-server-info",
   description:
     "Gets Umbraco server information including version and runtime details, " +
-    "and the configured Umbraco base URL that {siteUrl}/absolute-URL tokens derive from.",
+    "the configured Umbraco base URL that {siteUrl}/absolute-URL tokens derive from, and — when SchemeWeaver is " +
+    "installed — whether the target actually has published content (`hasPublishedContent`) and whether it is the " +
+    "SchemeWeaver TestHost sandbox (`isTestHost`). Check these before trusting a render: a sandbox/TestHost has the " +
+    "content model but may have no published tree, so preview/render can't reflect real pages.",
   slices: ["read"],
   annotations: {
     readOnlyHint: true,
@@ -44,7 +52,25 @@ const getServerInfoTool: ToolDefinition = {
       CAPTURE_RAW_HTTP_RESPONSE,
     ) as unknown as HttpResponse<ServerInfo>;
 
-    return createToolResult({ ...response.data, configuredBaseUrl: resolveBaseUrl() });
+    // SchemeWeaver-specific context (sandbox vs populated). Best-effort: absent when
+    // SchemeWeaver isn't installed (404) — don't let it break the core server info.
+    let serverContext: ServerContext | undefined;
+    try {
+      const ctx = await UmbracoManagementClient<ServerContext>(
+        { url: "/umbraco/management/api/v1/schemeweaver/server-context", method: "GET" },
+        CAPTURE_RAW_HTTP_RESPONSE,
+      ) as unknown as HttpResponse<ServerContext>;
+      serverContext = ctx.data;
+    } catch {
+      serverContext = undefined;
+    }
+
+    return createToolResult({
+      ...response.data,
+      configuredBaseUrl: resolveBaseUrl(),
+      hasPublishedContent: serverContext?.hasPublishedContent,
+      isTestHost: serverContext?.isTestHost,
+    });
   },
 };
 

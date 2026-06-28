@@ -51,6 +51,12 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<ISchemaRangeValidator, SchemaRangeValidator>();
         builder.Services.AddScoped<IMappingReachabilityClassifier, MappingReachabilityClassifier>();
 
+        // uSync config-as-code seams. Null defaults keep the management API + MCP surface alive
+        // when the uSync addon is absent (they report "usync-unavailable"); the addon registers
+        // the real implementations via [ComposeAfter] so its later registration wins.
+        builder.Services.AddScoped<IMappingDriftReporter, NullMappingDriftReporter>();
+        builder.Services.AddScoped<IMappingExporter, NullMappingExporter>();
+
         // JSON-LD blocks are cached in-process, keyed on (contentKey, culture). Singleton
         // so the per-content CancellationTokenSource dictionary persists across requests;
         // the generator itself is resolved per-call via IServiceScopeFactory because it's

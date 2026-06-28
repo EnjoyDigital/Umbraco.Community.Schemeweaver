@@ -35,6 +35,20 @@ public class SchemaMappingDto
     /// and save; ignored on input.
     /// </summary>
     public List<ValidationIssueDto> Warnings { get; set; } = [];
+
+    /// <summary>
+    /// Output-only. Disk/DB drift for this mapping's uSync <c>.config</c>: a
+    /// <c>MappingDriftStatus</c> code (<c>in-sync</c>, <c>db-only</c>,
+    /// <c>content-differs</c>, or <c>usync-unavailable</c> when the addon isn't
+    /// installed). Set by the service on read/save; ignored on input.
+    /// </summary>
+    public string? DriftStatus { get; set; }
+
+    /// <summary>
+    /// Output-only (save response). Where the mapping was persisted:
+    /// <c>database</c> (DB only) or <c>database+usync</c> (also written to disk).
+    /// </summary>
+    public string? PersistedTo { get; set; }
 }
 
 /// <summary>

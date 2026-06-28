@@ -29,6 +29,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly IBlockSchemaSuggester _blockSchemaSuggester;
     private readonly ISchemaRangeValidator _rangeValidator;
     private readonly IMappingReachabilityClassifier _reachabilityClassifier;
+    private readonly IMappingDriftReporter _driftReporter;
     private readonly IEventAggregator _eventAggregator;
     private readonly SchemeWeaverOptions _options;
     private readonly ILogger<SchemeWeaverService> _logger;
@@ -45,6 +46,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         IBlockSchemaSuggester blockSchemaSuggester,
         ISchemaRangeValidator rangeValidator,
         IMappingReachabilityClassifier reachabilityClassifier,
+        IMappingDriftReporter driftReporter,
         IEventAggregator eventAggregator,
         IOptions<SchemeWeaverOptions> options,
         ILogger<SchemeWeaverService> logger)
@@ -60,6 +62,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         _blockSchemaSuggester = blockSchemaSuggester;
         _rangeValidator = rangeValidator;
         _reachabilityClassifier = reachabilityClassifier;
+        _driftReporter = driftReporter;
         _eventAggregator = eventAggregator;
         _options = options.Value;
         _logger = logger;
@@ -73,10 +76,11 @@ public class SchemeWeaverService : ISchemeWeaverService
         var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
         var dto = ToDto(mapping, propertyMappings);
 
-        // Single read: enrich with both reachability (cheap) and structural
-        // range warnings (a registry walk per property mapping).
+        // Single read: enrich with reachability (cheap), structural range
+        // warnings (a registry walk per property mapping) and disk/DB drift.
         dto.Reachability = _reachabilityClassifier.Classify(dto.ContentTypeAlias);
         dto.Warnings = BuildWarningDtos(dto);
+        dto.DriftStatus = _driftReporter.GetStatus(dto.ContentTypeAlias);
         return dto;
     }
 
@@ -87,12 +91,20 @@ public class SchemeWeaverService : ISchemeWeaverService
         // one DB round-trip per mapping.
         var mappings = _repository.GetAll();
         var propertyMappingsByMappingId = _repository.GetAllPropertyMappingsByMappingId();
+
+        // One drift report for the whole list (the reporter reads each .config once) instead
+        // of a file probe per mapping. Keyed by alias for O(1) lookup below.
+        var driftByAlias = _driftReporter.GetReport().Items
+            .ToDictionary(i => i.ContentTypeAlias, i => i.Status, StringComparer.OrdinalIgnoreCase);
+
         return mappings.Select(m =>
         {
             var dto = ToDto(m, propertyMappingsByMappingId.GetValueOrDefault(m.Id) ?? []);
-            // List view: reachability only. The range validator is bounded out
+            // List view: reachability + drift only. The range validator is bounded out
             // here to keep a many-mapping listing cheap.
             dto.Reachability = _reachabilityClassifier.Classify(dto.ContentTypeAlias);
+            dto.DriftStatus = driftByAlias.GetValueOrDefault(dto.ContentTypeAlias)
+                ?? _driftReporter.GetStatus(dto.ContentTypeAlias);
             return dto;
         });
     }
@@ -159,6 +171,15 @@ public class SchemeWeaverService : ISchemeWeaverService
         // writes through the repository directly, bypassing this method entirely.
         _eventAggregator.Publish(new SchemaMappingSavedNotification(saved.ContentTypeAlias, saved.ContentTypeKey));
 
+        // Recompute drift AFTER publish — the export-on-save handler runs synchronously inside
+        // Publish, so this reports the truth (whether the file actually landed) rather than the
+        // pre-export state GetMapping saw. PersistedTo is derived from it: in-sync means the
+        // mapping reached disk too.
+        result.DriftStatus = _driftReporter.GetStatus(dto.ContentTypeAlias);
+        result.PersistedTo = result.DriftStatus == MappingDriftStatus.InSync
+            ? "database+usync"
+            : "database";
+
         return result;
     }
 
@@ -224,7 +245,10 @@ public class SchemeWeaverService : ISchemeWeaverService
 
     public JsonLdPreviewResponse GenerateMockPreview(string contentTypeAlias)
     {
-        var response = new JsonLdPreviewResponse();
+        // Always report the base URL the preview resolves @id against — even when no mapping
+        // exists — so the preview's host context is never ambiguous (it pairs with the always-set
+        // Context = "backoffice-preview").
+        var response = new JsonLdPreviewResponse { ResolvedBaseUrl = _generator.GetResolvedBaseUrl() };
         var mapping = _repository.GetByContentTypeAlias(contentTypeAlias);
         if (mapping is not { IsEnabled: true })
         {
@@ -259,7 +283,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         response.JsonLd = JsonSerializer.Serialize(result,
             new JsonSerializerOptions { WriteIndented = true });
         ApplyValidation(response, response.JsonLd);
-        response.ResolvedBaseUrl = _generator.GetResolvedBaseUrl();
+        // ResolvedBaseUrl already set at the top of the method.
         AppendStructuralWarnings(response, contentTypeAlias);
         return response;
     }

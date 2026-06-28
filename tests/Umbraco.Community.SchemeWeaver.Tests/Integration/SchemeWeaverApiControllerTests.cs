@@ -358,4 +358,71 @@ public class SchemeWeaverApiControllerTests : UmbracoIntegrationTestBase
         missingResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    // --------------------------------------------------------------------
+    // uSync config-as-code: drift, export, server context
+    // --------------------------------------------------------------------
+
+    private static readonly string[] DriftCodes =
+        ["in-sync", "db-only", "disk-only", "content-differs", "usync-unavailable"];
+
+    [Fact]
+    public async Task GetServerContext_ReturnsOk_WithExpectedShape()
+    {
+        var response = await Client.GetAsync($"{BaseRoute}/server-context");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.TryGetProperty("hasPublishedContent", out var hasContent).Should().BeTrue();
+        hasContent.ValueKind.Should().BeOneOf(JsonValueKind.True, JsonValueKind.False);
+        doc.RootElement.TryGetProperty("isTestHost", out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetMappingDrift_ReturnsOk_WithReportShape()
+    {
+        var response = await Client.GetAsync($"{BaseRoute}/mappings/drift");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.TryGetProperty("usyncAvailable", out _).Should().BeTrue();
+        doc.RootElement.TryGetProperty("items", out var items).Should().BeTrue();
+        items.ValueKind.Should().Be(JsonValueKind.Array);
+        foreach (var item in items.EnumerateArray())
+            item.GetProperty("status").GetString().Should().BeOneOf(DriftCodes);
+    }
+
+    [Fact]
+    public async Task GetMappings_ItemsCarryDriftStatus()
+    {
+        SeedMapping("blogPost", "BlogPosting");
+
+        var response = await Client.GetAsync($"{BaseRoute}/mappings");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var blog = doc.RootElement.EnumerateArray()
+            .FirstOrDefault(m => m.GetProperty("contentTypeAlias").GetString() == "blogPost");
+        blog.ValueKind.Should().Be(JsonValueKind.Object, "the seeded mapping should be listed");
+        blog.GetProperty("driftStatus").GetString().Should().BeOneOf(DriftCodes);
+    }
+
+    [Fact]
+    public async Task SaveMapping_Response_CarriesPersistedToAndDriftStatus()
+    {
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            ContentTypeKey = Guid.NewGuid(),
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+        };
+
+        var response = await Client.PostAsJsonAsync($"{BaseRoute}/mappings", dto);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        // Export-on-save is off by default, so a fresh save lands DB-only.
+        doc.RootElement.GetProperty("persistedTo").GetString().Should().BeOneOf("database", "database+usync");
+        doc.RootElement.GetProperty("driftStatus").GetString().Should().BeOneOf(DriftCodes);
+    }
 }

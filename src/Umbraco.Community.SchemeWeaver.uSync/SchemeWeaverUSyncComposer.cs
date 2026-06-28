@@ -2,15 +2,19 @@ using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Community.SchemeWeaver.Composing;
 using Umbraco.Community.SchemeWeaver.Notifications;
+using Umbraco.Community.SchemeWeaver.Services;
 using uSync.Core.Serialization;
 
 namespace Umbraco.Community.SchemeWeaver.uSync;
 
 /// <summary>
-/// Registers SchemeWeaver uSync serializers, the dashboard handler, the
-/// first-boot mapping importer, and the export-on-save handler.
+/// Registers SchemeWeaver uSync serializers, the dashboard handler, the boot-time mapping
+/// importer, the export-on-save handler, and the real drift/export seams. Composes after the
+/// core composer so its seam registrations replace the core null defaults.
 /// </summary>
+[ComposeAfter(typeof(SchemeWeaverComposer))]
 public class SchemeWeaverUSyncComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
@@ -39,5 +43,10 @@ public class SchemeWeaverUSyncComposer : IComposer
         builder.Services.AddSingleton<IMappingFileWriter, MappingFileWriter>();
         builder.AddNotificationHandler<SchemaMappingSavedNotification, SchemaMappingExportNotificationHandler>();
         builder.AddNotificationHandler<SchemaMappingDeletedNotification, SchemaMappingExportNotificationHandler>();
+
+        // Real config-as-code seams. Registered after the core null defaults (this composer
+        // is [ComposeAfter] the core one), so last-registration-wins resolves these.
+        builder.Services.AddScoped<IMappingDriftReporter, USyncMappingDriftReporter>();
+        builder.Services.AddScoped<IMappingExporter, USyncMappingExporter>();
     }
 }

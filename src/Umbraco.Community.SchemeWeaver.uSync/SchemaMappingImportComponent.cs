@@ -2,6 +2,7 @@ using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
@@ -12,27 +13,34 @@ using uSync.Core.Serialization;
 namespace Umbraco.Community.SchemeWeaver.uSync;
 
 /// <summary>
-/// Imports SchemeWeaver mapping XML files on first boot, running after uSync's standard
-/// import has created doc types, content, media, etc. Reads XML files from the
-/// <c>uSync/v17/SchemeWeaverMappings/</c> folder and uses the existing
-/// <see cref="SchemaMappingSerializer"/> to deserialise them into the database.
+/// Imports SchemeWeaver mapping XML files on boot, running after uSync's standard import has
+/// created doc types, content, media, etc. Reads <c>.config</c> files from the
+/// <c>uSync/{v18|v17}/SchemeWeaverMappings/</c> folder and uses the existing
+/// <see cref="SchemaMappingSerializer"/> to deserialise them into the database. Behaviour is
+/// governed by <see cref="SchemeWeaverOptions.USyncBootImport"/>:
+/// <see cref="BootImportMode.Off"/> (default) = first-boot-only seeding,
+/// <see cref="BootImportMode.Seed"/> = create-missing on every boot,
+/// <see cref="BootImportMode.Upsert"/> = disk-wins on every boot.
 /// </summary>
 public class SchemaMappingImportNotificationHandler : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     private readonly SyncSerializerCollection _serializers;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHostEnvironment _hostEnvironment;
+    private readonly IOptions<SchemeWeaverOptions> _options;
     private readonly ILogger<SchemaMappingImportNotificationHandler> _logger;
 
     public SchemaMappingImportNotificationHandler(
         SyncSerializerCollection serializers,
         IServiceScopeFactory scopeFactory,
         IHostEnvironment hostEnvironment,
+        IOptions<SchemeWeaverOptions> options,
         ILogger<SchemaMappingImportNotificationHandler> logger)
     {
         _serializers = serializers;
         _scopeFactory = scopeFactory;
         _hostEnvironment = hostEnvironment;
+        _options = options;
         _logger = logger;
     }
 
@@ -54,16 +62,24 @@ public class SchemaMappingImportNotificationHandler : INotificationAsyncHandler<
             return;
         }
 
-        // Check if mappings already exist (scoped repository access)
+        var mode = _options.Value.USyncBootImport;
+
+        // Snapshot existing mapping aliases once (scoped repository access).
+        HashSet<string> existingAliases;
         using (var scope = _scopeFactory.CreateScope())
         {
             var repository = scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
-            var existing = repository.GetAll();
-            if (existing.Any())
-            {
-                _logger.LogDebug("SchemeWeaver mappings already exist — skipping uSync import");
-                return;
-            }
+            existingAliases = repository.GetAll()
+                .Select(m => m.ContentTypeAlias)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Off (default) = first-boot-only seeding: once any mapping exists, do nothing on boot
+        // so backoffice edits are never overwritten on restart.
+        if (mode == BootImportMode.Off && existingAliases.Count > 0)
+        {
+            _logger.LogDebug("USyncBootImport=Off and mappings already exist — skipping boot import (first-boot-only)");
+            return;
         }
 
         var xmlFiles = Directory.GetFiles(mappingsFolder, "*.config", SearchOption.AllDirectories);
@@ -93,6 +109,19 @@ public class SchemaMappingImportNotificationHandler : INotificationAsyncHandler<
                 try
                 {
                     var xml = XElement.Load(file);
+
+                    // Seed mode never overwrites an existing mapping (create-missing only).
+                    if (mode == BootImportMode.Seed)
+                    {
+                        var alias = xml.Element("Info")?.Element("ContentTypeAlias")?.Value
+                                    ?? Path.GetFileNameWithoutExtension(file);
+                        if (existingAliases.Contains(alias))
+                        {
+                            _logger.LogDebug("Seed mode: mapping {Alias} already exists — leaving the DB value untouched", alias);
+                            continue;
+                        }
+                    }
+
                     var result = await serializer.DeserializeAsync(xml, new SyncSerializerOptions());
                     if (result.Success)
                         imported++;

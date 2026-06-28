@@ -1,9 +1,11 @@
+using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
+using Umbraco.Community.SchemeWeaver.Services.Transforms;
 
 namespace Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
@@ -66,13 +68,15 @@ public class BlockContentResolver : IPropertyValueResolver
         // and its absence must NOT abort resolution.
         if (resolverConfig?.Routes is { Count: > 0 } routes)
         {
-            var routedThings = blockItems
-                .Select(blockContent => MapBlockViaRoute(blockContent, routes, context))
-                .Where(thing => thing is not null)
-                .Cast<Thing>()
+            // Keep each block paired with its mapped Thing so empty Things are dropped
+            // (P2.1) BEFORE ListItem position numbering (P2.3), keeping positions sequential.
+            var routed = blockItems
+                .Select(blockContent => (Block: blockContent, Thing: MapBlockViaRoute(blockContent, routes, context)))
+                .Where(x => x.Thing is not null)
+                .Select(x => (x.Block, Thing: x.Thing!))
                 .ToList();
 
-            return routedThings.Count > 0 ? routedThings : null;
+            return BuildBlockResult(routed, resolverConfig, context);
         }
 
         // Legacy single-route form: one NestedSchemaTypeName + a flat NestedMappings
@@ -87,12 +91,68 @@ public class BlockContentResolver : IPropertyValueResolver
         }
 
         var things = blockItems
-            .Select(blockContent => MapBlockToThing(blockContent, nestedSchemaTypeName, resolverConfig?.NestedMappings, context))
-            .Where(thing => thing is not null)
-            .Cast<Thing>()
+            .Select(blockContent => (Block: blockContent,
+                Thing: MapBlockToThing(blockContent, nestedSchemaTypeName, resolverConfig?.NestedMappings, context, resolverConfig?.RequiredProperties)))
+            .Where(x => x.Thing is not null)
+            .Select(x => (x.Block, Thing: x.Thing!))
             .ToList();
 
-        return things.Count > 0 ? things : null;
+        return BuildBlockResult(things, resolverConfig, context);
+    }
+
+    /// <summary>
+    /// Builds the final resolver result from the mapped (block, Thing) pairs: either a bare
+    /// <c>List&lt;Thing&gt;</c> (default) or, when <see cref="ResolverConfigModel.WrapInListItem"/>
+    /// is set, an ordered <c>List&lt;ListItem&gt;</c> (P2.3). Returns null when nothing mapped.
+    /// </summary>
+    private static object? BuildBlockResult(
+        List<(IPublishedElement Block, Thing Thing)> mapped,
+        ResolverConfigModel? config,
+        PropertyResolverContext context)
+    {
+        if (mapped.Count == 0)
+            return null;
+
+        if (config?.WrapInListItem == true)
+            return WrapAsListItems(mapped, config, context);
+
+        return mapped.Select(x => x.Thing).ToList();
+    }
+
+    /// <summary>
+    /// Wraps each mapped block Thing in a <see cref="ListItem"/> with a 1-based
+    /// <see cref="ListItem.Position"/> (or a value read from
+    /// <see cref="ResolverConfigModel.PositionProperty"/> when configured) and the Thing under
+    /// <see cref="ListItem.Item"/>. The resulting collection is assigned to the owning mapping's
+    /// schema property (e.g. an <c>ItemList.itemListElement</c>); the parent <c>ItemList</c> type
+    /// comes from the page mapping, not this resolver.
+    /// </summary>
+    private static List<ListItem> WrapAsListItems(
+        List<(IPublishedElement Block, Thing Thing)> mapped,
+        ResolverConfigModel config,
+        PropertyResolverContext context)
+    {
+        var items = new List<ListItem>(mapped.Count);
+        for (var i = 0; i < mapped.Count; i++)
+        {
+            var listItem = new ListItem { Position = i + 1 };
+
+            if (!string.IsNullOrEmpty(config.PositionProperty))
+            {
+                var raw = SchemaPropertySetter.ResolveElementPropertyValue(
+                    mapped[i].Block, config.PositionProperty, context.HttpContextAccessor);
+                if (raw is string s && int.TryParse(s, out var explicitPosition))
+                    listItem.Position = explicitPosition;
+                else if (raw is int p)
+                    listItem.Position = p;
+            }
+
+            // Use the setter so the base Thing is converted into OneOrMany<IThing> robustly.
+            SchemaPropertySetter.SetPropertyValue(listItem, "Item", mapped[i].Thing);
+            items.Add(listItem);
+        }
+
+        return items;
     }
 
     /// <summary>
@@ -122,7 +182,7 @@ public class BlockContentResolver : IPropertyValueResolver
             return null;
         }
 
-        return MapBlockToThing(blockContent, route.NestedSchemaType, route.PropertyMappings, context);
+        return MapBlockToThing(blockContent, route.NestedSchemaType, route.PropertyMappings, context, route.RequiredProperties);
     }
 
     private static IEnumerable<IPublishedElement>? ExtractBlockItems(object value)
@@ -159,7 +219,8 @@ public class BlockContentResolver : IPropertyValueResolver
         IPublishedElement blockContent,
         string schemaTypeName,
         List<NestedPropertyMapping>? configuredMappings,
-        PropertyResolverContext context)
+        PropertyResolverContext context,
+        List<string>? requiredProperties = null)
     {
         var clrType = context.SchemaTypeRegistry.GetClrType(schemaTypeName);
         if (clrType is null)
@@ -213,7 +274,56 @@ public class BlockContentResolver : IPropertyValueResolver
             AutoMapBlockProperties(instance, blockContent, schemaTypeName, context);
         }
 
+        // P2.1: drop a nested Thing that resolved no usable (non-@type/@id) property, so a blank
+        // block row never emits an empty typed node (e.g. a Question with no name/acceptedAnswer,
+        // which Google rejects). When RequiredProperties is configured, every named property must
+        // also resolve.
+        if (!HasResolvedProperty(instance))
+            return null;
+
+        if (requiredProperties is { Count: > 0 } &&
+            requiredProperties.Any(p => !HasNamedProperty(instance, p)))
+            return null;
+
         return instance;
+    }
+
+    /// <summary>
+    /// True when <paramref name="thing"/> has at least one resolved Schema.org value property.
+    /// Only properties whose type implements <see cref="IValues"/> (every <c>OneOrMany</c>/
+    /// <c>Values</c> wrapper) with <c>Count &gt; 0</c> count — which cleanly excludes the
+    /// <c>@type</c> (string), <c>@id</c> (Uri) and <c>@context</c> identity members and mirrors
+    /// Schema.NET's own serializer, so "has a resolved property" ⇔ "will emit a property".
+    /// </summary>
+    private static bool HasResolvedProperty(Thing thing)
+    {
+        foreach (var p in thing.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (p.GetIndexParameters().Length > 0)
+                continue;
+            if (p.GetValue(thing) is IValues { Count: > 0 })
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True when the named schema property (case-insensitive) is set to a non-empty
+    /// <see cref="IValues"/> on <paramref name="thing"/>. Used for route RequiredProperties.
+    /// </summary>
+    private static bool HasNamedProperty(Thing thing, string schemaPropertyName)
+    {
+        foreach (var p in thing.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (p.GetIndexParameters().Length > 0)
+                continue;
+            if (!string.Equals(p.Name, schemaPropertyName, StringComparison.OrdinalIgnoreCase))
+                continue;
+            return p.GetValue(thing) is IValues { Count: > 0 };
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -248,6 +358,11 @@ public class BlockContentResolver : IPropertyValueResolver
             var rawValue = ResolveBlockElementProperty(blockContent, mapping.ContentProperty, context);
             if (rawValue is null)
                 continue;
+
+            // P2.2: apply the nested transform before the empty guard (same as MapPropertyFromConfig).
+            if (rawValue is string toTransform && !string.IsNullOrEmpty(mapping.TransformType))
+                rawValue = SchemaValueTransformer.Apply(toTransform, mapping.TransformType, context.HttpContextAccessor);
+
             if (rawValue is string s && string.IsNullOrWhiteSpace(s))
                 continue;
 
@@ -288,6 +403,11 @@ public class BlockContentResolver : IPropertyValueResolver
         var rawValue = ResolveBlockElementProperty(blockContent, mapping.ContentProperty, context);
         if (rawValue is null)
             return;
+
+        // P2.2: apply the nested transform (stripHtml/toAbsoluteUrl/formatDate) before the empty
+        // guard, so e.g. stripHtml collapsing "<p></p>" to "" is then dropped (composes with P2.1).
+        if (rawValue is string toTransform && !string.IsNullOrEmpty(mapping.TransformType))
+            rawValue = SchemaValueTransformer.Apply(toTransform, mapping.TransformType, context.HttpContextAccessor, _logger);
 
         // Guard against empty string values to avoid generating empty wrapper types
         if (rawValue is string s && string.IsNullOrWhiteSpace(s))
@@ -494,6 +614,26 @@ public class ResolverConfigModel
     /// The block element property alias to read when using string extraction mode.
     /// </summary>
     public string? ContentProperty { get; set; }
+
+    /// <summary>
+    /// Legacy-path equivalent of <see cref="BlockRoute.RequiredProperties"/>: schema property
+    /// names that must resolve for a nested Thing to be emitted (P2.1).
+    /// </summary>
+    public List<string>? RequiredProperties { get; set; }
+
+    /// <summary>
+    /// P2.3 (opt-in): when true, each mapped block is wrapped in a <see cref="Schema.NET.ListItem"/>
+    /// with an auto-incremented <c>position</c> and the Thing under <c>item</c>, producing an ordered
+    /// list suitable for an <c>ItemList.itemListElement</c>. Default false keeps the bare Thing array
+    /// (no breaking change).
+    /// </summary>
+    public bool WrapInListItem { get; set; }
+
+    /// <summary>
+    /// P2.3 (optional): a block element property holding an explicit position; when set it overrides
+    /// the auto-incremented position. Falls back to 1-based sequence order when absent or unparseable.
+    /// </summary>
+    public string? PositionProperty { get; set; }
 }
 
 /// <summary>
@@ -522,6 +662,14 @@ public class BlockRoute
     /// unused here because the route itself is already block-type scoped.
     /// </summary>
     public List<NestedPropertyMapping>? PropertyMappings { get; set; }
+
+    /// <summary>
+    /// Optional: schema property names that MUST resolve to a value for the nested Thing to be
+    /// emitted. When set, a Thing missing any of these is dropped (P2.1) — e.g. require
+    /// <c>name</c> and <c>acceptedAnswer</c> on a <c>Question</c>. When unset, the Thing is kept
+    /// as long as it resolved at least one property.
+    /// </summary>
+    public List<string>? RequiredProperties { get; set; }
 }
 
 /// <summary>
@@ -553,6 +701,15 @@ public class NestedPropertyMapping
     /// Optional: the property on the wrap type to set the value on (defaults to "Text").
     /// </summary>
     public string? WrapInProperty { get; set; }
+
+    /// <summary>
+    /// Optional value transform applied to the resolved string before it is set:
+    /// <c>stripHtml</c>, <c>toAbsoluteUrl</c>, or <c>formatDate</c> — the same set the
+    /// top-level <see cref="Models.Entities.PropertyMapping.TransformType"/> supports. Applied
+    /// before the empty-value guard, so a transform that collapses to an empty string drops the
+    /// value (and, via P2.1, a now-empty nested Thing).
+    /// </summary>
+    public string? TransformType { get; set; }
 
     /// <summary>
     /// Optional: when <see cref="ContentProperty"/> points at a block element property that is

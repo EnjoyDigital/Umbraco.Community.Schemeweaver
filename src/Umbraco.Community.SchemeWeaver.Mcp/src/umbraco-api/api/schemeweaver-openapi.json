@@ -58,6 +58,69 @@
         ]
       }
     },
+    "/umbraco/management/api/v1/schemeweaver/content-types/{contentTypeAlias}/properties/{propertyAlias}/block-suggest": {
+      "post": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "PostSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest",
+        "parameters": [
+          {
+            "name": "contentTypeAlias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyAlias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BlockMappingSuggestion"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
     "/umbraco/management/api/v1/schemeweaver/content-types/{contentTypeAlias}/properties/{propertyAlias}/block-types": {
       "get": {
         "tags": [
@@ -497,6 +560,92 @@
         ]
       }
     },
+    "/umbraco/management/api/v1/schemeweaver/mappings/drift": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverMappingsDrift",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MappingDriftReportDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver/mappings/export": {
+      "post": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "PostSchemeweaverMappingsExport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MappingExportRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MappingExportResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
     "/umbraco/management/api/v1/schemeweaver/schema-types": {
       "get": {
         "tags": [
@@ -585,15 +734,70 @@
           }
         ]
       }
+    },
+    "/umbraco/management/api/v1/schemeweaver/server-context": {
+      "get": {
+        "tags": [
+          "SchemeWeaver"
+        ],
+        "operationId": "GetSchemeweaverServerContext",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerContextDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "BlockElementPropertyInfo": {
+        "required": [
+          "alias",
+          "name",
+          "editorAlias",
+          "nestedBlockElementTypes"
+        ],
+        "type": "object",
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "editorAlias": {
+            "type": "string"
+          },
+          "nestedBlockElementTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockElementTypeInfo"
+            }
+          }
+        }
+      },
       "BlockElementTypeInfo": {
         "required": [
           "alias",
           "name",
-          "properties"
+          "properties",
+          "propertyInfos"
         ],
         "type": "object",
         "properties": {
@@ -607,6 +811,98 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "propertyInfos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockElementPropertyInfo"
+            }
+          }
+        }
+      },
+      "BlockMappingSuggestion": {
+        "required": [
+          "schemaProperty",
+          "confidence",
+          "routes"
+        ],
+        "type": "object",
+        "properties": {
+          "schemaProperty": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockRouteSuggestion"
+            }
+          }
+        }
+      },
+      "BlockRoutePropertyMappingSuggestion": {
+        "required": [
+          "schemaProperty",
+          "contentProperty"
+        ],
+        "type": "object",
+        "properties": {
+          "schemaProperty": {
+            "type": "string"
+          },
+          "contentProperty": {
+            "type": "string"
+          },
+          "wrapInType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "wrapInProperty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "routes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BlockRouteSuggestion"
+            }
+          }
+        }
+      },
+      "BlockRouteSuggestion": {
+        "required": [
+          "blockAlias",
+          "nestedSchemaType",
+          "confidence",
+          "propertyMappings"
+        ],
+        "type": "object",
+        "properties": {
+          "blockAlias": {
+            "type": "string"
+          },
+          "nestedSchemaType": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "propertyMappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockRoutePropertyMappingSuggestion"
             }
           }
         }
@@ -655,7 +951,8 @@
           "jsonLd",
           "isValid",
           "errors",
-          "issues"
+          "issues",
+          "context"
         ],
         "type": "object",
         "properties": {
@@ -675,6 +972,104 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ValidationIssueDto"
+            }
+          },
+          "context": {
+            "type": "string"
+          },
+          "resolvedBaseUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MappingDriftEntryDto": {
+        "required": [
+          "contentTypeAlias",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "contentTypeAlias": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "MappingDriftReportDto": {
+        "required": [
+          "usyncAvailable",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "usyncAvailable": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MappingDriftEntryDto"
+            }
+          }
+        }
+      },
+      "MappingExportItemDto": {
+        "required": [
+          "alias",
+          "written"
+        ],
+        "type": "object",
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "written": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MappingExportRequest": {
+        "type": "object",
+        "properties": {
+          "contentTypeAlias": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MappingExportResultDto": {
+        "required": [
+          "usyncAvailable",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "usyncAvailable": {
+            "type": "boolean"
+          },
+          "folder": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MappingExportItemDto"
             }
           }
         }
@@ -882,7 +1277,8 @@
           "schemaTypeName",
           "isEnabled",
           "isInherited",
-          "propertyMappings"
+          "propertyMappings",
+          "warnings"
         ],
         "type": "object",
         "properties": {
@@ -913,6 +1309,30 @@
             "items": {
               "$ref": "#/components/schemas/PropertyMappingDto"
             }
+          },
+          "reachability": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssueDto"
+            }
+          },
+          "driftStatus": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "persistedTo": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -941,6 +1361,21 @@
           "propertyCount": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "ServerContextDto": {
+        "required": [
+          "hasPublishedContent",
+          "isTestHost"
+        ],
+        "type": "object",
+        "properties": {
+          "hasPublishedContent": {
+            "type": "boolean"
+          },
+          "isTestHost": {
+            "type": "boolean"
           }
         }
       },

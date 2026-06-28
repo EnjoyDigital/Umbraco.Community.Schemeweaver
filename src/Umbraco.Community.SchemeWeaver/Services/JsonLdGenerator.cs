@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,6 +12,7 @@ using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
+using Umbraco.Community.SchemeWeaver.Services.Transforms;
 using Umbraco.Extensions;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
@@ -626,42 +626,11 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         return null;
     }
 
+    // Transform logic lives in SchemaValueTransformer so the nested-block resolver applies
+    // the same stripHtml/toAbsoluteUrl/formatDate behaviour. This thin wrapper keeps the
+    // existing call sites unchanged.
     private string? ApplyTransform(string? value, string? transformType)
-    {
-        if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(transformType))
-            return value;
-
-        return transformType switch
-        {
-            "stripHtml" => StripHtmlTags(value),
-            "toAbsoluteUrl" => ToAbsoluteUrl(value),
-            "formatDate" => DateTime.TryParse(value, out var dt) ? dt.ToString("yyyy-MM-dd") : value,
-            _ => value
-        };
-    }
-
-    /// <summary>
-    /// Resolves a relative URL to an absolute URL using the current request's base URL.
-    /// </summary>
-    private string ToAbsoluteUrl(string value)
-    {
-        if (!value.StartsWith('/'))
-            return value;
-
-        var request = _httpContextAccessor.HttpContext?.Request;
-        if (request is null)
-        {
-            _logger.LogWarning("Cannot resolve absolute URL: no HttpContext available");
-            return value;
-        }
-
-        return $"{request.Scheme}://{request.Host}{value}";
-    }
-
-    private static string StripHtmlTags(string html)
-    {
-        return StripHtmlRegex().Replace(html, string.Empty).Trim();
-    }
+        => SchemaValueTransformer.Apply(value, transformType, _httpContextAccessor, _logger);
 
     /// <summary>
     /// Serialises a Schema.NET Thing to JSON-LD, working around property name collisions
@@ -704,9 +673,6 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             return null;
         }
     }
-
-    [GeneratedRegex("<[^>]+>")]
-    private static partial Regex StripHtmlRegex();
 
     /// <inheritdoc />
     public IEnumerable<string> GenerateInheritedJsonLdStrings(IPublishedContent content, string? culture = null)

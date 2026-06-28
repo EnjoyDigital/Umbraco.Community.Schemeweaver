@@ -31,6 +31,7 @@ public class SchemeWeaverServiceTests
     private readonly IBlockSchemaSuggester _blockSchemaSuggester = Substitute.For<IBlockSchemaSuggester>();
     private readonly ISchemaRangeValidator _rangeValidator = Substitute.For<ISchemaRangeValidator>();
     private readonly IMappingReachabilityClassifier _reachabilityClassifier = Substitute.For<IMappingReachabilityClassifier>();
+    private readonly IMappingDriftReporter _driftReporter = Substitute.For<IMappingDriftReporter>();
     private readonly IEventAggregator _eventAggregator = Substitute.For<IEventAggregator>();
     private readonly ILogger<SchemeWeaverService> _logger = Substitute.For<ILogger<SchemeWeaverService>>();
 
@@ -51,11 +52,15 @@ public class SchemeWeaverServiceTests
         // Default to no structural warnings; tests that care override per-test.
         _rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(Array.Empty<ValidationIssue>());
 
+        // Default drift: addon absent (usync-unavailable). Tests that care override per-test.
+        _driftReporter.GetStatus(Arg.Any<string>()).Returns(MappingDriftStatus.USyncUnavailable);
+        _driftReporter.GetReport().Returns(new MappingDriftReportDto { UsyncAvailable = false, Items = [] });
+
         _sut = new SchemeWeaverService(
             _registry, _autoMapper, _generator, _graphGenerator,
             _repository, _contentTypeService, _dataTypeService,
             _validator, _blockSchemaSuggester, _rangeValidator,
-            _reachabilityClassifier, _eventAggregator, Options.Create(_options), _logger);
+            _reachabilityClassifier, _driftReporter, _eventAggregator, Options.Create(_options), _logger);
     }
 
     [Fact]
@@ -408,6 +413,96 @@ public class SchemeWeaverServiceTests
 
         _eventAggregator.Received(1).Publish(Arg.Is<SchemaMappingSavedNotification>(
             n => n.ContentTypeAlias == "article" && n.ContentTypeKey == key));
+    }
+
+    [Fact]
+    public void SaveMapping_InSyncAfterExport_SetsPersistedToDatabasePlusUsync()
+    {
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings = []
+        };
+        var savedEntity = new SchemaMapping { Id = 1, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true };
+        _repository.GetByContentTypeAlias("article").Returns(null as SchemaMapping, savedEntity);
+        _repository.Save(Arg.Any<SchemaMapping>()).Returns(savedEntity);
+        _repository.GetPropertyMappings(1).Returns(Enumerable.Empty<PropertyMapping>());
+
+        // Export-on-save wrote the file: the post-publish drift check reports in-sync.
+        _driftReporter.GetStatus("article").Returns(MappingDriftStatus.InSync);
+
+        var result = _sut.SaveMapping(dto);
+
+        result.DriftStatus.Should().Be(MappingDriftStatus.InSync);
+        result.PersistedTo.Should().Be("database+usync");
+    }
+
+    [Fact]
+    public void SaveMapping_NotOnDisk_SetsPersistedToDatabaseOnly()
+    {
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings = []
+        };
+        var savedEntity = new SchemaMapping { Id = 1, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true };
+        _repository.GetByContentTypeAlias("article").Returns(null as SchemaMapping, savedEntity);
+        _repository.Save(Arg.Any<SchemaMapping>()).Returns(savedEntity);
+        _repository.GetPropertyMappings(1).Returns(Enumerable.Empty<PropertyMapping>());
+
+        // Export-on-save off (default): the mapping is in the DB only.
+        _driftReporter.GetStatus("article").Returns(MappingDriftStatus.DbOnly);
+
+        var result = _sut.SaveMapping(dto);
+
+        result.DriftStatus.Should().Be(MappingDriftStatus.DbOnly);
+        result.PersistedTo.Should().Be("database");
+    }
+
+    [Fact]
+    public void GetMapping_SetsDriftStatus()
+    {
+        var mapping = new SchemaMapping { Id = 1, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true };
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(Enumerable.Empty<PropertyMapping>());
+        _driftReporter.GetStatus("article").Returns(MappingDriftStatus.ContentDiffers);
+
+        var result = _sut.GetMapping("article");
+
+        result!.DriftStatus.Should().Be(MappingDriftStatus.ContentDiffers);
+    }
+
+    [Fact]
+    public void GetAllMappings_UsesSingleDriftReport_NotPerItemStatus()
+    {
+        var mappings = new[]
+        {
+            new SchemaMapping { Id = 1, ContentTypeAlias = "article", SchemaTypeName = "Article", IsEnabled = true },
+            new SchemaMapping { Id = 2, ContentTypeAlias = "newsItem", SchemaTypeName = "NewsArticle", IsEnabled = true }
+        };
+        _repository.GetAll().Returns(mappings);
+        _repository.GetAllPropertyMappingsByMappingId().Returns(new Dictionary<int, List<PropertyMapping>>());
+        _driftReporter.GetReport().Returns(new MappingDriftReportDto
+        {
+            UsyncAvailable = true,
+            Items =
+            [
+                new MappingDriftEntryDto { ContentTypeAlias = "article", Status = MappingDriftStatus.InSync },
+                new MappingDriftEntryDto { ContentTypeAlias = "newsItem", Status = MappingDriftStatus.DbOnly }
+            ]
+        });
+
+        var result = _sut.GetAllMappings().ToList();
+
+        result.Single(m => m.ContentTypeAlias == "article").DriftStatus.Should().Be(MappingDriftStatus.InSync);
+        result.Single(m => m.ContentTypeAlias == "newsItem").DriftStatus.Should().Be(MappingDriftStatus.DbOnly);
+        // The report is read once for the whole list, not per-mapping.
+        _driftReporter.Received(1).GetReport();
+        _driftReporter.DidNotReceive().GetStatus(Arg.Any<string>());
     }
 
     [Fact]

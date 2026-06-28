@@ -821,8 +821,8 @@ public class BlockContentResolverTests
         ((Schema.NET.GeoCoordinates)place.Geo.Value1!).Latitude.HasValue.Should().BeTrue();
     }
 
-    // If every sub-mapping resolves to null the resolver should NOT emit an empty
-    // wrapper shell on the schema property.
+    // If every sub-mapping resolves to null the resolver emits no empty wrapper — and, since
+    // the parent Thing then has no resolved property at all, P2.1 drops the parent entirely.
     [Fact]
     public void Resolve_MultipleWrappedSubMappings_AllNullValues_DoesNotEmitEmptyWrapper()
     {
@@ -851,8 +851,9 @@ public class BlockContentResolverTests
 
         var result = _sut.Resolve(context);
 
-        var place = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Place>().Single();
-        place.Geo.Count.Should().Be(0, "no map values resolved so no empty GeoCoordinates should be emitted");
+        // P2.1: with no resolved properties the Place itself is dropped, so the whole block list
+        // yields nothing — an even better outcome than an empty Place with an empty GeoCoordinates.
+        result.Should().BeNull("a nested Thing that resolves no properties must not be emitted");
     }
 
     // --- WS3/WS4: per-block-type routes ---
@@ -1165,8 +1166,9 @@ public class BlockContentResolverTests
         names.Should().Contain("Area-nested grid question");
     }
 
-    // The nested property is skipped once recursion would exceed MaxRecursionDepth, so the
-    // outer Thing is still produced but its nested schema property stays empty.
+    // The nested property is skipped once recursion would exceed MaxRecursionDepth. Since the
+    // FAQPage's only mapping is that nested property, the outer Thing ends up with no resolved
+    // property and P2.1 drops it — the nested content certainly never appears.
     [Fact]
     public void Resolve_NestedBlockEditorProperty_DepthCapped_DoesNotRecurse()
     {
@@ -1221,11 +1223,9 @@ public class BlockContentResolverTests
 
         var result = _sut.Resolve(context);
 
-        result.Should().NotBeNull();
-        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
-        things.Should().ContainSingle();
-        things[0].Should().BeOfType<Schema.NET.FAQPage>();
-        things[0].ToString().Should().NotContain("Should not appear");
+        // P2.1: the depth cap nulls the FAQPage's only mapping (mainEntity), leaving it with no
+        // resolved property, so the now-empty FAQPage is dropped entirely.
+        result.Should().BeNull("a depth-capped FAQPage with no other resolved property is dropped");
     }
 
     // A block whose nested Block List contains the same block element (a cycle) must
@@ -1249,6 +1249,13 @@ public class BlockContentResolverTests
         itemsProp.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(selfList);
         section.GetProperty("items").Returns(itemsProp);
 
+        // A scalar property so the outer FAQPage keeps one resolved property (name) even though
+        // the self-referential mainEntity is cycle-nulled — keeps the test about cycle
+        // termination, not P2.1's empty-Thing drop.
+        var headingProp = Substitute.For<IPublishedProperty>();
+        headingProp.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("Our FAQs");
+        section.GetProperty("heading").Returns(headingProp);
+
         var outerList = CreateBlockListModel(section);
 
         var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
@@ -1261,6 +1268,7 @@ public class BlockContentResolverTests
                     NestedSchemaType = "FAQPage",
                     PropertyMappings = new List<NestedPropertyMapping>
                     {
+                        new() { SchemaProperty = "name", ContentProperty = "heading" },
                         new()
                         {
                             SchemaProperty = "mainEntity",
@@ -1286,6 +1294,383 @@ public class BlockContentResolverTests
         var things = ((IEnumerable<Schema.NET.Thing>)act()!).ToList();
         things.Should().ContainSingle();
         things[0].Should().BeOfType<Schema.NET.FAQPage>();
+    }
+
+    // --- P2.1: drop empty / degenerate nested Things ---
+
+    [Fact]
+    public void Resolve_RoutedConfig_OnePopulatedOneBlank_EmitsSingleThing()
+    {
+        var populated = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["questionText"] = "What is SchemeWeaver?"
+        });
+        var blank = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["questionText"] = null
+        });
+        var blockListModel = CreateBlockListModel(populated, blank);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "faqItem",
+                    NestedSchemaType = "Question",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "questionText" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().ContainSingle("the blank faqItem resolves no properties and is dropped");
+        things[0].Should().BeOfType<Schema.NET.Question>();
+        ((Schema.NET.Question)things[0]).Name.First().Should().Be("What is SchemeWeaver?");
+    }
+
+    [Fact]
+    public void Resolve_LegacyConfig_BlankBlock_IsDropped()
+    {
+        var blank = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["name"] = null
+        });
+        var blockListModel = CreateBlockListModel(blank);
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        // Auto-map path (no config): the blank block resolves nothing → dropped → empty result.
+        var context = CreateContext(property, nestedSchemaTypeName: "Question");
+
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull("a block that resolves no properties must not emit an empty Thing");
+    }
+
+    [Fact]
+    public void Resolve_RoutedConfig_RequiredPropertyMissing_DropsThing()
+    {
+        // The block resolves `name` but not the configured-required `acceptedAnswer`.
+        var block = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["questionText"] = "Why?"
+        });
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "faqItem",
+                    NestedSchemaType = "Question",
+                    RequiredProperties = new List<string> { "acceptedAnswer" },
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "questionText" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull("acceptedAnswer is required but did not resolve, so the Question is dropped");
+    }
+
+    // --- P2.2: transforms on nested property mappings ---
+
+    [Fact]
+    public void Resolve_NestedMapping_StripHtml_EmitsPlainText()
+    {
+        var block = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["answerHtml"] = "<p>Because <strong>schema</strong>.</p>"
+        });
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "faqItem",
+                    NestedSchemaType = "Question",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "answerHtml", TransformType = "stripHtml" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var question = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Question>().Single();
+        question.Name.First().Should().Be("Because schema.");
+    }
+
+    [Fact]
+    public void Resolve_WrappedGroup_StripHtml_Applies()
+    {
+        var block = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["answerHtml"] = "<p>Plain answer.</p>"
+        });
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "faqItem",
+                    NestedSchemaType = "Question",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new()
+                        {
+                            SchemaProperty = "acceptedAnswer",
+                            ContentProperty = "answerHtml",
+                            WrapInType = "Answer",
+                            WrapInProperty = "Text",
+                            TransformType = "stripHtml"
+                        }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var question = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Question>().Single();
+        var answer = (Schema.NET.Answer)question.AcceptedAnswer.First()!;
+        answer.Text.First().Should().Be("Plain answer.");
+    }
+
+    [Fact]
+    public void Resolve_NestedMapping_ToAbsoluteUrl_UsesHttpContext()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("example.com");
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var block = CreateBlockElement("linkItem", new Dictionary<string, object?>
+        {
+            ["link"] = "/about-us"
+        });
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "linkItem",
+                    NestedSchemaType = "WebPage",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "url", ContentProperty = "link", TransformType = "toAbsoluteUrl" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var page = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.WebPage>().Single();
+        page.Url.First().Should().Be(new Uri("https://example.com/about-us"));
+    }
+
+    // --- P2.3: opt-in ordered ItemList (ListItem + position) ---
+
+    [Fact]
+    public void Resolve_RoutedConfig_WrapInListItem_EmitsSequentialListItems()
+    {
+        var blockListModel = CreateBlockListModel(
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Alpha" }),
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Beta" }),
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Gamma" }));
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            WrapInListItem = true,
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "serviceItem",
+                    NestedSchemaType = "Service",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "title" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var items = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.ListItem>().ToList();
+        items.Should().HaveCount(3);
+        items[0].Position.Value1.First().Should().Be(1);
+        items[1].Position.Value1.First().Should().Be(2);
+        items[2].Position.Value1.First().Should().Be(3);
+        ((Schema.NET.Service)items[0].Item.First()!).Name.First().Should().Be("Alpha");
+    }
+
+    [Fact]
+    public void Resolve_WrapInListItem_WithPositionProperty_UsesExplicitPositions()
+    {
+        var blockListModel = CreateBlockListModel(
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Alpha", ["pos"] = "5" }),
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Beta", ["pos"] = "2" }));
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            WrapInListItem = true,
+            PositionProperty = "pos",
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "serviceItem",
+                    NestedSchemaType = "Service",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "title" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var items = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.ListItem>().ToList();
+        items.Should().HaveCount(2);
+        items[0].Position.Value1.First().Should().Be(5);
+        items[1].Position.Value1.First().Should().Be(2);
+    }
+
+    [Fact]
+    public void Resolve_WrapInListItem_BlankItemSkipped_PositionsStaySequential()
+    {
+        var blockListModel = CreateBlockListModel(
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Alpha" }),
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = null }),
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Gamma" }));
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            WrapInListItem = true,
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "serviceItem",
+                    NestedSchemaType = "Service",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "title" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var items = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.ListItem>().ToList();
+        items.Should().HaveCount(2, "the blank item is dropped (P2.1) before numbering");
+        items[0].Position.Value1.First().Should().Be(1);
+        items[1].Position.Value1.First().Should().Be(2);
+        ((Schema.NET.Service)items[1].Item.First()!).Name.First().Should().Be("Gamma");
+    }
+
+    [Fact]
+    public void Resolve_NoWrapInListItem_ReturnsBareThings()
+    {
+        var blockListModel = CreateBlockListModel(
+            CreateBlockElement("serviceItem", new Dictionary<string, object?> { ["title"] = "Alpha" }));
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "serviceItem",
+                    NestedSchemaType = "Service",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "title" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig);
+
+        var result = _sut.Resolve(context);
+
+        var things = ((IEnumerable<Schema.NET.Thing>)result!).ToList();
+        things.Should().ContainSingle();
+        things[0].Should().BeOfType<Schema.NET.Service>("the default path emits bare Things, not ListItems");
     }
 
     private static IPublishedElement CreateBlockElementWithNestedBlock(
@@ -1332,9 +1717,14 @@ public class BlockContentResolverTests
 
         foreach (var kvp in properties)
         {
+            var key = kvp.Key;
             var prop = Substitute.For<IPublishedProperty>();
             prop.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(kvp.Value);
-            element.GetProperty(kvp.Key).Returns(prop);
+            prop.Alias.Returns(key);
+            // Umbraco property aliases are case-insensitive — mirror that so auto-map (which
+            // probes by PascalCase schema property name) resolves a lower-cased block key.
+            element.GetProperty(Arg.Is<string>(a => string.Equals(a, key, StringComparison.OrdinalIgnoreCase)))
+                .Returns(prop);
         }
 
         return element;

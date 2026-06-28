@@ -29,6 +29,9 @@ const inputSchema = getSchemeweaverMappingsByContentTypeAliasParams.shape;
 // generated getSchemeweaverMappingsByContentTypeAliasResponse schema.
 const outputSchema = getSchemeweaverMappingsByContentTypeAliasResponse.extend({
   reachability: z.string().optional(),
+  // Disk/DB drift vs the mapping's uSync .config: in-sync | db-only | disk-only |
+  // content-differs | usync-unavailable (when the uSync addon isn't installed).
+  driftStatus: z.string().optional(),
   warnings: z
     .array(
       z.object({
