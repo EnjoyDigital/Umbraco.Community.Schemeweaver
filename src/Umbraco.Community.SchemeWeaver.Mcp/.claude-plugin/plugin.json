@@ -1,8 +1,8 @@
 {
   "name": "schemeweaver-mcp",
   "displayName": "SchemeWeaver MCP Server",
-  "version": "1.2.0",
-  "description": "Map Umbraco content types to Schema.org and generate JSON-LD via 15 MCP tools for AI assistants, including uSync drift/export and live block-instance + Delivery-API render verification.",
+  "version": "1.3.0",
+  "description": "Map Umbraco content types to Schema.org and generate JSON-LD via 16 MCP tools for AI assistants, including a validate-mapping doctor checklist, uSync drift/export and live block-instance + Delivery-API render verification.",
   "author": {
     "name": "Oliver Picton",
     "url": "https://www.enjoy-digital.co.uk"
