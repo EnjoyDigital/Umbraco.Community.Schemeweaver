@@ -21,7 +21,11 @@ import saveSchemaMappingTool from "../post/save-schema-mapping.js";
 import previewJsonLdTool from "../post/preview-json-ld.js";
 import deleteSchemaMappingTool from "../delete/delete-schema-mapping.js";
 import getRenderedJsonLdTool from "../get/get-rendered-json-ld.js";
+import getUsyncDriftTool from "../get/get-usync-drift.js";
+import exportMappingsToUsyncTool from "../post/export-mappings-to-usync.js";
 import getServerInfoTool from "../../umbraco-server/get/get-server-info.js";
+
+const DRIFT_CODES = ["in-sync", "db-only", "disk-only", "content-differs", "usync-unavailable"];
 
 describe("schemeweaver tools", () => {
   setupTestEnvironment();
@@ -169,7 +173,7 @@ describe("schemeweaver tools", () => {
 
       // Mock preview (no contentKey) proves JSON-LD structure generation
       const previewResult = await previewJsonLdTool.handler(
-        { contentTypeAlias: unmapped!.alias, contentKey: undefined, culture: undefined },
+        { contentTypeAlias: unmapped!.alias, contentKey: undefined, blockInstanceKey: undefined, culture: undefined },
         context
       );
       expect(previewResult.isError).toBeFalsy();
@@ -247,7 +251,7 @@ describe("schemeweaver tools", () => {
 
   it("preview-json-ld reports backoffice context once the backend ships the fields (HOST-DEPENDENT)", async () => {
     const result = await previewJsonLdTool.handler(
-      { contentTypeAlias: "definitely-not-a-real-alias", contentKey: undefined, culture: undefined },
+      { contentTypeAlias: "definitely-not-a-real-alias", contentKey: undefined, blockInstanceKey: undefined, culture: undefined },
       context
     );
 
@@ -271,5 +275,47 @@ describe("schemeweaver tools", () => {
     expect(info.configuredBaseUrl).toBe(
       (process.env.UMBRACO_BASE_URL || "https://localhost:44308").replace(/\/+$/, "")
     );
+  });
+
+  it("get-server-info distinguishes the TestHost sandbox (HOST-DEPENDENT)", async () => {
+    const result = await getServerInfoTool.handler(context);
+
+    expect(result.isError).toBeFalsy();
+    const info = result.structuredContent as { hasPublishedContent?: boolean; isTestHost?: boolean };
+    // The target is the SchemeWeaver TestHost, so it should self-identify.
+    expect(info.isTestHost).toBe(true);
+    expect(typeof info.hasPublishedContent).toBe("boolean");
+  });
+
+  it("get-usync-drift returns a drift report with valid status codes (HOST-DEPENDENT)", async () => {
+    const result = await getUsyncDriftTool.handler(context);
+
+    expect(result.isError).toBeFalsy();
+    const report = result.structuredContent as {
+      usyncAvailable: boolean;
+      items: Array<{ contentTypeAlias: string; status: string }>;
+    };
+    expect(typeof report.usyncAvailable).toBe("boolean");
+    expect(Array.isArray(report.items)).toBe(true);
+    for (const item of report.items) {
+      expect(DRIFT_CODES).toContain(item.status);
+    }
+  });
+
+  it("export-mappings-to-usync with an unknown alias writes nothing and does not throw (HOST-DEPENDENT)", async () => {
+    // Targeting a non-existent alias keeps the TestHost's committed fixture .config files untouched.
+    const result = await exportMappingsToUsyncTool.handler(
+      { contentTypeAlias: "definitely-not-a-real-alias-xyz" },
+      context
+    );
+
+    expect(result.isError).toBeFalsy();
+    const out = result.structuredContent as {
+      usyncAvailable: boolean;
+      items: Array<{ alias: string; written: boolean }>;
+    };
+    expect(typeof out.usyncAvailable).toBe("boolean");
+    // No mapping for the alias → nothing exported.
+    expect(out.items).toHaveLength(0);
   });
 });

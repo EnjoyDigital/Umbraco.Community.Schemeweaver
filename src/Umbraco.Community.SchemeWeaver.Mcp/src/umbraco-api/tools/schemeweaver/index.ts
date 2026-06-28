@@ -14,9 +14,11 @@ import getBlockElementTypesTool from "./get/get-block-element-types.js";
 import getAllSchemaMappingsTool from "./get/get-all-schema-mappings.js";
 import getSchemaMappingTool from "./get/get-schema-mapping.js";
 import getRenderedJsonLdTool from "./get/get-rendered-json-ld.js";
+import getUsyncDriftTool from "./get/get-usync-drift.js";
 import suggestPropertyMappingsTool from "./post/suggest-property-mappings.js";
 import saveSchemaMappingTool from "./post/save-schema-mapping.js";
 import previewJsonLdTool from "./post/preview-json-ld.js";
+import exportMappingsToUsyncTool from "./post/export-mappings-to-usync.js";
 import generateContentTypeTool from "./post/generate-content-type.js";
 import deleteSchemaMappingTool from "./delete/delete-schema-mapping.js";
 
@@ -45,6 +47,9 @@ const collection: ToolCollectionExport = {
     // Mappings (write)
     saveSchemaMappingTool,
     deleteSchemaMappingTool,
+    // Config-as-code (uSync)
+    getUsyncDriftTool,
+    exportMappingsToUsyncTool,
     // Verification
     previewJsonLdTool,
     // Live Delivery-API render (ground truth, bypasses the management client)

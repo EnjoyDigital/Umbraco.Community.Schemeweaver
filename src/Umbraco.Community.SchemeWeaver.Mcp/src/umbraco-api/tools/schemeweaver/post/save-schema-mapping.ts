@@ -75,7 +75,9 @@ const propertyMappingSchema = z.object({
         "For 'blockContent', the preferred shape is `routes` — one route per block element type: " +
         '{"routes":[{"blockAlias":"...","nestedSchemaType":"...","propertyMappings":[' +
         '{"schemaProperty":"...","contentProperty":"...","wrapInType":"...?","wrapInProperty":"...?",' +
-        '"extractAs":"stringList?","nestedContentProperty":"...?","routes":[ ...same route shape... ]}]}]}. ' +
+        '"transformType":"stripHtml|toAbsoluteUrl|formatDate?","extractAs":"stringList?","nestedContentProperty":"...?","routes":[ ...same route shape... ]}]}]}. ' +
+        "A nested propertyMappings entry supports the same `transformType` as a top-level mapping " +
+        "(e.g. stripHtml on a nested RichText answer). " +
         "A propertyMappings entry whose `contentProperty` is itself a nested Block List/Grid (a block inside a " +
         "block, or a Block Grid area) carries its own `routes`, recursing one level deeper — discover the allowed " +
         "nested element types via get-block-element-types (`propertyInfos[].nestedBlockElementTypes`). " +
@@ -85,6 +87,12 @@ const propertyMappingSchema = z.object({
         '{"blockAlias":"faqItem","nestedSchemaType":"Question","propertyMappings":[' +
         '{"schemaProperty":"name","contentProperty":"questionText"},' +
         '{"schemaProperty":"acceptedAnswer","contentProperty":"answerText","wrapInType":"Answer","wrapInProperty":"text"}]}]}]}]}. ' +
+        "Ordered ItemList (opt-in): set root-level \"wrapInListItem\":true to wrap each mapped block as a " +
+        "ListItem{position,item} (auto-incremented position, or read one from a block property via " +
+        "\"positionProperty\":\"...\") — use this for a numbered services/steps block feeding an " +
+        "ItemList.itemListElement. The default (omitted) emits a bare Thing array. " +
+        "Drop empty blocks (opt-in): a route may set \"requiredProperties\":[\"name\",\"acceptedAnswer\"] so a nested " +
+        "Thing missing any of those is omitted (a blank block row never emits an invalid empty node). " +
         "For a flat string array (e.g. recipeIngredient) use the top-level string-list mode: " +
         '{"extractAs":"stringList","contentProperty":"..."}. ' +
         "The legacy flat shape {\"nestedMappings\":[{\"blockAlias\":\"...\",\"schemaProperty\":\"...\",\"contentProperty\":\"...\",\"wrapInType\":\"...\",\"wrapInProperty\":\"...\"}]} " +
@@ -137,27 +145,9 @@ const inputSchema = {
     ),
 };
 
-// Forward-compatible: the save response is re-fetched through the single-read
-// path, so it carries `reachability` (routed-page | composed-from-block |
-// unknown) and structural `warnings` — properties mapped outside their
-// Schema.org range that will be SILENTLY DROPPED from the emitted JSON-LD.
-// Surface them via .extend() so the generated zod object does not strip them
-// before the Orval client is regenerated. Both optional → inert when absent.
-// NOTE (leader): drop this shim once `npm run generate` folds the fields into
-// the generated postSchemeweaverMappingsResponse schema.
-const outputSchema = postSchemeweaverMappingsResponse.extend({
-  reachability: z.string().optional(),
-  warnings: z
-    .array(
-      z.object({
-        severity: z.string(),
-        schemaType: z.string().nullish(),
-        path: z.string().nullish(),
-        message: z.string(),
-      })
-    )
-    .optional(),
-});
+// The generated schema (regenerated from the C# DTO) already carries reachability,
+// warnings, driftStatus and persistedTo, so no shim is needed — use it directly.
+export const outputSchema = postSchemeweaverMappingsResponse;
 
 const saveSchemaMappingTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "save-schema-mapping",
@@ -171,6 +161,9 @@ const saveSchemaMappingTool: ToolDefinition<typeof inputSchema, typeof outputSch
     "that will be SILENTLY DROPPED from the JSON-LD (e.g. a non-CreativeWork type under hasPart); re-home those to a property " +
     "like about/mainEntity. Also check `reachability`: composed-from-block means this type only emits inside a containing " +
     "page's block mapping, never on its own URL. " +
+    "The response reports `persistedTo`: by default a save lands in the DATABASE ONLY (`database`) — to reproduce it as " +
+    "config-as-code, run export-mappings-to-usync (or check get-usync-drift). `database+usync` means export-on-save is " +
+    "enabled and it also reached disk. " +
     "Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.",
   inputSchema,
   outputSchema,

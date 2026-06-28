@@ -65,6 +65,42 @@ public class SchemeWeaverOptions
     /// <c>Umbraco.Community.SchemeWeaver.uSync</c> package installed.
     /// </summary>
     public bool ExportMappingsToUSyncOnSave { get; set; }
+
+    /// <summary>
+    /// Controls how the optional uSync addon imports committed mapping <c>.config</c> files on
+    /// boot. Default <see cref="BootImportMode.Off"/> preserves the historical behaviour
+    /// (first-boot-only seeding: import only when the DB has zero mappings), so backoffice edits
+    /// are never overwritten on restart. Opt into <see cref="BootImportMode.Seed"/> or
+    /// <see cref="BootImportMode.Upsert"/> for config-as-code reproduction. Has no effect without
+    /// the <c>Umbraco.Community.SchemeWeaver.uSync</c> package installed.
+    /// </summary>
+    public BootImportMode USyncBootImport { get; set; } = BootImportMode.Off;
+}
+
+/// <summary>
+/// How committed uSync mapping <c>.config</c> files are imported on application start.
+/// </summary>
+public enum BootImportMode
+{
+    /// <summary>
+    /// First-boot-only seeding (default, historical behaviour): import all configs only when the
+    /// DB has zero mappings; once populated, do nothing on boot. Backoffice edits always survive
+    /// restarts.
+    /// </summary>
+    Off,
+
+    /// <summary>
+    /// Create-missing on every boot: import a config only when no mapping with that alias exists
+    /// in the DB. Never overwrites an existing mapping, so backoffice edits survive — but a
+    /// committed config for a backoffice-deleted mapping is recreated on restart.
+    /// </summary>
+    Seed,
+
+    /// <summary>
+    /// Disk-wins on every boot: import/overwrite all configs from disk on each start (full
+    /// config-as-code). Unexported backoffice edits are overwritten on restart.
+    /// </summary>
+    Upsert
 }
 
 /// <summary>

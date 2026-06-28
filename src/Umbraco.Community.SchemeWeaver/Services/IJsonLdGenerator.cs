@@ -1,5 +1,6 @@
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.SchemeWeaver.Graph;
+using Umbraco.Community.SchemeWeaver.Models.Api;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
 
@@ -51,4 +52,20 @@ public interface IJsonLdGenerator
     /// <c>HttpContext</c> host regardless of the graph/non-graph mode.
     /// </summary>
     string? GetResolvedBaseUrl();
+
+    /// <summary>
+    /// Finds a nested block element on <paramref name="page"/> by its <see cref="IPublishedElement.Key"/>,
+    /// searching every BlockList/BlockGrid property recursively (top-level blocks, Block Grid areas,
+    /// and blocks nested inside a block's own block properties). Returns null when not found.
+    /// </summary>
+    IPublishedElement? FindBlockInstance(IPublishedContent page, Guid blockInstanceKey, string? culture = null);
+
+    /// <summary>
+    /// Renders the REAL JSON-LD a single nested block instance contributes to its page, located by
+    /// <paramref name="blockInstanceKey"/> and rendered through the parent page mapping's route for
+    /// that block type (so wrapping/transforms/nesting match the in-page emission). The result's
+    /// <see cref="BlockInstancePreviewResult.Status"/> distinguishes rendered / not-found / no-route /
+    /// empty-after-render.
+    /// </summary>
+    BlockInstancePreviewResult GenerateBlockInstanceJsonLd(IPublishedContent page, Guid blockInstanceKey, string? culture = null);
 }

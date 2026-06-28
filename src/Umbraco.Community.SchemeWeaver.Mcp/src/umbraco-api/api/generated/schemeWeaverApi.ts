@@ -6,10 +6,45 @@
  * OpenAPI spec version: Latest
  */
 import { customInstance } from '../client.js';
+export interface BlockElementPropertyInfo {
+  alias: string;
+  name: string;
+  editorAlias: string;
+  nestedBlockElementTypes: BlockElementTypeInfo[];
+}
+
 export interface BlockElementTypeInfo {
   alias: string;
   name: string;
   properties: string[];
+  propertyInfos: BlockElementPropertyInfo[];
+}
+
+export interface BlockMappingSuggestion {
+  schemaProperty: string;
+  confidence: number;
+  routes: BlockRouteSuggestion[];
+}
+
+export type BlockRoutePropertyMappingSuggestionWrapInType = null | string;
+
+export type BlockRoutePropertyMappingSuggestionWrapInProperty = null | string;
+
+export type BlockRoutePropertyMappingSuggestionRoutes = null | BlockRouteSuggestion[];
+
+export interface BlockRoutePropertyMappingSuggestion {
+  schemaProperty: string;
+  contentProperty: string;
+  wrapInType?: BlockRoutePropertyMappingSuggestionWrapInType;
+  wrapInProperty?: BlockRoutePropertyMappingSuggestionWrapInProperty;
+  routes?: BlockRoutePropertyMappingSuggestionRoutes;
+}
+
+export interface BlockRouteSuggestion {
+  blockAlias: string;
+  nestedSchemaType: string;
+  confidence: number;
+  propertyMappings: BlockRoutePropertyMappingSuggestion[];
 }
 
 export interface ContentTypeGenerationRequest {
@@ -32,11 +67,47 @@ export const EventMessageTypeModel = {
   Warning: 'Warning',
 } as const;
 
+export type JsonLdPreviewResponseResolvedBaseUrl = null | string;
+
 export interface JsonLdPreviewResponse {
   jsonLd: string;
   isValid: boolean;
   errors: string[];
   issues: ValidationIssueDto[];
+  context: string;
+  resolvedBaseUrl?: JsonLdPreviewResponseResolvedBaseUrl;
+}
+
+export interface MappingDriftEntryDto {
+  contentTypeAlias: string;
+  status: string;
+}
+
+export interface MappingDriftReportDto {
+  usyncAvailable: boolean;
+  items: MappingDriftEntryDto[];
+}
+
+export type MappingExportItemDtoError = null | string;
+
+export interface MappingExportItemDto {
+  alias: string;
+  written: boolean;
+  error?: MappingExportItemDtoError;
+}
+
+export type MappingExportRequestContentTypeAlias = null | string;
+
+export interface MappingExportRequest {
+  contentTypeAlias?: MappingExportRequestContentTypeAlias;
+}
+
+export type MappingExportResultDtoFolder = null | string;
+
+export interface MappingExportResultDto {
+  usyncAvailable: boolean;
+  folder?: MappingExportResultDtoFolder;
+  items: MappingExportItemDto[];
 }
 
 export interface NotificationHeaderModel {
@@ -114,6 +185,12 @@ export interface RankedSchemaPropertyInfo {
 
 export type SchemaMappingDtoIdOverride = null | string;
 
+export type SchemaMappingDtoReachability = null | string;
+
+export type SchemaMappingDtoDriftStatus = null | string;
+
+export type SchemaMappingDtoPersistedTo = null | string;
+
 export interface SchemaMappingDto {
   contentTypeAlias: string;
   contentTypeKey: string;
@@ -122,6 +199,10 @@ export interface SchemaMappingDto {
   isInherited: boolean;
   idOverride?: SchemaMappingDtoIdOverride;
   propertyMappings: PropertyMappingDto[];
+  reachability?: SchemaMappingDtoReachability;
+  warnings: ValidationIssueDto[];
+  driftStatus?: SchemaMappingDtoDriftStatus;
+  persistedTo?: SchemaMappingDtoPersistedTo;
 }
 
 export type SchemaTypeInfoDescription = null | string;
@@ -133,6 +214,11 @@ export interface SchemaTypeInfo {
   description?: SchemaTypeInfoDescription;
   parentTypeName?: SchemaTypeInfoParentTypeName;
   propertyCount: number;
+}
+
+export interface ServerContextDto {
+  hasPublishedContent: boolean;
+  isTestHost: boolean;
 }
 
 export interface ValidationIssueDto {
@@ -148,8 +234,11 @@ schemaTypeName?: string;
 
 export type PostSchemeweaverMappingsByContentTypeAliasPreviewParams = {
 contentKey?: string;
+blockInstanceKey?: string;
 culture?: string;
 };
+
+export type PostSchemeweaverMappingsExportBody = null | MappingExportRequest;
 
 export type GetSchemeweaverSchemaTypesParams = {
 search?: string;
@@ -177,6 +266,16 @@ const getSchemeweaverContentTypesByAliasProperties = (
  options?: SecondParameter<typeof customInstance<void>>,) => {
       return customInstance<void>(
       {url: `/umbraco/management/api/v1/schemeweaver/content-types/${alias}/properties`, method: 'GET'
+    },
+      options);
+    }
+  
+const postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest = (
+    contentTypeAlias: string,
+    propertyAlias: string,
+ options?: SecondParameter<typeof customInstance<BlockMappingSuggestion[]>>,) => {
+      return customInstance<BlockMappingSuggestion[]>(
+      {url: `/umbraco/management/api/v1/schemeweaver/content-types/${contentTypeAlias}/properties/${propertyAlias}/block-suggest`, method: 'POST'
     },
       options);
     }
@@ -262,6 +361,26 @@ const postSchemeweaverMappingsByContentTypeAliasPreview = (
       options);
     }
   
+const getSchemeweaverMappingsDrift = (
+    
+ options?: SecondParameter<typeof customInstance<MappingDriftReportDto>>,) => {
+      return customInstance<MappingDriftReportDto>(
+      {url: `/umbraco/management/api/v1/schemeweaver/mappings/drift`, method: 'GET'
+    },
+      options);
+    }
+  
+const postSchemeweaverMappingsExport = (
+    postSchemeweaverMappingsExportBody: PostSchemeweaverMappingsExportBody,
+ options?: SecondParameter<typeof customInstance<MappingExportResultDto>>,) => {
+      return customInstance<MappingExportResultDto>(
+      {url: `/umbraco/management/api/v1/schemeweaver/mappings/export`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: postSchemeweaverMappingsExportBody
+    },
+      options);
+    }
+  
 const getSchemeweaverSchemaTypes = (
     params?: GetSchemeweaverSchemaTypesParams,
  options?: SecondParameter<typeof customInstance<SchemaTypeInfo[]>>,) => {
@@ -283,9 +402,19 @@ const getSchemeweaverSchemaTypesByNameProperties = (
       options);
     }
   
-return {getSchemeweaverContentTypes,getSchemeweaverContentTypesByAliasProperties,getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypes,postSchemeweaverGenerateContentType,getSchemeweaverMappings,postSchemeweaverMappings,getSchemeweaverMappingsByContentTypeAlias,deleteSchemeweaverMappingsByContentTypeAlias,postSchemeweaverMappingsByContentTypeAliasAutoMap,postSchemeweaverMappingsByContentTypeAliasPreview,getSchemeweaverSchemaTypes,getSchemeweaverSchemaTypesByNameProperties}};
+const getSchemeweaverServerContext = (
+    
+ options?: SecondParameter<typeof customInstance<ServerContextDto>>,) => {
+      return customInstance<ServerContextDto>(
+      {url: `/umbraco/management/api/v1/schemeweaver/server-context`, method: 'GET'
+    },
+      options);
+    }
+  
+return {getSchemeweaverContentTypes,getSchemeweaverContentTypesByAliasProperties,postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest,getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypes,postSchemeweaverGenerateContentType,getSchemeweaverMappings,postSchemeweaverMappings,getSchemeweaverMappingsByContentTypeAlias,deleteSchemeweaverMappingsByContentTypeAlias,postSchemeweaverMappingsByContentTypeAliasAutoMap,postSchemeweaverMappingsByContentTypeAliasPreview,getSchemeweaverMappingsDrift,postSchemeweaverMappingsExport,getSchemeweaverSchemaTypes,getSchemeweaverSchemaTypesByNameProperties,getSchemeweaverServerContext}};
 export type GetSchemeweaverContentTypesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['getSchemeweaverContentTypes']>>>
 export type GetSchemeweaverContentTypesByAliasPropertiesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['getSchemeweaverContentTypesByAliasProperties']>>>
+export type PostSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggestResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest']>>>
 export type GetSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypes']>>>
 export type PostSchemeweaverGenerateContentTypeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['postSchemeweaverGenerateContentType']>>>
 export type GetSchemeweaverMappingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['getSchemeweaverMappings']>>>
@@ -294,5 +423,8 @@ export type GetSchemeweaverMappingsByContentTypeAliasResult = NonNullable<Awaite
 export type DeleteSchemeweaverMappingsByContentTypeAliasResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['deleteSchemeweaverMappingsByContentTypeAlias']>>>
 export type PostSchemeweaverMappingsByContentTypeAliasAutoMapResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['postSchemeweaverMappingsByContentTypeAliasAutoMap']>>>
 export type PostSchemeweaverMappingsByContentTypeAliasPreviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['postSchemeweaverMappingsByContentTypeAliasPreview']>>>
+export type GetSchemeweaverMappingsDriftResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['getSchemeweaverMappingsDrift']>>>
+export type PostSchemeweaverMappingsExportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['postSchemeweaverMappingsExport']>>>
 export type GetSchemeweaverSchemaTypesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['getSchemeweaverSchemaTypes']>>>
 export type GetSchemeweaverSchemaTypesByNamePropertiesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['getSchemeweaverSchemaTypesByNameProperties']>>>
+export type GetSchemeweaverServerContextResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSchemeWeaverManagementAPI>['getSchemeweaverServerContext']>>>

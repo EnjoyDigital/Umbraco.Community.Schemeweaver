@@ -12,6 +12,30 @@ export const getSchemeweaverContentTypesByAliasPropertiesParams = zod.object({
 })
 
 
+export const postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggestParams = zod.object({
+  "contentTypeAlias": zod.string(),
+  "propertyAlias": zod.string()
+})
+
+export const postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggestResponseItem = zod.object({
+  "schemaProperty": zod.string(),
+  "confidence": zod.number(),
+  "routes": zod.array(zod.object({
+  "blockAlias": zod.string(),
+  "nestedSchemaType": zod.string(),
+  "confidence": zod.number(),
+  "propertyMappings": zod.array(zod.object({
+  "schemaProperty": zod.string(),
+  "contentProperty": zod.string(),
+  "wrapInType": zod.string().nullish(),
+  "wrapInProperty": zod.string().nullish(),
+  "routes": zod.array(zod.unknown()).nullish()
+}))
+}))
+})
+export const postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggestResponse = zod.array(postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggestResponseItem)
+
+
 export const getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesParams = zod.object({
   "contentTypeAlias": zod.string(),
   "propertyAlias": zod.string()
@@ -20,7 +44,13 @@ export const getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAl
 export const getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesResponseItem = zod.object({
   "alias": zod.string(),
   "name": zod.string(),
-  "properties": zod.array(zod.string())
+  "properties": zod.array(zod.string()),
+  "propertyInfos": zod.array(zod.object({
+  "alias": zod.string(),
+  "name": zod.string(),
+  "editorAlias": zod.string(),
+  "nestedBlockElementTypes": zod.array(zod.unknown())
+}))
 })
 export const getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesResponse = zod.array(getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypesResponseItem)
 
@@ -53,7 +83,16 @@ export const getSchemeweaverMappingsResponseItem = zod.object({
   "resolverConfig": zod.string().nullish(),
   "dynamicRootConfig": zod.string().nullish(),
   "targetPieceKey": zod.string().nullish()
-}))
+})),
+  "reachability": zod.string().nullish(),
+  "warnings": zod.array(zod.object({
+  "severity": zod.string(),
+  "schemaType": zod.string(),
+  "path": zod.string(),
+  "message": zod.string()
+})),
+  "driftStatus": zod.string().nullish(),
+  "persistedTo": zod.string().nullish()
 })
 export const getSchemeweaverMappingsResponse = zod.array(getSchemeweaverMappingsResponseItem)
 
@@ -77,7 +116,16 @@ export const postSchemeweaverMappingsBody = zod.object({
   "resolverConfig": zod.string().nullish(),
   "dynamicRootConfig": zod.string().nullish(),
   "targetPieceKey": zod.string().nullish()
-}))
+})),
+  "reachability": zod.string().nullish(),
+  "warnings": zod.array(zod.object({
+  "severity": zod.string(),
+  "schemaType": zod.string(),
+  "path": zod.string(),
+  "message": zod.string()
+})),
+  "driftStatus": zod.string().nullish(),
+  "persistedTo": zod.string().nullish()
 })
 
 export const postSchemeweaverMappingsResponse = zod.object({
@@ -99,7 +147,16 @@ export const postSchemeweaverMappingsResponse = zod.object({
   "resolverConfig": zod.string().nullish(),
   "dynamicRootConfig": zod.string().nullish(),
   "targetPieceKey": zod.string().nullish()
-}))
+})),
+  "reachability": zod.string().nullish(),
+  "warnings": zod.array(zod.object({
+  "severity": zod.string(),
+  "schemaType": zod.string(),
+  "path": zod.string(),
+  "message": zod.string()
+})),
+  "driftStatus": zod.string().nullish(),
+  "persistedTo": zod.string().nullish()
 })
 
 
@@ -126,7 +183,16 @@ export const getSchemeweaverMappingsByContentTypeAliasResponse = zod.object({
   "resolverConfig": zod.string().nullish(),
   "dynamicRootConfig": zod.string().nullish(),
   "targetPieceKey": zod.string().nullish()
-}))
+})),
+  "reachability": zod.string().nullish(),
+  "warnings": zod.array(zod.object({
+  "severity": zod.string(),
+  "schemaType": zod.string(),
+  "path": zod.string(),
+  "message": zod.string()
+})),
+  "driftStatus": zod.string().nullish(),
+  "persistedTo": zod.string().nullish()
 })
 
 
@@ -166,6 +232,7 @@ export const postSchemeweaverMappingsByContentTypeAliasPreviewParams = zod.objec
 
 export const postSchemeweaverMappingsByContentTypeAliasPreviewQueryParams = zod.object({
   "contentKey": zod.uuid().optional(),
+  "blockInstanceKey": zod.uuid().optional(),
   "culture": zod.string().optional()
 })
 
@@ -178,6 +245,32 @@ export const postSchemeweaverMappingsByContentTypeAliasPreviewResponse = zod.obj
   "schemaType": zod.string(),
   "path": zod.string(),
   "message": zod.string()
+})),
+  "context": zod.string(),
+  "resolvedBaseUrl": zod.string().nullish()
+})
+
+
+export const getSchemeweaverMappingsDriftResponse = zod.object({
+  "usyncAvailable": zod.boolean(),
+  "items": zod.array(zod.object({
+  "contentTypeAlias": zod.string(),
+  "status": zod.string()
+}))
+})
+
+
+export const postSchemeweaverMappingsExportBody = zod.union([zod.null(),zod.object({
+  "contentTypeAlias": zod.string().nullish()
+})])
+
+export const postSchemeweaverMappingsExportResponse = zod.object({
+  "usyncAvailable": zod.boolean(),
+  "folder": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "alias": zod.string(),
+  "written": zod.boolean(),
+  "error": zod.string().nullish()
 }))
 })
 
@@ -215,3 +308,9 @@ export const getSchemeweaverSchemaTypesByNamePropertiesResponseItem = zod.object
   "isComplexType": zod.boolean()
 })
 export const getSchemeweaverSchemaTypesByNamePropertiesResponse = zod.array(getSchemeweaverSchemaTypesByNamePropertiesResponseItem)
+
+
+export const getSchemeweaverServerContextResponse = zod.object({
+  "hasPublishedContent": zod.boolean(),
+  "isTestHost": zod.boolean()
+})

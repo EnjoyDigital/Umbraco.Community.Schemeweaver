@@ -1,12 +1,10 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Community.SchemeWeaver;
 using Umbraco.Community.SchemeWeaver.Notifications;
-using Umbraco.Community.SchemeWeaver.Persistence;
-using uSync.Core.Serialization;
+using Umbraco.Community.SchemeWeaver.Services;
 
 namespace Umbraco.Community.SchemeWeaver.uSync;
 
@@ -15,32 +13,30 @@ namespace Umbraco.Community.SchemeWeaver.uSync;
 /// or deleted, so the change is ready to commit to source control. Gated behind
 /// the SchemeWeaver-owned, default-off <see cref="SchemeWeaverOptions.ExportMappingsToUSyncOnSave"/>
 /// flag (NOT uSync's global ExportOnSave, which would be a surprise-write
-/// vector). All file I/O is wrapped in try/catch so a read-only content root can
-/// never break the user's save.
+/// vector). The save path delegates to <see cref="IMappingExporter"/> so the write
+/// uses one code path shared with the on-demand export endpoint; all I/O is
+/// guarded so a read-only content root can never break the user's save.
 /// </summary>
 public class SchemaMappingExportNotificationHandler :
     INotificationHandler<SchemaMappingSavedNotification>,
     INotificationHandler<SchemaMappingDeletedNotification>
 {
-    private readonly SyncSerializerCollection _serializers;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IHostEnvironment _hostEnvironment;
+    private readonly IMappingExporter _exporter;
     private readonly IMappingFileWriter _fileWriter;
+    private readonly IHostEnvironment _hostEnvironment;
     private readonly IOptions<SchemeWeaverOptions> _options;
     private readonly ILogger<SchemaMappingExportNotificationHandler> _logger;
 
     public SchemaMappingExportNotificationHandler(
-        SyncSerializerCollection serializers,
-        IServiceScopeFactory scopeFactory,
-        IHostEnvironment hostEnvironment,
+        IMappingExporter exporter,
         IMappingFileWriter fileWriter,
+        IHostEnvironment hostEnvironment,
         IOptions<SchemeWeaverOptions> options,
         ILogger<SchemaMappingExportNotificationHandler> logger)
     {
-        _serializers = serializers;
-        _scopeFactory = scopeFactory;
-        _hostEnvironment = hostEnvironment;
+        _exporter = exporter;
         _fileWriter = fileWriter;
+        _hostEnvironment = hostEnvironment;
         _options = options;
         _logger = logger;
     }
@@ -50,46 +46,14 @@ public class SchemaMappingExportNotificationHandler :
         if (!ShouldExport())
             return;
 
-        try
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var repository = scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
-            var item = repository.GetByContentTypeAlias(notification.ContentTypeAlias);
-            if (item is null)
-            {
-                _logger.LogDebug("No mapping found for {Alias} to export — skipping", notification.ContentTypeAlias);
-                return;
-            }
-
-            var serializer = _serializers.OfType<SchemaMappingSerializer>().FirstOrDefault();
-            if (serializer is null)
-            {
-                _logger.LogWarning("SchemaMappingSerializer not found — cannot export mapping for {Alias}", notification.ContentTypeAlias);
-                return;
-            }
-
-            var attempt = serializer
-                .SerializeAsync(item, new SyncSerializerOptions())
-                .GetAwaiter()
-                .GetResult();
-
-            if (!attempt.Success || attempt.Item is null)
-            {
-                _logger.LogWarning("Failed to serialise mapping for {Alias} — skipping export", notification.ContentTypeAlias);
-                return;
-            }
-
-            var folder = SchemeWeaverMappingPaths.ResolveWriteFolder(_hostEnvironment.ContentRootPath);
-            _fileWriter.Write(folder, notification.ContentTypeAlias, attempt.Item);
-
-            _logger.LogInformation("Exported SchemeWeaver mapping for {Alias} to {Folder}", notification.ContentTypeAlias, folder);
-        }
-        catch (Exception ex)
-        {
-            // A failed export must never break the user's save (e.g. read-only
-            // content root on a container or Azure App Service).
-            _logger.LogWarning(ex, "Error exporting SchemeWeaver mapping for {Alias} — the save itself succeeded", notification.ContentTypeAlias);
-        }
+        // The exporter captures per-item failures (e.g. read-only root) rather than throwing,
+        // so the user's save is never broken by a failed export.
+        var result = _exporter.Export(notification.ContentTypeAlias);
+        var item = result.Items.FirstOrDefault();
+        if (item is { Written: true })
+            _logger.LogInformation("Exported SchemeWeaver mapping for {Alias} to {Folder}", notification.ContentTypeAlias, result.Folder);
+        else if (item is { Written: false })
+            _logger.LogWarning("Export of SchemeWeaver mapping for {Alias} did not write: {Error} — the save itself succeeded", notification.ContentTypeAlias, item.Error);
     }
 
     public void Handle(SchemaMappingDeletedNotification notification)
@@ -110,9 +74,8 @@ public class SchemaMappingExportNotificationHandler :
     }
 
     /// <summary>
-    /// Export only when the owned flag is on AND we're not inside the first-boot
-    /// import (the import writes through the repository, so re-exporting would be
-    /// pointless churn).
+    /// Export only when the owned flag is on AND we're not inside a uSync import (the import
+    /// writes through the repository, so re-exporting would be pointless churn).
     /// </summary>
     private bool ShouldExport()
         => _options.Value.ExportMappingsToUSyncOnSave && !SchemeWeaverImportGuard.IsImporting;

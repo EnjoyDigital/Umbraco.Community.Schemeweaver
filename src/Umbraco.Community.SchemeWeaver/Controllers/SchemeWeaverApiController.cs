@@ -30,23 +30,32 @@ public class SchemeWeaverApiController : ControllerBase
 {
     private readonly ISchemeWeaverService _service;
     private readonly IContentTypeService _contentTypeService;
+    private readonly IContentService _contentService;
     private readonly IContentTypeGenerator _contentTypeGenerator;
     private readonly ISchemaAutoMapper _schemaAutoMapper;
+    private readonly IMappingDriftReporter _driftReporter;
+    private readonly IMappingExporter _mappingExporter;
     private readonly IUmbracoContextAccessor _umbracoContextAccessor;
     private readonly ILogger<SchemeWeaverApiController> _logger;
 
     public SchemeWeaverApiController(
         ISchemeWeaverService service,
         IContentTypeService contentTypeService,
+        IContentService contentService,
         IContentTypeGenerator contentTypeGenerator,
         ISchemaAutoMapper schemaAutoMapper,
+        IMappingDriftReporter driftReporter,
+        IMappingExporter mappingExporter,
         IUmbracoContextAccessor umbracoContextAccessor,
         ILogger<SchemeWeaverApiController> logger)
     {
         _service = service;
         _contentTypeService = contentTypeService;
+        _contentService = contentService;
         _contentTypeGenerator = contentTypeGenerator;
         _schemaAutoMapper = schemaAutoMapper;
+        _driftReporter = driftReporter;
+        _mappingExporter = mappingExporter;
         _umbracoContextAccessor = umbracoContextAccessor;
         _logger = logger;
     }
@@ -266,6 +275,36 @@ public class SchemeWeaverApiController : ControllerBase
         }
     }
 
+    [HttpGet("mappings/drift")]
+    [ProducesResponseType(typeof(MappingDriftReportDto), StatusCodes.Status200OK)]
+    public IActionResult GetMappingDrift()
+    {
+        try
+        {
+            return Ok(_driftReporter.GetReport());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to compute schema mapping drift");
+            return StatusCode(500, new { error = "An unexpected error occurred whilst computing mapping drift." });
+        }
+    }
+
+    [HttpPost("mappings/export")]
+    [ProducesResponseType(typeof(MappingExportResultDto), StatusCodes.Status200OK)]
+    public IActionResult ExportMappings([FromBody] MappingExportRequest? request = null)
+    {
+        try
+        {
+            return Ok(_mappingExporter.Export(request?.ContentTypeAlias));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to export schema mappings to uSync");
+            return StatusCode(500, new { error = "An unexpected error occurred whilst exporting mappings to uSync." });
+        }
+    }
+
     [HttpPost("mappings/{contentTypeAlias}/auto-map")]
     [ProducesResponseType(typeof(IEnumerable<PropertyMappingSuggestion>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -289,7 +328,7 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpPost("mappings/{contentTypeAlias}/preview")]
     [ProducesResponseType(typeof(JsonLdPreviewResponse), StatusCodes.Status200OK)]
-    public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid? contentKey = null, [FromQuery] string? culture = null)
+    public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid? contentKey = null, [FromQuery] Guid? blockInstanceKey = null, [FromQuery] string? culture = null)
     {
         try
         {
@@ -304,6 +343,13 @@ public class SchemeWeaverApiController : ControllerBase
                 var content = umbracoContext.Content?.GetById(contentKey.Value);
                 if (content == null) return NotFound("Content not found.");
 
+                // Block-instance preview: render the real JSON-LD a single nested block contributes
+                // to its page (via the page mapping's route for that block type).
+                if (blockInstanceKey is { } bik && bik != Guid.Empty)
+                {
+                    return Ok(_service.GenerateBlockInstancePreview(content, bik, culture));
+                }
+
                 var preview = _service.GeneratePreview(content, culture);
                 return Ok(preview);
             }
@@ -317,6 +363,35 @@ public class SchemeWeaverApiController : ControllerBase
             _logger.LogError(ex, "Failed to generate preview for content type {ContentTypeAlias}", contentTypeAlias);
             return StatusCode(500, new { error = "An unexpected error occurred whilst generating the JSON-LD preview." });
         }
+    }
+
+    #endregion
+
+    #region Server Context
+
+    [HttpGet("server-context")]
+    [ProducesResponseType(typeof(ServerContextDto), StatusCodes.Status200OK)]
+    public IActionResult GetServerContext()
+    {
+        // Lets callers (e.g. the MCP) tell a populated site from an empty sandbox/TestHost
+        // before trusting a render — the root cause of "the tool said fine but it was empty".
+        var dto = new ServerContextDto();
+
+        try
+        {
+            // A published root implies a routable tree (descendants can't publish without
+            // published ancestors), so this is a reliable "populated vs empty sandbox" signal.
+            dto.HasPublishedContent = _contentService.GetRootContent().Any(c => c.Published);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not determine published content state for server context");
+        }
+
+        var entryName = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name;
+        dto.IsTestHost = entryName?.Contains("TestHost", StringComparison.OrdinalIgnoreCase) == true;
+
+        return Ok(dto);
     }
 
     #endregion
