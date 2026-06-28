@@ -15,6 +15,7 @@ using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Advisory;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
@@ -32,6 +33,7 @@ public class SchemeWeaverServiceTests
     private readonly IBlockSchemaSuggester _blockSchemaSuggester = Substitute.For<IBlockSchemaSuggester>();
     private readonly ISchemaRangeValidator _rangeValidator = Substitute.For<ISchemaRangeValidator>();
     private readonly IMappingAdvisor _advisor = Substitute.For<IMappingAdvisor>();
+    private readonly IPropertyValueSchemaService _valueSchemaService = Substitute.For<IPropertyValueSchemaService>();
     private readonly IMappingReachabilityClassifier _reachabilityClassifier = Substitute.For<IMappingReachabilityClassifier>();
     private readonly IMappingDriftReporter _driftReporter = Substitute.For<IMappingDriftReporter>();
     private readonly IEventAggregator _eventAggregator = Substitute.For<IEventAggregator>();
@@ -64,7 +66,7 @@ public class SchemeWeaverServiceTests
         _sut = new SchemeWeaverService(
             _registry, _autoMapper, _generator, _graphGenerator,
             _repository, _contentTypeService, _dataTypeService,
-            _validator, _blockSchemaSuggester, _rangeValidator, _advisor,
+            _validator, _blockSchemaSuggester, _rangeValidator, _advisor, _valueSchemaService,
             _reachabilityClassifier, _driftReporter, _eventAggregator, Options.Create(_options), _logger);
     }
 

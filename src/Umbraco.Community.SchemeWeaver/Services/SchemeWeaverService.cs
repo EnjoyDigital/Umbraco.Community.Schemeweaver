@@ -10,6 +10,7 @@ using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services.Advisory;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
@@ -30,6 +31,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     private readonly IBlockSchemaSuggester _blockSchemaSuggester;
     private readonly ISchemaRangeValidator _rangeValidator;
     private readonly IMappingAdvisor _advisor;
+    private readonly IPropertyValueSchemaService _valueSchemaService;
     private readonly IMappingReachabilityClassifier _reachabilityClassifier;
     private readonly IMappingDriftReporter _driftReporter;
     private readonly IEventAggregator _eventAggregator;
@@ -48,6 +50,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         IBlockSchemaSuggester blockSchemaSuggester,
         ISchemaRangeValidator rangeValidator,
         IMappingAdvisor advisor,
+        IPropertyValueSchemaService valueSchemaService,
         IMappingReachabilityClassifier reachabilityClassifier,
         IMappingDriftReporter driftReporter,
         IEventAggregator eventAggregator,
@@ -65,6 +68,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         _blockSchemaSuggester = blockSchemaSuggester;
         _rangeValidator = rangeValidator;
         _advisor = advisor;
+        _valueSchemaService = valueSchemaService;
         _reachabilityClassifier = reachabilityClassifier;
         _driftReporter = driftReporter;
         _eventAggregator = eventAggregator;
@@ -536,7 +540,8 @@ public class SchemeWeaverService : ISchemeWeaverService
                 {
                     Alias = p.Alias,
                     Name = p.Name ?? p.Alias,
-                    EditorAlias = p.PropertyEditorAlias
+                    EditorAlias = p.PropertyEditorAlias,
+                    ValueSchema = await _valueSchemaService.GetDataTypeValueSchemaAsync(p.DataTypeKey).ConfigureAwait(false),
                 };
 
                 if (depth < MaxBlockElementDiscoveryDepth

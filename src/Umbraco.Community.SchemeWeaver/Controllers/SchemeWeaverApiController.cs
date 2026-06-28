@@ -11,6 +11,7 @@ using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Authorization;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 
 namespace Umbraco.Community.SchemeWeaver.Controllers;
 
@@ -36,6 +37,7 @@ public class SchemeWeaverApiController : ControllerBase
     private readonly IMappingDriftReporter _driftReporter;
     private readonly IMappingExporter _mappingExporter;
     private readonly IUmbracoContextAccessor _umbracoContextAccessor;
+    private readonly IPropertyValueSchemaService _valueSchemaService;
     private readonly ILogger<SchemeWeaverApiController> _logger;
 
     public SchemeWeaverApiController(
@@ -47,6 +49,7 @@ public class SchemeWeaverApiController : ControllerBase
         IMappingDriftReporter driftReporter,
         IMappingExporter mappingExporter,
         IUmbracoContextAccessor umbracoContextAccessor,
+        IPropertyValueSchemaService valueSchemaService,
         ILogger<SchemeWeaverApiController> logger)
     {
         _service = service;
@@ -57,6 +60,7 @@ public class SchemeWeaverApiController : ControllerBase
         _driftReporter = driftReporter;
         _mappingExporter = mappingExporter;
         _umbracoContextAccessor = umbracoContextAccessor;
+        _valueSchemaService = valueSchemaService;
         _logger = logger;
     }
 
@@ -135,30 +139,44 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpGet("content-types/{alias}/properties")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GetContentTypeProperties(string alias)
+    public async Task<IActionResult> GetContentTypeProperties(string alias)
     {
         try
         {
             var contentType = _contentTypeService.Get(alias);
             if (contentType == null) return NotFound();
 
-            var customProperties = contentType.PropertyTypes.Select(pt => new
-            {
-                pt.Alias,
-                pt.Name,
-                EditorAlias = pt.PropertyEditorAlias,
-                pt.Description
-            });
+            // Built-in node properties first (no real data type, so no value schema), then the
+            // editor-defined properties — each enriched with its Umbraco 17.4+ value JSON Schema
+            // (the actual shape its stored value takes) when available, else null on older hosts.
+            var properties = new List<object>();
 
-            var builtInProperties = SchemeWeaverConstants.BuiltInProperties.All.Select(bp => new
+            foreach (var bp in SchemeWeaverConstants.BuiltInProperties.All)
             {
-                Alias = bp.Alias,
-                Name = bp.DisplayName,
-                EditorAlias = bp.EditorAlias,
-                Description = (string?)null
-            });
+                properties.Add(new
+                {
+                    Alias = bp.Alias,
+                    Name = bp.DisplayName,
+                    EditorAlias = bp.EditorAlias,
+                    Description = (string?)null,
+                    ValueSchema = (string?)null,
+                });
+            }
 
-            return Ok(builtInProperties.Concat(customProperties));
+            foreach (var pt in contentType.PropertyTypes)
+            {
+                var valueSchema = await _valueSchemaService.GetDataTypeValueSchemaAsync(pt.DataTypeKey).ConfigureAwait(false);
+                properties.Add(new
+                {
+                    Alias = pt.Alias,
+                    Name = pt.Name,
+                    EditorAlias = pt.PropertyEditorAlias,
+                    Description = pt.Description,
+                    ValueSchema = valueSchema,
+                });
+            }
+
+            return Ok(properties);
         }
         catch (Exception ex)
         {

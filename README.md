@@ -32,7 +32,7 @@ You get a document-type editor UI for configuring mappings, an auto-mapper that 
 
 ## Requirements
 
-- Umbraco 17 or 18
+- Umbraco 17.4+ or 18
 - .NET 10
 
 ## Installation
@@ -52,7 +52,7 @@ Umbraco 18 made a binary-breaking change to `IPublishedContent`, so one assembly
 | 17 | `17.x` | `dotnet add package Umbraco.Community.SchemeWeaver` |
 | 18 | `18.x` | `dotnet add package Umbraco.Community.SchemeWeaver` |
 
-The command is identical for both: each build's `Umbraco.Cms` dependency range is mutually exclusive (`[17.0.0, 18.0.0)` vs `[18.0.0, 19.0.0)`), so NuGet resolves the right build for your project automatically — no `--prerelease` needed.
+The command is identical for both: each build's `Umbraco.Cms` dependency range is mutually exclusive (`[17.4.0, 18.0.0)` vs `[18.0.0, 19.0.0)`), so NuGet resolves the right build for your project automatically — no `--prerelease` needed. (The Umbraco 17 build requires 17.4+, where the JSON-Schema services SchemeWeaver uses for value-schema awareness landed; 17.0–17.3 sites should stay on SchemeWeaver 17.8.x.)
 
 To sync mappings between environments, add the optional [uSync](https://jumoo.co.uk/usync/) addon — `dotnet add package Umbraco.Community.SchemeWeaver.uSync` — which follows the same major-aligned scheme. See [uSync Integration](docs/usync.md).
 

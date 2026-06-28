@@ -2,10 +2,12 @@ using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Umbraco.AI.Core.Chat;
+using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.AI.Models;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 
 namespace Umbraco.Community.SchemeWeaver.AI.Services;
 
@@ -19,6 +21,7 @@ public class AISchemaMapper : IAISchemaMapper
     private readonly IContentTypeService _contentTypeService;
     private readonly ISchemaTypeRegistry _schemaTypeRegistry;
     private readonly SchemaAutoMapper _heuristicMapper;
+    private readonly IPropertyValueSchemaService _valueSchemaService;
     private readonly ILogger<AISchemaMapper> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -42,14 +45,46 @@ public class AISchemaMapper : IAISchemaMapper
         IContentTypeService contentTypeService,
         ISchemaTypeRegistry schemaTypeRegistry,
         SchemaAutoMapper heuristicMapper,
+        IPropertyValueSchemaService valueSchemaService,
         ILogger<AISchemaMapper> logger)
     {
         _chatService = chatService;
         _contentTypeService = contentTypeService;
         _schemaTypeRegistry = schemaTypeRegistry;
         _heuristicMapper = heuristicMapper;
+        _valueSchemaService = valueSchemaService;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Renders one prompt line per property: <c>alias (editor) — description</c>, plus the Umbraco
+    /// 17.4+ value JSON Schema (the actual stored-value shape) on a continuation line when available,
+    /// so the model reasons about real value structure — types, lengths, UUID/crop/range — not just
+    /// the editor alias. Degrades to the alias-only line when no schema is available.
+    /// </summary>
+    /// <summary>Per-property value-schema cap (chars) so a recursive Block List schema can't balloon the prompt.</summary>
+    private const int MaxValueSchemaChars = 600;
+
+    private async Task<string> BuildPropertyLinesAsync(IEnumerable<IPropertyType> propertyTypes)
+    {
+        var lines = new List<string>();
+        foreach (var p in propertyTypes)
+        {
+            var description = string.IsNullOrEmpty(p.Description) ? p.Name : p.Description;
+            var valueSchema = await _valueSchemaService.GetDataTypeValueSchemaAsync(p.DataTypeKey).ConfigureAwait(false);
+            var schemaHint = string.IsNullOrEmpty(valueSchema)
+                ? string.Empty
+                : $"\n      value schema: {Truncate(valueSchema, MaxValueSchemaChars)}";
+            lines.Add($"  - {p.Alias} ({p.PropertyEditorAlias}) — {description}{schemaHint}");
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>Caps a value schema for the prompt — a large recursive schema is truncated with a marker
+    /// rather than blowing the token budget; the head (type/constraints) carries the most mapping signal.</summary>
+    private static string Truncate(string value, int maxChars)
+        => value.Length <= maxChars ? value : value[..maxChars] + " …(schema truncated)";
 
     public async Task<SchemaTypeSuggestion[]> SuggestSchemaTypesAsync(
         string contentTypeAlias, CancellationToken ct = default)
@@ -58,16 +93,7 @@ public class AISchemaMapper : IAISchemaMapper
         if (contentType is null)
             return [];
 
-        var properties = contentType.PropertyTypes.Select(p => new
-        {
-            alias = p.Alias,
-            name = p.Name,
-            editor = p.PropertyEditorAlias,
-            description = p.Description ?? ""
-        }).ToArray();
-
-        var propertyLines = string.Join("\n", properties.Select(p =>
-            $"  - {p.alias} ({p.editor}) — {(string.IsNullOrEmpty(p.description) ? p.name : p.description)}"));
+        var propertyLines = await BuildPropertyLinesAsync(contentType.PropertyTypes).ConfigureAwait(false);
 
         var schemaTypeList = string.Join(", ", _schemaTypeRegistry.GetAllTypes().Select(t => t.Name));
         const string exampleFormat = """[{"schemaTypeName": "Article", "confidence": 95, "reasoning": "short explanation"}]""";
@@ -199,18 +225,9 @@ public class AISchemaMapper : IAISchemaMapper
         if (contentType is null)
             return heuristicSuggestions;
 
-        var contentProperties = contentType.PropertyTypes.Select(p => new
-        {
-            alias = p.Alias,
-            name = p.Name,
-            editor = p.PropertyEditorAlias,
-            description = p.Description ?? ""
-        }).ToArray();
-
         var schemaProperties = _schemaTypeRegistry.GetProperties(schemaTypeName).ToArray();
 
-        var contentPropertyLines = string.Join("\n", contentProperties.Select(p =>
-            $"  - {p.alias} ({p.editor}) — {(string.IsNullOrEmpty(p.description) ? p.name : p.description)}"));
+        var contentPropertyLines = await BuildPropertyLinesAsync(contentType.PropertyTypes).ConfigureAwait(false);
         var schemaPropertyLines = string.Join("\n", schemaProperties.Select(p =>
             $"  - {p.Name} ({p.PropertyType}){(p.IsComplexType ? " [complex type]" : "")}"));
         const string mappingExampleFormat = """[{"schemaPropertyName": "headline", "suggestedContentTypePropertyAlias": "title", "suggestedSourceType": "property", "confidence": 90}]""";

@@ -18,6 +18,7 @@ using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Advisory;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
 using Xunit;
 
@@ -312,6 +313,7 @@ public class BlockInstancePreviewTests
         rangeValidator.Validate(Arg.Any<SchemaMappingDto>()).Returns(Array.Empty<ValidationIssue>());
         var advisor = Substitute.For<IMappingAdvisor>();
         advisor.AdviseEntry(Arg.Any<MappingEntryInput>()).Returns(Array.Empty<MappingAdvice>());
+        var valueSchema = Substitute.For<IPropertyValueSchemaService>();
         var reach = Substitute.For<IMappingReachabilityClassifier>();
         var drift = Substitute.For<IMappingDriftReporter>();
         drift.GetStatus(Arg.Any<string>()).Returns(MappingDriftStatus.USyncUnavailable);
@@ -320,7 +322,7 @@ public class BlockInstancePreviewTests
             _registry, Substitute.For<ISchemaAutoMapper>(), generator,
             Substitute.For<IGraphGenerator>(), _repository,
             Substitute.For<IContentTypeService>(), Substitute.For<IDataTypeService>(),
-            validator, Substitute.For<IBlockSchemaSuggester>(), rangeValidator, advisor, reach, drift,
+            validator, Substitute.For<IBlockSchemaSuggester>(), rangeValidator, advisor, valueSchema, reach, drift,
             Substitute.For<Umbraco.Cms.Core.Events.IEventAggregator>(),
             Options.Create(new SchemeWeaverOptions()),
             NullLogger<SchemeWeaverService>.Instance);

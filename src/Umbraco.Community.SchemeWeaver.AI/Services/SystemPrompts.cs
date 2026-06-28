@@ -16,6 +16,10 @@ internal static class SystemPrompts
           Umbraco.MediaPicker3 (images/media), Umbraco.ContentPicker (content references),
           Umbraco.BlockList/Umbraco.BlockGrid (structured blocks), Umbraco.DateTime (dates),
           Umbraco.Tags (tags/keywords), Umbraco.TrueFalse (boolean)
+        - When a property lists a "value schema" (a JSON Schema), prefer it over the editor alias: it
+          describes the EXACT stored-value shape (types, maxLength, UUID/crop structure, numeric ranges).
+          Use it to judge content purpose precisely (e.g. a short maxLength string suits a name/headline,
+          a long one a description; a media-reference array suits image types).
         - Confidence scores: 90-100 = very confident, 70-89 = good match, 50-69 = possible match, below 50 = weak
         - Only return valid JSON, no markdown formatting or explanation outside the JSON
         """;
@@ -33,6 +37,11 @@ internal static class SystemPrompts
           - Umbraco.ContentPicker → object-type schema properties (author, publisher, location)
           - Umbraco.Tags → keyword-type schema properties (keywords, genre, category)
           - Umbraco.TrueFalse → boolean schema properties (isAccessibleForFree, isFamilyFriendly)
+        - When a property lists a "value schema" (a JSON Schema), use it over the editor alias to pick the
+          most precise mapping and any transform: it gives the real stored-value shape — e.g. a string with
+          a small maxLength suits headline/name, a large one suits description; a rich-text/HTML value mapped
+          to a plain-text Schema.org property should use a stripHtml transform; numeric/range schemas suit
+          number properties; UUID/media-reference schemas suit image/object properties.
         - Built-in properties __name, __url, __createDate, __updateDate are always available
         - Confidence scores: 90-100 = certain match, 70-89 = strong match, 50-69 = likely match, below 50 = possible
         - Only return valid JSON, no markdown formatting or explanation outside the JSON

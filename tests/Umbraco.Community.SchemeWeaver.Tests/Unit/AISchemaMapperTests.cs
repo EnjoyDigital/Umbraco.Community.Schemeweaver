@@ -11,6 +11,7 @@ using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.AI.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Xunit;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
@@ -30,6 +31,7 @@ public class AISchemaMapperTests
     private readonly IAIChatService _chatService = Substitute.For<IAIChatService>();
     private readonly IContentTypeService _aiMapperContentTypeService = Substitute.For<IContentTypeService>();
     private readonly ISchemaTypeRegistry _schemaTypeRegistry = Substitute.For<ISchemaTypeRegistry>();
+    private readonly IPropertyValueSchemaService _aiValueSchemaService = Substitute.For<IPropertyValueSchemaService>();
     private readonly ILogger<AISchemaMapper> _logger = Substitute.For<ILogger<AISchemaMapper>>();
 
     // The heuristic mapper takes the concrete SchemaAutoMapper (not the interface),
@@ -42,7 +44,7 @@ public class AISchemaMapperTests
 
     private AISchemaMapper CreateMapper() =>
         new(_chatService, _aiMapperContentTypeService, _schemaTypeRegistry,
-            CreateHeuristicMapper(), _logger);
+            CreateHeuristicMapper(), _aiValueSchemaService, _logger);
 
     // -----------------------------------------------------------------------
     // ExtractJson tests — pure parsing, no mocks needed

@@ -32,6 +32,14 @@ public class BlockElementPropertyInfo
     public string EditorAlias { get; set; } = string.Empty;
 
     /// <summary>
+    /// The Umbraco 17.4+ value JSON Schema (the actual shape this property's stored value takes —
+    /// types, maxLength, UUID/crop structure, ranges) serialised as a JSON string, so callers can
+    /// reason about the value beyond the editor alias. Null when the host predates 17.4 or the
+    /// editor provides no schema.
+    /// </summary>
+    public string? ValueSchema { get; set; }
+
+    /// <summary>
     /// When this property is itself a Block List/Grid (a block nested inside a block), the
     /// element types allowed within it — resolved recursively (depth-capped) so the UI and
     /// the suggester can route nested blocks. Empty for non-block properties.
