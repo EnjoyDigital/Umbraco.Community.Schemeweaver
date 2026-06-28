@@ -13,7 +13,7 @@
       "name": "schemeweaver-mcp",
       "source": "./src/Umbraco.Community.SchemeWeaver.Mcp",
       "description": "SchemeWeaver MCP server — Schema.org mapping + JSON-LD tools for AI assistants",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "category": "development",
       "keywords": ["umbraco", "mcp", "schema.org", "json-ld"]
     }
