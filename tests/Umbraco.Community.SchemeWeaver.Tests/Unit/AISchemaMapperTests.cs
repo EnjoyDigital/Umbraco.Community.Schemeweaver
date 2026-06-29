@@ -32,6 +32,7 @@ public class AISchemaMapperTests
     private readonly IContentTypeService _aiMapperContentTypeService = Substitute.For<IContentTypeService>();
     private readonly ISchemaTypeRegistry _schemaTypeRegistry = Substitute.For<ISchemaTypeRegistry>();
     private readonly IPropertyValueSchemaService _aiValueSchemaService = Substitute.For<IPropertyValueSchemaService>();
+    private readonly IServiceProvider _serviceProvider = Substitute.For<IServiceProvider>();
     private readonly ILogger<AISchemaMapper> _logger = Substitute.For<ILogger<AISchemaMapper>>();
 
     // The heuristic mapper takes the concrete SchemaAutoMapper (not the interface),
@@ -44,7 +45,7 @@ public class AISchemaMapperTests
 
     private AISchemaMapper CreateMapper() =>
         new(_chatService, _aiMapperContentTypeService, _schemaTypeRegistry,
-            CreateHeuristicMapper(), _aiValueSchemaService, _logger);
+            CreateHeuristicMapper(), _aiValueSchemaService, _serviceProvider, _logger);
 
     // -----------------------------------------------------------------------
     // ExtractJson tests — pure parsing, no mocks needed
@@ -78,6 +79,54 @@ public class AISchemaMapperTests
         var result = AISchemaMapper.ExtractJson(input);
         result.Should().StartWith("[");
         result.Should().EndWith("]");
+    }
+
+    // -----------------------------------------------------------------------
+    // Resilient salvage tests — a truncated reply must still yield its complete leading objects
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void RepairJsonArray_CompleteArray_ReturnsAllObjects()
+    {
+        var input = """[{"schemaPropertyName":"Headline"},{"schemaPropertyName":"Author"}]""";
+        var result = AISchemaMapper.RepairJsonArray(input);
+        result.Should().Be("""[{"schemaPropertyName":"Headline"},{"schemaPropertyName":"Author"}]""");
+    }
+
+    [Fact]
+    public void RepairJsonArray_TruncatedMidObject_KeepsCompleteLeadingObjects()
+    {
+        // Array cut off while emitting the third object (output-token limit) — the two complete
+        // objects must survive; the partial trailing one is dropped.
+        var input = """[{"schemaPropertyName":"Headline"},{"schemaPropertyName":"Author"},{"schemaPropertyN""";
+        var result = AISchemaMapper.RepairJsonArray(input);
+        result.Should().Be("""[{"schemaPropertyName":"Headline"},{"schemaPropertyName":"Author"}]""");
+    }
+
+    [Fact]
+    public void RepairJsonArray_NestedResolverConfig_HandlesBracesInStrings()
+    {
+        // A blockContent suggestion carries an escaped JSON string with braces/brackets; the brace
+        // tracker must ignore those (they're inside a string) and still salvage the object.
+        var input = """[{"schemaPropertyName":"Step","suggestedResolverConfig":"{\"nestedMappings\":[{\"a\":\"b\"}]}"},{"trunc""";
+        var result = AISchemaMapper.RepairJsonArray(input);
+        result.Should().Be("""[{"schemaPropertyName":"Step","suggestedResolverConfig":"{\"nestedMappings\":[{\"a\":\"b\"}]}"}]""");
+    }
+
+    [Fact]
+    public void DeserializeArrayResilient_TruncatedReply_SalvagesCompleteSuggestions()
+    {
+        var input = """[{"schemaPropertyName":"Headline","suggestedContentTypePropertyAlias":"title"},{"schemaPropertyName":"Author","suggestedContentTypePropertyAlias":"auth""";
+        var result = AISchemaMapper.DeserializeArrayResilient<PropertyMappingSuggestion>(input);
+        result.Should().HaveCount(1);
+        result[0].SchemaPropertyName.Should().Be("Headline");
+    }
+
+    [Fact]
+    public void DeserializeArrayResilient_NoUsableJson_ReturnsEmpty()
+    {
+        AISchemaMapper.DeserializeArrayResilient<PropertyMappingSuggestion>("the model declined to answer")
+            .Should().BeEmpty();
     }
 
     // -----------------------------------------------------------------------

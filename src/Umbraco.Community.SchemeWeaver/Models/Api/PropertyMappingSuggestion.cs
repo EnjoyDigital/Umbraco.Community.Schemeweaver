@@ -18,6 +18,13 @@ public class PropertyMappingSuggestion
     public string? SuggestedResolverConfig { get; set; }
 
     /// <summary>
+    /// For the <c>static</c> source type: the fixed literal value to emit. Null for every
+    /// other source type. Carried here so an AI suggestion of a static mapping survives
+    /// round-tripping through the suggestion list.
+    /// </summary>
+    public string? StaticValue { get; set; }
+
+    /// <summary>
     /// For <c>reference</c> source type: the graph piece key the suggestion
     /// points at (e.g. <c>"organization"</c>). Null for every other source type.
     /// </summary>
