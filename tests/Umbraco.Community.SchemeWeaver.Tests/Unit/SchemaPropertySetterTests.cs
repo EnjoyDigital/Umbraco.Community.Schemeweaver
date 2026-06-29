@@ -258,4 +258,78 @@ public class SchemaPropertySetterTests
     }
 
     #endregion
+
+    #region Date properties (Values<int?, DateTime?, DateTimeOffset?>)
+
+    [Fact]
+    public void SetPropertyValue_DatePublished_SetsFromIsoStringWithOffset()
+    {
+        // Article.DatePublished is Values<int?, DateTime?, DateTimeOffset?>. The DateTimeResolver
+        // emits an ISO 8601 ("o") string — previously dropped because no string→date operator exists.
+        var article = new Article();
+        SchemaPropertySetter.SetPropertyValue(article, "DatePublished", "2026-06-29T10:30:00.0000000+01:00");
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("datePublished");
+        jsonLd.Should().Contain("2026-06-29");
+        jsonLd.Should().Contain("+01:00", "an explicit offset must be preserved as a DateTimeOffset");
+    }
+
+    [Fact]
+    public void SetPropertyValue_DatePublished_SetsFromUtcZuluString()
+    {
+        var article = new Article();
+        SchemaPropertySetter.SetPropertyValue(article, "DatePublished", "2026-06-29T10:30:00Z");
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("2026-06-29");
+    }
+
+    [Fact]
+    public void SetPropertyValue_DatePublished_SetsFromDateOnlyStringWithoutSpuriousOffset()
+    {
+        // A zone-less date (e.g. a formatDate transform result) must not gain a server-local offset.
+        var article = new Article();
+        SchemaPropertySetter.SetPropertyValue(article, "DatePublished", "2026-06-29");
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("2026-06-29");
+        jsonLd.Should().NotContain("2026-06-29T00:00:00+", "a date-only value must not introduce a timezone offset");
+        jsonLd.Should().NotContain("2026-06-29T00:00:00-");
+    }
+
+    [Fact]
+    public void SetPropertyValue_DateModified_SetsFromIsoString()
+    {
+        var article = new Article();
+        SchemaPropertySetter.SetPropertyValue(article, "DateModified", "2026-06-29T10:30:00+00:00");
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("dateModified");
+        jsonLd.Should().Contain("2026-06-29");
+    }
+
+    [Fact]
+    public void SetPropertyValue_EventStartDate_SetsFromIsoString()
+    {
+        var ev = new Event();
+        SchemaPropertySetter.SetPropertyValue(ev, "StartDate", "2026-12-01T19:00:00+00:00");
+
+        var jsonLd = ev.ToString();
+        jsonLd.Should().Contain("startDate");
+        jsonLd.Should().Contain("2026-12-01");
+    }
+
+    [Fact]
+    public void SetPropertyValue_GarbageDateString_IsDroppedNotThrown()
+    {
+        // An unparseable string for a date-only property is simply not set (and must not throw).
+        var article = new Article();
+        var act = () => SchemaPropertySetter.SetPropertyValue(article, "DatePublished", "not a date");
+
+        act.Should().NotThrow();
+        article.ToString().Should().NotContain("datePublished");
+    }
+
+    #endregion
 }

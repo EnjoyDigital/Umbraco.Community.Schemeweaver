@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -402,6 +403,14 @@ public static class SchemaPropertySetter
                 {
                     valuesInstance = TryConvertViaImplicit(innerType, uri);
                 }
+
+                // Date/number-typed Values inside OneOrMany (mirrors the bare-Values path)
+                if (valuesInstance is null
+                    && TryParseDateOrNumber(valuesArgs, stringValue, out var parsed)
+                    && parsed is not null)
+                {
+                    valuesInstance = TryConvertViaImplicit(innerType, parsed);
+                }
             }
 
             if (valuesInstance is not null)
@@ -470,6 +479,20 @@ public static class SchemaPropertySetter
 
         var valuesArgs = targetType.GetGenericArguments();
 
+        // Date/number type arguments (e.g. datePublished is Values<int?, DateTime?, DateTimeOffset?>).
+        // The resolved value is a string (ISO from DateTimeResolver, or a formatDate transform result),
+        // and Schema.NET exposes no string→DateTimeOffset implicit operator, so we parse it here.
+        if (TryParseDateOrNumber(valuesArgs, stringValue, out var parsed)
+            && parsed is not null)
+        {
+            var convertedDate = TryConvertViaImplicit(targetType, parsed);
+            if (convertedDate is not null)
+            {
+                property.SetValue(instance, convertedDate);
+                return true;
+            }
+        }
+
         // If Uri is one of the type arguments, try converting the string to Uri
         if (valuesArgs.Any(t => t == typeof(Uri))
             && Uri.TryCreate(stringValue, UriKind.RelativeOrAbsolute, out var uri))
@@ -480,6 +503,67 @@ public static class SchemaPropertySetter
                 property.SetValue(instance, converted);
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Parses a string into the most appropriate CLR value accepted by a Schema.NET
+    /// <c>Values&lt;…&gt;</c> whose type arguments include date and/or integer types.
+    /// A string carrying an explicit timezone offset (or <c>Z</c>) becomes a
+    /// <see cref="DateTimeOffset"/> to preserve it; a zone-less date (e.g. <c>"2026-06-29"</c>)
+    /// becomes a <see cref="DateTime"/> so no spurious server-local offset is introduced.
+    /// An all-digit string with no date component falls back to <see cref="int"/> (e.g. a year).
+    /// Returns false when none of those CLR types are among the Values type arguments or the
+    /// string parses to none of them.
+    /// </summary>
+    internal static bool TryParseDateOrNumber(Type[] valuesArgs, string value, out object? parsed)
+    {
+        parsed = null;
+
+        bool Accepts<T>() => valuesArgs.Any(t => (Nullable.GetUnderlyingType(t) ?? t) == typeof(T));
+
+        var acceptsDateTimeOffset = Accepts<DateTimeOffset>();
+        var acceptsDateTime = Accepts<DateTime>();
+        var acceptsInt = Accepts<int>();
+
+        if (acceptsDateTimeOffset || acceptsDateTime)
+        {
+            // RoundtripKind keeps the parsed Kind faithful to the input: Utc/Local when the
+            // string carried a zone, Unspecified when it didn't.
+            if (DateTime.TryParse(value, CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind, out var dt))
+            {
+                var hadOffset = dt.Kind != DateTimeKind.Unspecified;
+                if (hadOffset && acceptsDateTimeOffset
+                    && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
+                        DateTimeStyles.RoundtripKind, out var dto))
+                {
+                    parsed = dto;
+                    return true;
+                }
+
+                if (acceptsDateTime)
+                {
+                    parsed = dt;
+                    return true;
+                }
+
+                if (acceptsDateTimeOffset
+                    && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
+                        DateTimeStyles.RoundtripKind, out var dtoFallback))
+                {
+                    parsed = dtoFallback;
+                    return true;
+                }
+            }
+        }
+
+        if (acceptsInt && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i))
+        {
+            parsed = i;
+            return true;
         }
 
         return false;
@@ -498,7 +582,7 @@ public static class SchemaPropertySetter
         // Search for op_Implicit on the target type
         var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Where(m => m.Name == "op_Implicit" && m.GetParameters().Length == 1
-                && m.GetParameters()[0].ParameterType.IsAssignableFrom(value.GetType()));
+                && ParameterAccepts(m.GetParameters()[0].ParameterType, value.GetType()));
 
         foreach (var method in methods)
         {
@@ -515,7 +599,7 @@ public static class SchemaPropertySetter
         // Also search on the source type for op_Implicit returning targetType
         var sourceMethods = value.GetType().GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Where(m => m.Name == "op_Implicit" && m.ReturnType == targetType && m.GetParameters().Length == 1
-                && m.GetParameters()[0].ParameterType.IsAssignableFrom(value.GetType()));
+                && ParameterAccepts(m.GetParameters()[0].ParameterType, value.GetType()));
 
         foreach (var method in sourceMethods)
         {
@@ -530,6 +614,23 @@ public static class SchemaPropertySetter
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Whether an <c>op_Implicit</c> parameter of <paramref name="parameterType"/> can accept a
+    /// value of <paramref name="valueType"/>. Beyond a direct assignability check this unwraps
+    /// <see cref="Nullable{T}"/> parameters so that, e.g., a <see cref="DateTimeOffset"/> value
+    /// matches an <c>op_Implicit(DateTimeOffset?)</c> operator. Schema.NET's date/number value
+    /// types (e.g. <c>Values&lt;int?, DateTime?, DateTimeOffset?&gt;</c>) expose only nullable
+    /// operator overloads, so without this unwrapping every parsed date would be dropped.
+    /// </summary>
+    private static bool ParameterAccepts(Type parameterType, Type valueType)
+    {
+        if (parameterType.IsAssignableFrom(valueType))
+            return true;
+
+        var underlying = Nullable.GetUnderlyingType(parameterType);
+        return underlying is not null && underlying.IsAssignableFrom(valueType);
     }
 
     /// <summary>
