@@ -374,7 +374,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             return [];
 
         var schemaProperties = _schemaTypeRegistry.GetProperties(schemaTypeName).ToList();
-        var contentProperties = contentType.PropertyTypes.ToList();
+        var contentProperties = contentType.CompositionPropertyTypes.ToList();
         var suggestions = new List<PropertyMappingSuggestion>();
 
         foreach (var schemaProp in schemaProperties)

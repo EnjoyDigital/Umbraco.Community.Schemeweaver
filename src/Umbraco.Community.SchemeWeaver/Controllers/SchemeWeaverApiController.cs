@@ -120,7 +120,7 @@ public class SchemeWeaverApiController : ControllerBase
                     ct.Alias,
                     ct.Name,
                     ct.Key,
-                    PropertyCount = ct.PropertyTypes.Count()
+                    PropertyCount = ct.CompositionPropertyTypes.Count()
                 })
                 .OrderBy(ct => ct.Name);
 
@@ -142,7 +142,10 @@ public class SchemeWeaverApiController : ControllerBase
             var contentType = _contentTypeService.Get(alias);
             if (contentType == null) return NotFound();
 
-            var customProperties = contentType.PropertyTypes.Select(pt => new
+            // CompositionPropertyTypes (not PropertyTypes) so properties inherited from
+            // compositions — e.g. a shared "Hero" tab — are included, not just the ones
+            // declared directly on this content type.
+            var customProperties = contentType.CompositionPropertyTypes.Select(pt => new
             {
                 pt.Alias,
                 pt.Name,
