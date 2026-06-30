@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/stamp-cachebust.mjs",
     "preview": "vite preview",
     "test": "web-test-runner --config web-test-runner.config.mjs",
     "test:watch": "web-test-runner --config web-test-runner.config.mjs --watch",
