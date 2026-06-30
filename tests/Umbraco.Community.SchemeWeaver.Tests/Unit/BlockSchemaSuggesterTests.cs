@@ -180,6 +180,19 @@ public class BlockSchemaSuggesterTests
         result[0].SchemaProperty.Should().Be("about", "Service is not a CreativeWork so hasPart would drop it");
     }
 
+    // Range repair: an Organization-routed block (logo/partner/client) is not a CreativeWork,
+    // so it must fall back from hasPart to the Thing-range `about` target. Mirrors the
+    // structural enricher's range-validation pass for the routed block path.
+    [Fact]
+    public void Suggest_LogoBlock_RoutesOrganizationToAbout_NotHasPart()
+    {
+        var result = _sut.Suggest([Element("logoBlock", "Logo", "name", "logo", "url")]).ToList();
+
+        result.Should().ContainSingle();
+        result[0].Routes[0].NestedSchemaType.Should().Be("Organization");
+        result[0].SchemaProperty.Should().Be("about", "Organization is not a CreativeWork so hasPart would drop it");
+    }
+
     // CreativeWork-derived types (WPHeader -> WebPageElement -> CreativeWork) stay on hasPart.
     [Fact]
     public void Suggest_HeroBlock_RoutesWPHeaderToHasPart()
