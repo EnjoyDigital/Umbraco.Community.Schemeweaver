@@ -133,6 +133,23 @@ public class USyncMappingDriftReporterTests : IDisposable
     }
 
     [Fact]
+    public void GetReport_TransientRepositoryFailure_RetriesAndSucceeds()
+    {
+        // A read-only diagnostic must survive a transient infrastructure hiccup (e.g. a
+        // shared-cache SQLITE_LOCKED on a read that races a write) rather than 500. The first
+        // DB read throws; the report must still come back on the retry.
+        _repository.GetAll().Returns<IEnumerable<SchemaMapping>>(
+            _ => throw new InvalidOperationException("transient SQLITE_LOCKED"),
+            _ => new[] { Mapping("article") });
+        _repository.GetPropertyMappings(Arg.Any<int>()).Returns([]);
+
+        var report = CreateReporter().GetReport();
+
+        report.UsyncAvailable.Should().BeTrue();
+        report.Items.Should().ContainSingle(i => i.ContentTypeAlias == "article");
+    }
+
+    [Fact]
     public void GetReport_MixedStates_ClassifiesEach()
     {
         var inSync = Mapping("article");
