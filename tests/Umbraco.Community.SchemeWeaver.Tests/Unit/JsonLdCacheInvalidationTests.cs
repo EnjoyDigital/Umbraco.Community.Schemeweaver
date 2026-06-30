@@ -4,159 +4,164 @@ using NSubstitute;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Notifications;
-using Umbraco.Cms.Core.Persistence.Querying;
-using Umbraco.Cms.Core.Services;
+using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Notifications;
+using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Xunit;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 
 /// <summary>
-/// Each notification handler must evict the target content plus all descendants, because
-/// inherited schemas on an ancestor propagate to every descendant's block array.
+/// Each notification handler evicts the affected content's own cache key, then ripples to
+/// descendants with a single O(1) <see cref="IJsonLdBlocksProvider.InvalidateAll"/> ONLY when
+/// they can depend on it — the published type is inherited, the site uses cross-node mappings,
+/// or the event is a move. It no longer walks the subtree from the DB under the publish lock.
 /// </summary>
 public class JsonLdCacheInvalidationTests
 {
     private readonly IJsonLdBlocksProvider _provider = Substitute.For<IJsonLdBlocksProvider>();
-    private readonly IContentService _contentService = Substitute.For<IContentService>();
+    private readonly ISchemaMappingRepository _repo = Substitute.For<ISchemaMappingRepository>();
 
-    private static IContent MakeContent(int id, Guid? key = null)
+    public JsonLdCacheInvalidationTests()
+    {
+        // Default: no dependencies anywhere -> a publish should NOT ripple.
+        _repo.GetByContentTypeAlias(Arg.Any<string>()).Returns((SchemaMapping?)null);
+        _repo.GetInheritedMappings().Returns(Array.Empty<SchemaMapping>());
+        _repo.GetAllPropertyMappingsByMappingId().Returns(new Dictionary<int, List<PropertyMapping>>());
+    }
+
+    private static IContent MakeContent(string alias = "article", Guid? key = null)
     {
         var content = Substitute.For<IContent>();
-        content.Id.Returns(id);
         content.Key.Returns(key ?? Guid.NewGuid());
+        var ct = Substitute.For<ISimpleContentType>();
+        ct.Alias.Returns(alias);
+        content.ContentType.Returns(ct);
         return content;
     }
 
-    private void WireDescendants(int parentId, params IContent[] descendants)
-    {
-        long total = descendants.Length;
-        _contentService
-            .GetPagedDescendants(
-                parentId,
-                Arg.Any<long>(),
-                Arg.Any<int>(),
-                out Arg.Any<long>(),
-                Arg.Any<IQuery<IContent>?>(),
-                Arg.Any<Ordering?>())
-            .Returns(call =>
-            {
-                call[3] = total;
-                return descendants;
-            });
-    }
-
     [Fact]
-    public void Publish_Invalidates_TargetPlusDescendants()
+    public void Publish_LeafWithNoDependencies_InvalidatesOnlyTarget_NoInvalidateAll()
     {
-        var target = MakeContent(id: 1);
-        var childA = MakeContent(id: 2);
-        var childB = MakeContent(id: 3);
-        WireDescendants(target.Id, childA, childB);
-
-        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _contentService,
+        var target = MakeContent("article");
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
         handler.Handle(new ContentPublishedNotification(target, new EventMessages()));
 
         _provider.Received(1).Invalidate(target.Key);
-        _provider.Received(1).Invalidate(childA.Key);
-        _provider.Received(1).Invalidate(childB.Key);
+        _provider.DidNotReceive().InvalidateAll();
     }
 
     [Fact]
-    public void Unpublish_Invalidates_TargetPlusDescendants()
+    public void Publish_InheritedType_RipplesWithInvalidateAll()
     {
-        var target = MakeContent(id: 1);
-        var child = MakeContent(id: 2);
-        WireDescendants(target.Id, child);
+        var target = MakeContent("homePage");
+        _repo.GetByContentTypeAlias("homePage").Returns(new SchemaMapping { ContentTypeAlias = "homePage", IsInherited = true, IsEnabled = true });
 
-        var handler = new InvalidateJsonLdCacheOnUnpublish(_provider, _contentService,
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
+            NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
+
+        handler.Handle(new ContentPublishedNotification(target, new EventMessages()));
+
+        _provider.Received(1).Invalidate(target.Key);
+        _provider.Received(1).InvalidateAll();
+    }
+
+    [Fact]
+    public void Publish_SiteUsesCrossNodeSource_RipplesWithInvalidateAll()
+    {
+        var target = MakeContent("article");
+        // A blogArticle elsewhere pulls Publisher from an ancestor — any publish could affect it.
+        _repo.GetAllPropertyMappingsByMappingId().Returns(new Dictionary<int, List<PropertyMapping>>
+        {
+            [1] = new() { new PropertyMapping { SchemaPropertyName = "Publisher", SourceType = "ancestor" } },
+        });
+
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
+            NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
+
+        handler.Handle(new ContentPublishedNotification(target, new EventMessages()));
+
+        _provider.Received(1).Invalidate(target.Key);
+        _provider.Received(1).InvalidateAll();
+    }
+
+    [Fact]
+    public void Unpublish_InheritedType_RipplesWithInvalidateAll()
+    {
+        var target = MakeContent("homePage");
+        _repo.GetByContentTypeAlias("homePage").Returns(new SchemaMapping { IsInherited = true, IsEnabled = true });
+
+        var handler = new InvalidateJsonLdCacheOnUnpublish(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnUnpublish>.Instance);
 
         handler.Handle(new ContentUnpublishedNotification(target, new EventMessages()));
 
         _provider.Received(1).Invalidate(target.Key);
-        _provider.Received(1).Invalidate(child.Key);
+        _provider.Received(1).InvalidateAll();
     }
 
     [Fact]
-    public void Move_Invalidates_TargetPlusDescendants()
+    public void Delete_LeafWithNoDependencies_InvalidatesOnlyTarget()
     {
-        var target = MakeContent(id: 1);
-        var child = MakeContent(id: 2);
-        WireDescendants(target.Id, child);
-        // Use each major's non-obsolete MoveEventInfo overload (18 dropped the int newParentId
-        // overloads in favour of the newParentKey one; 17 has no Guid?-only overload).
-#if UMBRACO18
-        var moveInfo = new MoveEventInfo<IContent>(target, "-1,1", (Guid?)null);
-#else
-        var moveInfo = new MoveEventInfo<IContent>(target, "-1,1", 99);
-#endif
-
-        var handler = new InvalidateJsonLdCacheOnMove(_provider, _contentService,
-            NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
-
-        handler.Handle(new ContentMovedNotification(moveInfo, new EventMessages()));
-
-        _provider.Received(1).Invalidate(target.Key);
-        _provider.Received(1).Invalidate(child.Key);
-    }
-
-    [Fact]
-    public void MoveToRecycleBin_Invalidates_TargetPlusDescendants()
-    {
-        var target = MakeContent(id: 1);
-        var child = MakeContent(id: 2);
-        WireDescendants(target.Id, child);
-        var moveInfo = new MoveToRecycleBinEventInfo<IContent>(target, "-1,1");
-
-        var handler = new InvalidateJsonLdCacheOnMove(_provider, _contentService,
-            NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
-
-        handler.Handle(new ContentMovedToRecycleBinNotification(moveInfo, new EventMessages()));
-
-        _provider.Received(1).Invalidate(target.Key);
-        _provider.Received(1).Invalidate(child.Key);
-    }
-
-    [Fact]
-    public void Delete_Invalidates_TargetPlusDescendants()
-    {
-        var target = MakeContent(id: 1);
-        var child = MakeContent(id: 2);
-        WireDescendants(target.Id, child);
-
-        var handler = new InvalidateJsonLdCacheOnDelete(_provider, _contentService,
+        var target = MakeContent("article");
+        var handler = new InvalidateJsonLdCacheOnDelete(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnDelete>.Instance);
 
         handler.Handle(new ContentDeletedNotification(target, new EventMessages()));
 
         _provider.Received(1).Invalidate(target.Key);
-        _provider.Received(1).Invalidate(child.Key);
+        _provider.DidNotReceive().InvalidateAll();
     }
 
     [Fact]
-    public void DescendantWalkThrows_IsSwallowed_TargetStillEvicted()
+    public void Move_AlwaysRipples_EvenWithNoDependencies()
     {
-        var target = MakeContent(id: 1);
-        _contentService
-            .GetPagedDescendants(
-                target.Id,
-                Arg.Any<long>(),
-                Arg.Any<int>(),
-                out Arg.Any<long>(),
-                Arg.Any<IQuery<IContent>?>(),
-                Arg.Any<Ordering?>())
-            .Returns(_ => throw new InvalidOperationException("db unavailable"));
+        var target = MakeContent("article");
+        // Use each major's non-obsolete MoveEventInfo overload.
+#if UMBRACO18
+        var moveInfo = new MoveEventInfo<IContent>(target, "-1,1", (Guid?)null);
+#else
+        var moveInfo = new MoveEventInfo<IContent>(target, "-1,1", 99);
+#endif
+        var handler = new InvalidateJsonLdCacheOnMove(_provider, _repo,
+            NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
 
-        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _contentService,
+        handler.Handle(new ContentMovedNotification(moveInfo, new EventMessages()));
+
+        _provider.Received(1).Invalidate(target.Key);
+        _provider.Received(1).InvalidateAll(); // moves change ancestry/breadcrumbs regardless
+    }
+
+    [Fact]
+    public void MoveToRecycleBin_AlwaysRipples()
+    {
+        var target = MakeContent("article");
+        var moveInfo = new MoveToRecycleBinEventInfo<IContent>(target, "-1,1");
+        var handler = new InvalidateJsonLdCacheOnMove(_provider, _repo,
+            NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
+
+        handler.Handle(new ContentMovedToRecycleBinNotification(moveInfo, new EventMessages()));
+
+        _provider.Received(1).Invalidate(target.Key);
+        _provider.Received(1).InvalidateAll();
+    }
+
+    [Fact]
+    public void MappingLookupThrows_IsSwallowed_TargetStillEvicted_AndRipplesToBeSafe()
+    {
+        var target = MakeContent("article");
+        _repo.GetByContentTypeAlias("article").Returns(_ => throw new InvalidOperationException("db unavailable"));
+
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
         var act = () => handler.Handle(new ContentPublishedNotification(target, new EventMessages()));
 
         act.Should().NotThrow();
         _provider.Received(1).Invalidate(target.Key);
+        _provider.Received(1).InvalidateAll(); // over-invalidate rather than risk stale JSON-LD
     }
 }

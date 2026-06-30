@@ -37,6 +37,7 @@ type BlockElementTypeInfoShape = {
     alias: string;
     name: string;
     editorAlias: string;
+    valueSchema?: string | null;
     nestedBlockElementTypes?: BlockElementTypeInfoShape[];
   }>;
 };
@@ -64,6 +65,15 @@ const blockElementPropertyInfoSchema: z.ZodType<
   alias: z.string().describe("Property alias on the element type"),
   name: z.string().describe("Property display name"),
   editorAlias: z.string().describe("Umbraco property editor alias (e.g. Umbraco.BlockList, Umbraco.BlockGrid)"),
+  valueSchema: z
+    .string()
+    .nullish()
+    .describe(
+      "The property's value JSON Schema (Umbraco 17.4+) as a stringified JSON object — the actual stored-value " +
+        "shape (types, maxLength, UUID/crop structure, ranges). Use it to map a block property precisely beyond " +
+        "the editor alias (e.g. a RichText block property feeding a plain-text Schema.org property → stripHtml). " +
+        "Null on Umbraco < 17.4 or for no-schema editors."
+    ),
   nestedBlockElementTypes: z
     .array(blockElementTypeInfoSchema)
     .optional()

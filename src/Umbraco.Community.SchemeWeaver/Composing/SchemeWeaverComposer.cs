@@ -12,6 +12,7 @@ using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Advisory;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
 using Umbraco.Community.SchemeWeaver.Services.Validation.Rules;
 
@@ -52,6 +53,11 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<ISchemaRangeValidator, SchemaRangeValidator>();
         builder.Services.AddScoped<IMappingAdvisor, MappingAdvisor>();
         builder.Services.AddScoped<IMappingReachabilityClassifier, MappingReachabilityClassifier>();
+
+        // Umbraco 17.4+ per-data-type value schema (optional/graceful on older hosts). Scoped so it
+        // resolves the core IPropertyEditorSchemaService within the request scope (no captive
+        // dependency) and caches schemas for the lifetime of one request.
+        builder.Services.AddScoped<IPropertyValueSchemaService, PropertyValueSchemaService>();
 
         // uSync config-as-code seams. Null defaults keep the management API + MCP surface alive
         // when the uSync addon is absent (they report "usync-unavailable"); the addon registers

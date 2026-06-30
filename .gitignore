@@ -79,3 +79,8 @@ src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/mockServiceWorker.js
 
 ## Playwright MCP scratch output
 .playwright-mcp/
+
+## SchemeWeaver AI eval harness — generated outputs & local secret (keep eval/*.mjs)
+eval/cache/
+eval/reports/
+eval/.key

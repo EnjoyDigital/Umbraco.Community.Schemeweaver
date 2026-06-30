@@ -43,4 +43,11 @@ public class SchemaMapping
     [Column("IdOverride")]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? IdOverride { get; set; }
+
+    /// <summary>
+    /// Returns a shallow copy. Every member is a value type or string, so this is a full
+    /// defensive copy — used by the cached repository so callers (e.g. SaveMapping, which
+    /// fetches-then-mutates an entity) never mutate the shared cached snapshot.
+    /// </summary>
+    public SchemaMapping Clone() => (SchemaMapping)MemberwiseClone();
 }

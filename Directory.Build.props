@@ -33,15 +33,17 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '17'">
-    <!-- Consumer-facing dependency range for the shipped package -->
-    <SchemeWeaverUmbracoCmsRange>[17.0.0, 18.0.0)</SchemeWeaverUmbracoCmsRange>
+    <!-- Consumer-facing dependency range for the shipped package. Floored at 17.4.0: SchemeWeaver
+         now consumes the JSON-Schema services (IPropertyEditorSchemaService) that shipped in
+         Umbraco 17.4.0, so the type must exist in the referenced/runtime assembly. 17.0-17.3 sites
+         should stay on SchemeWeaver 17.8.x. -->
+    <SchemeWeaverUmbracoCmsRange>[17.4.0, 18.0.0)</SchemeWeaverUmbracoCmsRange>
     <!-- Pinned version the runnable TestHost installs -->
-    <!-- 17.4.x required: Umbraco.AI.Core 1.14 depends on Umbraco.Cms >= 17.4.0 -->
     <SchemeWeaverUmbracoCmsHost>17.4.2</SchemeWeaverUmbracoCmsHost>
     <!-- uSync line for this major (stable) -->
     <SchemeWeaverUSyncVersion>17.3.0</SchemeWeaverUSyncVersion>
     <!-- Major-aligned stable package version for the Umbraco 17 line -->
-    <SchemeWeaverPackageVersion>17.8.2</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>17.9.0</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -52,8 +54,8 @@
     <SchemeWeaverUSyncVersion>18.0.0</SchemeWeaverUSyncVersion>
     <!-- Major-aligned stable package version for the Umbraco 18 line. Its
          [18.0.0, 19.0.0) Umbraco.Cms range is mutually exclusive with the 17 leg's
-         [17.0.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->
-    <SchemeWeaverPackageVersion>18.3.2</SchemeWeaverPackageVersion>
+         [17.4.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->
+    <SchemeWeaverPackageVersion>18.4.0</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>

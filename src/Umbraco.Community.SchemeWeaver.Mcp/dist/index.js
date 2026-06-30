@@ -33588,13 +33588,16 @@ var outputSchema4 = external_exports.object({
       alias: external_exports.string(),
       name: external_exports.string().nullish(),
       editorAlias: external_exports.string(),
-      description: external_exports.string().nullish()
+      description: external_exports.string().nullish(),
+      valueSchema: external_exports.string().nullish().describe(
+        "The property's value JSON Schema (Umbraco 17.4+) as a stringified JSON object \u2014 the actual shape the stored value takes (e.g. {type:'string',maxLength:250} for a textbox; UUID/crop structure for a media picker; numeric ranges). Use it to map precisely beyond the editorAlias. Null on Umbraco < 17.4 or for built-in/no-schema properties."
+      )
     })
   )
 });
 var getContentTypePropertiesTool = {
   name: "get-content-type-properties",
-  description: "Gets the properties of an Umbraco content type: alias, name, editorAlias (the property editor, e.g. Umbraco.TextBox, Umbraco.RichText, Umbraco.MediaPicker3, Umbraco.BlockList, Umbraco.DateTime) and description. Built-in node properties ('__name', '__url', '__createDate', '__updateDate') are included alongside the editor-defined ones. The editorAlias is a strong signal for mapping decisions: media pickers suit image/logo, date pickers suit datePublished/dateModified, block lists suit blockContent mappings, content pickers suit parent/ancestor/sibling or nested-object mappings.",
+  description: "Gets the properties of an Umbraco content type: alias, name, editorAlias (the property editor, e.g. Umbraco.TextBox, Umbraco.RichText, Umbraco.MediaPicker3, Umbraco.BlockList, Umbraco.DateTime) and description. Built-in node properties ('__name', '__url', '__createDate', '__updateDate') are included alongside the editor-defined ones. The editorAlias is a strong signal for mapping decisions: media pickers suit image/logo, date pickers suit datePublished/dateModified, block lists suit blockContent mappings, content pickers suit parent/ancestor/sibling or nested-object mappings. On Umbraco 17.4+ each property also carries `valueSchema` \u2014 the JSON Schema of the actual stored value (types, maxLength, UUID/crop structure, ranges) \u2014 a stronger signal than the editor alias for choosing the right Schema.org property and transforms.",
   inputSchema: inputSchema3,
   outputSchema: outputSchema4,
   slices: ["read"],
@@ -33628,6 +33631,9 @@ var blockElementPropertyInfoSchema = external_exports.object({
   alias: external_exports.string().describe("Property alias on the element type"),
   name: external_exports.string().describe("Property display name"),
   editorAlias: external_exports.string().describe("Umbraco property editor alias (e.g. Umbraco.BlockList, Umbraco.BlockGrid)"),
+  valueSchema: external_exports.string().nullish().describe(
+    "The property's value JSON Schema (Umbraco 17.4+) as a stringified JSON object \u2014 the actual stored-value shape (types, maxLength, UUID/crop structure, ranges). Use it to map a block property precisely beyond the editor alias (e.g. a RichText block property feeding a plain-text Schema.org property \u2192 stripHtml). Null on Umbraco < 17.4 or for no-schema editors."
+  ),
   nestedBlockElementTypes: external_exports.array(blockElementTypeInfoSchema).optional().describe(
     "When this property is itself a Block List/Grid (a block nested inside a block), the element types allowed within it \u2014 resolved recursively (depth-capped). Empty for non-block properties. Use these to build nested `routes`-within-a-property-mapping configs in save-schema-mapping."
   )
