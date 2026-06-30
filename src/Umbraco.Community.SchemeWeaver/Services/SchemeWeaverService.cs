@@ -478,7 +478,7 @@ public class SchemeWeaverService : ISchemeWeaverService
         if (contentType is null)
             return [];
 
-        var property = contentType.PropertyTypes.FirstOrDefault(
+        var property = contentType.CompositionPropertyTypes.FirstOrDefault(
             p => string.Equals(p.Alias, propertyAlias, StringComparison.OrdinalIgnoreCase));
         if (property is null)
             return [];
@@ -529,12 +529,12 @@ public class SchemeWeaverService : ISchemeWeaverService
             {
                 Alias = elementType.Alias,
                 Name = elementType.Name ?? elementType.Alias,
-                Properties = elementType.PropertyTypes.Select(p => p.Alias).ToList(),
+                Properties = elementType.CompositionPropertyTypes.Select(p => p.Alias).ToList(),
                 PropertyInfos = []
             };
 
             ancestorKeys.Add(key);
-            foreach (var p in elementType.PropertyTypes)
+            foreach (var p in elementType.CompositionPropertyTypes)
             {
                 var propInfo = new BlockElementPropertyInfo
                 {

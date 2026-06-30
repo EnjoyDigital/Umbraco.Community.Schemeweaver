@@ -178,6 +178,7 @@ public class AISchemaMapperTests
         headlineProp.Alias.Returns("headline");
         headlineProp.PropertyEditorAlias.Returns("Umbraco.TextBox");
         heuristicContentType.PropertyTypes.Returns(new[] { headlineProp });
+        heuristicContentType.CompositionPropertyTypes.Returns(new[] { headlineProp });
         _heuristicContentTypeService.Get("blogPost").Returns(heuristicContentType);
 
         _heuristicSchemaTypeRegistry.GetProperties("BlogPosting").Returns(new[]
@@ -191,6 +192,7 @@ public class AISchemaMapperTests
         aiContentType.Alias.Returns("blogPost");
         aiContentType.Name.Returns("Blog Post");
         aiContentType.PropertyTypes.Returns(new[] { headlineProp });
+        aiContentType.CompositionPropertyTypes.Returns(new[] { headlineProp });
         _aiMapperContentTypeService.Get("blogPost").Returns(aiContentType);
 
         _schemaTypeRegistry.GetProperties("BlogPosting")
@@ -222,6 +224,7 @@ public class AISchemaMapperTests
         pt.Alias.Returns("headline");
         pt.PropertyEditorAlias.Returns("Umbraco.TextBox");
         contentType.PropertyTypes.Returns(new[] { pt });
+        contentType.CompositionPropertyTypes.Returns(new[] { pt });
 
         _heuristicContentTypeService.Get("blogPost").Returns(contentType);
         _heuristicSchemaTypeRegistry.GetProperties("BlogPosting").Returns(new[]

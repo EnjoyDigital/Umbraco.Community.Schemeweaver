@@ -124,7 +124,7 @@ public class SchemeWeaverApiController : ControllerBase
                     ct.Alias,
                     ct.Name,
                     ct.Key,
-                    PropertyCount = ct.PropertyTypes.Count()
+                    PropertyCount = ct.CompositionPropertyTypes.Count()
                 })
                 .OrderBy(ct => ct.Name);
 
@@ -147,8 +147,10 @@ public class SchemeWeaverApiController : ControllerBase
             if (contentType == null) return NotFound();
 
             // Built-in node properties first (no real data type, so no value schema), then the
-            // editor-defined properties — each enriched with its Umbraco 17.4+ value JSON Schema
-            // (the actual shape its stored value takes) when available, else null on older hosts.
+            // editor-defined properties. Uses CompositionPropertyTypes (not PropertyTypes) so
+            // properties inherited from compositions — e.g. a shared "Hero" tab — are included,
+            // each enriched with its Umbraco 17.4+ value JSON Schema (the actual shape its stored
+            // value takes) when available, else null on older hosts.
             var properties = new List<object>();
 
             foreach (var bp in SchemeWeaverConstants.BuiltInProperties.All)
@@ -163,7 +165,7 @@ public class SchemeWeaverApiController : ControllerBase
                 });
             }
 
-            foreach (var pt in contentType.PropertyTypes)
+            foreach (var pt in contentType.CompositionPropertyTypes)
             {
                 var valueSchema = await _valueSchemaService.GetDataTypeValueSchemaAsync(pt.DataTypeKey).ConfigureAwait(false);
                 properties.Add(new

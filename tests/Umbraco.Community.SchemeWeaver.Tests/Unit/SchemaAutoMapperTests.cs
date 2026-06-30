@@ -29,6 +29,7 @@ public class SchemaAutoMapperTests
             return pt;
         }).ToList();
         contentType.PropertyTypes.Returns(propertyTypes);
+        contentType.CompositionPropertyTypes.Returns(propertyTypes);
         return contentType;
     }
 
@@ -43,6 +44,7 @@ public class SchemaAutoMapperTests
             return pt;
         }).ToList();
         contentType.PropertyTypes.Returns(propertyTypes);
+        contentType.CompositionPropertyTypes.Returns(propertyTypes);
         return contentType;
     }
 
@@ -62,6 +64,29 @@ public class SchemaAutoMapperTests
         result[0].Confidence.Should().Be(100);
         result[0].SuggestedContentTypePropertyAlias.Should().Be("headline");
         result[0].IsAutoMapped.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SuggestMappings_IncludesCompositionInheritedProperties()
+    {
+        // A property that lives only on a composition (e.g. a shared "Hero" tab) is exposed
+        // through CompositionPropertyTypes, not the content type's local PropertyTypes. The
+        // auto-mapper must still be able to map it.
+        var contentType = Substitute.For<IContentType>();
+        var composedProp = Substitute.For<IPropertyType>();
+        composedProp.Alias.Returns("headline");
+        contentType.PropertyTypes.Returns(Array.Empty<IPropertyType>());
+        contentType.CompositionPropertyTypes.Returns(new[] { composedProp });
+        _contentTypeService.Get("article").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Article").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "Headline", PropertyType = "Text" }
+        });
+
+        var result = _sut.SuggestMappings("article", "Article").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedContentTypePropertyAlias.Should().Be("headline");
     }
 
     [Fact]
@@ -579,6 +604,7 @@ public class SchemaAutoMapperTests
             return pt;
         }).ToList();
         contentType.PropertyTypes.Returns(propertyTypes);
+        contentType.CompositionPropertyTypes.Returns(propertyTypes);
         return contentType;
     }
 
