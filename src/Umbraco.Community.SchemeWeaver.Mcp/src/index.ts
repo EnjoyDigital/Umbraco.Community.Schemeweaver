@@ -67,12 +67,25 @@ const server = new McpServer(
       "(4) get the heuristic baseline from suggest-property-mappings but improve on it semantically — " +
       "the heuristic only matches names, it cannot reason about meaning, " +
       "(5) persist with save-schema-mapping (it replaces the whole mapping), " +
-      "(6) verify with preview-json-ld against a real content node and resolve reported validation issues. " +
+      "(6) verify with preview-json-ld against a real content node, then run validate-mapping and LOOP " +
+      "fixing+re-saving until allClear (no critical/warning/suggestion items). " +
       "Prefer mapping the properties Google rich results require/recommend (high confidence in ranked results) " +
-      "over mapping everything. " +
-      "Block List/Grid properties (including blocks nested inside blocks and Block Grid areas) can be mapped to " +
-      "nested Schema.org objects: inspect them with get-block-element-types — its propertyInfos[].nestedBlockElementTypes " +
-      "surfaces blocks-within-blocks — and route them with the nestable `routes` resolverConfig on a 'blockContent' mapping.",
+      "over mapping everything; pick the MOST SPECIFIC fitting type (BlogPosting over Article, Recipe over CreativeWork). " +
+      "Reason semantically (strapline->alternativeName, standfirst->description, heroImage->image). " +
+      "SOURCE TYPES — choosing the right one is how you beat the name-only heuristic: " +
+      "'property' (a scalar/media on this node — the DEFAULT, and the SIMPLEST valid choice: do NOT wrap a lone scalar " +
+      "like Vehicle.brand or JobPosting.baseSalary in a Brand/QuantitativeValue object); " +
+      "'static' (a fixed literal); " +
+      "'complexType' (the schema prop denotes a named ENTITY — Person/Organization/Place/Offer — nest it even from a " +
+      "single field, e.g. BlogPosting.author from one authorName text prop); " +
+      "'blockContent' (a Block List/Grid: extractAs stringList for one-field label blocks like recipeIngredient, " +
+      "nestedMappings for multi-field blocks, or the nestable `routes` for blocks-nested-in-blocks and Block Grid areas — " +
+      "always map a body-sections container like contentGrid/blocks/sections to mainEntity or hasPart as WebPageElement, never leave it unmapped); " +
+      "'parent'/'ancestor'/'sibling' (a related node up/around the tree — e.g. a 'category' grouping from the parent's title); " +
+      "'reference' (a shared graph piece by key, e.g. organization). " +
+      "Built-ins always available as 'property': __name, __url, __createDate, __updateDate. " +
+      "Inspect blocks with get-block-element-types — its propertyInfos[].nestedBlockElementTypes surfaces blocks-within-blocks. " +
+      "The schemeweaver-map skill carries the full source-type catalogue and worked examples.",
   }
 );
 
