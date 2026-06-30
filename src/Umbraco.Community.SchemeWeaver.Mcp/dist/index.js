@@ -31381,7 +31381,7 @@ var EMPTY_COMPLETION_RESULT = {
 
 // package.json
 var package_default = {
-  version: "1.3.0"};
+  version: "1.4.0"};
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var ReadBuffer = class {
