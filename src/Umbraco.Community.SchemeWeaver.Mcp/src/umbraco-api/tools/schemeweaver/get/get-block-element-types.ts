@@ -96,9 +96,14 @@ const getBlockElementTypesTool: ToolDefinition<typeof inputSchema, typeof output
     "Blocks can be nested inside blocks (and Block Grid areas): when an element-type property is itself a Block List/Grid, " +
     "its `propertyInfos[].nestedBlockElementTypes` lists the element types allowed one level deeper, resolved recursively " +
     "(depth-capped). " +
-    "Needed when creating a property mapping with sourceType 'blockContent': blocks of a given element type can be mapped " +
-    "to a nested Schema.org object (e.g. a 'faqBlock' element type mapped to a Question for an FAQPage), and nested block " +
-    "properties can be routed deeper via nested `routes` in the resolverConfig.",
+    "Needed when creating a property mapping with sourceType 'blockContent'. Use the element-type structure to pick the shape: " +
+    "(a) extractAs stringList when each block carries ONE meaningful text prop (a label) — e.g. an 'ingredients' Block List " +
+    "whose block has a single 'ingredient' text prop maps to Recipe.recipeIngredient as a flat string list; " +
+    "(b) nestedMappings / routes when blocks have SEVERAL fields — e.g. a 'howToSteps' block (stepName, stepText) maps to " +
+    "HowTo.step as HowToStep objects, and a 'faqBlock' element type maps to a Question for an FAQPage; " +
+    "(c) a body-sections container (contentGrid/blocks/sections) maps to mainEntity or hasPart as WebPageElement covering " +
+    "every element type's fields. When a block property is itself a Block List/Grid (propertyInfos[].nestedBlockElementTypes " +
+    "is populated), route it deeper via nested `routes` in the resolverConfig.",
   inputSchema,
   outputSchema,
   slices: ["read"],

@@ -4,7 +4,9 @@ using NSubstitute;
 using Xunit;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
+using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.Mapping;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 
@@ -1615,6 +1617,166 @@ public class SchemaAutoMapperTests
         result.Single(r => r.Name == "name").IsPopular.Should().BeTrue();
         result.Single(r => r.Name == "nutrition").IsPopular.Should().BeTrue();
         result.Single(r => r.Name == "color").IsPopular.Should().BeFalse();
+    }
+
+    #endregion
+
+    #region Structural Enrichment (rich-mapping dispatch branches)
+
+    /// <summary>
+    /// Branch 1 — complexType-from-scalar. A complex schema property (Author → Person) that
+    /// name-matches a scalar content property is dead at runtime when its inner config is null.
+    /// The enricher must fill <c>complexTypeMappings</c> binding the nested type's <c>Name</c>
+    /// to the matched scalar so the mapping actually emits a value.
+    /// </summary>
+    [Fact]
+    public void StructuralEnrichment_ComplexTypeFromScalar_FillsNameBinding()
+    {
+        var contentType = CreateContentTypeWithProperties("title", "authorName");
+        _contentTypeService.Get("blogArticle").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("BlogPosting").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "author", PropertyType = "Person", IsComplexType = true, AcceptedTypes = ["Person"] }
+        });
+        _schemaTypeRegistry.GetProperties("Person").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "Name", PropertyType = "Text" },
+            new SchemaPropertyInfo { Name = "Description", PropertyType = "Text" },
+        });
+
+        var result = _sut.SuggestMappings("blogArticle", "BlogPosting").ToList();
+
+        var author = result.First(s => s.SchemaPropertyName == "author");
+        author.SuggestedSourceType.Should().Be("complexType");
+        author.SuggestedNestedSchemaTypeName.Should().Be("Person");
+        author.SuggestedResolverConfig.Should().NotBeNullOrEmpty();
+        author.SuggestedResolverConfig.Should().Contain("complexTypeMappings");
+        author.SuggestedResolverConfig.Should().Contain("\"schemaProperty\":\"Name\"");
+        author.SuggestedResolverConfig.Should().Contain("\"contentTypePropertyAlias\":\"authorName\"");
+    }
+
+    /// <summary>
+    /// Branch 1 — prefix-grouping. A match on <c>locationName</c> for a complex <c>Location</c> →
+    /// <c>Place</c> property must group the sibling <c>locationAddress</c> too, binding each
+    /// camelCase suffix (<c>Name</c>, <c>Address</c>) to the matching property on <c>Place</c>.
+    /// </summary>
+    [Fact]
+    public void StructuralEnrichment_ComplexTypeFromScalar_PrefixGroupsSiblings()
+    {
+        var contentType = CreateContentTypeWithProperties("title", "locationName", "locationAddress", "organiserName");
+        _contentTypeService.Get("eventPage").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Event").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "location", PropertyType = "Place", IsComplexType = true, AcceptedTypes = ["Place"] }
+        });
+        _schemaTypeRegistry.GetProperties("Place").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "Name", PropertyType = "Text" },
+            new SchemaPropertyInfo { Name = "Address", PropertyType = "PostalAddress" },
+        });
+
+        var result = _sut.SuggestMappings("eventPage", "Event").ToList();
+
+        var location = result.First(s => s.SchemaPropertyName == "location");
+        location.SuggestedSourceType.Should().Be("complexType");
+        location.SuggestedNestedSchemaTypeName.Should().Be("Place");
+        location.SuggestedResolverConfig.Should().Contain("\"contentTypePropertyAlias\":\"locationName\"");
+        location.SuggestedResolverConfig.Should().Contain("\"contentTypePropertyAlias\":\"locationAddress\"");
+        location.SuggestedResolverConfig.Should().Contain("\"schemaProperty\":\"Name\"");
+        location.SuggestedResolverConfig.Should().Contain("\"schemaProperty\":\"Address\"");
+    }
+
+    /// <summary>
+    /// Branch 3 — string-list detection. An array-of-text schema property fed by a Block List whose
+    /// element type has a single text field must become <c>blockContent</c> with
+    /// <c>extractAs:"stringList"</c> pointing at the detected inner property — derived from the block,
+    /// not a hard-coded alias.
+    /// </summary>
+    [Fact]
+    public void StructuralEnrichment_StringList_DetectsSingleTextFieldBlock()
+    {
+        var dataTypeService = Substitute.For<IDataTypeService>();
+        var sut = new SchemaAutoMapper(_contentTypeService, _schemaTypeRegistry, null, dataTypeService);
+
+        var dataTypeKey = Guid.NewGuid();
+        var elementKey = Guid.NewGuid();
+
+        var blockProp = Substitute.For<IPropertyType>();
+        blockProp.Alias.Returns("ingredients");
+        blockProp.PropertyEditorAlias.Returns("Umbraco.BlockList");
+        blockProp.DataTypeKey.Returns(dataTypeKey);
+        var contentType = Substitute.For<IContentType>();
+        contentType.PropertyTypes.Returns(new[] { blockProp });
+        contentType.CompositionPropertyTypes.Returns(new[] { blockProp });
+        _contentTypeService.Get("recipePage").Returns(contentType);
+
+        var dataType = Substitute.For<IDataType>();
+        dataType.ConfigurationData.Returns(new Dictionary<string, object>
+        {
+            ["blocks"] = $"[{{\"contentElementTypeKey\":\"{elementKey}\"}}]"
+        });
+        dataTypeService.GetAsync(dataTypeKey).Returns(Task.FromResult<IDataType?>(dataType));
+
+        var innerProp = Substitute.For<IPropertyType>();
+        innerProp.Alias.Returns("ingredient");
+        innerProp.Name.Returns("Ingredient");
+        innerProp.PropertyEditorAlias.Returns("Umbraco.TextBox");
+        var elementType = Substitute.For<IContentType>();
+        elementType.Alias.Returns("ingredientItem");
+        elementType.Name.Returns("Ingredient Item");
+        elementType.CompositionPropertyTypes.Returns(new[] { innerProp });
+        _contentTypeService.Get(elementKey).Returns(elementType);
+
+        _schemaTypeRegistry.GetProperties("Recipe").Returns(new[]
+        {
+            new SchemaPropertyInfo { Name = "recipeIngredient", PropertyType = "Text", IsComplexType = false, AcceptedTypes = ["String"] }
+        });
+
+        var result = sut.SuggestMappings("recipePage", "Recipe").ToList();
+
+        var ingredient = result.First(s => s.SchemaPropertyName == "recipeIngredient");
+        ingredient.SuggestedSourceType.Should().Be("blockContent");
+        ingredient.SuggestedNestedSchemaTypeName.Should().BeNull();
+        ingredient.SuggestedResolverConfig.Should().Contain("stringList");
+        ingredient.SuggestedResolverConfig.Should().Contain("\"contentProperty\":\"ingredient\"");
+    }
+
+    /// <summary>
+    /// Branch 4 — range-validation repair. A rich suggestion whose nested type is outside the target
+    /// property's accepted range must be re-pointed onto an in-range complex type, so Schema.NET's
+    /// typed setter does not silently discard the value.
+    /// </summary>
+    [Fact]
+    public void StructuralEnrichment_RangeRepair_RedirectsOutOfRangeNestedType()
+    {
+        var registry = Substitute.For<ISchemaTypeRegistry>();
+        registry.GetProperties("Organization").Returns(new[] { new SchemaPropertyInfo { Name = "Name" } });
+        registry.GetType("Organization").Returns(new SchemaTypeInfo { Name = "Organization" });
+        // Real Schema.NET CLR types so the assignability check sees that Person does NOT implement
+        // IOrganization (out of range), forcing the redirect.
+        registry.GetClrType("Person").Returns(typeof(Schema.NET.Person));
+        registry.GetClrType("Organization").Returns(typeof(Schema.NET.Organization));
+
+        var enricher = new StructuralEnricher(
+            registry,
+            (name, candidates) => candidates.FirstOrDefault(a => string.Equals(a, name, StringComparison.OrdinalIgnoreCase)),
+            showThreshold: 60);
+
+        var suggestion = new PropertyMappingSuggestion
+        {
+            SchemaPropertyName = "about",
+            SuggestedSourceType = "complexType",
+            SuggestedNestedSchemaTypeName = "Person", // not in the accepted range below
+            AcceptedTypes = ["Organization"],
+        };
+
+        enricher.Enrich(
+            new List<PropertyMappingSuggestion> { suggestion },
+            Array.Empty<string>(),
+            _ => Array.Empty<BlockElementTypeInfo>());
+
+        suggestion.SuggestedNestedSchemaTypeName.Should().Be("Organization",
+            "Person is out of range for a property that only accepts Organization");
     }
 
     #endregion

@@ -28,9 +28,15 @@ const suggestPropertyMappingsTool: ToolDefinition<typeof inputSchema, typeof out
   description:
     "Runs SchemeWeaver's built-in heuristic auto-mapper (exact/synonym/substring name matching) and returns property mapping " +
     "suggestions with a confidence score per schema property (0-100; >=80 high, >=50 medium). " +
-    "Treat this as a BASELINE, not the answer: review each suggestion semantically, drop bad matches, fill in the gaps " +
-    "the heuristic missed (it cannot reason about meaning, units, nested objects or content structure), " +
-    "then build the final mapping yourself and persist it with save-schema-mapping. " +
+    "Treat this as a FLOOR, not the answer: keep its correct rows, fix the wrong ones, and ADD the mappings it cannot " +
+    "express (it only does flat name matches — no meaning, units, nested entities or block structure). " +
+    "Reason semantically about each schema property: 'strapline' -> alternativeName, 'standfirst'/'intro' -> description, " +
+    "'bodyText' -> articleBody, 'heroImage' -> image. Then build the final mapping yourself, choosing the right sourceType " +
+    "(property for a scalar/media — the simplest valid choice; complexType for a named entity like Person/Organization even " +
+    "from one field; blockContent with extractAs stringList / nestedMappings / nestable routes for Block List/Grid; " +
+    "parent/ancestor/sibling for related nodes; static; reference) and persist it with save-schema-mapping. " +
+    "Example improvement: the heuristic leaves a 'authorName' text prop unmapped under BlogPosting.author (it expects a " +
+    "Person); you map it as sourceType 'complexType', nestedSchemaTypeName 'Person'. " +
     "Suggestions with isAutoMapped=false are unmapped schema properties listed for completeness — good candidates for manual reasoning.",
   inputSchema,
   outputSchema,

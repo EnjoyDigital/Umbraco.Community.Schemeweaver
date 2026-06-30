@@ -1,6 +1,9 @@
+using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
+using Umbraco.Community.SchemeWeaver.Services.Mapping;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
 
@@ -13,6 +16,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 {
     private readonly IContentTypeService _contentTypeService;
     private readonly ISchemaTypeRegistry _schemaTypeRegistry;
+    private readonly IDataTypeService? _dataTypeService;
     private readonly int _autoApplyThreshold;
     private readonly int _showThreshold;
 
@@ -350,10 +354,12 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     public SchemaAutoMapper(
         IContentTypeService contentTypeService,
         ISchemaTypeRegistry schemaTypeRegistry,
-        IOptions<SchemaAutoMapperOptions>? options = null)
+        IOptions<SchemaAutoMapperOptions>? options = null,
+        IDataTypeService? dataTypeService = null)
     {
         _contentTypeService = contentTypeService;
         _schemaTypeRegistry = schemaTypeRegistry;
+        _dataTypeService = dataTypeService;
 
         var opts = options?.Value ?? new SchemaAutoMapperOptions();
         _autoApplyThreshold = opts.AutoApplyConfidenceThreshold;
@@ -566,6 +572,27 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
             suggestions.Add(suggestion);
         }
+
+        // Structural enrichment pass: derive correct rich structures (complexType inner bindings,
+        // blockContent string lists / nested mappings) the flat loop above left missing. Runs
+        // BEFORE the threshold filter so a structurally-confirmed row can have its confidence
+        // floored to the show threshold and survive. Priors (popular defaults, synonyms) already
+        // applied above win where present; this only fills the gaps.
+        var contentPropertyAliases = contentProperties.Select(p => p.Alias).ToList();
+        var blockCache = new Dictionary<string, IReadOnlyList<BlockElementTypeInfo>>(StringComparer.OrdinalIgnoreCase);
+
+        IReadOnlyList<BlockElementTypeInfo> BlockElementsFor(string alias)
+        {
+            if (!blockCache.TryGetValue(alias, out var elements))
+            {
+                elements = GetBlockElements(contentType, alias);
+                blockCache[alias] = elements;
+            }
+            return elements;
+        }
+
+        var enricher = new StructuralEnricher(_schemaTypeRegistry, MatchPropertyAlias, _showThreshold);
+        enricher.Enrich(suggestions, contentPropertyAliases, BlockElementsFor);
 
         // Threshold pass (authoritative over the per-branch IsAutoMapped values above):
         //  - auto-apply only the genuinely-reliable rows (>= AutoApplyConfidenceThreshold);
@@ -815,6 +842,128 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             return SchemeWeaverConstants.BuiltInProperties.CreateDate;
 
         return null;
+    }
+
+    /// <summary>
+    /// Exact &gt; synonym match of a schema property name against a set of candidate content/element
+    /// property aliases — the same precedence the flat loop uses, minus partial matching. Used by the
+    /// structural enricher to bind nested sub-properties; partial (substring) matching is deliberately
+    /// excluded here because, inside a nested type with many properties, it produces spurious bindings
+    /// (e.g. a <c>reviewDate</c> field sticking to an unrelated property whose name is a substring).
+    /// </summary>
+    private string? MatchPropertyAlias(string schemaPropName, IReadOnlyList<string> candidates)
+    {
+        if (candidates.Count == 0 || string.IsNullOrEmpty(schemaPropName))
+            return null;
+
+        var exact = candidates.FirstOrDefault(a => string.Equals(a, schemaPropName, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+            return exact;
+
+        if (Synonyms.TryGetValue(schemaPropName, out var syns))
+        {
+            var synonym = candidates.FirstOrDefault(a => syns.Any(s => string.Equals(a, s, StringComparison.OrdinalIgnoreCase)));
+            if (synonym is not null)
+                return synonym;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Synchronously resolves the block element types behind a Block List/Grid content property
+    /// (alias + per-property editor aliases, one level deep — enough for string-list detection and
+    /// nested-mapping supplementation). Returns empty when block introspection is unavailable
+    /// (no <see cref="IDataTypeService"/> injected, e.g. in unit tests) or the property is not a block.
+    /// </summary>
+    private IReadOnlyList<BlockElementTypeInfo> GetBlockElements(IContentType contentType, string propertyAlias)
+    {
+        if (_dataTypeService is null)
+            return [];
+
+        var property = contentType.CompositionPropertyTypes.FirstOrDefault(
+            p => string.Equals(p.Alias, propertyAlias, StringComparison.OrdinalIgnoreCase));
+        if (property is null || !BlockEditorAliases.Contains(property.PropertyEditorAlias))
+            return [];
+
+        IDataType? dataType;
+        try
+        {
+            dataType = _dataTypeService.GetAsync(property.DataTypeKey).GetAwaiter().GetResult();
+        }
+        catch
+        {
+            return [];
+        }
+
+        if (dataType is null)
+            return [];
+
+        var elementKeys = ParseBlockElementKeys(dataType);
+        if (elementKeys.Count == 0)
+            return [];
+
+        var result = new List<BlockElementTypeInfo>();
+        foreach (var key in elementKeys)
+        {
+            var elementType = _contentTypeService.Get(key);
+            if (elementType is null)
+                continue;
+
+            result.Add(new BlockElementTypeInfo
+            {
+                Alias = elementType.Alias,
+                Name = elementType.Name ?? elementType.Alias,
+                Properties = elementType.CompositionPropertyTypes.Select(p => p.Alias).ToList(),
+                PropertyInfos = elementType.CompositionPropertyTypes.Select(p => new BlockElementPropertyInfo
+                {
+                    Alias = p.Alias,
+                    Name = p.Name ?? p.Alias,
+                    EditorAlias = p.PropertyEditorAlias,
+                }).ToList(),
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extracts content element type keys from a BlockList/BlockGrid data type's configuration JSON.
+    /// Mirrors the extraction in <see cref="SchemeWeaverService"/> (kept local to avoid a service
+    /// dependency cycle through the synchronous auto-mapper path).
+    /// </summary>
+    private static List<Guid> ParseBlockElementKeys(IDataType dataType)
+    {
+        var keys = new List<Guid>();
+        if (dataType.ConfigurationData is null
+            || !dataType.ConfigurationData.TryGetValue("blocks", out var blocksValue))
+            return keys;
+
+        try
+        {
+            var blocksJson = blocksValue?.ToString();
+            if (string.IsNullOrEmpty(blocksJson))
+                return keys;
+
+            using var doc = JsonDocument.Parse(blocksJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return keys;
+
+            foreach (var block in doc.RootElement.EnumerateArray())
+            {
+                if (block.TryGetProperty("contentElementTypeKey", out var keyProp)
+                    && Guid.TryParse(keyProp.GetString(), out var elementKey))
+                {
+                    keys.Add(elementKey);
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Configuration format not as expected — return whatever we collected.
+        }
+
+        return keys;
     }
 
     /// <summary>

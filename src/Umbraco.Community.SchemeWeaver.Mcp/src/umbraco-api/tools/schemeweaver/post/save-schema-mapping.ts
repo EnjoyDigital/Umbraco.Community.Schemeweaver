@@ -26,15 +26,22 @@ const propertyMappingSchema = z.object({
         "camelCase (as emitted in JSON-LD) is the convention even though get-schema-type-properties lists names in PascalCase."
     ),
   sourceType: z
-    .enum(["property", "static", "parent", "ancestor", "sibling", "blockContent", "reference"])
+    .enum(["property", "static", "complexType", "parent", "ancestor", "sibling", "blockContent", "reference"])
     .describe(
-      "Where the value comes from: " +
-        "'property' = a property on the content node itself (set contentTypePropertyAlias); " +
-        "'static' = a fixed value for all content of this type (set staticValue); " +
-        "'parent' = a property on the direct parent node (set contentTypePropertyAlias); " +
+      "Where the value comes from. Choosing the right one is how a reasoned mapping beats the name-only heuristic. " +
+        "Prefer the SIMPLEST valid choice — use 'property' whenever a single scalar feeds the schema property, even if " +
+        "Schema.org permits a wrapper object (do NOT wrap a lone 'brand' scalar in a Brand object). Values: " +
+        "'property' = a property on the content node itself (set contentTypePropertyAlias); the default for scalars and media. " +
+        "Built-ins __name/__url/__createDate/__updateDate are always available here. " +
+        "'static' = a fixed value for all content of this type (set staticValue, contentTypePropertyAlias=null); " +
+        "'complexType' = the schema property denotes a named ENTITY (Person, Organization, Place, PostalAddress, Offer…); " +
+        "nest it even from a single field (e.g. author -> Person from one authorName text prop). Set nestedSchemaTypeName " +
+        "and a `complexTypeMappings` resolverConfig; " +
+        "'parent' = a property on the direct parent node (set contentTypePropertyAlias) — e.g. a 'category' grouping from the parent's title; " +
         "'ancestor' = a property on the nearest ancestor of a given content type (set sourceContentTypeAlias + contentTypePropertyAlias); " +
         "'sibling' = a property on a sibling node of a given content type (set sourceContentTypeAlias + contentTypePropertyAlias); " +
         "'blockContent' = map Block List/Grid items (including blocks nested inside blocks and Block Grid areas) to nested schema objects or string lists (set contentTypePropertyAlias to the block property, nestedSchemaTypeName, and a `routes` resolverConfig — nestable for blocks-within-blocks); " +
+        "a body-sections container (contentGrid/blocks/sections/rows) is the page's structural content — map it to mainEntity or hasPart as WebPageElement, never leave it unmapped; " +
         "'reference' = link to a shared graph piece by key (set targetPieceKey, e.g. 'organization' or 'website') — used for publisher/author organisation references."
     ),
   contentTypePropertyAlias: z
@@ -158,7 +165,13 @@ const saveSchemaMappingTool: ToolDefinition<typeof inputSchema, typeof outputSch
     "Schema.org JSON-LD. Recommended workflow: (1) get-content-type-properties and get-schema-type-properties (ranked=true) " +
     "to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property " +
     "semantically — correct bad suggestions, add mappings the heuristic missed, use nested types for complex values — " +
-    "then save with this tool, and (4) verify with preview-json-ld and fix any validation issues it reports. " +
+    "then save with this tool, and (4) verify with preview-json-ld + validate-mapping and LOOP fixing until allClear. " +
+    "Worked rows: a single 'authorName' text prop under BlogPosting.author -> {sourceType:'complexType', " +
+    "nestedSchemaTypeName:'Person', resolverConfig:'{\"complexTypeMappings\":[{\"schemaProperty\":\"Name\"," +
+    "\"sourceType\":\"property\",\"contentTypePropertyAlias\":\"authorName\"}]}'}; an 'ingredients' Block List of one-field " +
+    "blocks under Recipe.recipeIngredient -> {sourceType:'blockContent', resolverConfig:'{\"extractAs\":\"stringList\"," +
+    "\"contentProperty\":\"ingredient\"}'}; a plain 'brand' scalar under Vehicle.brand -> {sourceType:'property', " +
+    "contentTypePropertyAlias:'brand'} (NOT a Brand object). " +
     "IMPORTANT: inspect the `warnings` array on the response — it flags properties mapped outside their Schema.org range " +
     "that will be SILENTLY DROPPED from the JSON-LD (e.g. a non-CreativeWork type under hasPart); re-home those to a property " +
     "like about/mainEntity. Also check `reachability`: composed-from-block means this type only emits inside a containing " +
