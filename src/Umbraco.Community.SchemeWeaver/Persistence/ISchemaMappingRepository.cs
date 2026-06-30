@@ -23,4 +23,11 @@ public interface ISchemaMappingRepository
 
     void SavePropertyMappings(int schemaMappingId, IEnumerable<PropertyMapping> mappings);
     IEnumerable<SchemaMapping> GetInheritedMappings();
+
+    /// <summary>
+    /// Evicts the in-memory mapping cache. Save/Delete/SavePropertyMappings call this
+    /// automatically; call it explicitly after writing the mapping tables out of band
+    /// (e.g. a bulk DB import, or a test resetting the tables directly).
+    /// </summary>
+    void ClearCache();
 }

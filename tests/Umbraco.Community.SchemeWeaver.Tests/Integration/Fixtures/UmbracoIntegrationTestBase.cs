@@ -71,6 +71,10 @@ public abstract class UmbracoIntegrationTestBase : IAsyncLifetime
                     dbScope.Complete();
                 }
 
+                // The repository caches mapping reads; this reset writes the tables directly, so the
+                // cache must be cleared too or the next read would serve the pre-delete snapshot.
+                scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>().ClearCache();
+
                 // Verify from a fresh scope that the delete actually stuck. A row
                 // can reappear when a write started by the previous test commits
                 // after our DELETE; loop (deleting again) until the tables stay

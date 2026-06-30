@@ -65,4 +65,7 @@ public class PropertyMapping
     [Column("TargetPieceKey")]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? TargetPieceKey { get; set; }
+
+    /// <summary>Returns a shallow (full, since all members are value types or strings) defensive copy.</summary>
+    public PropertyMapping Clone() => (PropertyMapping)MemberwiseClone();
 }
