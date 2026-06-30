@@ -35,7 +35,14 @@ const getSchemaTypePropertiesTool: ToolDefinition<typeof inputSchema, typeof out
     "(true when the value is itself a structured object like Person or Organization, which needs a nested mapping via nestedSchemaTypeName), " +
     "and with ranked=true a popularity confidence score. " +
     "Names are returned in PascalCase (e.g. 'Headline'); use camelCase ('headline') in save-schema-mapping property names — matching is case-insensitive. " +
-    "Use this together with get-content-type-properties to decide which Umbraco property best supplies each schema property.",
+    "With ranked=true, map the high-confidence/isPopular/required properties FIRST — these are what Google rich results " +
+    "require/recommend — and don't pad with obscure low-ranked ones. " +
+    "Use this together with get-content-type-properties to decide which Umbraco property best supplies each schema property, " +
+    "and which sourceType fits: a scalar/media prop -> 'property' (the simplest valid choice — don't wrap a lone scalar like " +
+    "'brand' in a Brand object); a property flagged isComplexType (a named entity like Person/Organization/Place) -> " +
+    "'complexType' with nestedSchemaTypeName, even from a single field (e.g. author -> Person); a Block List/Grid property -> " +
+    "'blockContent'. Example: for BlogPosting, ranked surfaces headline/image/author/datePublished at the top — map those before " +
+    "wordCount or thumbnailUrl.",
   inputSchema,
   outputSchema,
   slices: ["read"],

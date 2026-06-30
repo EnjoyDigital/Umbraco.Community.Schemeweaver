@@ -114,12 +114,6 @@ export function mergeAutoMapSuggestions(
 }
 
 /**
- * Sort mapping rows in display order:
- * 1. Popular Schema.org properties (in POPULAR_PROPERTIES order)
- * 2. Mapped properties (alphabetical)
- * 3. Unmapped properties (alphabetical)
- */
-/**
  * Apply a source type change to a mapping row, resetting dependent fields.
  * Shared between property-mapping-table, schema-mapping-view, and property-mapping-modal.
  */
@@ -188,30 +182,34 @@ export function applyWarningsToRows(
   });
 }
 
+/**
+ * Display-order rank for a row: prefers the schema recommendation rank (the ranked endpoint's
+ * confidence) when present; falls back to the hardcoded POPULAR_PROPERTIES list (older backends
+ * with no ranked data), then to the auto-map match confidence.
+ */
+function schemaRankOf(row: PropertyMappingRow): number {
+  if (typeof row.schemaRank === 'number') return row.schemaRank;
+  const popIdx = POPULAR_PROPERTIES.indexOf(row.schemaPropertyName);
+  if (popIdx !== -1) return 100 - popIdx; // popular get a high score, in their defined order
+  return row.confidence ?? 0;
+}
+
+/**
+ * Sort mapping rows in display order:
+ * 1. Mapped (user-provided) properties first
+ * 2. Then by schema recommendation rank (recommended properties surface to the top)
+ * 3. Alphabetical within the same rank
+ */
 export function sortMappingRows(rows: PropertyMappingRow[]): PropertyMappingRow[] {
   return [...rows].sort((a, b) => {
-    const aPopIdx = POPULAR_PROPERTIES.indexOf(a.schemaPropertyName);
-    const bPopIdx = POPULAR_PROPERTIES.indexOf(b.schemaPropertyName);
-    const aIsPopular = aPopIdx !== -1;
-    const bIsPopular = bPopIdx !== -1;
     const aMapped = rowHasUserData(a);
     const bMapped = rowHasUserData(b);
+    if (aMapped !== bMapped) return aMapped ? -1 : 1;
 
-    // Popular properties first, in their defined order
-    if (aIsPopular && bIsPopular) return aPopIdx - bPopIdx;
-    if (aIsPopular) return -1;
-    if (bIsPopular) return 1;
+    const aRank = schemaRankOf(a);
+    const bRank = schemaRankOf(b);
+    if (aRank !== bRank) return bRank - aRank;
 
-    // Mapped before unmapped
-    if (aMapped && !bMapped) return -1;
-    if (!aMapped && bMapped) return 1;
-
-    // Higher confidence before lower confidence
-    const aConf = a.confidence ?? -1;
-    const bConf = b.confidence ?? -1;
-    if (aConf !== bConf) return bConf - aConf;
-
-    // Alphabetical within same group
     return a.schemaPropertyName.localeCompare(b.schemaPropertyName);
   });
 }

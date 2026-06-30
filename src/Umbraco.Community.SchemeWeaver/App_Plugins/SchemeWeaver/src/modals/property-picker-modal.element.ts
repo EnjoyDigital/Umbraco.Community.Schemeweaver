@@ -1,4 +1,4 @@
-import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import type { UmbNotificationContext } from '@umbraco-cms/backoffice/notification';
@@ -110,36 +110,30 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
                 </div>
               `
             : html`
-                <div class="property-list" role="listbox" aria-label=${this.localize.term('schemeWeaver_propertiesListLabel')}>
+                <div class="property-list">
                   ${this._filteredProperties.length > 0
-                    ? this._filteredProperties.map(
-                        (prop) => html`
-                          <div
-                            class="property-item ${this._selectedProperty === prop.alias ? 'selected' : ''}"
-                            role="option"
-                            tabindex="0"
-                            aria-selected="${this._selectedProperty === prop.alias}"
-                            @click=${() => this._handleSelect(prop.alias)}
-                            @keydown=${(e: KeyboardEvent) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                this._handleSelect(prop.alias);
-                              }
-                            }}
-                          >
-                            <div class="property-item-header">
-                              <strong>${prop.alias}</strong>
-                              <small class="property-name">${prop.name}</small>
-                            </div>
-                            ${prop.editorAlias
-                              ? html`<small class="property-editor">${prop.editorAlias}</small>`
-                              : ''}
-                            ${prop.description
-                              ? html`<p class="property-description">${prop.description}</p>`
-                              : ''}
-                          </div>
-                        `
-                      )
+                    ? html`<uui-ref-list>
+                        ${repeat(
+                          this._filteredProperties,
+                          (prop) => prop.alias,
+                          (prop) => html`
+                            <umb-ref-item
+                              selectable
+                              select-only
+                              ?selected=${this._selectedProperty === prop.alias}
+                              name=${prop.alias}
+                              detail=${[prop.name, prop.description].filter(Boolean).join(' — ')}
+                              icon="icon-document"
+                              @selected=${() => this._handleSelect(prop.alias)}
+                              @deselected=${() => { this._selectedProperty = ''; }}
+                            >
+                              ${prop.editorAlias
+                                ? html`<uui-tag slot="tag" look="secondary">${prop.editorAlias}</uui-tag>`
+                                : nothing}
+                            </umb-ref-item>
+                          `,
+                        )}
+                      </uui-ref-list>`
                     : html`<p class="no-results">${this.localize.term('schemeWeaver_noProperties')}</p>`}
                 </div>
               `}
@@ -186,54 +180,6 @@ export class PropertyPickerModalElement extends UmbModalBaseElement<PropertyPick
       .property-list {
         max-height: 500px;
         overflow-y: auto;
-      }
-
-      .property-item {
-        padding: var(--uui-size-space-3) var(--uui-size-space-4);
-        border-radius: var(--uui-border-radius);
-        cursor: pointer;
-        transition: background-color 0.15s ease;
-        border: 2px solid transparent;
-      }
-
-      .property-item:hover {
-        background-color: var(--uui-color-surface-alt);
-      }
-
-      .property-item.selected {
-        background-color: var(--uui-color-selected);
-        border-color: var(--uui-color-focus);
-        color: var(--uui-color-selected-contrast);
-      }
-
-      .property-item.selected .property-name,
-      .property-item.selected .property-editor,
-      .property-item.selected .property-description {
-        color: var(--uui-color-selected-contrast);
-        opacity: 0.85;
-      }
-
-      .property-item-header {
-        display: flex;
-        align-items: baseline;
-        gap: var(--uui-size-space-3);
-      }
-
-      .property-name {
-        color: var(--uui-color-text-alt);
-        font-style: italic;
-      }
-
-      .property-editor {
-        color: var(--uui-color-text-alt);
-        font-size: 0.8rem;
-      }
-
-      .property-description {
-        margin: var(--uui-size-space-1) 0 0 0;
-        color: var(--uui-color-text-alt);
-        font-size: 0.875rem;
-        line-height: 1.4;
       }
 
       .no-results {

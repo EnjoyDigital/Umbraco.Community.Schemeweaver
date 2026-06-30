@@ -17,6 +17,7 @@ import type {
   BlockRoutePropertyMapping,
   BlockRoutePropertyMappingSuggestion,
 } from '../api/types.js';
+import { filterOutPrimitiveAcceptedTypes } from '../utils/schema-primitives.js';
 
 /** A single nested-property mapping row inside one block's expandable table. */
 export interface RoutePropEntry {
@@ -28,6 +29,12 @@ export interface RoutePropEntry {
   /** Optional value transform (e.g. `"stripHtml"`) carried through suggestion → save. */
   transformType: string;
   isComplexType: boolean;
+  /** Ranking confidence (0–100) of this schema property for the chosen type — drives ordering. */
+  confidence: number;
+  /** True when this property is recommended (Google-relevant; confidence ≥ 60). */
+  recommended: boolean;
+  /** Schema.org types this property may take (drives the nested-block type dropdown). */
+  acceptedTypes: string[];
   /** Nested block element types of the chosen content property (when it is itself a block list). */
   nestedBlockElementTypes: BlockElementTypeInfo[];
   /**
@@ -58,6 +65,8 @@ export interface BlockMappingRow {
   /** Total nested schema properties for the chosen type (denominator of the badge). */
   totalSchemaProps: number;
   expanded: boolean;
+  /** UI: reveal the long tail of low-confidence unmapped properties (progressive disclosure). */
+  showAll: boolean;
   confidence: number | null;
   /** Target page property — top level only; undefined for nested levels. */
   targetProperty?: string;
@@ -80,6 +89,36 @@ export function resolveNestedBlockTypes(
   return info?.nestedBlockElementTypes ?? [];
 }
 
+/**
+ * The Schema.org object types valid for a property — its object accepted types. Drives both the
+ * nested-block type dropdown and the "Wrap in Type" dropdown. Returns `[]` (→ caller falls back
+ * to a free-text / searchable input) when the set is empty, all-primitive, or includes the
+ * universal `Thing` root, where a fixed dropdown is useless.
+ */
+export function allowedObjectSchemaTypes(entry: RoutePropEntry): string[] {
+  const allowed = filterOutPrimitiveAcceptedTypes(entry.acceptedTypes ?? []);
+  if (allowed.length === 0 || allowed.includes('Thing')) return [];
+  return allowed;
+}
+
+/**
+ * Build `<uui-select>` options for a constrained Schema.org type field. Includes a leading
+ * "none" option and preserves a current value that is outside the allowed set (so an existing
+ * saved mapping is never silently dropped).
+ */
+export function schemaTypeSelectOptions(
+  allowed: string[],
+  current: string,
+  noneLabel: string,
+): Array<{ name: string; value: string; selected: boolean }> {
+  const known = allowed.includes(current);
+  return [
+    { name: noneLabel, value: '', selected: !current },
+    ...(current && !known ? [{ name: current, value: current, selected: true }] : []),
+    ...allowed.map((t) => ({ name: t, value: t, selected: current === t })),
+  ];
+}
+
 export interface PropEntrySeed {
   contentProperty?: string;
   wrapInType?: string | null;
@@ -95,8 +134,11 @@ export function makePropEntry(
   schemaProperty: string,
   schemaPropertyType: string,
   isComplexType: boolean,
+  acceptedTypes: string[],
   propertyInfos: BlockElementPropertyInfo[],
   seed?: PropEntrySeed,
+  confidence = 0,
+  recommended = false,
 ): RoutePropEntry {
   const contentProperty = seed?.contentProperty ?? '';
   return {
@@ -107,6 +149,9 @@ export function makePropEntry(
     wrapInProperty: seed?.wrapInProperty ?? '',
     transformType: seed?.transformType ?? '',
     isComplexType,
+    confidence,
+    recommended,
+    acceptedTypes,
     nestedBlockElementTypes: resolveNestedBlockTypes(propertyInfos, contentProperty),
     nestedSeed: seed?.nestedSeed ?? seed?.nestedRoutes ?? [],
     nestedRoutes: seed?.nestedRoutes ?? seed?.nestedSeed ?? [],
@@ -128,7 +173,7 @@ export function seedEntriesFromRaw(
     const nested = fromSuggestion
       ? convertSuggestedRoutes((m as BlockRoutePropertyMappingSuggestion).routes)
       : ((m as BlockRoutePropertyMapping).routes ?? []);
-    return makePropEntry(m.schemaProperty, '', false, propertyInfos, {
+    return makePropEntry(m.schemaProperty, '', false, [], propertyInfos, {
       contentProperty: m.contentProperty,
       wrapInType: m.wrapInType,
       wrapInProperty: m.wrapInProperty,
@@ -171,7 +216,7 @@ export function alignPropertyMappings(
   const byName = new Map(seed.map((m) => [m.schemaProperty.toLowerCase(), m]));
   return props.map((sp) => {
     const prev = byName.get(sp.name.toLowerCase());
-    return makePropEntry(sp.name, sp.propertyType, sp.isComplexType, propertyInfos, prev && {
+    return makePropEntry(sp.name, sp.propertyType, sp.isComplexType, sp.acceptedTypes ?? [], propertyInfos, prev && {
       contentProperty: prev.contentProperty,
       wrapInType: prev.wrapInType,
       wrapInProperty: prev.wrapInProperty,
@@ -179,7 +224,7 @@ export function alignPropertyMappings(
       nestedSeed: prev.nestedSeed,
       nestedRoutes: prev.nestedRoutes,
       nestedSuggestedRoutes: prev.nestedSuggestedRoutes,
-    });
+    }, sp.confidence, sp.isPopular);
   });
 }
 
@@ -203,6 +248,7 @@ export function makeBlockRow(bt: BlockElementTypeInfo, seed?: RowSeed): BlockMap
     propertyMappings: seed?.propertyMappings ?? [],
     totalSchemaProps: seed?.propertyMappings?.length ?? 0,
     expanded: false,
+    showAll: false,
     confidence: seed?.confidence ?? null,
     targetProperty: seed?.targetProperty,
   };
@@ -211,6 +257,37 @@ export function makeBlockRow(bt: BlockElementTypeInfo, seed?: RowSeed): BlockMap
 /** Count of property rows with a chosen content value. */
 export function mappedCount(row: BlockMappingRow): number {
   return row.propertyMappings.filter((m) => m.contentProperty.trim() !== '').length;
+}
+
+/** Count of property rows shown by default — recommended OR already mapped. */
+export function recommendedCount(row: BlockMappingRow): number {
+  return row.propertyMappings.filter((m) => m.recommended || m.contentProperty.trim() !== '').length;
+}
+
+/**
+ * The property rows to render, paired with their ORIGINAL index in `row.propertyMappings`
+ * (callers edit rows by that index, so it must survive filtering/sorting). Ordered mapped-first
+ * then confidence-DESC. When `showAll` is false, the long tail of low-confidence unmapped
+ * properties is hidden — but any row with a chosen content value is always kept visible, so a
+ * saved low-confidence mapping is never collapsed out of sight.
+ */
+export function visibleEntries(row: BlockMappingRow): Array<{ entry: RoutePropEntry; index: number }> {
+  const paired = row.propertyMappings.map((entry, index) => ({ entry, index }));
+  const filtered = row.showAll
+    ? paired
+    : paired.filter(({ entry }) => entry.recommended || entry.contentProperty.trim() !== '');
+  return filtered.sort((a, b) => {
+    const am = a.entry.contentProperty.trim() !== '' ? 1 : 0;
+    const bm = b.entry.contentProperty.trim() !== '' ? 1 : 0;
+    if (am !== bm) return bm - am; // mapped first
+    return b.entry.confidence - a.entry.confidence; // then by confidence (stable sort keeps alpha within ties)
+  });
+}
+
+/** How many property rows are hidden by the collapsed view (0 when `showAll`). */
+export function hiddenCount(row: BlockMappingRow): number {
+  if (row.showAll) return 0;
+  return row.propertyMappings.length - visibleEntries(row).length;
 }
 
 /** Serialise a block row's property table to the stored NestedPropertyMapping shape. */

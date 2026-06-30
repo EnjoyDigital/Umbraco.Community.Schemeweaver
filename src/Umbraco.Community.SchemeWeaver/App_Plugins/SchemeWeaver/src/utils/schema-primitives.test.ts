@@ -3,6 +3,7 @@ import {
   SCHEMA_PRIMITIVE_TYPES,
   isPrimitiveSchemaType,
   filterOutPrimitiveSchemaTypes,
+  filterOutPrimitiveAcceptedTypes,
 } from './schema-primitives.js';
 
 describe('schema-primitives', () => {
@@ -64,6 +65,15 @@ describe('schema-primitives', () => {
         'CategoryCode', 'Text', 'Thing', 'URL', 'PhysicalActivityCategory',
       ]);
       expect(result).to.deep.equal(['CategoryCode', 'Thing', 'PhysicalActivityCategory']);
+    });
+  });
+
+  describe('filterOutPrimitiveAcceptedTypes', () => {
+    it('removes CLR-spelled primitives the Schema.org set misses (String/Uri/TimeSpan)', () => {
+      expect(filterOutPrimitiveAcceptedTypes(['Answer', 'ItemList'])).to.deep.equal(['Answer', 'ItemList']);
+      expect(filterOutPrimitiveAcceptedTypes(['ImageObject', 'Uri'])).to.deep.equal(['ImageObject']);
+      expect(filterOutPrimitiveAcceptedTypes(['String', 'TextObject'])).to.deep.equal(['TextObject']);
+      expect(filterOutPrimitiveAcceptedTypes(['Integer', 'DateTime', 'TimeSpan'])).to.deep.equal([]);
     });
   });
 });

@@ -14,7 +14,7 @@ import { SCHEMEWEAVER_PROPERTY_MAPPING_MODAL } from '../modals/property-mapping-
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from '../modals/source-origin-picker-modal.token.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from '../modals/nested-mapping-modal.token.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from '../modals/complex-type-mapping-modal.token.js';
-import type { SchemaMappingDto, ContentTypeProperty, SchemaPropertyInfo } from '../api/types.js';
+import type { SchemaMappingDto, ContentTypeProperty, RankedSchemaPropertyInfo } from '../api/types.js';
 import { SourceType } from '../constants/source-type.js';
 
 import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, applySourceTypeChange, applyWarningsToRows } from '../utils/mapping-converters.js';
@@ -41,7 +41,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
   private _availableProperties: string[] = [];
 
   @state()
-  private _allSchemaProperties: SchemaPropertyInfo[] = [];
+  private _allSchemaProperties: RankedSchemaPropertyInfo[] = [];
 
   @state()
   private _contentTypeAlias = '';
@@ -135,13 +135,14 @@ export class SchemaMappingViewElement extends UmbLitElement {
       this._mapping = mapping;
       this._rows = sortMappingRows(mapping.propertyMappings.map(dtoToRow));
 
-      // Enrich rows with schema property info (acceptedTypes, isComplexType)
-      const schemaProps = await this.#context?.requestSchemaTypeProperties(mapping.schemaTypeName);
+      // Enrich rows with schema property info (acceptedTypes, isComplexType, recommendation rank).
+      // ranked=true gives confidence/isPopular so the table orders recommended properties first.
+      const schemaProps = await this.#context?.requestSchemaTypeProperties(mapping.schemaTypeName, true);
       if (schemaProps) {
         this._allSchemaProperties = schemaProps;
         this._rows = this._rows.map(row => {
           const schemaProp = schemaProps.find(
-            (sp: SchemaPropertyInfo) => sp.name.toLowerCase() === row.schemaPropertyName.toLowerCase()
+            (sp: RankedSchemaPropertyInfo) => sp.name.toLowerCase() === row.schemaPropertyName.toLowerCase()
           );
           if (schemaProp) {
             const enriched = {
@@ -149,6 +150,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
               schemaPropertyType: schemaProp.propertyType || row.schemaPropertyType,
               acceptedTypes: schemaProp.acceptedTypes || [],
               isComplexType: schemaProp.isComplexType || false,
+              schemaRank: schemaProp.confidence,
             };
             // Restore sub-mappings from saved resolverConfig for complexType rows
             if (enriched.sourceType === SourceType.ComplexType && enriched.resolverConfig) {

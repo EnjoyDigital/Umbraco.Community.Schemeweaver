@@ -28,7 +28,7 @@ describe('SchemaPickerModalElement', () => {
   it('renders schema types after load', async () => {
     const el = await fixture(html`<schemeweaver-schema-picker-modal></schemeweaver-schema-picker-modal>`);
     await waitForLoad(el);
-    const items = el.shadowRoot!.querySelectorAll('.schema-item');
+    const items = el.shadowRoot!.querySelectorAll('.schema-list umb-ref-item');
     expect(items.length).to.equal(108); // schema types in mock DB including subtypes
   });
 
@@ -40,13 +40,14 @@ describe('SchemaPickerModalElement', () => {
     expect(groups.length).to.be.greaterThan(1);
   });
 
-  it('highlights selected type with .selected class', async () => {
+  it('marks the selected type with the selected attribute', async () => {
     const el = await fixture(html`<schemeweaver-schema-picker-modal></schemeweaver-schema-picker-modal>`);
     await waitForLoad(el);
-    const firstItem = el.shadowRoot!.querySelector('.schema-item') as HTMLElement;
-    firstItem.click();
+    const firstItem = el.shadowRoot!.querySelector('.schema-list umb-ref-item') as HTMLElement;
+    // umb-ref-item fires `selected` (UUI selectable mixin) — the modal binds @selected.
+    firstItem.dispatchEvent(new CustomEvent('selected', { bubbles: true }));
     await (el as any).updateComplete;
-    expect(firstItem.classList.contains('selected')).to.be.true;
+    expect(firstItem.hasAttribute('selected')).to.be.true;
   });
 
   it('submit button is disabled when no type selected', async () => {
@@ -59,8 +60,8 @@ describe('SchemaPickerModalElement', () => {
   it('submit button is enabled after selection', async () => {
     const el = await fixture(html`<schemeweaver-schema-picker-modal></schemeweaver-schema-picker-modal>`);
     await waitForLoad(el);
-    const firstItem = el.shadowRoot!.querySelector('.schema-item') as HTMLElement;
-    firstItem.click();
+    const firstItem = el.shadowRoot!.querySelector('.schema-list umb-ref-item') as HTMLElement;
+    firstItem.dispatchEvent(new CustomEvent('selected', { bubbles: true }));
     await (el as any).updateComplete;
     const submitBtn = el.shadowRoot!.querySelector('uui-button[look="primary"]') as any;
     expect(submitBtn.hasAttribute('disabled')).to.be.false;
