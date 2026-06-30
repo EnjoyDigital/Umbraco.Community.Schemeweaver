@@ -72,6 +72,17 @@ const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 - **uSync** — sync schema mappings between environments: `Umbraco.Community.SchemeWeaver.uSync`
 - **AI** (Umbraco 17) — AI-powered mapping suggestions via Umbraco.AI: `Umbraco.Community.SchemeWeaver.AI`
 
+## Use it with an AI assistant (MCP)
+
+SchemeWeaver also ships an **MCP server** plus a **`schemeweaver-map` skill** that let an AI assistant (Claude and others) reason semantically about the best Schema.org type for a content type, save the mapping, and verify the JSON-LD — usually a richer result than the name-matching auto-mapper. With [Claude Code](https://claude.com/claude-code) it's a two-command plugin install:
+
+```text
+/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver
+/plugin install schemeweaver-mcp@schemeweaver
+```
+
+Then just ask: *"Map my `blogPost` document type to Schema.org and validate it."* See the [MCP Server guide](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/blob/main/docs/mcp-server.md) for details.
+
 ## How it works
 
 Each mapping connects one Umbraco Content Type to one Schema.org type. Within that mapping, individual property mappings define where each schema property gets its value:

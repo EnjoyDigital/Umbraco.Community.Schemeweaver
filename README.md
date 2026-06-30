@@ -87,14 +87,31 @@ Responses are cached and invalidated automatically on publish/unpublish/move/del
 
 ## Use it with an AI assistant (MCP)
 
-SchemeWeaver ships an [MCP server](docs/mcp-server.md) that gives an AI assistant (Claude and others) tools to inspect your content types, reason about the best-fitting Schema.org type, save the mapping, and verify the JSON-LD — typically a better result than the name-matching auto-mapper alone. Install it as a Claude Code plugin:
+SchemeWeaver ships an [MCP server](docs/mcp-server.md) that gives an AI assistant (Claude and others) tools to inspect your content types, reason about the best-fitting Schema.org type, save the mapping, and verify the JSON-LD — typically a better result than the name-matching auto-mapper alone.
+
+**You need:** an Umbraco instance (v17/18) with SchemeWeaver installed and an [API user](docs/mcp-server.md#prerequisites) with client credentials.
+
+### Quick start (Claude Code)
+
+Install it as a Claude Code plugin — no clone, no build:
 
 ```text
 /plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver
 /plugin install schemeweaver-mcp@schemeweaver
+/reload-plugins
 ```
 
-Claude Code prompts for your Umbraco URL and an API user's credentials, then it's ready to use. See [MCP Server](docs/mcp-server.md) for details.
+Claude Code prompts for your **Umbraco Base URL** and the API user's **Client ID / Client Secret** (the secret is stored in your OS keychain), then starts the `schemeweaver` server automatically.
+
+### The included skill
+
+The plugin **also installs the `schemeweaver-map` skill** — a guided workflow that drives the tools end to end (inspect the content type → pick the most specific Schema.org type → improve on the heuristic → save → preview and validate until it passes Google's Rich Results rules). Nothing extra to install.
+
+To use it, just ask in plain language and it triggers automatically:
+
+> Map my `blogPost` document type to Schema.org and validate the JSON-LD.
+
+…or invoke it explicitly with `/schemeweaver-mcp:schemeweaver-map`. See [MCP Server](docs/mcp-server.md) for the full tool list, the skill, and advanced options.
 
 ## How it works
 
@@ -124,7 +141,7 @@ See [Mapping Content Types](docs/mapping-content-types.md) and [Property Mapping
 - [Extending](docs/extending.md) — custom property resolvers, replacing core services
 - [uSync Integration](docs/usync.md) — sync mappings between environments
 - [AI Integration](docs/ai-integration.md) — optional AI-powered mapping (Umbraco 17)
-- [MCP Server](docs/mcp-server.md) — drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin
+- [MCP Server](docs/mcp-server.md) — drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin with the bundled `schemeweaver-map` skill
 - [Advanced](docs/advanced.md) — inherited schemas, BreadcrumbList, validation, configuration, troubleshooting
 - [API Reference](docs/api-reference.md) — REST API endpoints
 

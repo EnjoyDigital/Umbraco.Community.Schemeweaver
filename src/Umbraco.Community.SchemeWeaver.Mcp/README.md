@@ -19,10 +19,13 @@ The idea: SchemeWeaver's built-in auto-mapper is a name-matching heuristic. An L
 | `delete-schema-mapping` | Remove a mapping |
 | `preview-json-ld` | Generate JSON-LD for a content node + Rich Results validation issues (backoffice-context preview; reports `context`/`resolvedBaseUrl`) |
 | `get-rendered-json-ld` | Fetch the **live** JSON-LD a published page emits, straight from the anonymous Delivery API (ground truth; distinct from the backoffice preview) |
+| `validate-mapping` | Severity-ranked "doctor" checklist for a mapping (`critical` > `warning` > `suggestion` > `info`); loop until `allClear` |
 | `generate-content-type` | Scaffold a new document type from a Schema.org type |
+| `export-mappings-to-usync` | Export mappings to uSync files |
+| `get-usync-drift` | Report drift between the live mappings and the uSync files on disk |
 
 The base SDK also registers a `get-server-info` tool (server version/runtime + the configured base
-URL — handy as an auth smoke test), so `--list-tools` reports 14 in total.
+URL — handy as an auth smoke test), so `--list-tools` reports 17 in total (16 SchemeWeaver + the base tool).
 
 The recommended AI workflow (also sent to clients as server `instructions`): inspect both sides → heuristic baseline → reason semantically → save → preview → fix validation issues.
 
@@ -58,6 +61,17 @@ Secret** on install (the secret goes to your OS keychain), then launches the `sc
 automatically. You still need the [Prerequisites](#prerequisites) below — an Umbraco instance with
 SchemeWeaver and an API user. The sections after that (Setup / Running) are for **local development**
 of the server itself, not for plugin users.
+
+### The bundled skill
+
+The plugin also ships the **`schemeweaver-map` skill** (declared via `"skills": "./skills/"` in
+`.claude-plugin/plugin.json`, source in [`skills/schemeweaver-map/SKILL.md`](skills/schemeweaver-map/SKILL.md)),
+so it installs alongside the server — no extra step. It turns the raw tools into a guided, end-to-end
+mapping loop (inspect → pick the most specific type → rank props → beat the heuristic → save →
+preview + validate, looping until `allClear`).
+
+Just ask in plain language ("map my `blogPost` to Schema.org and validate it") and it triggers
+automatically, or invoke it explicitly with `/schemeweaver-mcp:schemeweaver-map`.
 
 ## Prerequisites
 
