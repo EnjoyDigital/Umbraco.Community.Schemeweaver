@@ -22,7 +22,10 @@ import { api } from './live-client.mjs';
 
 const pct = (n) => `${Math.round(n * 100)}%`;
 const MAX_TURNS = 16;
-const RICH = SAMPLE.filter((s) => s.tag === 'rich');
+// `--limit N` runs only the first N rich types (smoke-test the harness before a full, paid run).
+const limitArg = process.argv.indexOf('--limit');
+const LIMIT = limitArg > 0 ? Number(process.argv[limitArg + 1]) : Infinity;
+const RICH = SAMPLE.filter((s) => s.tag === 'rich').slice(0, LIMIT);
 
 const SYSTEM_TIER3 =
   SYSTEM +
