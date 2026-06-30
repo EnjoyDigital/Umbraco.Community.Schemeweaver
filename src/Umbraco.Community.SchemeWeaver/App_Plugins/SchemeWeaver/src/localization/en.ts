@@ -90,6 +90,7 @@ export default {
     sourceMediaUrl: 'Media URL (auto)',
     sourceContentPicker: 'Content Picker',
     nestedSchemaType: 'Nested Schema Type',
+    browseSchemaTypes: 'Browse Schema.org types',
     configureNestedMapping: 'Configure Block Mapping',
     editorType: 'Editor',
     blockList: 'Block List',
@@ -181,8 +182,6 @@ export default {
     addSchemaProperty: 'Add schema property',
     addSchemaPropertyDescription: 'Search and select a schema property to add to the mapping.',
     popularProperties: 'Popular',
-    complexTypeProperties: 'Complex Types',
-    otherProperties: 'Other',
     removeProperty: 'Remove',
     // showMoreProperties is defined above and shared with the nested-type modal disclosure.
     hideAdditionalProperties: 'Hide additional properties',
@@ -195,6 +194,7 @@ export default {
     mapThisBlock: 'Map this block',
     unmapBlock: 'Remove mapping',
     blockNoSuggestion: 'No suggestion available for this block type.',
+    blockNoMappings: 'No property mappings could be auto-matched for this block — map them manually below.',
     blockTableEmptyHint: 'Choose a Schema.org type to map this block’s properties.',
     // Nested blocks (a block whose property is itself a Block List/Grid)
     routeNestedBlock: 'Route nested block',
@@ -264,5 +264,8 @@ export default {
     nestedTypeForProperty: 'Nested type for {0}',
     wrapInTypeForProperty: 'Wrap-in type for {0}',
     mappedCount: '{0}/{1} mapped',
+    recommendedMappedCount: '{0}/{1} recommended',
+    showAllProperties: 'Show all {0} properties',
+    recommended: 'Recommended',
   },
 };

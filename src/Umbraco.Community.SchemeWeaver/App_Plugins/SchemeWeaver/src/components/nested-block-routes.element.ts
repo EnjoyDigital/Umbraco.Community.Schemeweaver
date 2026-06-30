@@ -1,6 +1,9 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
+import './schema-type-input.element.js';
+import type { SchemaTypeInputElement } from './schema-type-input.element.js';
 import type {
   RankedSchemaPropertyInfo,
   BlockElementTypeInfo,
@@ -15,8 +18,12 @@ import {
   threadNestedSuggestions,
   alignPropertyMappings,
   resolveNestedBlockTypes,
+  allowedObjectSchemaTypes,
+  schemaTypeSelectOptions,
   serialiseRoutes,
   mappedCount,
+  recommendedCount,
+  visibleEntries,
 } from './block-route-model.js';
 
 /**
@@ -35,6 +42,14 @@ import {
 export class NestedBlockRoutesElement extends UmbLitElement {
   // Own repository instance — sidesteps context-consumption timing (mirrors the modal).
   #repository = new SchemeWeaverRepository(this);
+  #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
+  }
 
   /** The block element types available within this nested block list. */
   @property({ attribute: false })
@@ -51,6 +66,14 @@ export class NestedBlockRoutesElement extends UmbLitElement {
   /** Nesting depth (1 = first nested level). Drives the indentation styling. */
   @property({ type: Number })
   depth = 1;
+
+  /**
+   * Schema.org types each block here may map to. When non-empty the type field is a constrained
+   * dropdown; when empty (broad/unknown — e.g. the parent property accepts `Thing`) it falls back
+   * to the searchable browse picker.
+   */
+  @property({ attribute: false })
+  allowedSchemaTypes: string[] = [];
 
   @state()
   private _rows: BlockMappingRow[] = [];
@@ -174,10 +197,17 @@ export class NestedBlockRoutesElement extends UmbLitElement {
     this._emitChange();
   }
 
-  private _autoMapRow(index: number) {
+  private async _autoMapRow(index: number) {
     const row = this._rows[index];
-    const sugg = this.suggestedRoutes.find((r) => r.blockAlias === row.alias);
-    if (!sugg) return;
+    const sugg = this.suggestedRoutes.find((r) => r.blockAlias.toLowerCase() === row.alias.toLowerCase());
+    if (!sugg) {
+      // The button only renders when a suggestion exists, but guard + inform rather than
+      // silently no-op if the suggestion set changed out from under us.
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_blockNoSuggestion') },
+      });
+      return;
+    }
     const rows = [...this._rows];
     rows[index] = {
       ...row,
@@ -187,7 +217,14 @@ export class NestedBlockRoutesElement extends UmbLitElement {
       propertyMappings: seedEntriesFromRaw(sugg.propertyMappings, row.propertyInfos, true),
     };
     this._update(rows);
-    void this._rehydrate(index);
+    await this._rehydrate(index);
+    // A hit with no resolvable property mappings would leave the table empty — always open
+    // it (done above) and tell the user so the wand never looks dead.
+    if (mappedCount(this._rows[index]) === 0) {
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_blockNoMappings') },
+      });
+    }
   }
 
   private _setEntry(rowIndex: number, propIndex: number, patch: Partial<RoutePropEntry>) {
@@ -247,6 +284,55 @@ export class NestedBlockRoutesElement extends UmbLitElement {
     `;
   }
 
+  /**
+   * The block's Schema.org type field: a dropdown constrained to {@link allowedSchemaTypes} when
+   * known, otherwise the searchable browse picker. A current value outside the allowed set is
+   * preserved as an option so existing saved mappings are never silently dropped.
+   */
+  private _renderSchemaTypeField(row: BlockMappingRow, index: number) {
+    if (this.allowedSchemaTypes.length === 0) {
+      return html`<schemeweaver-schema-type-input
+        class="schema-type-input"
+        .value=${row.nestedSchemaType}
+        @change=${(e: Event) => { e.stopPropagation(); this._handleSchemaTypeChange(index, (e.target as SchemaTypeInputElement).value); }}></schemeweaver-schema-type-input>`;
+    }
+
+    const options = schemaTypeSelectOptions(
+      this.allowedSchemaTypes,
+      row.nestedSchemaType,
+      this.localize.term('schemeWeaver_selectNestedType'),
+    );
+    return html`<uui-select
+      class="schema-type-input"
+      label=${this.localize.term('schemeWeaver_nestedSchemaType')}
+      .options=${options}
+      @change=${(e: Event) => { e.stopPropagation(); this._handleSchemaTypeChange(index, (e.target as HTMLSelectElement).value); }}></uui-select>`;
+  }
+
+  /**
+   * The "Wrap in Type" cell: for a complex scalar property, wrap the value in a Schema.org object
+   * of the chosen type. Constrained to the property's object accepted types when known, otherwise
+   * a free-text input (broad/unknown).
+   */
+  private _renderWrapInTypeCell(row: BlockMappingRow, rowIndex: number, m: RoutePropEntry, propIndex: number) {
+    const isNestedBlock = m.nestedBlockElementTypes.length > 0;
+    if (!m.isComplexType || isNestedBlock) {
+      return html`<span class="type-label">--</span>`;
+    }
+    const allowed = allowedObjectSchemaTypes(m);
+    if (allowed.length === 0) {
+      return html`<uui-input
+        .value=${m.wrapInType}
+        placeholder=${this.localize.term('schemeWeaver_wrapInType')}
+        label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
+        @change=${(e: Event) => { e.stopPropagation(); this._handleWrapInTypeChange(rowIndex, propIndex, (e.target as HTMLInputElement).value); }}></uui-input>`;
+    }
+    return html`<uui-select
+      label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
+      .options=${schemaTypeSelectOptions(allowed, m.wrapInType, this.localize.term('schemeWeaver_none'))}
+      @change=${(e: Event) => { e.stopPropagation(); this._handleWrapInTypeChange(rowIndex, propIndex, (e.target as HTMLSelectElement).value); }}></uui-select>`;
+  }
+
   private _renderRow(row: BlockMappingRow, index: number) {
     if (!row.mapped) {
       return html`
@@ -268,7 +354,7 @@ export class NestedBlockRoutesElement extends UmbLitElement {
       `;
     }
 
-    const hasSuggestion = this.suggestedRoutes.some((r) => r.blockAlias === row.alias);
+    const hasSuggestion = this.suggestedRoutes.some((r) => r.blockAlias.toLowerCase() === row.alias.toLowerCase());
     return html`
       <div class="block-row mapped">
         <div class="block-row-main">
@@ -277,15 +363,10 @@ export class NestedBlockRoutesElement extends UmbLitElement {
             <small class="block-alias">${row.alias}</small>
           </div>
 
-          <uui-input
-            class="schema-type-input"
-            .value=${row.nestedSchemaType}
-            placeholder=${this.localize.term('schemeWeaver_nestedSchemaType')}
-            label=${this.localize.term('schemeWeaver_nestedSchemaType')}
-            @change=${(e: Event) => { e.stopPropagation(); this._handleSchemaTypeChange(index, (e.target as HTMLInputElement).value); }}></uui-input>
+          ${this._renderSchemaTypeField(row, index)}
 
           <uui-tag look="secondary" color="positive" class="mapped-badge">
-            ${this.localize.term('schemeWeaver_mappedCount', mappedCount(row), row.totalSchemaProps)}
+            ${this.localize.term('schemeWeaver_recommendedMappedCount', mappedCount(row), recommendedCount(row))}
           </uui-tag>
 
           ${hasSuggestion
@@ -321,10 +402,19 @@ export class NestedBlockRoutesElement extends UmbLitElement {
     `;
   }
 
+  /** Render-only toggle for the long-tail disclosure — must NOT emit `change` (see _update). */
+  private _toggleShowAll(index: number) {
+    const rows = [...this._rows];
+    rows[index] = { ...rows[index], showAll: !rows[index].showAll };
+    this._rows = rows;
+  }
+
   private _renderTable(row: BlockMappingRow, rowIndex: number) {
     if (row.propertyMappings.length === 0) {
       return html`<p class="empty-hint">${this.localize.term('schemeWeaver_blockTableEmptyHint')}</p>`;
     }
+    const visible = visibleEntries(row);
+    const hidden = row.showAll ? 0 : row.propertyMappings.length - visible.length;
     return html`
       <uui-table class="nested-mapping-table" aria-label=${this.localize.term('schemeWeaver_nestedMappings')}>
         <uui-table-head>
@@ -332,8 +422,20 @@ export class NestedBlockRoutesElement extends UmbLitElement {
           <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_wrapInType')}</uui-table-head-cell>
         </uui-table-head>
-        ${row.propertyMappings.map((m, propIndex) => this._renderTableRow(row, rowIndex, m, propIndex))}
+        ${visible.map(({ entry, index }) => this._renderTableRow(row, rowIndex, entry, index))}
       </uui-table>
+      ${hidden > 0 || row.showAll
+        ? html`<uui-button
+            class="show-all-toggle"
+            look="default"
+            compact
+            label=${row.showAll ? this.localize.term('schemeWeaver_showFewerProperties') : this.localize.term('schemeWeaver_showAllProperties', row.propertyMappings.length)}
+            @click=${() => this._toggleShowAll(rowIndex)}>
+            ${row.showAll
+              ? this.localize.term('schemeWeaver_showFewerProperties')
+              : this.localize.term('schemeWeaver_showAllProperties', row.propertyMappings.length)}
+          </uui-button>`
+        : nothing}
     `;
   }
 
@@ -370,13 +472,7 @@ export class NestedBlockRoutesElement extends UmbLitElement {
           </div>
         </uui-table-cell>
         <uui-table-cell>
-          ${m.isComplexType && !isNestedBlock
-            ? html`<uui-input
-                .value=${m.wrapInType}
-                placeholder=${this.localize.term('schemeWeaver_wrapInType')}
-                label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
-                @change=${(e: Event) => { e.stopPropagation(); this._handleWrapInTypeChange(rowIndex, propIndex, (e.target as HTMLInputElement).value); }}></uui-input>`
-            : html`<span class="type-label">--</span>`}
+          ${this._renderWrapInTypeCell(row, rowIndex, m, propIndex)}
         </uui-table-cell>
       </uui-table-row>
       ${isNestedBlock && m.nestedExpanded
@@ -386,6 +482,7 @@ export class NestedBlockRoutesElement extends UmbLitElement {
                 .blockElementTypes=${m.nestedBlockElementTypes}
                 .routes=${m.nestedSeed}
                 .suggestedRoutes=${m.nestedSuggestedRoutes}
+                .allowedSchemaTypes=${allowedObjectSchemaTypes(m)}
                 .depth=${this.depth + 1}
                 @change=${(e: Event) => this._onNestedChange(rowIndex, propIndex, e)}></schemeweaver-nested-block-routes>
             </uui-table-cell>
@@ -476,6 +573,12 @@ export class NestedBlockRoutesElement extends UmbLitElement {
 
       .nested-mapping-table {
         margin-top: var(--uui-size-space-3);
+      }
+
+      .show-all-toggle {
+        margin-top: var(--uui-size-space-2);
+        width: 100%;
+        --uui-button-font-weight: normal;
       }
 
       .nested-editor-row uui-table-cell {

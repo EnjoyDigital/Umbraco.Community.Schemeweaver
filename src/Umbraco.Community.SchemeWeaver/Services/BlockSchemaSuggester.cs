@@ -29,18 +29,67 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
     /// may claim the single mainEntity slot.
     /// </summary>
     private sealed record CatalogueEntry(
-        string[] Keywords, string SchemaType, string TargetProperty, bool CanBeMainEntity = false);
+        string[] Keywords, string SchemaType, string TargetProperty, bool CanBeMainEntity = false,
+        MappingTemplate[]? Mappings = null);
+
+    /// <summary>
+    /// A keyword-resolved property mapping for a catalogue entry: the nested Schema.org property
+    /// to set, the content-property keywords that select the block element's source property
+    /// (matched the same way the catalogue matches block identity), and optional wrap fields when
+    /// the value must be wrapped in a Schema.org object (e.g. an answer wrapped in <c>Answer.Text</c>).
+    /// Resolved against the block element's real properties; unresolved templates are simply skipped.
+    /// Recipes mirror <see cref="SchemaAutoMapper.PopularSchemaDefaults"/> so the suggester and the
+    /// top-level auto-mapper agree.
+    /// </summary>
+    private sealed record MappingTemplate(
+        string SchemaProperty, string[] ContentKeywords, string? WrapInType = null, string? WrapInProperty = null);
 
     private static readonly CatalogueEntry[] Catalogue =
     [
-        new(["faq", "question", "accordion"], "Question", MainEntity, CanBeMainEntity: true),
-        new(["team", "member", "people", "staff"], "Person", HasPart),
-        new(["contact", "addressdetails", "address", "locationdetails"], "PostalAddress", "about"),
+        new(["faq", "question", "accordion"], "Question", MainEntity, CanBeMainEntity: true,
+            Mappings:
+            [
+                new("name", ["question", "title", "heading"]),
+                new("acceptedAnswer", ["answer", "response"], WrapInType: "Answer", WrapInProperty: "Text"),
+            ]),
+        new(["team", "member", "people", "staff"], "Person", HasPart,
+            Mappings:
+            [
+                new("name", ["name", "fullname"]),
+                new("jobTitle", ["jobtitle", "role", "position", "title"]),
+                new("image", ["image", "photo", "picture", "avatar", "headshot"]),
+                new("description", ["bio", "biography", "description", "about"]),
+            ]),
+        new(["contact", "addressdetails", "address", "locationdetails"], "PostalAddress", "about",
+            Mappings:
+            [
+                new("streetAddress", ["street", "addressline", "line1", "address"]),
+                new("addressLocality", ["city", "town", "locality"]),
+                new("addressRegion", ["region", "county", "state", "province"]),
+                new("postalCode", ["postcode", "postalcode", "zip"]),
+            ]),
         new(["map", "geo", "coordinates"], "Place", HasPart),
-        new(["testimonial", "review", "quote"], "Review", HasPart),
+        new(["testimonial", "review", "quote"], "Review", HasPart,
+            Mappings:
+            [
+                new("author", ["author", "reviewer", "name", "customer"]),
+                new("reviewBody", ["review", "body", "quote", "testimonial", "text", "comment"]),
+                new("reviewRating", ["rating", "score", "stars"], WrapInType: "Rating", WrapInProperty: "RatingValue"),
+            ]),
         new(["hero", "banner", "masthead"], "WPHeader", HasPart),
-        new(["service", "feature", "offering"], "Service", HasPart),
-        new(["logo", "partner", "client"], "Organization", HasPart),
+        new(["service", "feature", "offering"], "Service", HasPart,
+            Mappings:
+            [
+                new("name", ["name", "title", "heading"]),
+                new("description", ["description", "summary", "body", "intro"]),
+            ]),
+        new(["logo", "partner", "client"], "Organization", HasPart,
+            Mappings:
+            [
+                new("name", ["name", "title"]),
+                new("logo", ["logo", "image"]),
+                new("url", ["url", "link", "website"]),
+            ]),
     ];
 
     /// <summary>
@@ -100,7 +149,7 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
                 BlockAlias = element.Alias,
                 NestedSchemaType = entry.SchemaType,
                 Confidence = CatalogueConfidence,
-                PropertyMappings = BuildPropertyMappings(element.Alias, entry.SchemaType)
+                PropertyMappings = BuildPropertyMappings(element, entry)
             };
 
             // Recurse into any property that is itself a Block List/Grid, attaching the nested
@@ -139,16 +188,20 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
     }
 
     /// <summary>
-    /// Reuses the per-property heuristic auto-mapper against the block element type's
-    /// own properties, keeping only concrete content-property mappings (skips
-    /// static/reference/complex/blockContent rows and built-in __ aliases that don't
-    /// resolve on block elements).
+    /// Builds the per-property mappings for a route. First resolves the catalogue entry's
+    /// keyword <see cref="CatalogueEntry.Mappings"/> template against the element's real
+    /// properties (robust regardless of the auto-mapper's confidence threshold and the
+    /// built-in-alias filter), then SUPPLEMENTS with the per-property heuristic auto-mapper
+    /// for any schema property the template did not already cover — keeping only concrete
+    /// content-property rows (skips static/reference/complex/blockContent rows and built-in
+    /// __ aliases that don't resolve on block elements).
     /// </summary>
-    private List<BlockRoutePropertyMappingSuggestion> BuildPropertyMappings(string elementAlias, string schemaType)
+    private List<BlockRoutePropertyMappingSuggestion> BuildPropertyMappings(BlockElementTypeInfo element, CatalogueEntry entry)
     {
-        var suggestions = _autoMapper.SuggestMappings(elementAlias, schemaType);
-        var result = new List<BlockRoutePropertyMappingSuggestion>();
+        var result = ResolveTemplate(element, entry);
+        var covered = new HashSet<string>(result.Select(r => r.SchemaProperty), StringComparer.OrdinalIgnoreCase);
 
+        var suggestions = _autoMapper.SuggestMappings(element.Alias, entry.SchemaType);
         foreach (var s in suggestions)
         {
             if (string.IsNullOrEmpty(s.SuggestedContentTypePropertyAlias))
@@ -156,6 +209,9 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
             if (!string.Equals(s.SuggestedSourceType, "property", StringComparison.OrdinalIgnoreCase))
                 continue;
             if (s.SuggestedContentTypePropertyAlias.StartsWith(SchemeWeaverConstants.BuiltInProperties.Prefix, StringComparison.Ordinal))
+                continue;
+            // The keyword template wins for properties it already mapped.
+            if (covered.Contains(s.SchemaPropertyName))
                 continue;
 
             result.Add(new BlockRoutePropertyMappingSuggestion
@@ -165,6 +221,49 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
                 // §3b: pre-fill stripHtml when a rich-text source feeds a plain-text nested property,
                 // so the suggested route emits clean text by default (revertible by the author).
                 TransformType = ShouldStripHtml(s) ? "stripHtml" : null,
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Resolves a catalogue entry's keyword mapping template against the block element's real
+    /// properties: for each template row, picks the first not-yet-used property whose normalised
+    /// alias/name contains one of the template's content keywords. Produces robust, threshold-free
+    /// mappings for well-known shapes (FAQ → Question, Team → Person, …) so the auto-map wand
+    /// always populates real values when the block matches a catalogue entry.
+    /// </summary>
+    private static List<BlockRoutePropertyMappingSuggestion> ResolveTemplate(BlockElementTypeInfo element, CatalogueEntry entry)
+    {
+        var result = new List<BlockRoutePropertyMappingSuggestion>();
+        if (entry.Mappings is null || entry.Mappings.Length == 0)
+            return result;
+
+        // Candidate source properties as (actual alias, normalised tokens). Prefer the richer
+        // PropertyInfos (alias + name) and fall back to plain aliases.
+        var candidates = (element.PropertyInfos.Count > 0
+                ? element.PropertyInfos.Select(p => (Alias: p.Alias, Tokens: new[] { Normalise(p.Alias), Normalise(p.Name) }))
+                : element.Properties.Select(a => (Alias: a, Tokens: new[] { Normalise(a) })))
+            .ToList();
+
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var template in entry.Mappings)
+        {
+            var match = candidates.FirstOrDefault(c =>
+                !used.Contains(c.Alias)
+                && template.ContentKeywords.Any(k => c.Tokens.Any(t => t.Length > 0 && t.Contains(k, StringComparison.Ordinal))));
+
+            if (string.IsNullOrEmpty(match.Alias))
+                continue;
+
+            used.Add(match.Alias);
+            result.Add(new BlockRoutePropertyMappingSuggestion
+            {
+                SchemaProperty = template.SchemaProperty,
+                ContentProperty = match.Alias,
+                WrapInType = template.WrapInType,
+                WrapInProperty = template.WrapInProperty,
             });
         }
 

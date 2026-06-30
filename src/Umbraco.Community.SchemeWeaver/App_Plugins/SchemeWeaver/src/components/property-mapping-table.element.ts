@@ -1,7 +1,6 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
-import { POPULAR_PROPERTIES } from '../utils/mapping-converters.js';
-import type { SchemaPropertyInfo } from '../api/types.js';
+import type { RankedSchemaPropertyInfo } from '../api/types.js';
 import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
 import './property-combobox.element.js';
 
@@ -65,6 +64,12 @@ export interface PropertyMappingRow {
    * Rendered as a neutral lightbulb hint, distinct from the red range warning.
    */
   suggestion?: string;
+  /**
+   * Schema-property recommendation rank (the ranked endpoint's confidence, 0–100) used purely
+   * for display ordering — DISTINCT from {@link confidence}, which is the auto-map match quality
+   * and drives the High/Med/Low badge. Undefined when ranked data is unavailable.
+   */
+  schemaRank?: number;
 }
 
 /** Map of complex editor aliases to their display badge labels */
@@ -96,7 +101,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
   availableProperties: string[] = [];
 
   @property({ type: Array })
-  allSchemaProperties: SchemaPropertyInfo[] = [];
+  allSchemaProperties: RankedSchemaPropertyInfo[] = [];
 
   @property({ type: Boolean })
   readonly = false;
@@ -312,25 +317,14 @@ export class PropertyMappingTableElement extends UmbLitElement {
     this._dispatchChange();
   }
 
-  /** Schema properties not yet in the mappings list, grouped for the combobox */
-  private get _availableSchemaProperties(): SchemaPropertyInfo[] {
+  /**
+   * Schema properties not yet in the mappings list. The ranked endpoint already returns them
+   * confidence-DESC (recommended first), so we only filter out the already-mapped ones and
+   * preserve that order — no re-sorting needed.
+   */
+  private get _availableSchemaProperties(): RankedSchemaPropertyInfo[] {
     const existingNames = new Set(this.mappings.map(r => r.schemaPropertyName.toLowerCase()));
-    const popularSet = new Set(POPULAR_PROPERTIES.map(p => p.toLowerCase()));
-
-    return this.allSchemaProperties
-      .filter(sp => !existingNames.has(sp.name.toLowerCase()))
-      .sort((a, b) => {
-        const aPopular = popularSet.has(a.name.toLowerCase());
-        const bPopular = popularSet.has(b.name.toLowerCase());
-        if (aPopular && !bPopular) return -1;
-        if (!aPopular && bPopular) return 1;
-        if (aPopular && bPopular) {
-          return POPULAR_PROPERTIES.indexOf(a.name) - POPULAR_PROPERTIES.indexOf(b.name);
-        }
-        if (a.isComplexType && !b.isComplexType) return -1;
-        if (!a.isComplexType && b.isComplexType) return 1;
-        return a.name.localeCompare(b.name);
-      });
+    return this.allSchemaProperties.filter(sp => !existingNames.has(sp.name.toLowerCase()));
   }
 
   private _handleAddSchemaProperty(propertyName: string) {
@@ -447,13 +441,16 @@ export class PropertyMappingTableElement extends UmbLitElement {
     const available = this._availableSchemaProperties;
     if (available.length === 0) return nothing;
 
-    const popularSet = new Set(POPULAR_PROPERTIES.map(p => p.toLowerCase()));
     const regex = this._addPropertySearch ? new RegExp(this._addPropertySearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
     const filtered = regex
       ? available.filter(sp => regex.test(sp.name) || regex.test(sp.propertyType))
       : available;
 
-    let lastGroup = '';
+    // One subtle divider between the recommended block and the long tail (both already
+    // ordered recommended-first by the ranked endpoint). Skipped while searching.
+    const lastRecommendedIndex = !regex
+      ? filtered.reduce((acc, sp, i) => (sp.isPopular ? i : acc), -1)
+      : -1;
 
     return html`
       <div class="add-property-row">
@@ -484,31 +481,25 @@ export class PropertyMappingTableElement extends UmbLitElement {
             ${repeat(
               filtered,
               (sp) => sp.name,
-              (sp) => {
-                const group = popularSet.has(sp.name.toLowerCase())
-                  ? 'popular'
-                  : sp.isComplexType ? 'complex' : 'other';
-                const showGroupLabel = group !== lastGroup;
-                lastGroup = group;
-                return html`
-                  ${showGroupLabel
-                    ? html`<uui-combobox-list-option disabled class="combobox-group-label" .value=${''} role="presentation">
-                        ${group === 'popular'
-                          ? this.localize.term('schemeWeaver_popularProperties')
-                          : group === 'complex'
-                            ? this.localize.term('schemeWeaver_complexTypeProperties')
-                            : this.localize.term('schemeWeaver_otherProperties')}
-                      </uui-combobox-list-option>`
-                    : nothing}
-                  <uui-combobox-list-option .value=${sp.name} .displayValue=${sp.name}>
+              (sp, i) => html`
+                <uui-combobox-list-option .value=${sp.name} .displayValue=${sp.name}>
+                  <div class="add-option">
                     <span class="add-option-name">${sp.name}</span>
                     <small class="add-option-type">${sp.propertyType}</small>
+                    ${sp.isPopular
+                      ? html`<uui-tag look="secondary" color="positive" class="add-option-rec">
+                          ${this.localize.term('schemeWeaver_recommended')}
+                        </uui-tag>`
+                      : nothing}
                     ${sp.isComplexType
                       ? html`<uui-icon name="icon-brackets" class="add-option-complex-icon"></uui-icon>`
                       : nothing}
-                  </uui-combobox-list-option>
-                `;
-              },
+                  </div>
+                </uui-combobox-list-option>
+                ${i === lastRecommendedIndex && i < filtered.length - 1
+                  ? html`<hr class="add-option-divider" aria-hidden="true" />`
+                  : nothing}
+              `,
             )}
           </uui-combobox-list>
         </uui-combobox>
@@ -785,11 +776,13 @@ export class PropertyMappingTableElement extends UmbLitElement {
         --uui-button-font-size: 0.75rem;
       }
 
-      .property-name-cell:hover .remove-row-btn {
+      .property-name-cell:hover .remove-row-btn,
+      .property-name-cell:focus-within .remove-row-btn {
         opacity: 0.6;
       }
 
-      .remove-row-btn:hover {
+      .remove-row-btn:hover,
+      .remove-row-btn:focus {
         opacity: 1 !important;
       }
 
@@ -801,14 +794,11 @@ export class PropertyMappingTableElement extends UmbLitElement {
         width: 100%;
       }
 
-      .combobox-group-label {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: var(--uui-color-text-alt);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        pointer-events: none;
-        opacity: 0.7;
+      .add-option {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        width: 100%;
       }
 
       .add-option-name {
@@ -819,13 +809,23 @@ export class PropertyMappingTableElement extends UmbLitElement {
         color: var(--uui-color-text-alt);
         font-family: monospace;
         font-size: 0.8rem;
-        margin-left: var(--uui-size-space-2);
+      }
+
+      .add-option-rec {
+        margin-left: auto;
+        --uui-tag-min-height: 18px;
+        font-size: 0.7rem;
       }
 
       .add-option-complex-icon {
         font-size: 0.8rem;
         color: var(--uui-color-text-alt);
-        margin-left: var(--uui-size-space-2);
+      }
+
+      .add-option-divider {
+        border: none;
+        border-top: 1px solid var(--uui-color-divider);
+        margin: var(--uui-size-space-1) 0;
       }
     `,
   ];

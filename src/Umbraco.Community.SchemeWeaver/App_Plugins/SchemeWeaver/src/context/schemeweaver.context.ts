@@ -9,6 +9,8 @@ import type {
   SchemaMappingDto,
   JsonLdPreviewResponse,
   ContentTypeGenerationRequest,
+  SchemaPropertyInfo,
+  RankedSchemaPropertyInfo,
 } from '../api/types.js';
 
 export class SchemeWeaverContext extends UmbControllerBase {
@@ -115,8 +117,12 @@ export class SchemeWeaverContext extends UmbControllerBase {
     return this.#repository.requestMapping(contentTypeAlias);
   }
 
-  async requestSchemaTypeProperties(typeName: string) {
-    return this.#repository.requestSchemaTypeProperties(typeName);
+  requestSchemaTypeProperties(typeName: string): Promise<SchemaPropertyInfo[] | undefined>;
+  requestSchemaTypeProperties(typeName: string, ranked: true): Promise<RankedSchemaPropertyInfo[] | undefined>;
+  async requestSchemaTypeProperties(typeName: string, ranked?: boolean) {
+    return ranked
+      ? this.#repository.requestSchemaTypeProperties(typeName, true)
+      : this.#repository.requestSchemaTypeProperties(typeName);
   }
 
   async requestContentTypeProperties(contentTypeAlias: string) {

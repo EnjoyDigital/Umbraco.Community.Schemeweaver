@@ -83,24 +83,43 @@ public class BlockSchemaSuggesterTests
         result[0].Routes[0].NestedSchemaType.Should().Be("Question");
     }
 
+    // The FAQ catalogue entry's keyword template populates the route's property mappings
+    // (name <- question, acceptedAnswer <- answer wrapped in Answer.Text) WITHOUT relying on the
+    // per-property auto-mapper — which here returns nothing — so the auto-map wand always lands
+    // real values on a recognised block. Regression guard for the empty-route "wand does nothing".
+    [Fact]
+    public void Suggest_FaqBlock_PopulatesQuestionPropertyMappingsFromTemplate()
+    {
+        var result = _sut.Suggest([Element("faqItem", "FAQ Item", "question", "answer")]).ToList();
+
+        var route = result.Single(r => r.SchemaProperty == "mainEntity").Routes.Single();
+        route.NestedSchemaType.Should().Be("Question");
+        route.PropertyMappings.Should().Contain(m => m.SchemaProperty == "name" && m.ContentProperty == "question");
+        route.PropertyMappings.Should().Contain(m =>
+            m.SchemaProperty == "acceptedAnswer" && m.ContentProperty == "answer"
+            && m.WrapInType == "Answer" && m.WrapInProperty == "Text");
+    }
+
     // --- v3 §3b: pre-fill stripHtml on a rich-text source feeding a plain-text nested property ---
+    // Uses the Hero/WPHeader catalogue entry (no keyword template) so the assertion isolates the
+    // auto-mapper supplement path that carries the transform.
 
     [Fact]
     public void Suggest_RichTextNestedPropertyToPlainTextTarget_PrefillsStripHtml()
     {
-        _autoMapper.SuggestMappings("faqBlock", "Question").Returns(new List<PropertyMappingSuggestion>
+        _autoMapper.SuggestMappings("heroBlock", "WPHeader").Returns(new List<PropertyMappingSuggestion>
         {
             new()
             {
-                SchemaPropertyName = "name",
-                SuggestedContentTypePropertyAlias = "answer",
+                SchemaPropertyName = "text",
+                SuggestedContentTypePropertyAlias = "body",
                 SuggestedSourceType = "property",
                 EditorAlias = "Umbraco.RichText",
                 AcceptedTypes = ["String"],
             }
         });
 
-        var result = _sut.Suggest([Element("faqBlock", "FAQ Block", "question", "answer")]).ToList();
+        var result = _sut.Suggest([Element("heroBlock", "Hero", "title", "body")]).ToList();
 
         var mapping = result[0].Routes[0].PropertyMappings.Should().ContainSingle().Subject;
         mapping.TransformType.Should().Be("stripHtml");
@@ -109,19 +128,19 @@ public class BlockSchemaSuggesterTests
     [Fact]
     public void Suggest_NonRichTextNestedProperty_NoTransform()
     {
-        _autoMapper.SuggestMappings("faqBlock", "Question").Returns(new List<PropertyMappingSuggestion>
+        _autoMapper.SuggestMappings("heroBlock", "WPHeader").Returns(new List<PropertyMappingSuggestion>
         {
             new()
             {
-                SchemaPropertyName = "name",
-                SuggestedContentTypePropertyAlias = "question",
+                SchemaPropertyName = "text",
+                SuggestedContentTypePropertyAlias = "body",
                 SuggestedSourceType = "property",
                 EditorAlias = "Umbraco.TextBox",
                 AcceptedTypes = ["String"],
             }
         });
 
-        var result = _sut.Suggest([Element("faqBlock", "FAQ Block", "question", "answer")]).ToList();
+        var result = _sut.Suggest([Element("heroBlock", "Hero", "title", "body")]).ToList();
 
         var mapping = result[0].Routes[0].PropertyMappings.Should().ContainSingle().Subject;
         mapping.TransformType.Should().BeNull();

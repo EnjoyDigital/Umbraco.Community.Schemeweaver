@@ -4,6 +4,8 @@ import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import '../components/nested-block-routes.element.js';
 import type { NestedBlockRoutesElement } from '../components/nested-block-routes.element.js';
+import '../components/schema-type-input.element.js';
+import type { SchemaTypeInputElement } from '../components/schema-type-input.element.js';
 import {
   type BlockMappingRow as BlockRow,
   type RoutePropEntry,
@@ -12,8 +14,12 @@ import {
   threadNestedSuggestions,
   alignPropertyMappings,
   resolveNestedBlockTypes,
+  allowedObjectSchemaTypes,
+  schemaTypeSelectOptions,
   serialisePropertyMappings,
   mappedCount,
+  recommendedCount,
+  visibleEntries,
 } from '../components/block-route-model.js';
 import type {
   RankedSchemaPropertyInfo,
@@ -87,7 +93,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
       // One row per block element type, seeded from existing config first
       // (re-editing wins), then the heuristic suggestion, else SKIP.
-      this._blockRows = blocks.map((bt) => this._buildRow(bt, routeByBlock.get(bt.alias), existingByBlock.get(bt.alias)));
+      this._blockRows = blocks.map((bt) => this._buildRow(bt, routeByBlock.get(bt.alias.toLowerCase()), existingByBlock.get(bt.alias)));
 
       // Hydrate full editable property tables for every mapped row.
       await Promise.all(this._blockRows.map((_, i) => this._hydrateRow(i)));
@@ -110,7 +116,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     const map = new Map<string, { target: string; route: BlockRouteSuggestion; confidence: number }>();
     for (const s of suggestions) {
       for (const route of s.routes) {
-        map.set(route.blockAlias, { target: s.schemaProperty, route, confidence: route.confidence });
+        // Key case-insensitively so a block alias whose casing differs between the
+        // element-type list and the suggester still resolves.
+        map.set(route.blockAlias.toLowerCase(), { target: s.schemaProperty, route, confidence: route.confidence });
       }
     }
     return map;
@@ -227,14 +235,29 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       );
       const routeByBlock = this._indexSuggestionRoutes(suggestions ?? []);
 
+      let appliedAny = false;
       this._blockRows = this._blockRows.map((row) => {
-        const hit = routeByBlock.get(row.alias);
+        const hit = routeByBlock.get(row.alias.toLowerCase());
         if (!hit) return row; // no suggestion — leave as-is (e.g. SKIP blocks)
+        appliedAny = true;
         return this._applyRouteToRow(row, hit.target, hit.route, hit.confidence);
       });
 
       await Promise.all(this._blockRows.map((_, i) => this._hydrateRow(i)));
       this._blockRows = [...this._blockRows];
+
+      // Feedback so the wand is never a silent no-op: nothing matched, or matches produced
+      // no resolvable property mappings.
+      const mappedAnything = this._blockRows.some((row) => row.mapped && this._mappedCount(row) > 0);
+      if (!appliedAny) {
+        this.#notificationContext?.peek('warning', {
+          data: { message: this.localize.term('schemeWeaver_blockNoSuggestion') },
+        });
+      } else if (!mappedAnything) {
+        this.#notificationContext?.peek('warning', {
+          data: { message: this.localize.term('schemeWeaver_blockNoMappings') },
+        });
+      }
     } finally {
       this._autoMapping = false;
     }
@@ -247,7 +270,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       this.data?.contentTypeAlias || '',
       this.data?.contentTypePropertyAlias || '',
     );
-    const hit = this._indexSuggestionRoutes(suggestions ?? []).get(row.alias);
+    const hit = this._indexSuggestionRoutes(suggestions ?? []).get(row.alias.toLowerCase());
     if (!hit) {
       this.#notificationContext?.peek('warning', {
         data: { message: this.localize.term('schemeWeaver_blockNoSuggestion') },
@@ -259,6 +282,13 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     this._blockRows = updated;
     await this._hydrateRow(index);
     this._blockRows = [...this._blockRows];
+    // A hit that produced no resolvable property mappings still opens the table; tell the
+    // user so the wand never looks dead.
+    if (this._mappedCount(this._blockRows[index]) === 0) {
+      this.#notificationContext?.peek('warning', {
+        data: { message: this.localize.term('schemeWeaver_blockNoMappings') },
+      });
+    }
   }
 
   private _applyRouteToRow(row: BlockRow, target: string, route: BlockRouteSuggestion, confidence: number): BlockRow {
@@ -482,13 +512,12 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
             <small class="block-alias">${row.alias}</small>
           </div>
 
-          <uui-input
+          <schemeweaver-schema-type-input
             class="schema-type-input"
             .value=${row.nestedSchemaType}
-            placeholder=${this.localize.term('schemeWeaver_nestedSchemaType')}
-            label=${this.localize.term('schemeWeaver_nestedSchemaType')}
-            @change=${(e: Event) => this._handleSchemaTypeChange(index, (e.target as HTMLInputElement).value)}
-          ></uui-input>
+            .contentTypeAlias=${this.data?.contentTypeAlias || ''}
+            @change=${(e: Event) => this._handleSchemaTypeChange(index, (e.target as SchemaTypeInputElement).value)}
+          ></schemeweaver-schema-type-input>
 
           <uui-select
             class="target-select"
@@ -498,7 +527,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           ></uui-select>
 
           <uui-tag look="secondary" color="positive" class="mapped-badge">
-            ${this.localize.term('schemeWeaver_mappedCount', mapped, row.totalSchemaProps)}
+            ${this.localize.term('schemeWeaver_recommendedMappedCount', mapped, recommendedCount(row))}
           </uui-tag>
 
           <uui-button
@@ -537,11 +566,20 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     `;
   }
 
+  /** Render-only toggle for the long-tail disclosure (the modal saves on its own button). */
+  private _toggleShowAll(index: number) {
+    const updated = [...this._blockRows];
+    updated[index] = { ...updated[index], showAll: !updated[index].showAll };
+    this._blockRows = updated;
+  }
+
   private _renderRowTable(row: BlockRow, index: number) {
     if (row.propertyMappings.length === 0) {
       return html`<p class="row-empty-hint">${this.localize.term('schemeWeaver_blockTableEmptyHint')}</p>`;
     }
 
+    const visible = visibleEntries(row);
+    const hidden = row.showAll ? 0 : row.propertyMappings.length - visible.length;
     return html`
       <uui-table class="nested-mapping-table" aria-label=${this.localize.term('schemeWeaver_nestedMappings')}>
         <uui-table-head>
@@ -549,9 +587,47 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_wrapInType')}</uui-table-head-cell>
         </uui-table-head>
-        ${row.propertyMappings.map((m, propIndex) => this._renderTableRow(row, index, m, propIndex))}
+        ${visible.map(({ entry, index: propIndex }) => this._renderTableRow(row, index, entry, propIndex))}
       </uui-table>
+      ${hidden > 0 || row.showAll
+        ? html`<uui-button
+            class="show-all-toggle"
+            look="default"
+            compact
+            label=${row.showAll ? this.localize.term('schemeWeaver_showFewerProperties') : this.localize.term('schemeWeaver_showAllProperties', row.propertyMappings.length)}
+            @click=${() => this._toggleShowAll(index)}>
+            ${row.showAll
+              ? this.localize.term('schemeWeaver_showFewerProperties')
+              : this.localize.term('schemeWeaver_showAllProperties', row.propertyMappings.length)}
+          </uui-button>`
+        : nothing}
     `;
+  }
+
+  /**
+   * The "Wrap in Type" cell: wrap a complex scalar property's value in a Schema.org object of the
+   * chosen type. Constrained dropdown of the property's object accepted types when known, else a
+   * free-text input (broad/unknown).
+   */
+  private _renderWrapInTypeCell(m: RoutePropEntry, index: number, propIndex: number) {
+    const isNestedBlock = m.nestedBlockElementTypes.length > 0;
+    if (!m.isComplexType || isNestedBlock) {
+      return html`<span class="type-label">--</span>`;
+    }
+    const allowed = allowedObjectSchemaTypes(m);
+    if (allowed.length === 0) {
+      return html`<uui-input
+        .value=${m.wrapInType}
+        placeholder=${this.localize.term('schemeWeaver_wrapInType')}
+        label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
+        @change=${(e: Event) => this._handleWrapInTypeChange(index, propIndex, (e.target as HTMLInputElement).value)}
+      ></uui-input>`;
+    }
+    return html`<uui-select
+      label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
+      .options=${schemaTypeSelectOptions(allowed, m.wrapInType, this.localize.term('schemeWeaver_none'))}
+      @change=${(e: Event) => this._handleWrapInTypeChange(index, propIndex, (e.target as HTMLSelectElement).value)}
+    ></uui-select>`;
   }
 
   private _renderTableRow(row: BlockRow, index: number, m: RoutePropEntry, propIndex: number) {
@@ -589,16 +665,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           </div>
         </uui-table-cell>
         <uui-table-cell>
-          ${m.isComplexType && !isNestedBlock
-            ? html`
-                <uui-input
-                  .value=${m.wrapInType}
-                  placeholder=${this.localize.term('schemeWeaver_wrapInType')}
-                  label=${this.localize.term('schemeWeaver_wrapInTypeForProperty', m.schemaProperty)}
-                  @change=${(e: Event) => this._handleWrapInTypeChange(index, propIndex, (e.target as HTMLInputElement).value)}
-                ></uui-input>
-              `
-            : html`<span class="type-label">--</span>`}
+          ${this._renderWrapInTypeCell(m, index, propIndex)}
         </uui-table-cell>
       </uui-table-row>
       ${isNestedBlock && m.nestedExpanded
@@ -608,6 +675,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
                 .blockElementTypes=${m.nestedBlockElementTypes}
                 .routes=${m.nestedSeed}
                 .suggestedRoutes=${m.nestedSuggestedRoutes}
+                .allowedSchemaTypes=${allowedObjectSchemaTypes(m)}
                 .depth=${1}
                 @change=${(e: Event) => this._onNestedChange(index, propIndex, e)}
               ></schemeweaver-nested-block-routes>
@@ -715,6 +783,12 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
       .nested-mapping-table {
         margin-top: var(--uui-size-space-3);
+      }
+
+      .show-all-toggle {
+        margin-top: var(--uui-size-space-2);
+        width: 100%;
+        --uui-button-font-weight: normal;
       }
 
       .value-cell {
