@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
@@ -17,6 +18,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
     private readonly IContentTypeService _contentTypeService;
     private readonly ISchemaTypeRegistry _schemaTypeRegistry;
     private readonly IDataTypeService? _dataTypeService;
+    private readonly ILogger<SchemaAutoMapper>? _logger;
     private readonly int _autoApplyThreshold;
     private readonly int _showThreshold;
 
@@ -355,11 +357,13 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         IContentTypeService contentTypeService,
         ISchemaTypeRegistry schemaTypeRegistry,
         IOptions<SchemaAutoMapperOptions>? options = null,
-        IDataTypeService? dataTypeService = null)
+        IDataTypeService? dataTypeService = null,
+        ILogger<SchemaAutoMapper>? logger = null)
     {
         _contentTypeService = contentTypeService;
         _schemaTypeRegistry = schemaTypeRegistry;
         _dataTypeService = dataTypeService;
+        _logger = logger;
 
         var opts = options?.Value ?? new SchemaAutoMapperOptions();
         _autoApplyThreshold = opts.AutoApplyConfidenceThreshold;
@@ -591,7 +595,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             return elements;
         }
 
-        var enricher = new StructuralEnricher(_schemaTypeRegistry, MatchPropertyAlias, _showThreshold);
+        var enricher = new StructuralEnricher(_schemaTypeRegistry, MatchPropertyAlias, _showThreshold, _logger);
         enricher.Enrich(suggestions, contentPropertyAliases, BlockElementsFor);
 
         // Threshold pass (authoritative over the per-branch IsAutoMapped values above):
@@ -891,8 +895,11 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         {
             dataType = _dataTypeService.GetAsync(property.DataTypeKey).GetAwaiter().GetResult();
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogDebug(ex,
+                "Failed to load data type {DataTypeKey} for block property {PropertyAlias} — skipping block introspection",
+                property.DataTypeKey, propertyAlias);
             return [];
         }
 

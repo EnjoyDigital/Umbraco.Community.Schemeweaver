@@ -40,7 +40,12 @@ public class BlockContentResolver : IPropertyValueResolver
             return null;
 
         if (context.RecursionDepth >= context.MaxRecursionDepth)
+        {
+            _logger.LogDebug(
+                "Skipping block content resolution for property {PropertyAlias}: recursion depth {Depth} reached max {MaxDepth}",
+                context.PropertyAlias, context.RecursionDepth, context.MaxRecursionDepth);
             return null;
+        }
 
         var resolverConfig = ParseResolverConfig(context.Mapping.ResolverConfig);
 

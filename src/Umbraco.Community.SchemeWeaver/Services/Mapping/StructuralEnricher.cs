@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services.Advisory;
 
@@ -35,6 +36,7 @@ public sealed class StructuralEnricher
     private readonly ISchemaTypeRegistry _registry;
     private readonly Func<string, IReadOnlyList<string>, string?> _matchAlias;
     private readonly int _showThreshold;
+    private readonly ILogger? _logger;
 
     private static readonly HashSet<string> BlockEditorAliases =
         SchemeWeaverConstants.PropertyEditors.BlockEditorAliases;
@@ -42,14 +44,17 @@ public sealed class StructuralEnricher
     /// <param name="registry">Schema registry, for nested-type property lookup and range checks.</param>
     /// <param name="matchAlias">Best-effort exact/synonym/partial match of a schema property name against a set of candidate aliases (mirrors the flat loop), or null when nothing matches.</param>
     /// <param name="showThreshold">The show-confidence threshold, used as a floor for structurally-confirmed rows.</param>
+    /// <param name="logger">Optional logger for swallowed per-suggestion enrichment failures (this class is hand-constructed, so the caller's own logger is fine).</param>
     public StructuralEnricher(
         ISchemaTypeRegistry registry,
         Func<string, IReadOnlyList<string>, string?> matchAlias,
-        int showThreshold)
+        int showThreshold,
+        ILogger? logger = null)
     {
         _registry = registry;
         _matchAlias = matchAlias;
         _showThreshold = showThreshold;
+        _logger = logger;
     }
 
     /// <summary>
@@ -70,10 +75,13 @@ public sealed class StructuralEnricher
             {
                 EnrichOne(suggestion, contentPropertyAliases, blockElementsFor);
             }
-            catch
+            catch (Exception ex)
             {
                 // Structural enrichment is strictly additive — never let a malformed block
                 // configuration or unexpected registry shape break the flat suggestion.
+                _logger?.LogDebug(ex,
+                    "Structural enrichment failed for schema property {SchemaProperty} — keeping the flat suggestion",
+                    suggestion.SchemaPropertyName);
             }
         }
 
