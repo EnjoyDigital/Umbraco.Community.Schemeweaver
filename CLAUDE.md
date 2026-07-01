@@ -120,6 +120,9 @@ does not yet expose a runtime `addMockHandlers` API on
 once upstream ships the real API. See the harness README for the exact
 `git apply` command.
 
+## Error-handling policy
+JSON-LD generation and rendering must **never break the host page**. Resolvers, graph pieces, the tag helper and the Delivery API handlers deliberately catch **all** exceptions at their boundaries, log them (Debug/Warning), and degrade to omitting output. API endpoints funnel unexpected exceptions through `HandlesServerErrorAttribute`, which returns 500 with the frozen `{ error: "An unexpected error occurred whilst <operation>." }` body the frontend parses — do not replace it with ProblemDetails. CodeQL "generic catch clause" findings at these boundaries are dismissed as won't-fix **by policy**; do not "fix" them by narrowing the catch or letting exceptions propagate into rendered pages.
+
 ## Conventions
 - British English spelling
 - Package name is "SchemeWeaver" (intentional wordplay, not a typo)
