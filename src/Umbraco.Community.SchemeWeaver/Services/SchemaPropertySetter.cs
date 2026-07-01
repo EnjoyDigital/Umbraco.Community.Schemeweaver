@@ -610,7 +610,7 @@ public static class SchemaPropertySetter
     /// Returns false when none of those CLR types are among the Values type arguments or the
     /// string parses to none of them.
     /// </summary>
-    internal static bool TryParseDateOrNumber(Type[] valuesArgs, string value, out object? parsed)
+    internal static bool TryParseDateOrNumber(IReadOnlyList<Type> valuesArgs, string value, out object? parsed)
     {
         parsed = null;
 
@@ -620,35 +620,33 @@ public static class SchemaPropertySetter
         var acceptsDateTime = Accepts<DateTime>();
         var acceptsInt = Accepts<int>();
 
-        if (acceptsDateTimeOffset || acceptsDateTime)
+        // RoundtripKind keeps the parsed Kind faithful to the input: Utc/Local when the
+        // string carried a zone, Unspecified when it didn't.
+        if ((acceptsDateTimeOffset || acceptsDateTime)
+            && DateTime.TryParse(value, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind, out var dt))
         {
-            // RoundtripKind keeps the parsed Kind faithful to the input: Utc/Local when the
-            // string carried a zone, Unspecified when it didn't.
-            if (DateTime.TryParse(value, CultureInfo.InvariantCulture,
-                    DateTimeStyles.RoundtripKind, out var dt))
+            var hadOffset = dt.Kind != DateTimeKind.Unspecified;
+            if (hadOffset && acceptsDateTimeOffset
+                && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind, out var dto))
             {
-                var hadOffset = dt.Kind != DateTimeKind.Unspecified;
-                if (hadOffset && acceptsDateTimeOffset
-                    && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
-                        DateTimeStyles.RoundtripKind, out var dto))
-                {
-                    parsed = dto;
-                    return true;
-                }
+                parsed = dto;
+                return true;
+            }
 
-                if (acceptsDateTime)
-                {
-                    parsed = dt;
-                    return true;
-                }
+            if (acceptsDateTime)
+            {
+                parsed = dt;
+                return true;
+            }
 
-                if (acceptsDateTimeOffset
-                    && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
-                        DateTimeStyles.RoundtripKind, out var dtoFallback))
-                {
-                    parsed = dtoFallback;
-                    return true;
-                }
+            if (acceptsDateTimeOffset
+                && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind, out var dtoFallback))
+            {
+                parsed = dtoFallback;
+                return true;
             }
         }
 

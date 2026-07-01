@@ -260,10 +260,8 @@ public sealed class GraphGenerator : IGraphGenerator
     {
         collapsed = null!;
         if (obj.Count != 2) return false;
-        if (!obj.ContainsKey("@id")) return false;
+        if (!obj.TryGetPropertyValue("@id", out var idValue)) return false;
         if (!obj.ContainsKey("@type")) return false;
-
-        var idValue = obj["@id"];
         if (idValue is null) return false;
 
         collapsed = new JsonObject { ["@id"] = idValue.DeepClone() };

@@ -50,7 +50,27 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
             entry.AbsoluteExpirationRelativeToNow = _options.CacheDuration;
             var perContent = _perContentTokens.GetOrAdd(content.Key, _ => new CancellationTokenSource());
             entry.AddExpirationToken(new CancellationChangeToken(perContent.Token));
-            entry.AddExpirationToken(new CancellationChangeToken(_globalToken.Token));
+
+            // Rare race: InvalidateAll() disposes the CTS between our field read and .Token —
+            // retry once with the fresh token, else skip it (the per-content token and the
+            // absolute expiration still bound this entry's lifetime).
+            var global = _globalToken;
+            try
+            {
+                entry.AddExpirationToken(new CancellationChangeToken(global.Token));
+            }
+            catch (ObjectDisposedException)
+            {
+                try
+                {
+                    entry.AddExpirationToken(new CancellationChangeToken(_globalToken.Token));
+                }
+                catch (ObjectDisposedException)
+                {
+                    // A second InvalidateAll raced us too — give up on the global token for this pass.
+                }
+            }
+
             return Generate(content, culture, scope);
         }) ?? Array.Empty<string>();
     }
