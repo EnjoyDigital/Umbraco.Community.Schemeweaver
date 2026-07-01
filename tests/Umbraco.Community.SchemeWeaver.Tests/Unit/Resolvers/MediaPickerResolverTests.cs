@@ -1,11 +1,16 @@
+using System.Linq;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Schema.NET;
 using Xunit;
+using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PropertyEditors.ValueConverters;
+using Umbraco.Cms.Core.Routing;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
@@ -15,38 +20,64 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit.Resolvers;
 
 public class MediaPickerResolverTests
 {
-    private readonly MediaPickerResolver _sut = new(NullLogger<MediaPickerResolver>.Instance);
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IPublishedUrlProvider _urlProvider = Substitute.For<IPublishedUrlProvider>();
+    private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+    private readonly MediaPickerResolver _sut;
+
+    static MediaPickerResolverTests()
+    {
+        // media.Value<int?>("umbracoWidth") flows through FriendlyPublishedContentExtensions,
+        // which resolves IPublishedValueFallback from StaticServiceProvider. Ensure it is set
+        // so the friendly extension does not throw during unit tests. Only set it when the
+        // ambient provider cannot already satisfy the dependency (e.g. under integration hosts).
+        if (StaticServiceProvider.Instance?.GetService<IPublishedValueFallback>() is null)
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<IPublishedValueFallback, NoopPublishedValueFallback>();
+            StaticServiceProvider.Instance = services.BuildServiceProvider();
+        }
+    }
 
     public MediaPickerResolverTests()
     {
-        _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.Scheme = "https";
-        httpContext.Request.Host = new HostString("example.com");
-        _httpContextAccessor.HttpContext.Returns(httpContext);
+        _sut = new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance, _urlProvider);
     }
 
-    private static IPublishedContent CreateMediaContent(string url)
+    /// <summary>
+    /// Creates a media substitute whose absolute URL is served by <see cref="_urlProvider"/>,
+    /// optionally stubbing the intrinsic <c>umbracoWidth</c>/<c>umbracoHeight</c> properties.
+    /// </summary>
+    private IPublishedContent CreateMediaContent(string url, int? width = null, int? height = null)
     {
-        var umbracoFileProperty = Substitute.For<IPublishedProperty>();
-        umbracoFileProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(url);
-
         var media = Substitute.For<IPublishedContent>();
-        media.GetProperty("umbracoFile").Returns(umbracoFileProperty);
+        _urlProvider
+            .GetMediaUrl(media, UrlMode.Absolute, Arg.Any<string?>(), Arg.Any<string>(), Arg.Any<Uri?>())
+            .Returns(url);
+
+        if (width is int w)
+            StubIntProperty(media, "umbracoWidth", w);
+        if (height is int h)
+            StubIntProperty(media, "umbracoHeight", h);
+
         return media;
     }
 
-    private static IPublishedContent CreateMediaContentWithCropper(string url)
-    {
-        var cropperValue = new ImageCropperValue { Src = url };
-        var umbracoFileProperty = Substitute.For<IPublishedProperty>();
-        umbracoFileProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(cropperValue);
+    /// <summary>
+    /// A media item whose URL cannot be resolved (deleted media / missing file) —
+    /// the url provider returns null for it, so the factory yields no ImageObject.
+    /// </summary>
+    private static IPublishedContent CreateDamagedMedia() => Substitute.For<IPublishedContent>();
 
-        var media = Substitute.For<IPublishedContent>();
-        media.GetProperty("umbracoFile").Returns(umbracoFileProperty);
-        return media;
+    private static void StubIntProperty(IPublishedContent media, string alias, int value)
+    {
+        var property = Substitute.For<IPublishedProperty>();
+        property.HasValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(true);
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(value);
+        media.GetProperty(alias).Returns(property);
     }
+
+    private static MediaWithCrops WrapInCrops(IPublishedContent media) =>
+        new(media, Substitute.For<IPublishedValueFallback>(), new ImageCropperValue());
 
     [Fact]
     public void SupportedEditorAliases_ContainsMediaPicker3()
@@ -86,182 +117,84 @@ public class MediaPickerResolverTests
     }
 
     [Fact]
-    public void Resolve_SingleMediaWithCrops_ReturnsAbsoluteUrl()
+    public void Resolve_SingleMedia_ReturnsImageObject_WithAbsoluteUrl()
     {
-        var mediaContent = CreateMediaContent("/media/1234/image.jpg");
-        var publishedValueFallback = Substitute.For<IPublishedValueFallback>();
-        var localCrops = new ImageCropperValue();
-        var mediaWithCrops = new MediaWithCrops(mediaContent, publishedValueFallback, localCrops);
+        var media = CreateMediaContent("https://example.com/media/1234/image.jpg");
+        var mediaWithCrops = WrapInCrops(media);
 
         var property = Substitute.For<IPublishedProperty>();
         property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(mediaWithCrops);
 
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
+        var result = _sut.Resolve(CreateContext(property));
 
-        result.Should().Be("https://example.com/media/1234/image.jpg");
+        var image = result.Should().BeOfType<ImageObject>().Subject;
+        image.Url.First().Should().Be(new Uri("https://example.com/media/1234/image.jpg"));
     }
 
     [Fact]
-    public void Resolve_MultipleMediaWithCrops_ReturnsFirstItemUrl()
+    public void Resolve_MediaWithDimensions_SetsWidthAndHeight_AsQuantitativeValues()
     {
-        var mediaContent = CreateMediaContent("/media/1234/first.jpg");
-        var secondContent = CreateMediaContent("/media/5678/second.jpg");
-        var publishedValueFallback = Substitute.For<IPublishedValueFallback>();
-        var localCrops = new ImageCropperValue();
-        var mediaWithCrops = new MediaWithCrops(mediaContent, publishedValueFallback, localCrops);
-        var secondMediaWithCrops = new MediaWithCrops(secondContent, publishedValueFallback, localCrops);
-
-        var items = new List<MediaWithCrops> { mediaWithCrops, secondMediaWithCrops };
-
-        var property = Substitute.For<IPublishedProperty>();
-        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(items);
-
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
-
-        result.Should().Be("https://example.com/media/1234/first.jpg");
-    }
-
-    [Fact]
-    public void Resolve_PublishedContent_ReturnsAbsoluteUrl()
-    {
-        var mediaContent = CreateMediaContent("/media/1234/image.jpg");
-
-        var property = Substitute.For<IPublishedProperty>();
-        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(mediaContent);
-
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
-
-        result.Should().Be("https://example.com/media/1234/image.jpg");
-    }
-
-    [Fact]
-    public void Resolve_AbsoluteUrl_ReturnsAsIs()
-    {
-        var mediaContent = CreateMediaContent("https://cdn.example.com/image.jpg");
-
-        var property = Substitute.For<IPublishedProperty>();
-        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(mediaContent);
-
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
-
-        result.Should().Be("https://cdn.example.com/image.jpg");
-    }
-
-    [Fact]
-    public void Resolve_ImageCropperValue_ExtractsSrc()
-    {
-        var mediaContent = CreateMediaContentWithCropper("/media/1234/cropped.jpg");
-
-        var property = Substitute.For<IPublishedProperty>();
-        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(mediaContent);
-
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
-
-        result.Should().Be("https://example.com/media/1234/cropped.jpg");
-    }
-
-    [Fact]
-    public void Resolve_MediaWithNoUmbracoFile_ReturnsNull()
-    {
-        var mediaContent = Substitute.For<IPublishedContent>();
-        mediaContent.GetProperty("umbracoFile").Returns((IPublishedProperty?)null);
-
-        var property = Substitute.For<IPublishedProperty>();
-        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(mediaContent);
-
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
-
-        result.Should().BeNull();
-    }
-
-    [Fact]
-    public void Resolve_NoHttpContext_ReturnsRelativeUrl()
-    {
-        var noHttpAccessor = Substitute.For<IHttpContextAccessor>();
-        noHttpAccessor.HttpContext.Returns((HttpContext?)null);
-
-        var mediaContent = CreateMediaContent("/media/1234/image.jpg");
-
-        var property = Substitute.For<IPublishedProperty>();
-        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(mediaContent);
-
-        var context = new PropertyResolverContext
-        {
-            Content = Substitute.For<IPublishedContent>(),
-            Mapping = new PropertyMapping { SchemaPropertyName = "Image" },
-            PropertyAlias = "image",
-            SchemaTypeRegistry = Substitute.For<ISchemaTypeRegistry>(),
-            MappingRepository = Substitute.For<ISchemaMappingRepository>(),
-            HttpContextAccessor = noHttpAccessor,
-            Property = property
-        };
-
-        var result = _sut.Resolve(context);
-
-        result.Should().Be("/media/1234/image.jpg");
-    }
-
-    [Fact]
-    public void Resolve_EmptyMultipleMediaList_ReturnsNull()
-    {
-        var items = new List<MediaWithCrops>();
-
-        var property = Substitute.For<IPublishedProperty>();
-        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(items);
-
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
-
-        result.Should().BeNull();
-    }
-
-    [Fact]
-    public void Resolve_MultipleMediaWithCrops_FirstItemDeletedMedia_ReturnsNull()
-    {
-        // When the first item in a multi-value picker has a deleted/broken media item
-        // (umbracoFile property missing), the resolver should return null gracefully
-        var deletedMedia = Substitute.For<IPublishedContent>();
-        deletedMedia.GetProperty("umbracoFile").Returns((IPublishedProperty?)null);
-
-        var publishedValueFallback = Substitute.For<IPublishedValueFallback>();
-        var localCrops = new ImageCropperValue();
-        var mediaWithCrops = new MediaWithCrops(deletedMedia, publishedValueFallback, localCrops);
-
-        var items = new List<MediaWithCrops> { mediaWithCrops };
-
-        var property = Substitute.For<IPublishedProperty>();
-        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(items);
-
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
-
-        result.Should().BeNull();
-    }
-
-    [Fact]
-    public void Resolve_UmbracoFilePropertyValueIsNull_ReturnsNull()
-    {
-        // When umbracoFile property exists on the media but its value is null
-        // (e.g., media item exists but the file has been removed from disk)
-        var umbracoFileProperty = Substitute.For<IPublishedProperty>();
-        umbracoFileProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(null);
-
-        var media = Substitute.For<IPublishedContent>();
-        media.GetProperty("umbracoFile").Returns(umbracoFileProperty);
+        var media = CreateMediaContent("https://example.com/media/1234/image.jpg", width: 800, height: 600);
 
         var property = Substitute.For<IPublishedProperty>();
         property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(media);
 
-        var context = CreateContext(property);
-        var result = _sut.Resolve(context);
+        var result = _sut.Resolve(CreateContext(property));
+
+        var image = result.Should().BeOfType<ImageObject>().Subject;
+        var json = image.ToString();
+        json.Should().Contain("QuantitativeValue");
+        json.Should().Contain("width").And.Contain("800");
+        json.Should().Contain("height").And.Contain("600");
+    }
+
+    [Fact]
+    public void Resolve_MultipleMedia_ReturnsListOfImageObjects()
+    {
+        var first = CreateMediaContent("https://example.com/media/1/first.jpg");
+        var second = CreateMediaContent("https://example.com/media/2/second.jpg");
+        var items = new List<MediaWithCrops> { WrapInCrops(first), WrapInCrops(second) };
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(items);
+
+        var result = _sut.Resolve(CreateContext(property));
+
+        var images = result.Should().BeOfType<List<ImageObject>>().Subject;
+        images.Should().HaveCount(2);
+        images[0].Url.First().Should().Be(new Uri("https://example.com/media/1/first.jpg"));
+        images[1].Url.First().Should().Be(new Uri("https://example.com/media/2/second.jpg"));
+    }
+
+    [Fact]
+    public void Resolve_DamagedMedia_ReturnsNull()
+    {
+        // url provider is not stubbed for this media, so GetMediaUrl returns null
+        var damaged = CreateDamagedMedia();
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(damaged);
+
+        var result = _sut.Resolve(CreateContext(property));
 
         result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Resolve_FirstOfManyDamaged_SkipsAndReturnsRest()
+    {
+        var damaged = CreateDamagedMedia();
+        var healthy = CreateMediaContent("https://example.com/media/2/second.jpg");
+        var items = new List<MediaWithCrops> { WrapInCrops(damaged), WrapInCrops(healthy) };
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(items);
+
+        var result = _sut.Resolve(CreateContext(property));
+
+        // one damaged is dropped, leaving a single healthy image (returned unwrapped)
+        var image = result.Should().BeOfType<ImageObject>().Subject;
+        image.Url.First().Should().Be(new Uri("https://example.com/media/2/second.jpg"));
     }
 
     private PropertyResolverContext CreateContext(IPublishedProperty? property)

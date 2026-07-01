@@ -1808,6 +1808,161 @@ public class BlockContentResolverTests
         list.Should().BeEquivalentTo(new[] { "200g flour", "2 eggs" });
     }
 
+    // --- Block element property routing through the resolver factory (media ImageObject seam) ---
+
+    // A block media property must flow through the per-editor resolver pipeline (via the factory)
+    // rather than the static raw-JSON helper. Here a stub resolver stands in for MediaPickerResolver
+    // and returns a Schema.NET ImageObject; the routing must wire the BLOCK ELEMENT property into the
+    // factory-resolved value and set it on the mapped block Thing.
+    [Fact]
+    public void ResolveBlockElementProperty_WithFactory_UsesFactoryResolver()
+    {
+        var block = CreateBlockElementWithEditors(
+            "reviewItem",
+            ("photo", "[{\"mediaKey\":\"abc\",\"umbracoFile\":\"/media/x.jpg\"}]", "Umbraco.MediaPicker3"));
+        var blockListModel = CreateBlockListModel(block);
+
+        var imageObject = new Schema.NET.ImageObject { Url = new Uri("https://cdn.example.com/photo.jpg") };
+
+        // Stub resolver standing in for MediaPickerResolver — captures the child context so we can
+        // assert the block element property (not the page property) was routed to it.
+        PropertyResolverContext? captured = null;
+        var mediaResolver = Substitute.For<IPropertyValueResolver>();
+        mediaResolver
+            .Resolve(Arg.Do<PropertyResolverContext>(c => captured = c))
+            .Returns(imageObject);
+
+        var factory = Substitute.For<IPropertyValueResolverFactory>();
+        factory.GetResolver(Arg.Any<string?>()).Returns(mediaResolver);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "reviewItem",
+                    NestedSchemaType = "Article",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "image", ContentProperty = "photo" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig, resolverFactory: factory);
+
+        var result = _sut.Resolve(context);
+
+        // Routing reached the factory with the block editor alias.
+        factory.Received().GetResolver("Umbraco.MediaPicker3");
+
+        // The child context carried the BLOCK ELEMENT property and kept the PAGE as Content.
+        captured.Should().NotBeNull();
+        captured!.Property!.Alias.Should().Be("photo");
+        captured.Content.Should().BeSameAs(context.Content);
+        captured.ResolverFactory.Should().BeSameAs(factory);
+
+        // The factory-resolved ImageObject flowed onto the mapped Thing (i.e. SetPropertyValue ran).
+        var article = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Article>().Single();
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("ImageObject");
+        jsonLd.Should().Contain("photo.jpg");
+    }
+
+    // With no factory the resolver keeps its original behaviour: the static helper resolves a scalar
+    // text block property (existing tests exercise this implicitly; this pins it explicitly).
+    [Fact]
+    public void ResolveBlockElementProperty_NoFactory_FallsBackToStaticHelper()
+    {
+        var block = CreateBlockElement("faqItem", new Dictionary<string, object?>
+        {
+            ["questionText"] = "Static path still runs?"
+        });
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            NestedMappings = new List<NestedPropertyMapping>
+            {
+                new() { BlockAlias = "faqItem", SchemaProperty = "name", ContentProperty = "questionText" }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        // No resolverFactory supplied — ResolverFactory is null on the context.
+        var context = CreateContext(property, nestedSchemaTypeName: "Question", resolverConfig: resolverConfig);
+        context.ResolverFactory.Should().BeNull();
+
+        var result = _sut.Resolve(context);
+
+        var question = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Question>().Single();
+        question.Name.First().Should().Be("Static path still runs?");
+    }
+
+    // Damaged media: the factory resolver returns null for the media property. The property must be
+    // omitted (not fall back to raw MediaWithCrops JSON), while a sibling scalar keeps the Thing.
+    [Fact]
+    public void ResolveBlockElementProperty_FactoryResolvesNull_PropertyOmitted_NoRawJson()
+    {
+        var block = CreateBlockElementWithEditors(
+            "reviewItem",
+            ("reviewTitle", "A great stay", "Umbraco.TextBox"),
+            ("photo", "[{\"mediaKey\":\"abc\",\"umbracoFile\":\"/media/x.jpg\",\"MediaWithCrops\":true}]", "Umbraco.MediaPicker3"));
+        var blockListModel = CreateBlockListModel(block);
+
+        // Media resolver returns null (damaged media); text resolver returns the scalar value.
+        var mediaResolver = Substitute.For<IPropertyValueResolver>();
+        mediaResolver.Resolve(Arg.Any<PropertyResolverContext>()).Returns((object?)null);
+
+        var textResolver = Substitute.For<IPropertyValueResolver>();
+        textResolver.Resolve(Arg.Any<PropertyResolverContext>()).Returns("A great stay");
+
+        var factory = Substitute.For<IPropertyValueResolverFactory>();
+        factory.GetResolver("Umbraco.MediaPicker3").Returns(mediaResolver);
+        factory.GetResolver("Umbraco.TextBox").Returns(textResolver);
+
+        var resolverConfig = JsonSerializer.Serialize(new ResolverConfigModel
+        {
+            Routes = new List<BlockRoute>
+            {
+                new()
+                {
+                    BlockAlias = "reviewItem",
+                    NestedSchemaType = "Article",
+                    PropertyMappings = new List<NestedPropertyMapping>
+                    {
+                        new() { SchemaProperty = "name", ContentProperty = "reviewTitle" },
+                        new() { SchemaProperty = "image", ContentProperty = "photo" }
+                    }
+                }
+            }
+        });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property, resolverConfig: resolverConfig, resolverFactory: factory);
+
+        var result = _sut.Resolve(context);
+
+        var article = ((IEnumerable<Schema.NET.Thing>)result!).Cast<Schema.NET.Article>().Single();
+        var jsonLd = article.ToString();
+
+        // The Thing survived on the scalar, but the damaged media property is omitted — and crucially
+        // no raw MediaWithCrops / umbracoFile JSON leaked into the output.
+        jsonLd.Should().Contain("A great stay");
+        jsonLd.Should().NotContain("\"image\"");
+        jsonLd.Should().NotContain("umbracoFile");
+        jsonLd.Should().NotContain("MediaWithCrops");
+    }
+
     private static IPublishedElement CreateBlockElementWithNestedBlock(
         string contentTypeAlias,
         string nestedPropertyAlias,
@@ -1885,7 +2040,8 @@ public class BlockContentResolverTests
         IPublishedProperty? property,
         string? nestedSchemaTypeName = null,
         string? resolverConfig = null,
-        int recursionDepth = 0)
+        int recursionDepth = 0,
+        IPropertyValueResolverFactory? resolverFactory = null)
     {
         return new PropertyResolverContext
         {
@@ -1900,9 +2056,42 @@ public class BlockContentResolverTests
             SchemaTypeRegistry = _registry,
             MappingRepository = _repository,
             HttpContextAccessor = _httpContextAccessor,
+            ResolverFactory = resolverFactory,
             Property = property,
             RecursionDepth = recursionDepth,
             MaxRecursionDepth = 3
         };
+    }
+
+    /// <summary>
+    /// Builds a block element whose properties each carry an editor alias, so
+    /// <see cref="BlockContentResolver"/> can pick a per-editor resolver from the factory.
+    /// </summary>
+    private static IPublishedElement CreateBlockElementWithEditors(
+        string contentTypeAlias,
+        params (string Alias, object? Value, string? EditorAlias)[] properties)
+    {
+        var element = Substitute.For<IPublishedElement>();
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns(contentTypeAlias);
+        element.ContentType.Returns(contentType);
+        element.Key.Returns(Guid.NewGuid());
+
+        foreach (var (alias, value, editorAlias) in properties)
+        {
+            var prop = Substitute.For<IPublishedProperty>();
+            prop.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(value);
+            prop.Alias.Returns(alias);
+
+            var propType = Substitute.For<IPublishedPropertyType>();
+            propType.EditorAlias.Returns(editorAlias);
+            prop.PropertyType.Returns(propType);
+
+            // Umbraco property aliases are case-insensitive — mirror that here.
+            element.GetProperty(Arg.Is<string>(a => string.Equals(a, alias, StringComparison.OrdinalIgnoreCase)))
+                .Returns(prop);
+        }
+
+        return element;
     }
 }

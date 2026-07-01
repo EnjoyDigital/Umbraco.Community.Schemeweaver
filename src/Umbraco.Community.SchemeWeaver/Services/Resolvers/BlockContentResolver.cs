@@ -457,14 +457,52 @@ public class BlockContentResolver : IPropertyValueResolver
 
     /// <summary>
     /// Resolves a property value from a block element.
-    /// Delegates to <see cref="SchemaPropertySetter.ResolveElementPropertyValue"/> which handles
-    /// media pickers, editor alias detection, and string extraction.
+    /// When a <see cref="PropertyResolverContext.ResolverFactory"/> is available the block element
+    /// property is routed through the per-editor resolver pipeline (so e.g. a block media property
+    /// flows through <c>MediaPickerResolver</c> and returns a Schema.NET <c>ImageObject</c> rather
+    /// than hitting the raw-JSON fallback). The child context keeps <see cref="PropertyResolverContext.Content"/>
+    /// as the PAGE node and carries the block element property under
+    /// <see cref="PropertyResolverContext.Property"/>. Falls back to the static
+    /// <see cref="SchemaPropertySetter.ResolveElementPropertyValue"/> helper when no factory is
+    /// supplied (keeps unit tests that don't wire a factory green) or when the factory yields no
+    /// resolver for the editor alias.
     /// </summary>
     private static object? ResolveBlockElementProperty(
         IPublishedElement blockContent,
         string propertyAlias,
         PropertyResolverContext context)
     {
+        if (context.ResolverFactory is { } factory)
+        {
+            var prop = blockContent.GetProperty(propertyAlias);
+            if (prop is null)
+                return null;
+
+            // Route through the per-editor resolver factory so the block element property flows
+            // through the same pipeline as top-level properties (media pickers, dates, etc.).
+            IPropertyValueResolver? resolver = factory.GetResolver(prop.PropertyType?.EditorAlias);
+            if (resolver is not null)
+            {
+                var childContext = new PropertyResolverContext
+                {
+                    Content = context.Content,                 // stays the PAGE node
+                    Mapping = context.Mapping,
+                    PropertyAlias = propertyAlias,
+                    SchemaTypeRegistry = context.SchemaTypeRegistry,
+                    MappingRepository = context.MappingRepository,
+                    HttpContextAccessor = context.HttpContextAccessor,
+                    ResolverFactory = factory,
+                    Property = prop,                           // the block element property
+                    RecursionDepth = context.RecursionDepth,
+                    MaxRecursionDepth = context.MaxRecursionDepth,
+                    VisitedContentKeys = context.VisitedContentKeys,
+                    Culture = context.Culture
+                };
+
+                return resolver.Resolve(childContext);
+            }
+        }
+
         return SchemaPropertySetter.ResolveElementPropertyValue(
             blockContent, propertyAlias, context.HttpContextAccessor);
     }

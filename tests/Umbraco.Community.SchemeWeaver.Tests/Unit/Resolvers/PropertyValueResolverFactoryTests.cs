@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using Umbraco.Cms.Core.Routing;
 using Xunit;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
@@ -43,7 +45,7 @@ public class PropertyValueResolverFactoryTests
         var resolvers = new IPropertyValueResolver[]
         {
             new DefaultPropertyValueResolver(),
-            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance)
+            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance, Substitute.For<IPublishedUrlProvider>())
         };
         var factory = new PropertyValueResolverFactory(resolvers);
 
@@ -148,7 +150,7 @@ public class PropertyValueResolverFactoryTests
         var resolvers = new IPropertyValueResolver[]
         {
             new DefaultPropertyValueResolver(),
-            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance)
+            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance, Substitute.For<IPublishedUrlProvider>())
         };
         var factory = new PropertyValueResolverFactory(resolvers);
 
@@ -163,7 +165,7 @@ public class PropertyValueResolverFactoryTests
         var resolvers = new IPropertyValueResolver[]
         {
             new DefaultPropertyValueResolver(),
-            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance)
+            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance, Substitute.For<IPublishedUrlProvider>())
         };
         var factory = new PropertyValueResolverFactory(resolvers);
 
