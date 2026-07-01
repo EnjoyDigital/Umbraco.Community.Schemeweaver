@@ -42,6 +42,23 @@ public static class SchemaPropertySetter
             return;
         }
 
+        // Media values now arrive as Schema.NET ImageObject(s). When the target accepts
+        // IImageObject (e.g. Article.Image, Organization.Logo) we fall through to the normal
+        // OneOrMany/Values/collection handling below, which sets the ImageObject(s) directly.
+        // But some targets accept only a Uri leaf (e.g. Thing.Url, contentUrl, sameAs) and NOT
+        // IImageObject — an ImageObject would otherwise be dropped. Downgrade it to its URL.
+        if (IsImageObjectValue(value)
+            && !TargetAcceptsLeaf(targetType, typeof(IImageObject))
+            && TargetAcceptsLeaf(targetType, typeof(Uri)))
+        {
+            var downgraded = DowngradeImageToUri(value);
+            if (downgraded is not null)
+            {
+                SetPropertyValue(instance, propertyName, downgraded, logger);
+                return;
+            }
+        }
+
         // Try to find an implicit conversion operator that accepts our value type
         var converted = TryConvertViaImplicit(targetType, value);
         if (converted is not null)
@@ -135,6 +152,90 @@ public static class SchemaPropertySetter
 
         Walk(targetType);
         return results;
+    }
+
+    /// <summary>
+    /// Whether a resolved value is a Schema.NET image — a single <see cref="IImageObject"/>,
+    /// or a non-empty enumerable whose every element is an <see cref="IImageObject"/>. Used to
+    /// decide whether the value needs image-aware handling (range-aware set or Uri downgrade).
+    /// </summary>
+    private static bool IsImageObjectValue(object? v)
+    {
+        if (v is IImageObject)
+            return true;
+
+        if (v is IEnumerable<IImageObject>)
+            return true;
+
+        // Non-generic enumerables (e.g. a List<object> of ImageObjects): every element must be
+        // an IImageObject and there must be at least one. Exclude string (it's IEnumerable<char>).
+        if (v is IEnumerable and not string)
+        {
+            var items = ((IEnumerable)v).Cast<object?>().ToList();
+            return items.Count > 0 && items.All(x => x is IImageObject);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Walks a (possibly generic) target property type collecting its non-generic leaf type
+    /// arguments — mirroring <see cref="CollectCandidateThingInterfaces"/>'s generic-walking style —
+    /// and reports whether any leaf is equal to, or assignable from, <paramref name="leafType"/>.
+    /// <see cref="Nullable{T}"/> leaves are unwrapped. E.g. <c>OneOrMany&lt;Values&lt;IImageObject, Uri&gt;&gt;</c>
+    /// accepts both <c>IImageObject</c> and <c>Uri</c>; <c>OneOrMany&lt;Uri&gt;</c> accepts only <c>Uri</c>.
+    /// </summary>
+    private static bool TargetAcceptsLeaf(Type targetType, Type leafType)
+    {
+        var seen = new HashSet<Type>();
+        var found = false;
+
+        void Walk(Type t)
+        {
+            if (found || !seen.Add(t))
+                return;
+
+            if (t.IsGenericType)
+            {
+                foreach (var arg in t.GetGenericArguments())
+                    Walk(arg);
+                return;
+            }
+
+            var leaf = Nullable.GetUnderlyingType(t) ?? t;
+            if (leaf == leafType || leaf.IsAssignableFrom(leafType))
+                found = true;
+        }
+
+        Walk(targetType);
+        return found;
+    }
+
+    /// <summary>
+    /// Reduces an image value to a plain <see cref="Uri"/> (single) or <c>List&lt;Uri&gt;</c> (multi)
+    /// for targets that accept only a Uri leaf. Reads each image's <c>Url</c> — a Schema.NET
+    /// <c>OneOrMany&lt;Uri&gt;</c> — and takes its first entry, skipping images without a URL.
+    /// Returns null when nothing usable remains.
+    /// </summary>
+    private static object? DowngradeImageToUri(object value)
+    {
+        if (value is IImageObject singleImage)
+            return singleImage.Url.FirstOrDefault();
+
+        IEnumerable<IImageObject> images = value switch
+        {
+            IEnumerable<IImageObject> typed => typed,
+            IEnumerable and not string => ((IEnumerable)value).Cast<object?>().OfType<IImageObject>(),
+            _ => []
+        };
+
+        var uris = images
+            .Select(img => img.Url.FirstOrDefault())
+            .Where(uri => uri is not null)
+            .Cast<Uri>()
+            .ToList();
+
+        return uris.Count > 0 ? uris : null;
     }
 
     /// <summary>
@@ -654,9 +755,10 @@ public static class SchemaPropertySetter
         var editorAlias = prop.PropertyType?.EditorAlias;
         if (editorAlias is "Umbraco.MediaPicker3" or "Umbraco.MediaPicker")
         {
-            var mediaUrl = TryExtractMediaUrl(value, httpContextAccessor);
-            if (mediaUrl is not null)
-                return mediaUrl;
+            // Media pickers must NEVER fall through to value.ToString() below — that would
+            // leak raw MediaWithCrops JSON. Return the extracted URL (which may be null when
+            // the picker is empty or the media has no file) directly.
+            return TryExtractMediaUrl(value, httpContextAccessor);
         }
 
         var stringValue = value.ToString();

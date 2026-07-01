@@ -332,4 +332,74 @@ public class SchemaPropertySetterTests
     }
 
     #endregion
+
+    #region ImageObject media values (range-aware set + Uri downgrade)
+
+    [Fact]
+    public void SetPropertyValue_ImageObject_SetsArticleImage_AsImageObject()
+    {
+        // Article.Image is OneOrMany<Values<IImageObject, Uri>> — an ImageObject value must be
+        // stored as a nested ImageObject (not downgraded), because the target accepts IImageObject.
+        var article = new Article();
+        var image = new ImageObject { Url = new Uri("https://example.com/photo.jpg") };
+
+        SchemaPropertySetter.SetPropertyValue(article, "Image", image);
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("ImageObject",
+            "an ImageObject set into an IImageObject-accepting target must remain an ImageObject");
+        jsonLd.Should().Contain("https://example.com/photo.jpg");
+    }
+
+    [Fact]
+    public void SetPropertyValue_ListOfImageObjects_SetsArticleImage_AsArray()
+    {
+        // A collection of ImageObjects into Article.Image must produce an array of ImageObjects.
+        var article = new Article();
+        var images = new List<ImageObject>
+        {
+            new() { Url = new Uri("https://example.com/one.jpg") },
+            new() { Url = new Uri("https://example.com/two.jpg") },
+        };
+
+        SchemaPropertySetter.SetPropertyValue(article, "Image", images);
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("ImageObject");
+        jsonLd.Should().Contain("https://example.com/one.jpg");
+        jsonLd.Should().Contain("https://example.com/two.jpg");
+    }
+
+    [Fact]
+    public void SetPropertyValue_ImageObject_ToUriOnlyTarget_DowngradesToUrl()
+    {
+        // Organization.Url is OneOrMany<Uri> — accepts a Uri leaf but NOT IImageObject.
+        // An ImageObject value must be downgraded to its bare URL, not dropped or nested.
+        var org = new Organization();
+        var image = new ImageObject { Url = new Uri("https://example.com/logo.png") };
+
+        SchemaPropertySetter.SetPropertyValue(org, "Url", image);
+
+        var jsonLd = org.ToString();
+        jsonLd.Should().Contain("https://example.com/logo.png", "the bare URL must be stored");
+        jsonLd.Should().NotContain("ImageObject",
+            "a Uri-only target must receive the bare URL, not a nested ImageObject");
+    }
+
+    [Fact]
+    public void SetPropertyValue_ImageObject_ToLogo_SetsImageObject()
+    {
+        // Organization.Logo is OneOrMany<Values<IImageObject, Uri>> — accepts IImageObject, so
+        // an ImageObject must be kept as an ImageObject rather than downgraded.
+        var org = new Organization();
+        var image = new ImageObject { Url = new Uri("https://example.com/brand-logo.svg") };
+
+        SchemaPropertySetter.SetPropertyValue(org, "Logo", image);
+
+        var jsonLd = org.ToString();
+        jsonLd.Should().Contain("ImageObject");
+        jsonLd.Should().Contain("https://example.com/brand-logo.svg");
+    }
+
+    #endregion
 }

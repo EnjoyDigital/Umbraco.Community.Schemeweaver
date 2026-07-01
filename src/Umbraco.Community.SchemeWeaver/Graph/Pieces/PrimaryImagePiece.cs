@@ -3,6 +3,7 @@ using Schema.NET;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Routing;
+using Umbraco.Community.SchemeWeaver.Services.Media;
 using Umbraco.Extensions;
 
 namespace Umbraco.Community.SchemeWeaver.Graph.Pieces;
@@ -53,23 +54,7 @@ public sealed class PrimaryImagePiece : IGraphPiece
     public Thing? Build(GraphPieceContext ctx)
     {
         var media = GetMediaProperty(ctx.Content);
-        if (media is null)
-            return null;
-
-        var url = _urlProvider.GetMediaUrl(media, UrlMode.Absolute);
-        if (string.IsNullOrEmpty(url))
-            return null;
-
-        var image = new ImageObject();
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            image.Url = uri;
-
-        if (media.Value<int?>("umbracoWidth") is int width && width > 0)
-            image.Width = new QuantitativeValue { Value = width };
-        if (media.Value<int?>("umbracoHeight") is int height && height > 0)
-            image.Height = new QuantitativeValue { Value = height };
-
-        return image;
+        return media is null ? null : MediaImageObjectFactory.Create(media, _urlProvider);
     }
 
     private IPublishedContent? GetMediaProperty(IPublishedContent content)
