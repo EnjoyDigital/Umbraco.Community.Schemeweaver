@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace Umbraco.Community.SchemeWeaver.uSync;
 
@@ -17,19 +18,49 @@ public interface IMappingFileWriter
     void Delete(string folder, string alias);
 }
 
-/// <summary>Default <see cref="IMappingFileWriter"/> that writes to the local file system.</summary>
+/// <summary>
+/// Default <see cref="IMappingFileWriter"/> that writes to the local file system.
+/// Aliases that are not plain file names (path separators, traversal segments, invalid
+/// characters) are REJECTED rather than sanitised — a transforming sanitiser would break the
+/// alias↔filename bijection that filename-keyed drift detection relies on.
+/// </summary>
 public class MappingFileWriter : IMappingFileWriter
 {
+    private readonly ILogger<MappingFileWriter>? _logger;
+
+    public MappingFileWriter(ILogger<MappingFileWriter>? logger = null)
+    {
+        _logger = logger;
+    }
+
     public void Write(string folder, string alias, XElement xml)
     {
+        if (!IsSafeAlias(alias))
+        {
+            _logger?.LogWarning("Refusing to write uSync mapping file for unsafe alias {Alias}", alias);
+            return;
+        }
+
         Directory.CreateDirectory(folder);
-        xml.Save(Path.Combine(folder, $"{alias}.config"));
+        xml.Save(Path.Join(folder, $"{alias}.config"));
     }
 
     public void Delete(string folder, string alias)
     {
-        var path = Path.Combine(folder, $"{alias}.config");
+        if (!IsSafeAlias(alias))
+        {
+            _logger?.LogWarning("Refusing to delete uSync mapping file for unsafe alias {Alias}", alias);
+            return;
+        }
+
+        var path = Path.Join(folder, $"{alias}.config");
         if (File.Exists(path))
             File.Delete(path);
     }
+
+    /// <summary>True when the alias maps 1:1 to a plain file name inside the mappings folder.</summary>
+    private static bool IsSafeAlias(string alias)
+        => !string.IsNullOrEmpty(alias)
+           && Path.GetFileName(alias) == alias
+           && alias.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 }
