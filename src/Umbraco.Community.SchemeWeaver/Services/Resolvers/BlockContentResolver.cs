@@ -324,17 +324,9 @@ public class BlockContentResolver : IPropertyValueResolver
     /// Schema.NET's own serializer, so "has a resolved property" ⇔ "will emit a property".
     /// </summary>
     private static bool HasResolvedProperty(Thing thing)
-    {
-        foreach (var p in thing.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-        {
-            if (p.GetIndexParameters().Length > 0)
-                continue;
-            if (p.GetValue(thing) is IValues { Count: > 0 })
-                return true;
-        }
-
-        return false;
-    }
+        => thing.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Any(p => p.GetIndexParameters().Length == 0
+                      && p.GetValue(thing) is IValues { Count: > 0 });
 
     /// <summary>
     /// True when the named schema property (case-insensitive) is set to a non-empty
@@ -342,16 +334,12 @@ public class BlockContentResolver : IPropertyValueResolver
     /// </summary>
     private static bool HasNamedProperty(Thing thing, string schemaPropertyName)
     {
-        foreach (var p in thing.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-        {
-            if (p.GetIndexParameters().Length > 0)
-                continue;
-            if (!string.Equals(p.Name, schemaPropertyName, StringComparison.OrdinalIgnoreCase))
-                continue;
-            return p.GetValue(thing) is IValues { Count: > 0 };
-        }
+        // First-match-then-inspect: only the FIRST property with the matching name decides.
+        var match = thing.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .FirstOrDefault(p => p.GetIndexParameters().Length == 0
+                                 && string.Equals(p.Name, schemaPropertyName, StringComparison.OrdinalIgnoreCase));
 
-        return false;
+        return match?.GetValue(thing) is IValues { Count: > 0 };
     }
 
     /// <summary>
@@ -378,12 +366,9 @@ public class BlockContentResolver : IPropertyValueResolver
             return;
 
         var wroteAtLeastOne = false;
-        foreach (var mapping in group)
+        foreach (var mapping in group.Where(m => !string.IsNullOrEmpty(m.ContentProperty)))
         {
-            if (string.IsNullOrEmpty(mapping.ContentProperty))
-                continue;
-
-            var rawValue = ResolveBlockElementProperty(blockContent, mapping.ContentProperty, context);
+            var rawValue = ResolveBlockElementProperty(blockContent, mapping.ContentProperty!, context);
             if (rawValue is null)
                 continue;
 
@@ -624,14 +609,12 @@ public class BlockContentResolver : IPropertyValueResolver
     {
         var schemaProperties = context.SchemaTypeRegistry.GetProperties(schemaTypeName).ToList();
 
-        foreach (var schemaProp in schemaProperties)
+        // Skip nested Block List/Grid properties — auto-map has no schema route for their
+        // child blocks, and ResolveElementPropertyValue would otherwise stamp the block
+        // model's ToString() onto the schema property. Nested blocks require explicit routes.
+        foreach (var schemaProp in schemaProperties.Where(sp =>
+                     !IsBlockEditor(blockContent.GetProperty(sp.Name)?.PropertyType?.EditorAlias)))
         {
-            // Skip nested Block List/Grid properties — auto-map has no schema route for their
-            // child blocks, and ResolveElementPropertyValue would otherwise stamp the block
-            // model's ToString() onto the schema property. Nested blocks require explicit routes.
-            if (IsBlockEditor(blockContent.GetProperty(schemaProp.Name)?.PropertyType?.EditorAlias))
-                continue;
-
             // Try exact name match (case-insensitive) between block property and schema property
             var rawValue = SchemaPropertySetter.ResolveElementPropertyValue(
                 blockContent, schemaProp.Name, context.HttpContextAccessor);

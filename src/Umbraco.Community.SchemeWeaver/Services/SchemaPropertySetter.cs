@@ -295,23 +295,17 @@ public static class SchemaPropertySetter
 
         if (preferred is not null)
         {
-            foreach (var iface in candidateInterfaces)
-            {
-                var concrete = InterfaceToConcrete(iface);
-                if (concrete is not null && concrete.Name == preferred)
-                    return concrete;
-            }
+            var preferredConcrete = candidateInterfaces
+                .Select(InterfaceToConcrete)
+                .FirstOrDefault(concrete => concrete is not null && concrete.Name == preferred);
+            if (preferredConcrete is not null)
+                return preferredConcrete;
         }
 
         // Fallback: first candidate that resolves to a concrete type.
-        foreach (var iface in candidateInterfaces)
-        {
-            var concrete = InterfaceToConcrete(iface);
-            if (concrete is not null)
-                return concrete;
-        }
-
-        return null;
+        return candidateInterfaces
+            .Select(InterfaceToConcrete)
+            .FirstOrDefault(concrete => concrete is not null);
     }
 
     /// <summary>
@@ -348,11 +342,8 @@ public static class SchemaPropertySetter
                 // Build a typed List<IFoo> and use the op_Implicit(List<IFoo>) operator
                 var typedListType = typeof(List<>).MakeGenericType(matchingInterfaceType);
                 var typedItemList = (IList)Activator.CreateInstance(typedListType)!;
-                foreach (var thing in thingList)
-                {
-                    if (matchingInterfaceType.IsAssignableFrom(thing.GetType()))
-                        typedItemList.Add(thing);
-                }
+                foreach (var thing in thingList.Where(t => matchingInterfaceType.IsAssignableFrom(t.GetType())))
+                    typedItemList.Add(thing);
 
                 if (typedItemList.Count > 0)
                 {
@@ -386,11 +377,11 @@ public static class SchemaPropertySetter
         var listType = typeof(List<>).MakeGenericType(innerType);
         var typedList = (IList)Activator.CreateInstance(listType)!;
 
-        foreach (var thing in thingList)
+        foreach (var converted in thingList
+                     .Select(thing => TryConvertViaImplicit(innerType, thing))
+                     .Where(converted => converted is not null))
         {
-            var converted = TryConvertViaImplicit(innerType, thing);
-            if (converted is not null)
-                typedList.Add(converted);
+            typedList.Add(converted);
         }
 
         if (typedList.Count == 0)

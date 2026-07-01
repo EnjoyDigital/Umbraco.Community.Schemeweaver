@@ -910,14 +910,10 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         if (elementKeys.Count == 0)
             return [];
 
-        var result = new List<BlockElementTypeInfo>();
-        foreach (var key in elementKeys)
-        {
-            var elementType = _contentTypeService.Get(key);
-            if (elementType is null)
-                continue;
-
-            result.Add(new BlockElementTypeInfo
+        return elementKeys
+            .Select(key => _contentTypeService.Get(key))
+            .OfType<IContentType>()
+            .Select(elementType => new BlockElementTypeInfo
             {
                 Alias = elementType.Alias,
                 Name = elementType.Name ?? elementType.Alias,
@@ -928,10 +924,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                     Name = p.Name ?? p.Alias,
                     EditorAlias = p.PropertyEditorAlias,
                 }).ToList(),
-            });
-        }
-
-        return result;
+            })
+            .ToList();
     }
 
     /// <summary>

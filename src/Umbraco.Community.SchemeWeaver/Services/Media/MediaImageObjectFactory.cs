@@ -53,13 +53,7 @@ public static class MediaImageObjectFactory
     }
 
     private static string? ResolveCaption(IPublishedContent media)
-    {
-        foreach (var alias in _captionAliases)
-        {
-            var value = media.Value<string?>(alias);
-            if (!string.IsNullOrWhiteSpace(value))
-                return value;
-        }
-        return null;
-    }
+        => _captionAliases
+            .Select(alias => media.Value<string?>(alias))
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 }

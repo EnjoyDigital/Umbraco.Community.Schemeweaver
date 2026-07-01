@@ -311,24 +311,13 @@ public sealed class StructuralEnricher
         if (nestedClr is null)
             return true;
 
-        foreach (var accepted in acceptedTypes)
-        {
-            if (SchemaPrimitiveTypes.IsPrimitive(accepted))
-                continue;
-            if (string.Equals(accepted, nestedType, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            var acceptedClr = _registry.GetClrType(accepted);
-            if (acceptedClr is not null && acceptedClr.IsAssignableFrom(nestedClr))
-                return true;
-
-            if (nestedClr.GetInterfaces().Any(i =>
+        return acceptedTypes.Any(accepted =>
+            !SchemaPrimitiveTypes.IsPrimitive(accepted)
+            && (string.Equals(accepted, nestedType, StringComparison.OrdinalIgnoreCase)
+                || (_registry.GetClrType(accepted) is { } acceptedClr && acceptedClr.IsAssignableFrom(nestedClr))
+                || nestedClr.GetInterfaces().Any(i =>
                     string.Equals(i.Name, "I" + accepted, StringComparison.Ordinal)
-                    || string.Equals(i.Name, accepted, StringComparison.Ordinal)))
-                return true;
-        }
-
-        return false;
+                    || string.Equals(i.Name, accepted, StringComparison.Ordinal))));
     }
 
     private static bool IsRichSourceType(string? sourceType) =>

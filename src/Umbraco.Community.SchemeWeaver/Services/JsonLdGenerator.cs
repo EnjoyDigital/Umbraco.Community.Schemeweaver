@@ -645,11 +645,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (config?.ComplexTypeMappings is null or { Count: 0 })
             return null; // No sub-mappings configured — skip rather than emit empty object
 
-        foreach (var subMapping in config.ComplexTypeMappings)
+        foreach (var subMapping in config.ComplexTypeMappings.Where(m => !string.IsNullOrEmpty(m.SchemaProperty)))
         {
-            if (string.IsNullOrEmpty(subMapping.SchemaProperty))
-                continue;
-
             object? value = subMapping.SourceType switch
             {
                 "static" => subMapping.StaticValue,

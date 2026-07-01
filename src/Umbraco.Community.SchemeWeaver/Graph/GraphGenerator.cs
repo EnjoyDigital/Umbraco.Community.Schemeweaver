@@ -139,11 +139,8 @@ public sealed class GraphGenerator : IGraphGenerator
         };
 
         var nodes = new List<JsonObject>(needed.Count);
-        foreach (var piece in needed)
+        foreach (var piece in needed.Where(p => PieceMatchesScope(p, scope)))
         {
-            if (!PieceMatchesScope(piece, scope))
-                continue;
-
             try
             {
                 var thing = piece.Build(buildContext);
