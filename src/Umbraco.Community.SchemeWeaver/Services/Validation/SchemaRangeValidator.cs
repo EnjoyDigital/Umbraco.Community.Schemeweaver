@@ -8,6 +8,7 @@ namespace Umbraco.Community.SchemeWeaver.Services.Validation;
 public class SchemaRangeValidator : ISchemaRangeValidator
 {
     private readonly ISchemaTypeRegistry _registry;
+    private readonly ISchemaRangeChecker _rangeChecker;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -20,7 +21,11 @@ public class SchemaRangeValidator : ISchemaRangeValidator
     // doesn't fit its current property.
     private static readonly string[] PreferredAlternatives = ["about", "mainEntity", "mentions"];
 
-    public SchemaRangeValidator(ISchemaTypeRegistry registry) => _registry = registry;
+    public SchemaRangeValidator(ISchemaTypeRegistry registry, ISchemaRangeChecker rangeChecker)
+    {
+        _registry = registry;
+        _rangeChecker = rangeChecker;
+    }
 
     public IReadOnlyList<ValidationIssue> Validate(SchemaMappingDto mapping)
     {
@@ -62,7 +67,7 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             if (chosenClr is null)
                 continue; // typo / unknown chosen type — skip gracefully
 
-            if (IsInRange(chosenClr, targetProp.AcceptedTypes))
+            if (_rangeChecker.IsInRange(chosenClr, targetProp.AcceptedTypes))
                 continue;
 
             issues.Add(BuildIssue(
@@ -105,40 +110,13 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             if (chosenClr is null)
                 continue;
 
-            if (IsInRange(chosenClr, targetProp.AcceptedTypes))
+            if (_rangeChecker.IsInRange(chosenClr, targetProp.AcceptedTypes))
                 continue;
 
             issues.Add(BuildIssue(
                 mapping, pm.SchemaPropertyName, targetProp, route.NestedSchemaType!,
                 chosenClr, schemaProps, route.BlockAlias));
         }
-    }
-
-    /// <summary>
-    /// Faithful to runtime acceptance: a value is accepted when its CLR type
-    /// implements the Schema.NET interface for any of the property's accepted
-    /// types (the interface DAG mirrors Schema.org multiple inheritance, e.g.
-    /// LocalBusiness : IPlace, IOrganization), or when an accepted concrete type
-    /// is assignable from it. Scalar accepted entries ("String", "Uri", …) have
-    /// no Thing CLR type and no I-prefixed interface, so they correctly drop out
-    /// and a Thing under a scalar-only property warns.
-    /// </summary>
-    private bool IsInRange(Type chosenClr, IReadOnlyList<string> acceptedTypes)
-    {
-        var interfaces = chosenClr.GetInterfaces();
-
-        foreach (var accepted in acceptedTypes)
-        {
-            var interfaceName = "I" + accepted;
-            if (interfaces.Any(i => string.Equals(i.Name, interfaceName, StringComparison.Ordinal)))
-                return true;
-
-            var acceptedClr = _registry.GetClrType(accepted);
-            if (acceptedClr is not null && acceptedClr.IsAssignableFrom(chosenClr))
-                return true;
-        }
-
-        return false;
     }
 
     private ValidationIssue BuildIssue(
@@ -175,12 +153,12 @@ public class SchemaRangeValidator : ISchemaRangeValidator
         foreach (var name in PreferredAlternatives)
         {
             var prop = schemaProps.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
-            if (prop is not null && !ReferenceEquals(prop, currentProp) && IsInRange(chosenClr, prop.AcceptedTypes))
+            if (prop is not null && !ReferenceEquals(prop, currentProp) && _rangeChecker.IsInRange(chosenClr, prop.AcceptedTypes))
                 return $"'{prop.Name}'";
         }
 
         var fallback = schemaProps.FirstOrDefault(
-            p => !ReferenceEquals(p, currentProp) && IsInRange(chosenClr, p.AcceptedTypes));
+            p => !ReferenceEquals(p, currentProp) && _rangeChecker.IsInRange(chosenClr, p.AcceptedTypes));
         if (fallback is not null)
             return $"'{fallback.Name}'";
 

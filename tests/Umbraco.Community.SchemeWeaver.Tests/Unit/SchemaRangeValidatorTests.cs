@@ -19,7 +19,7 @@ public class SchemaRangeValidatorTests
     {
         var registry = new SchemaTypeRegistry();
         registry.EnsureInitialised();
-        _sut = new SchemaRangeValidator(registry);
+        _sut = new SchemaRangeValidator(registry, new SchemaRangeChecker(registry));
     }
 
     private static SchemaMappingDto Article(params PropertyMappingDto[] props)

@@ -172,12 +172,17 @@ public class SchemeWeaverApiController : ControllerBase
         return Ok(blockTypes);
     }
 
+    // targetSchemaProperty (additive, optional): the parent property-mapping row the
+    // block-mapping modal is scoped to (e.g. "review" on a Product page). When present,
+    // each top-level route in the response carries fitsTarget — whether its nested schema
+    // type fits that property's accepted Schema.org range. Absent -> fitsTarget omitted,
+    // so pre-existing clients see an unchanged payload.
     [HttpPost("content-types/{contentTypeAlias}/properties/{propertyAlias}/block-suggest")]
     [ProducesResponseType(typeof(IEnumerable<BlockMappingSuggestion>), StatusCodes.Status200OK)]
     [HandlesServerError("suggesting block mappings")]
-    public async Task<IActionResult> SuggestBlockMappings(string contentTypeAlias, string propertyAlias)
+    public async Task<IActionResult> SuggestBlockMappings(string contentTypeAlias, string propertyAlias, [FromQuery] string? targetSchemaProperty = null)
     {
-        var suggestions = await _service.SuggestBlockMappingsAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
+        var suggestions = await _service.SuggestBlockMappingsAsync(contentTypeAlias, propertyAlias, targetSchemaProperty).ConfigureAwait(false);
         return Ok(suggestions);
     }
 

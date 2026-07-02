@@ -274,6 +274,39 @@ public class SchemeWeaverApiControllerTests : UmbracoIntegrationTestBase
     }
 
     // --------------------------------------------------------------------
+    // Block suggest
+    // --------------------------------------------------------------------
+
+    [Fact]
+    public async Task BlockSuggest_WithoutTargetSchemaProperty_ReturnsOkArray()
+    {
+        // Frozen surface: the parameterless call must keep returning 200 + array.
+        // (An unknown content type yields no element types, hence an empty list —
+        // FitsTarget semantics are unit-covered in BlockSchemaSuggesterTests.)
+        var response = await Client.PostAsync(
+            $"{BaseRoute}/content-types/doesNotExist/properties/blocks/block-suggest",
+            content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+    }
+
+    [Fact]
+    public async Task BlockSuggest_WithTargetSchemaProperty_IsAcceptedAdditively()
+    {
+        // Additive param: supplying targetSchemaProperty must not change the status
+        // code or the array shape for existing clients that never send it.
+        var response = await Client.PostAsync(
+            $"{BaseRoute}/content-types/doesNotExist/properties/blocks/block-suggest?targetSchemaProperty=review",
+            content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+    }
+
+    // --------------------------------------------------------------------
     // Auto-map and preview
     // --------------------------------------------------------------------
 
