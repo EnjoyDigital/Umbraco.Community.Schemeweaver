@@ -86,6 +86,23 @@ public class USyncMappingExporterTests : IDisposable
     }
 
     [Fact]
+    public void Export_UnsafeAlias_ReportsRefusal_WritesNothing()
+    {
+        // The writer refuses aliases that aren't plain file names; the export result must say
+        // so rather than claim Written = true for a file that does not exist.
+        _repository.GetAll().Returns(new[] { Mapping(1, @"..\evil") });
+        _repository.GetPropertyMappings(Arg.Any<int>()).Returns([]);
+        var (serializers, scopeFactory) = BuildSerializer();
+        var exporter = new USyncMappingExporter(serializers, scopeFactory, _hostEnvironment,
+            new MappingFileWriter(), Substitute.For<ILogger<USyncMappingExporter>>());
+
+        var result = exporter.Export();
+
+        result.Items.Should().ContainSingle(i => i.Alias == @"..\evil" && !i.Written && i.Error != null);
+        File.Exists(Path.Join(_contentRoot, "uSync", "evil.config")).Should().BeFalse();
+    }
+
+    [Fact]
     public void Export_ReadOnlyRoot_ReportsFailure_DoesNotThrow()
     {
         _repository.GetAll().Returns(new[] { Mapping(1, "article") });

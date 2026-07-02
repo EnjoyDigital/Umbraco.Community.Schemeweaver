@@ -11,11 +11,17 @@ namespace Umbraco.Community.SchemeWeaver.uSync;
 /// </summary>
 public interface IMappingFileWriter
 {
-    /// <summary>Writes <paramref name="xml"/> to <c>{folder}/{alias}.config</c>, creating the folder if needed.</summary>
-    void Write(string folder, string alias, XElement xml);
+    /// <summary>
+    /// Writes <paramref name="xml"/> to <c>{folder}/{alias}.config</c>, creating the folder if
+    /// needed. Returns false when the alias is refused as unsafe (not a plain file name).
+    /// </summary>
+    bool Write(string folder, string alias, XElement xml);
 
-    /// <summary>Removes <c>{folder}/{alias}.config</c> if it exists.</summary>
-    void Delete(string folder, string alias);
+    /// <summary>
+    /// Removes <c>{folder}/{alias}.config</c> if it exists. Returns false when the alias is
+    /// refused as unsafe (not a plain file name).
+    /// </summary>
+    bool Delete(string folder, string alias);
 }
 
 /// <summary>
@@ -33,34 +39,30 @@ public class MappingFileWriter : IMappingFileWriter
         _logger = logger;
     }
 
-    public void Write(string folder, string alias, XElement xml)
+    public bool Write(string folder, string alias, XElement xml)
     {
-        if (!IsSafeAlias(alias))
+        if (!SchemeWeaverMappingPaths.IsSafeAlias(alias))
         {
             _logger?.LogWarning("Refusing to write uSync mapping file for unsafe alias {Alias}", alias);
-            return;
+            return false;
         }
 
         Directory.CreateDirectory(folder);
         xml.Save(Path.Join(folder, $"{alias}.config"));
+        return true;
     }
 
-    public void Delete(string folder, string alias)
+    public bool Delete(string folder, string alias)
     {
-        if (!IsSafeAlias(alias))
+        if (!SchemeWeaverMappingPaths.IsSafeAlias(alias))
         {
             _logger?.LogWarning("Refusing to delete uSync mapping file for unsafe alias {Alias}", alias);
-            return;
+            return false;
         }
 
         var path = Path.Join(folder, $"{alias}.config");
         if (File.Exists(path))
             File.Delete(path);
+        return true;
     }
-
-    /// <summary>True when the alias maps 1:1 to a plain file name inside the mappings folder.</summary>
-    private static bool IsSafeAlias(string alias)
-        => !string.IsNullOrEmpty(alias)
-           && Path.GetFileName(alias) == alias
-           && alias.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 }

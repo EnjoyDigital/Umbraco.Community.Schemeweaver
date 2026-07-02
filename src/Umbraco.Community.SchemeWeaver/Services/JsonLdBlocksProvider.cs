@@ -48,8 +48,29 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
         return _cache.GetOrCreate(cacheKey, entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = _options.CacheDuration;
+
+            // Same dispose race as the global token below, on the hotter path: Invalidate(key)
+            // (fired on every publish) removes-and-disposes this CTS between our GetOrAdd and
+            // .Token. The disposed source is already out of the dictionary, so one retry gets a
+            // fresh CTS; a second loss in a row falls back to the absolute expiration.
             var perContent = _perContentTokens.GetOrAdd(content.Key, _ => new CancellationTokenSource());
-            entry.AddExpirationToken(new CancellationChangeToken(perContent.Token));
+            try
+            {
+                entry.AddExpirationToken(new CancellationChangeToken(perContent.Token));
+            }
+            catch (ObjectDisposedException)
+            {
+                _perContentTokens.TryRemove(new KeyValuePair<Guid, CancellationTokenSource>(content.Key, perContent));
+                var fresh = _perContentTokens.GetOrAdd(content.Key, _ => new CancellationTokenSource());
+                try
+                {
+                    entry.AddExpirationToken(new CancellationChangeToken(fresh.Token));
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Lost the race twice — the absolute expiration still bounds this entry.
+                }
+            }
 
             // Rare race: InvalidateAll() disposes the CTS between our field read and .Token —
             // retry once with the fresh token, else skip it (the per-content token and the

@@ -69,8 +69,15 @@ public sealed class USyncMappingExporter : IMappingExporter
                     continue;
                 }
 
-                _fileWriter.Write(folder, mapping.ContentTypeAlias, attempt.Item);
-                items.Add(new MappingExportItemDto { Alias = mapping.ContentTypeAlias, Written = true });
+                var written = _fileWriter.Write(folder, mapping.ContentTypeAlias, attempt.Item);
+                items.Add(written
+                    ? new MappingExportItemDto { Alias = mapping.ContentTypeAlias, Written = true }
+                    : new MappingExportItemDto
+                    {
+                        Alias = mapping.ContentTypeAlias,
+                        Written = false,
+                        Error = "Alias is not a safe file name; write refused.",
+                    });
             }
             catch (Exception ex)
             {

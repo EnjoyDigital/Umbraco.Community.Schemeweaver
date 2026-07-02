@@ -126,6 +126,11 @@ public sealed class USyncMappingDriftReporter : IMappingDriftReporter
         var mapping = repository.GetByContentTypeAlias(contentTypeAlias);
         if (mapping is null)
         {
+            // An unsafe alias never has a legitimate file (the writer refuses it), so don't
+            // probe the disk with it.
+            if (!SchemeWeaverMappingPaths.IsSafeAlias(contentTypeAlias))
+                return MappingDriftStatus.DbOnly;
+
             var path = Path.Join(folder, $"{contentTypeAlias}.config");
             return File.Exists(path) ? MappingDriftStatus.DiskOnly : MappingDriftStatus.DbOnly;
         }
@@ -139,6 +144,11 @@ public sealed class USyncMappingDriftReporter : IMappingDriftReporter
     /// </summary>
     private string Compare(SchemaMapping mapping, string folder, SchemaMappingSerializer? serializer)
     {
+        // Mirrors MappingFileWriter's refusal: an unsafe alias has no on-disk counterpart by
+        // definition, so it is db-only — and must not be used to probe outside the folder.
+        if (!SchemeWeaverMappingPaths.IsSafeAlias(mapping.ContentTypeAlias))
+            return MappingDriftStatus.DbOnly;
+
         var path = Path.Join(folder, $"{mapping.ContentTypeAlias}.config");
         if (!File.Exists(path))
             return MappingDriftStatus.DbOnly;
