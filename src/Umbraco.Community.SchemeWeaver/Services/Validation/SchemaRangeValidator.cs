@@ -99,12 +99,9 @@ public class SchemaRangeValidator : ISchemaRangeValidator
         if (config?.Routes is not { Count: > 0 } routes)
             return;
 
-        foreach (var route in routes)
+        foreach (var route in routes.Where(r => !string.IsNullOrWhiteSpace(r.NestedSchemaType)))
         {
-            if (string.IsNullOrWhiteSpace(route.NestedSchemaType))
-                continue;
-
-            var chosenClr = _registry.GetClrType(route.NestedSchemaType);
+            var chosenClr = _registry.GetClrType(route.NestedSchemaType!);
             if (chosenClr is null)
                 continue;
 

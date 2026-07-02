@@ -33,9 +33,8 @@ internal static class JsonLdCacheInvalidator
         var ripple = alwaysRippleToDescendants;
         var any = false;
 
-        foreach (var content in entities)
+        foreach (var content in entities.Where(c => c is not null))
         {
-            if (content is null) continue;
             provider.Invalidate(content.Key);
             any = true;
 

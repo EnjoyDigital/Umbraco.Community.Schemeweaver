@@ -126,7 +126,7 @@ public sealed class USyncMappingDriftReporter : IMappingDriftReporter
         var mapping = repository.GetByContentTypeAlias(contentTypeAlias);
         if (mapping is null)
         {
-            var path = Path.Combine(folder, $"{contentTypeAlias}.config");
+            var path = Path.Join(folder, $"{contentTypeAlias}.config");
             return File.Exists(path) ? MappingDriftStatus.DiskOnly : MappingDriftStatus.DbOnly;
         }
 
@@ -139,7 +139,7 @@ public sealed class USyncMappingDriftReporter : IMappingDriftReporter
     /// </summary>
     private string Compare(SchemaMapping mapping, string folder, SchemaMappingSerializer? serializer)
     {
-        var path = Path.Combine(folder, $"{mapping.ContentTypeAlias}.config");
+        var path = Path.Join(folder, $"{mapping.ContentTypeAlias}.config");
         if (!File.Exists(path))
             return MappingDriftStatus.DbOnly;
 

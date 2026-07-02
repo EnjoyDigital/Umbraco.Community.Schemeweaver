@@ -93,13 +93,7 @@ public sealed class SiteSettingsResolver : ISiteSettingsResolver
     private static IPublishedContent? FirstPublished(
         IEnumerable<Guid> keys,
         Umbraco.Cms.Core.PublishedCache.IPublishedContentCache cache)
-    {
-        foreach (var key in keys)
-        {
-            var content = cache.GetById(key);
-            if (content is not null)
-                return content;
-        }
-        return null;
-    }
+        => keys
+            .Select(key => cache.GetById(key))
+            .FirstOrDefault(content => content is not null);
 }

@@ -26,9 +26,9 @@ internal static class SchemeWeaverMappingPaths
     /// </summary>
     public static string ResolveWriteFolder(string contentRootPath)
     {
-        var uSyncRoot = Path.Combine(contentRootPath, RootFolderName);
-        var version = Versions.FirstOrDefault(v => Directory.Exists(Path.Combine(uSyncRoot, v)))
+        var uSyncRoot = Path.Join(contentRootPath, RootFolderName);
+        var version = Versions.FirstOrDefault(v => Directory.Exists(Path.Join(uSyncRoot, v)))
                       ?? Versions[0];
-        return Path.Combine(uSyncRoot, version, MappingsFolderName);
+        return Path.Join(uSyncRoot, version, MappingsFolderName);
     }
 }
