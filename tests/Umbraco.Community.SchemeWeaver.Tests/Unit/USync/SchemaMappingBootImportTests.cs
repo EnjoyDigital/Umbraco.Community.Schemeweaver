@@ -22,7 +22,7 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit.USync;
 /// </summary>
 public class SchemaMappingBootImportTests : IDisposable
 {
-    private readonly string _contentRoot = Path.Combine(Path.GetTempPath(), "sw-boot-" + Guid.NewGuid().ToString("N"));
+    private readonly string _contentRoot = Path.Join(Path.GetTempPath(), "sw-boot-" + Guid.NewGuid().ToString("N"));
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly IHostEnvironment _hostEnvironment = Substitute.For<IHostEnvironment>();
     private readonly SyncSerializerCollection _serializers;

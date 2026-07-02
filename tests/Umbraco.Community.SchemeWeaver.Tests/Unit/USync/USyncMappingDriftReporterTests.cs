@@ -14,7 +14,7 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit.USync;
 
 public class USyncMappingDriftReporterTests : IDisposable
 {
-    private readonly string _contentRoot = Path.Combine(Path.GetTempPath(), "sw-drift-" + Guid.NewGuid().ToString("N"));
+    private readonly string _contentRoot = Path.Join(Path.GetTempPath(), "sw-drift-" + Guid.NewGuid().ToString("N"));
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly IHostEnvironment _hostEnvironment = Substitute.For<IHostEnvironment>();
     private readonly SyncSerializerCollection _serializers;
@@ -95,7 +95,7 @@ public class USyncMappingDriftReporterTests : IDisposable
         _repository.GetPropertyMappings(Arg.Any<int>()).Returns([]);
         CreateExporter().Export("article");
 
-        var path = Path.Combine(_contentRoot, "uSync", "v18", "SchemeWeaverMappings", "article.config");
+        var path = Path.Join(_contentRoot, "uSync", "v18", "SchemeWeaverMappings", "article.config");
         var xml = File.ReadAllText(path).Replace(key.ToString(), key.ToString().ToUpperInvariant());
         File.WriteAllText(path, xml);
 

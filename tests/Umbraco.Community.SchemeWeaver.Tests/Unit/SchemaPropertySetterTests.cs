@@ -11,6 +11,10 @@ public class SchemaPropertySetterTests
     public void SetPropertyValue_OneOrManyUri_SetsFromString()
     {
         // Thing.Url is OneOrMany<Uri> — previously this was silently dropped
+        var urlProperty = typeof(Event).GetProperty("Url");
+        urlProperty.Should().NotBeNull();
+        urlProperty!.PropertyType.Should().Be(typeof(OneOrMany<System.Uri>));
+
         var thing = new Event();
         SchemaPropertySetter.SetPropertyValue(thing, "Url", "https://example.com/event");
 

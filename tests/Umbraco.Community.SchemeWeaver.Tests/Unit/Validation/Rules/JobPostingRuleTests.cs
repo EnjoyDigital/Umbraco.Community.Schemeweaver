@@ -136,10 +136,6 @@ public class JobPostingRuleTests
     [Fact]
     public void Check_HiringOrganizationWithoutName_ProducesCritical()
     {
-        var json = FullyPopulated.Replace(
-            "\"hiringOrganization\": {\n    \"@type\": \"Organization\",\n    \"name\": \"Example Co\",\n    \"sameAs\": \"https://example.com\"\n  },",
-            "\"hiringOrganization\": { \"@type\": \"Organization\" },");
-        // Replace may not have matched due to whitespace; do a tolerant swap instead.
         var withBrokenHiringOrg = """
             {
               "@type": "JobPosting",
