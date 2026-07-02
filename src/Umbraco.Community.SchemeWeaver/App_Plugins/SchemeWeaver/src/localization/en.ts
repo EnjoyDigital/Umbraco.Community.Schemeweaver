@@ -186,9 +186,12 @@ export default {
     // showMoreProperties is defined above and shared with the nested-type modal disclosure.
     hideAdditionalProperties: 'Hide additional properties',
 
-    // Flat block-mapping panel (replaces the old 3-step nested-mapping wizard)
+    // Row-scoped block-mapping panel (maps blocks INTO one parent schema property)
     blockMappings: 'Block Mappings',
-    blockMappingsDescription: 'Each block type can map to its own Schema.org type and target property. Auto-map fills these from the heuristic suggester.',
+    blockMappingsDescription: 'Choose which block types feed this property and map each block’s fields to its Schema.org type.',
+    blockMappingsFor: 'Map blocks to {0}',
+    blockModalContext: 'Blocks mapped here are output as the {0} property of {1}.',
+    blockModalAccepts: 'Accepts: {0}',
     autoMapAll: 'Auto-map all',
     targetProperty: 'Target Property',
     mapThisBlock: 'Map this block',
@@ -196,6 +199,21 @@ export default {
     blockNoSuggestion: 'No suggestion available for this block type.',
     blockNoMappings: 'No property mappings could be auto-matched for this block — map them manually below.',
     blockTableEmptyHint: 'Choose a Schema.org type to map this block’s properties.',
+    mapBlocks: 'Map blocks',
+    mapBlocksDisabledHint: 'Select a block list property first',
+    noBlocksMappedYet: 'No blocks mapped yet',
+    anyBlock: 'any block',
+    textListSummary: 'Text list · {0}',
+    mappedViaProperty: 'Mapped via {0}',
+    suggestedTypeViaProperty: 'Suggested: {0} via {1}',
+    otherSchemaType: 'Other type…',
+    blockMappedCount: '{0} mapped',
+    blockMappedCountDetail: '{0} of {1} properties mapped · {2} of {3} recommended',
+    blockAutoMapSkipped: '{0} block(s) fit other properties and were not mapped here: {1}',
+    blockFanOutOffer: '{0} block(s) fit other properties: {1}',
+    blockFanOutCreate: 'Create rows for other properties',
+    blockFanOutCreated: 'Added mapping rows for: {0}',
+    stringListNotice: 'This mapping extracts a text list from {0} — there are no block routes to edit. Saving keeps the string-list configuration unchanged.',
     // Nested blocks (a block whose property is itself a Block List/Grid)
     routeNestedBlock: 'Route nested block',
     collapseNestedBlock: 'Collapse nested block routing',

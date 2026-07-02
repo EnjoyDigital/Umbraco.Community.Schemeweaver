@@ -1,15 +1,21 @@
 import { expect } from '@open-wc/testing';
-import type { BlockRouteSuggestion, RankedSchemaPropertyInfo } from '../api/types.js';
+import type { BlockRoutePropertyMapping, BlockRouteSuggestion, RankedSchemaPropertyInfo } from '../api/types.js';
 import {
   convertSuggestedRoutes,
   serialisePropertyMappings,
+  serialiseRoutes,
   seedEntriesFromRaw,
+  seedRowsFromLegacyConfig,
+  summariseResolverConfig,
+  parseResolverConfig,
   makePropEntry,
   makeBlockRow,
   alignPropertyMappings,
   allowedObjectSchemaTypes,
   visibleEntries,
   recommendedCount,
+  recommendedTotal,
+  recommendedMapped,
   hiddenCount,
 } from './block-route-model.js';
 import type { BlockElementTypeInfo } from '../api/types.js';
@@ -151,5 +157,157 @@ describe('block-route-model progressive disclosure', () => {
 
   it('recommendedCount counts recommended-or-mapped (the badge denominator)', () => {
     expect(recommendedCount(row(false))).to.equal(3); // name, image (recommended) + legacyLowConf (mapped)
+  });
+
+  it('recommendedTotal / recommendedMapped separate the chip numerator and denominator honestly', () => {
+    const r = row(false);
+    expect(recommendedTotal(r)).to.equal(2); // name, image
+    expect(recommendedMapped(r)).to.equal(1); // only name is both recommended AND mapped
+  });
+});
+
+describe('block-route-model extras passthrough (never lose stored config on re-save)', () => {
+  it('round-trips entry-level extractAs/nestedContentProperty/wrapInListItem/positionProperty', () => {
+    const stored: BlockRoutePropertyMapping[] = [
+      {
+        schemaProperty: 'recipeIngredient',
+        contentProperty: 'ingredients',
+        extractAs: 'stringList',
+        nestedContentProperty: 'ingredientName',
+        wrapInListItem: true,
+        positionProperty: 'sortOrder',
+      },
+    ];
+    const entries = seedEntriesFromRaw(stored, [], false);
+    const serialised = serialisePropertyMappings(entries);
+    expect(serialised[0].extractAs).to.equal('stringList');
+    expect(serialised[0].nestedContentProperty).to.equal('ingredientName');
+    expect(serialised[0].wrapInListItem).to.equal(true);
+    expect(serialised[0].positionProperty).to.equal('sortOrder');
+  });
+
+  it('does not invent extras fields on entries that never had them', () => {
+    const entries = seedEntriesFromRaw(
+      [{ schemaProperty: 'name', contentProperty: 'title' }],
+      [],
+      false,
+    );
+    const serialised = serialisePropertyMappings(entries);
+    expect('extractAs' in serialised[0]).to.equal(false);
+    expect('wrapInListItem' in serialised[0]).to.equal(false);
+  });
+
+  it('serialiseRoutes preserves route-level requiredProperties', () => {
+    const bt: BlockElementTypeInfo = { alias: 'faqItem', name: 'FAQ Item', properties: [], propertyInfos: [] };
+    const row = makeBlockRow(bt, {
+      nestedSchemaType: 'Question',
+      propertyMappings: [makePropEntry('name', 'String', false, [], [], { contentProperty: 'q' })],
+      requiredProperties: ['name', 'acceptedAnswer'],
+    });
+    const routes = serialiseRoutes([row]);
+    expect(routes[0].requiredProperties).to.deep.equal(['name', 'acceptedAnswer']);
+    // …and rows without them stay clean.
+    const bare = makeBlockRow(bt, { nestedSchemaType: 'Question', propertyMappings: [] });
+    expect('requiredProperties' in serialiseRoutes([bare])[0]).to.equal(false);
+  });
+});
+
+describe('block-route-model legacy config seeding (wildcard semantics)', () => {
+  const reviewItem: BlockElementTypeInfo = {
+    alias: 'reviewItem',
+    name: 'Review Item',
+    properties: ['reviewAuthor', 'ratingValue', 'reviewBody'],
+    propertyInfos: [
+      { alias: 'reviewAuthor', name: 'Author', editorAlias: '' },
+      { alias: 'ratingValue', name: 'Rating', editorAlias: '' },
+      { alias: 'reviewBody', name: 'Body', editorAlias: '' },
+    ],
+  };
+  const promoBanner: BlockElementTypeInfo = { alias: 'promoBanner', name: 'Promo', properties: [], propertyInfos: [] };
+
+  it('wildcard entries (no blockAlias — the SchemaAutoMapper/seed shape) apply to EVERY block type', () => {
+    const seeds = seedRowsFromLegacyConfig(
+      [reviewItem, promoBanner],
+      [
+        { schemaProperty: 'Author', contentProperty: 'reviewAuthor', wrapInType: 'Person', wrapInProperty: 'Name' },
+        { schemaProperty: 'ReviewBody', contentProperty: 'reviewBody' },
+      ],
+      'Review',
+    );
+    expect(seeds.size).to.equal(2);
+    const review = seeds.get('reviewitem')!;
+    expect(review.nestedSchemaType).to.equal('Review');
+    expect(review.propertyMappings.map((m) => m.schemaProperty)).to.deep.equal(['Author', 'ReviewBody']);
+    expect(review.propertyMappings[0].wrapInType).to.equal('Person');
+    expect(seeds.get('promobanner')!.nestedSchemaType).to.equal('Review');
+  });
+
+  it('per-alias entries apply only to their block (plus any wildcard entries)', () => {
+    const seeds = seedRowsFromLegacyConfig(
+      [reviewItem, promoBanner],
+      [
+        { schemaProperty: 'Name', contentProperty: 'title', blockAlias: 'promoBanner' },
+        { schemaProperty: 'Description', contentProperty: 'summary' },
+      ],
+      'WebPageElement',
+    );
+    expect(seeds.get('promobanner')!.propertyMappings.map((m) => m.schemaProperty)).to.deep.equal([
+      'Description',
+      'Name',
+    ]);
+    expect(seeds.get('reviewitem')!.propertyMappings.map((m) => m.schemaProperty)).to.deep.equal(['Description']);
+  });
+
+  it('block-alias matching is case-insensitive', () => {
+    const seeds = seedRowsFromLegacyConfig(
+      [reviewItem],
+      [{ schemaProperty: 'Name', contentProperty: 'title', blockAlias: 'ReviewItem' }],
+      'Review',
+    );
+    expect(seeds.get('reviewitem')!.propertyMappings).to.have.length(1);
+  });
+});
+
+describe('block-route-model resolver config summary', () => {
+  it('summarises a routed config as blockAlias → type pairs', () => {
+    const json = JSON.stringify({
+      routes: [
+        { blockAlias: 'reviewItem', nestedSchemaType: 'Review', propertyMappings: [] },
+        { blockAlias: 'faqItem', nestedSchemaType: 'Question', propertyMappings: [] },
+      ],
+    });
+    const summary = summariseResolverConfig(json);
+    expect(summary.kind).to.equal('routes');
+    if (summary.kind === 'routes') {
+      expect(summary.routes).to.deep.equal([
+        { blockAlias: 'reviewItem', nestedSchemaType: 'Review' },
+        { blockAlias: 'faqItem', nestedSchemaType: 'Question' },
+      ]);
+    }
+  });
+
+  it('summarises a legacy wildcard config as one "any block" route using the mapping-level type', () => {
+    const json = JSON.stringify({ nestedMappings: [{ schemaProperty: 'Author', contentProperty: 'reviewAuthor' }] });
+    const summary = summariseResolverConfig(json, 'Review');
+    expect(summary).to.deep.equal({ kind: 'routes', routes: [{ blockAlias: '', nestedSchemaType: 'Review' }] });
+  });
+
+  it('summarises a null config with a nestedSchemaTypeName (auto-mapped legacy) the same way', () => {
+    expect(summariseResolverConfig(null, 'Review')).to.deep.equal({
+      kind: 'routes',
+      routes: [{ blockAlias: '', nestedSchemaType: 'Review' }],
+    });
+  });
+
+  it('summarises string-list extraction with its source property', () => {
+    const json = JSON.stringify({ extractAs: 'stringList', contentProperty: 'ingredientName' });
+    expect(summariseResolverConfig(json)).to.deep.equal({ kind: 'stringList', contentProperty: 'ingredientName' });
+  });
+
+  it('is empty for no config and safe on invalid JSON', () => {
+    expect(summariseResolverConfig(null)).to.deep.equal({ kind: 'empty' });
+    expect(summariseResolverConfig('{not json')).to.deep.equal({ kind: 'empty' });
+    expect(parseResolverConfig('{not json')).to.equal(null);
+    expect(parseResolverConfig('   ')).to.equal(null);
   });
 });
