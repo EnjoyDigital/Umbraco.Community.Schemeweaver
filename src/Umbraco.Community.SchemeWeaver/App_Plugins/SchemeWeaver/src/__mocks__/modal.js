@@ -3,7 +3,7 @@ import { resolveLocalizationKey } from './lit-element.js';
 import { __mockContextRegistry } from './context-api.js';
 
 const localize = {
-  term: (key) => resolveLocalizationKey(key),
+  term: (key, ...args) => resolveLocalizationKey(key, ...args),
 };
 
 export class UmbModalBaseElement extends LitElement {

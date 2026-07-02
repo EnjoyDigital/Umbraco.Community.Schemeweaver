@@ -55,8 +55,30 @@ const BLOCK_ELEMENT_TYPES: Record<string, BlockElementTypeInfo[]> = {
   'recipePage.instructions': [
     { alias: 'instructionStep', name: 'Instruction Step', properties: ['stepName', 'stepText'] },
   ],
+  // Scoped block-modal fixture: a review block that FITS Product.review (the
+  // suggester routes it to Review) plus a promo block whose suggestion (WPHeader
+  // @ hasPart) does NOT fit — exercising the off-target fan-out affordance.
   'productPage.reviews': [
-    { alias: 'reviewItem', name: 'Review Item', properties: ['reviewAuthor', 'reviewBody', 'ratingValue', 'datePublished'] },
+    {
+      alias: 'reviewItem',
+      name: 'Review Item',
+      properties: ['reviewAuthor', 'ratingValue', 'reviewBody', 'reviewDate'],
+      propertyInfos: [
+        { alias: 'reviewAuthor', name: 'Review Author', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'ratingValue', name: 'Rating Value', editorAlias: 'Umbraco.Decimal' },
+        { alias: 'reviewBody', name: 'Review Body', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'reviewDate', name: 'Review Date', editorAlias: 'Umbraco.DateTime' },
+      ],
+    },
+    {
+      alias: 'promoBanner',
+      name: 'Promo Banner',
+      properties: ['heading', 'ctaText'],
+      propertyInfos: [
+        { alias: 'heading', name: 'Heading', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'ctaText', name: 'CTA Text', editorAlias: 'Umbraco.TextBox' },
+      ],
+    },
   ],
   'howToPage.howToSteps': [
     { alias: 'howToStep', name: 'How-To Step', properties: ['stepName', 'stepText'] },
