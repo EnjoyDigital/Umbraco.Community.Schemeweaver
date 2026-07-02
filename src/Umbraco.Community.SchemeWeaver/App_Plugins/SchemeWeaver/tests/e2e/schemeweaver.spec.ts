@@ -629,65 +629,104 @@ test.describe('Complex Mapping Workflows', () => {
     }
   });
 
-  test('nested mapping wizard completes full 3-step flow', async ({ umbracoUi }) => {
-    await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
+  test('scoped block-mapping modal opens from the parent row and pre-fills the seeded legacy config (FAQ Page)', async ({ umbracoUi }) => {
+    // The old 3-step wizard is gone: the "Block Mappings" modal is a route
+    // editor scoped to ONE parent property-mapping row. The parent row's
+    // Schema Property is the single source of truth, so there is no per-block
+    // target dropdown and no step flow. Assertions are UNCONDITIONAL and use
+    // only the agreed data-mark hooks + text.
+    //
+    // Arrange/restore: the assertions need the canonical seeded faqPage
+    // mapping (uSync/v18/SchemeWeaverMappings/faqPage.config — a legacy flat
+    // `nestedMappings` config with no blockAlias). We snapshot the live
+    // mapping, POST the canonical seed, assert against the UI, and restore
+    // the snapshot so the environment leaves exactly as found.
+    const BASE = '/umbraco/management/api/v1/schemeweaver';
 
-    const schemaView = umbracoUi.page.locator('schemeweaver-schema-mapping-view');
-    await expect(schemaView).toBeVisible({ timeout: 10_000 });
+    const before = await umbracoUi.page.request.get(`${BASE}/mappings/faqPage`);
+    expect(before.ok(), `GET mappings/faqPage failed: ${before.status()}`).toBeTruthy();
+    const snapshot = await before.json();
 
-    // Map FAQ Page to FAQPage schema
-    const mapBtn = schemaView.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
-    if (!await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) return;
+    try {
+      const ctRes = await umbracoUi.page.request.get(`${BASE}/content-types`);
+      expect(ctRes.ok()).toBeTruthy();
+      const faqType = (await ctRes.json()).find((ct: any) => ct.alias === 'faqPage');
+      expect(faqType, 'faqPage content type not found — is the TestHost seeded?').toBeTruthy();
 
-    await mapBtn.click();
+      const emptyRow = {
+        sourceType: 'property',
+        contentTypePropertyAlias: null,
+        sourceContentTypeAlias: null,
+        transformType: null,
+        isAutoMapped: false,
+        staticValue: null,
+        nestedSchemaTypeName: null,
+        resolverConfig: null,
+        dynamicRootConfig: null,
+        targetPieceKey: null,
+      };
+      const seeded = {
+        contentTypeAlias: 'faqPage',
+        contentTypeKey: faqType.key,
+        schemaTypeName: 'FAQPage',
+        isEnabled: true,
+        isInherited: false,
+        idOverride: null,
+        propertyMappings: [
+          { ...emptyRow, schemaPropertyName: 'Name', contentTypePropertyAlias: 'title' },
+          { ...emptyRow, schemaPropertyName: 'Description', contentTypePropertyAlias: 'description' },
+          {
+            ...emptyRow,
+            schemaPropertyName: 'MainEntity',
+            sourceType: 'blockContent',
+            contentTypePropertyAlias: 'faqItems',
+            nestedSchemaTypeName: 'Question',
+            resolverConfig:
+              '{"nestedMappings":[{"schemaProperty":"Name","contentProperty":"question"},{"schemaProperty":"AcceptedAnswer","contentProperty":"answer","wrapInType":"Answer","wrapInProperty":"Text"}]}',
+          },
+        ],
+      };
+      const arrange = await umbracoUi.page.request.post(`${BASE}/mappings`, { data: seeded });
+      expect(arrange.ok(), `arrange POST failed: ${arrange.status()}`).toBeTruthy();
 
-    const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-    await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-    await searchAndPickSchema(pickerModal, 'FAQPage');
+      await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
+      const page = umbracoUi.page;
 
-    const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-    await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+      // Parent table: the MainEntity row carries the renamed "Map blocks"
+      // button (data-mark hook) — no picker/wizard detour.
+      const mapBlocksBtn = page.getByTestId('schemeweaver:map-blocks:MainEntity');
+      await expect(mapBlocksBtn).toBeVisible({ timeout: 15_000 });
+      await mapBlocksBtn.click();
 
-    // Find and click the configure button for mainEntity
-    const configButton = mappingModal.locator('uui-button', { hasText: /Configure Block Mapping/i }).first();
-    if (!await configButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await mappingModal.locator('uui-button[label="Cancel"]').click();
-      return;
-    }
+      const modal = page.locator('schemeweaver-nested-mapping-modal');
+      await expect(modal).toBeVisible({ timeout: 10_000 });
 
-    await configButton.click();
+      // Scoped headline names the parent row's Schema Property; the 3-step
+      // wizard chrome is gone.
+      await expect(modal.getByText(/Map blocks to\s+main\s?entity/i).first()).toBeVisible();
+      await expect(modal.locator('.step-indicator')).toHaveCount(0);
 
-    // Step 1: Block type picker → should auto-advance if only 1 block type
-    const nestedModal = umbracoUi.page.locator('schemeweaver-nested-mapping-modal');
-    await expect(nestedModal).toBeVisible({ timeout: 10_000 });
-    await nestedModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+      // The seeded legacy flat config (no blockAlias) pre-fills the faqItem
+      // block row, routed to nested type Question.
+      const blockRow = modal.getByTestId('schemeweaver:block-row:faqItem');
+      await expect(blockRow).toBeVisible({ timeout: 10_000 });
+      await expect(blockRow.getByText('Question', { exact: true }).first()).toBeVisible();
 
-    // Step 2: Mappings - check for mapping table
-    const mappingTable = nestedModal.locator('uui-table');
-    if (await mappingTable.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      // Click Preview to go to step 3
-      const previewBtn = nestedModal.locator('uui-button', { hasText: 'Preview' });
-      if (await previewBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await previewBtn.click();
+      // No per-block target-property dropdown: the target is fixed context
+      // from the parent row.
+      await expect(modal.getByRole('combobox', { name: /target/i })).toHaveCount(0);
+      await expect(modal.getByLabel(/target propert/i)).toHaveCount(0);
 
-        // Step 3: Preview — the `previewSummary.isVisible` check below is
-        // the real readiness signal; no need to sleep beforehand.
-        const previewSummary = nestedModal.locator('.preview-summary');
-        if (await previewSummary.isVisible({ timeout: 3_000 }).catch(() => false)) {
-          // Save
-          const saveBtn = nestedModal.locator('uui-button[label="Save Mapping"]');
-          if (await saveBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-            await saveBtn.click();
-            await expect(nestedModal).not.toBeVisible({ timeout: 5_000 });
-          }
-        }
-      }
-    }
+      // Modal save (data-mark hook) closes the panel in one step.
+      await modal.getByTestId('schemeweaver:block-modal-save').click();
+      await expect(modal).toBeHidden({ timeout: 10_000 });
 
-    // Close the mapping modal
-    const cancelBtn = mappingModal.locator('uui-button[label="Cancel"]');
-    if (await cancelBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await cancelBtn.click();
+      // Route summary tags replace the removed "Nested Schema Type" input on
+      // the parent row.
+      await expect(page.getByTestId('schemeweaver:block-summary:MainEntity')).toBeVisible({ timeout: 10_000 });
+    } finally {
+      const restore = await umbracoUi.page.request.post(`${BASE}/mappings`, { data: snapshot });
+      expect(restore.ok(), `restore POST failed: ${restore.status()}`).toBeTruthy();
     }
   });
 
