@@ -17,6 +17,9 @@ namespace Umbraco.Community.SchemeWeaver.Controllers;
 
 /// <summary>
 /// Management API controller for SchemeWeaver backoffice operations.
+/// Unexpected exceptions are funnelled through <see cref="HandlesServerErrorAttribute"/>
+/// (500 + <c>{ error }</c> body); enumerable results are materialised inside the action so a
+/// lazily-throwing sequence cannot fail during serialisation, after the filter has run.
 /// </summary>
 [Route("umbraco/management/api/v1/schemeweaver")]
 [ApiExplorerSettings(GroupName = SchemeWeaverConstants.PackageName)]
@@ -68,44 +71,30 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpGet("schema-types")]
     [ProducesResponseType(typeof(IEnumerable<SchemaTypeInfo>), StatusCodes.Status200OK)]
+    [HandlesServerError("retrieving schema types")]
     public IActionResult GetSchemaTypes([FromQuery] string? search = null)
     {
-        try
-        {
-            var types = string.IsNullOrWhiteSpace(search)
-                ? _service.GetSchemaTypes()
-                : _service.SearchSchemaTypes(search);
+        var types = string.IsNullOrWhiteSpace(search)
+            ? _service.GetSchemaTypes()
+            : _service.SearchSchemaTypes(search);
 
-            return Ok(types);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve schema types");
-            return StatusCode(500, new { error = "An unexpected error occurred whilst retrieving schema types." });
-        }
+        return Ok(types.ToList());
     }
 
     [HttpGet("schema-types/{name}/properties")]
     [ProducesResponseType(typeof(IEnumerable<SchemaPropertyInfo>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<RankedSchemaPropertyInfo>), StatusCodes.Status200OK)]
+    [HandlesServerError("retrieving schema type properties")]
     public IActionResult GetSchemaTypeProperties(string name, [FromQuery] bool ranked = false)
     {
-        try
+        if (ranked)
         {
-            if (ranked)
-            {
-                var rankedResults = _schemaAutoMapper.RankSchemaProperties(name);
-                return Ok(rankedResults);
-            }
+            var rankedResults = _schemaAutoMapper.RankSchemaProperties(name);
+            return Ok(rankedResults);
+        }
 
-            var properties = _service.GetSchemaProperties(name);
-            return Ok(properties);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve properties for schema type {SchemaTypeName}", name);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst retrieving schema type properties." });
-        }
+        var properties = _service.GetSchemaProperties(name);
+        return Ok(properties);
     }
 
     #endregion
@@ -114,109 +103,82 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpGet("content-types")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [HandlesServerError("retrieving content types")]
     public IActionResult GetContentTypes()
     {
-        try
-        {
-            var contentTypes = _contentTypeService.GetAll()
-                .Select(ct => new
-                {
-                    ct.Alias,
-                    ct.Name,
-                    ct.Key,
-                    PropertyCount = ct.CompositionPropertyTypes.Count()
-                })
-                .OrderBy(ct => ct.Name);
+        var contentTypes = _contentTypeService.GetAll()
+            .Select(ct => new
+            {
+                ct.Alias,
+                ct.Name,
+                ct.Key,
+                PropertyCount = ct.CompositionPropertyTypes.Count()
+            })
+            .OrderBy(ct => ct.Name)
+            .ToList();
 
-            return Ok(contentTypes);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve content types");
-            return StatusCode(500, new { error = "An unexpected error occurred whilst retrieving content types." });
-        }
+        return Ok(contentTypes);
     }
 
     [HttpGet("content-types/{alias}/properties")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [HandlesServerError("retrieving content type properties")]
     public async Task<IActionResult> GetContentTypeProperties(string alias)
     {
-        try
+        var contentType = _contentTypeService.Get(alias);
+        if (contentType == null) return NotFound();
+
+        // Built-in node properties first (no real data type, so no value schema), then the
+        // editor-defined properties. Uses CompositionPropertyTypes (not PropertyTypes) so
+        // properties inherited from compositions — e.g. a shared "Hero" tab — are included,
+        // each enriched with its Umbraco 17.4+ value JSON Schema (the actual shape its stored
+        // value takes) when available, else null on older hosts.
+        var properties = new List<object>();
+
+        foreach (var bp in SchemeWeaverConstants.BuiltInProperties.All)
         {
-            var contentType = _contentTypeService.Get(alias);
-            if (contentType == null) return NotFound();
-
-            // Built-in node properties first (no real data type, so no value schema), then the
-            // editor-defined properties. Uses CompositionPropertyTypes (not PropertyTypes) so
-            // properties inherited from compositions — e.g. a shared "Hero" tab — are included,
-            // each enriched with its Umbraco 17.4+ value JSON Schema (the actual shape its stored
-            // value takes) when available, else null on older hosts.
-            var properties = new List<object>();
-
-            foreach (var bp in SchemeWeaverConstants.BuiltInProperties.All)
+            properties.Add(new
             {
-                properties.Add(new
-                {
-                    Alias = bp.Alias,
-                    Name = bp.DisplayName,
-                    EditorAlias = bp.EditorAlias,
-                    Description = (string?)null,
-                    ValueSchema = (string?)null,
-                });
-            }
-
-            foreach (var pt in contentType.CompositionPropertyTypes)
-            {
-                var valueSchema = await _valueSchemaService.GetDataTypeValueSchemaAsync(pt.DataTypeKey).ConfigureAwait(false);
-                properties.Add(new
-                {
-                    Alias = pt.Alias,
-                    Name = pt.Name,
-                    EditorAlias = pt.PropertyEditorAlias,
-                    Description = pt.Description,
-                    ValueSchema = valueSchema,
-                });
-            }
-
-            return Ok(properties);
+                Alias = bp.Alias,
+                Name = bp.DisplayName,
+                EditorAlias = bp.EditorAlias,
+                Description = (string?)null,
+                ValueSchema = (string?)null,
+            });
         }
-        catch (Exception ex)
+
+        foreach (var pt in contentType.CompositionPropertyTypes)
         {
-            _logger.LogError(ex, "Failed to retrieve properties for content type {ContentTypeAlias}", alias);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst retrieving content type properties." });
+            var valueSchema = await _valueSchemaService.GetDataTypeValueSchemaAsync(pt.DataTypeKey).ConfigureAwait(false);
+            properties.Add(new
+            {
+                Alias = pt.Alias,
+                Name = pt.Name,
+                EditorAlias = pt.PropertyEditorAlias,
+                Description = pt.Description,
+                ValueSchema = valueSchema,
+            });
         }
+
+        return Ok(properties);
     }
 
     [HttpGet("content-types/{contentTypeAlias}/properties/{propertyAlias}/block-types")]
     [ProducesResponseType(typeof(IEnumerable<BlockElementTypeInfo>), StatusCodes.Status200OK)]
+    [HandlesServerError("retrieving block element types")]
     public async Task<IActionResult> GetBlockElementTypes(string contentTypeAlias, string propertyAlias)
     {
-        try
-        {
-            var blockTypes = await _service.GetBlockElementTypesAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
-            return Ok(blockTypes);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve block element types for {ContentTypeAlias}/{PropertyAlias}", contentTypeAlias, propertyAlias);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst retrieving block element types." });
-        }
+        var blockTypes = await _service.GetBlockElementTypesAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
+        return Ok(blockTypes);
     }
 
     [HttpPost("content-types/{contentTypeAlias}/properties/{propertyAlias}/block-suggest")]
     [ProducesResponseType(typeof(IEnumerable<BlockMappingSuggestion>), StatusCodes.Status200OK)]
+    [HandlesServerError("suggesting block mappings")]
     public async Task<IActionResult> SuggestBlockMappings(string contentTypeAlias, string propertyAlias)
     {
-        try
-        {
-            var suggestions = await _service.SuggestBlockMappingsAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
-            return Ok(suggestions);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to suggest block mappings for {ContentTypeAlias}/{PropertyAlias}", contentTypeAlias, propertyAlias);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst suggesting block mappings." });
-        }
+        var suggestions = await _service.SuggestBlockMappingsAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
+        return Ok(suggestions);
     }
 
     #endregion
@@ -225,164 +187,110 @@ public class SchemeWeaverApiController : ControllerBase
 
     [HttpGet("mappings")]
     [ProducesResponseType(typeof(IEnumerable<SchemaMappingDto>), StatusCodes.Status200OK)]
+    [HandlesServerError("retrieving schema mappings")]
     public IActionResult GetMappings()
     {
-        try
-        {
-            return Ok(_service.GetAllMappings());
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve schema mappings");
-            return StatusCode(500, new { error = "An unexpected error occurred whilst retrieving schema mappings." });
-        }
+        // GetAllMappings is lazy (per-item drift/reachability probes) — materialise so a
+        // throwing probe surfaces here, inside the exception filter's reach.
+        return Ok(_service.GetAllMappings().ToList());
     }
 
     [HttpGet("mappings/{contentTypeAlias}")]
     [ProducesResponseType(typeof(SchemaMappingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [HandlesServerError("retrieving the schema mapping")]
     public IActionResult GetMapping(string contentTypeAlias)
     {
-        try
-        {
-            var mapping = _service.GetMapping(contentTypeAlias);
-            if (mapping == null) return NotFound();
-            return Ok(mapping);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve mapping for content type {ContentTypeAlias}", contentTypeAlias);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst retrieving the schema mapping." });
-        }
+        var mapping = _service.GetMapping(contentTypeAlias);
+        if (mapping == null) return NotFound();
+        return Ok(mapping);
     }
 
     [HttpPost("mappings")]
     [ProducesResponseType(typeof(SchemaMappingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [HandlesServerError("saving the schema mapping")]
     public IActionResult SaveMapping([FromBody] SchemaMappingDto dto)
     {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(dto.ContentTypeAlias))
-                return BadRequest("ContentTypeAlias is required.");
+        if (string.IsNullOrWhiteSpace(dto.ContentTypeAlias))
+            return BadRequest("ContentTypeAlias is required.");
 
-            if (string.IsNullOrWhiteSpace(dto.SchemaTypeName))
-                return BadRequest("SchemaTypeName is required.");
+        if (string.IsNullOrWhiteSpace(dto.SchemaTypeName))
+            return BadRequest("SchemaTypeName is required.");
 
-            var saved = _service.SaveMapping(dto);
-            return Ok(saved);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save mapping for content type {ContentTypeAlias}", dto.ContentTypeAlias);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst saving the schema mapping." });
-        }
+        var saved = _service.SaveMapping(dto);
+        return Ok(saved);
     }
 
     [HttpDelete("mappings/{contentTypeAlias}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [HandlesServerError("deleting the schema mapping")]
     public IActionResult DeleteMapping(string contentTypeAlias)
     {
-        try
-        {
-            _service.DeleteMapping(contentTypeAlias);
-            return NoContent();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete mapping for content type {ContentTypeAlias}", contentTypeAlias);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst deleting the schema mapping." });
-        }
+        _service.DeleteMapping(contentTypeAlias);
+        return NoContent();
     }
 
     [HttpGet("mappings/drift")]
     [ProducesResponseType(typeof(MappingDriftReportDto), StatusCodes.Status200OK)]
+    [HandlesServerError("computing mapping drift")]
     public IActionResult GetMappingDrift()
     {
-        try
-        {
-            return Ok(_driftReporter.GetReport());
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to compute schema mapping drift");
-            return StatusCode(500, new { error = "An unexpected error occurred whilst computing mapping drift." });
-        }
+        return Ok(_driftReporter.GetReport());
     }
 
     [HttpPost("mappings/export")]
     [ProducesResponseType(typeof(MappingExportResultDto), StatusCodes.Status200OK)]
+    [HandlesServerError("exporting mappings to uSync")]
     public IActionResult ExportMappings([FromBody] MappingExportRequest? request = null)
     {
-        try
-        {
-            return Ok(_mappingExporter.Export(request?.ContentTypeAlias));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to export schema mappings to uSync");
-            return StatusCode(500, new { error = "An unexpected error occurred whilst exporting mappings to uSync." });
-        }
+        return Ok(_mappingExporter.Export(request?.ContentTypeAlias));
     }
 
     [HttpPost("mappings/{contentTypeAlias}/auto-map")]
     [ProducesResponseType(typeof(IEnumerable<PropertyMappingSuggestion>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [HandlesServerError("generating auto-map suggestions")]
     public async Task<IActionResult> AutoMap(string contentTypeAlias, [FromQuery] string schemaTypeName)
     {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(schemaTypeName))
-                return BadRequest("schemaTypeName query parameter is required.");
+        if (string.IsNullOrWhiteSpace(schemaTypeName))
+            return BadRequest("schemaTypeName query parameter is required.");
 
-            // Awaits the seam: heuristic by default, AI when the SchemeWeaver.AI satellite overrides it.
-            var suggestions = await _service.AutoMapAsync(contentTypeAlias, schemaTypeName).ConfigureAwait(false);
-            return Ok(suggestions);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to auto-map {ContentTypeAlias} to {SchemaTypeName}", contentTypeAlias, schemaTypeName);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst generating auto-map suggestions." });
-        }
+        // Awaits the seam: heuristic by default, AI when the SchemeWeaver.AI satellite overrides it.
+        var suggestions = await _service.AutoMapAsync(contentTypeAlias, schemaTypeName).ConfigureAwait(false);
+        return Ok(suggestions);
     }
 
     [HttpPost("mappings/{contentTypeAlias}/preview")]
     [ProducesResponseType(typeof(JsonLdPreviewResponse), StatusCodes.Status200OK)]
+    [HandlesServerError("generating the JSON-LD preview")]
     public IActionResult Preview(string contentTypeAlias, [FromQuery] Guid? contentKey = null, [FromQuery] Guid? blockInstanceKey = null, [FromQuery] string? culture = null)
     {
-        try
+        // When a content key is provided, generate real JSON-LD from published content
+        if (contentKey.HasValue && contentKey.Value != Guid.Empty)
         {
-            // When a content key is provided, generate real JSON-LD from published content
-            if (contentKey.HasValue && contentKey.Value != Guid.Empty)
+            if (!_umbracoContextAccessor.TryGetUmbracoContext(out var umbracoContext))
             {
-                if (!_umbracoContextAccessor.TryGetUmbracoContext(out var umbracoContext))
-                {
-                    return StatusCode(StatusCodes.Status500InternalServerError, "Unable to access Umbraco context.");
-                }
-
-                var content = umbracoContext.Content?.GetById(contentKey.Value);
-                if (content == null) return NotFound("Content not found.");
-
-                // Block-instance preview: render the real JSON-LD a single nested block contributes
-                // to its page (via the page mapping's route for that block type).
-                if (blockInstanceKey is { } bik && bik != Guid.Empty)
-                {
-                    return Ok(_service.GenerateBlockInstancePreview(content, bik, culture));
-                }
-
-                var preview = _service.GeneratePreview(content, culture);
-                return Ok(preview);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Unable to access Umbraco context.");
             }
 
-            // No content key — return mock preview based on mapping configuration
-            var mockPreview = _service.GenerateMockPreview(contentTypeAlias);
-            return Ok(mockPreview);
+            var content = umbracoContext.Content?.GetById(contentKey.Value);
+            if (content == null) return NotFound("Content not found.");
+
+            // Block-instance preview: render the real JSON-LD a single nested block contributes
+            // to its page (via the page mapping's route for that block type).
+            if (blockInstanceKey is { } bik && bik != Guid.Empty)
+            {
+                return Ok(_service.GenerateBlockInstancePreview(content, bik, culture));
+            }
+
+            var preview = _service.GeneratePreview(content, culture);
+            return Ok(preview);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to generate preview for content type {ContentTypeAlias}", contentTypeAlias);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst generating the JSON-LD preview." });
-        }
+
+        // No content key — return mock preview based on mapping configuration
+        var mockPreview = _service.GenerateMockPreview(contentTypeAlias);
+        return Ok(mockPreview);
     }
 
     #endregion
@@ -421,24 +329,17 @@ public class SchemeWeaverApiController : ControllerBase
     [HttpPost("generate-content-type")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [HandlesServerError("generating the content type")]
     public async Task<IActionResult> GenerateContentType([FromBody] ContentTypeGenerationRequest request, CancellationToken cancellationToken)
     {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(request.SchemaTypeName))
-                return BadRequest("SchemaTypeName is required.");
+        if (string.IsNullOrWhiteSpace(request.SchemaTypeName))
+            return BadRequest("SchemaTypeName is required.");
 
-            if (string.IsNullOrWhiteSpace(request.DocumentTypeName))
-                return BadRequest("DocumentTypeName is required.");
+        if (string.IsNullOrWhiteSpace(request.DocumentTypeName))
+            return BadRequest("DocumentTypeName is required.");
 
-            var key = await _contentTypeGenerator.GenerateContentTypeAsync(request, cancellationToken).ConfigureAwait(false);
-            return Ok(new { Key = key });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to generate content type from schema {SchemaTypeName}", request.SchemaTypeName);
-            return StatusCode(500, new { error = "An unexpected error occurred whilst generating the content type." });
-        }
+        var key = await _contentTypeGenerator.GenerateContentTypeAsync(request, cancellationToken).ConfigureAwait(false);
+        return Ok(new { Key = key });
     }
 
     #endregion

@@ -426,20 +426,17 @@ public class AISchemaMapper : IAISchemaMapper
         }
 
         // 3. Completeness: list every remaining schema property as an unmapped placeholder.
-        foreach (var prop in schemaProperties)
+        foreach (var prop in schemaProperties.Where(p => !merged.ContainsKey(p.Name)))
         {
-            if (!merged.ContainsKey(prop.Name))
+            merged[prop.Name] = new PropertyMappingSuggestion
             {
-                merged[prop.Name] = new PropertyMappingSuggestion
-                {
-                    SchemaPropertyName = prop.Name,
-                    SchemaPropertyType = prop.PropertyType,
-                    AcceptedTypes = prop.AcceptedTypes,
-                    IsComplexType = prop.IsComplexType,
-                    Confidence = 0,
-                    IsAutoMapped = false,
-                };
-            }
+                SchemaPropertyName = prop.Name,
+                SchemaPropertyType = prop.PropertyType,
+                AcceptedTypes = prop.AcceptedTypes,
+                IsComplexType = prop.IsComplexType,
+                Confidence = 0,
+                IsAutoMapped = false,
+            };
         }
 
         return merged.Values

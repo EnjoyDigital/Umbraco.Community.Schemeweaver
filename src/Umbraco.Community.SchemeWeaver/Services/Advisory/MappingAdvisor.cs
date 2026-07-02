@@ -95,10 +95,8 @@ public sealed class MappingAdvisor : IMappingAdvisor
         {
             if (config.Routes is { Count: > 0 } routes)
             {
-                foreach (var route in routes)
+                foreach (var route in routes.Where(r => !string.IsNullOrWhiteSpace(r.NestedSchemaType)))
                 {
-                    if (string.IsNullOrWhiteSpace(route.NestedSchemaType))
-                        continue;
                     AddMissingRequiredForRoute(entry, route.NestedSchemaType!, route.BlockAlias,
                         route.PropertyMappings?.Select(m => m.SchemaProperty), advices);
                 }
@@ -153,20 +151,14 @@ public sealed class MappingAdvisor : IMappingAdvisor
         var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (mappedProperties is not null)
         {
-            foreach (var p in mappedProperties)
-            {
-                if (!string.IsNullOrWhiteSpace(p))
-                    covered.Add(p!);
-            }
+            foreach (var p in mappedProperties.Where(p => !string.IsNullOrWhiteSpace(p)))
+                covered.Add(p!);
         }
 
         var prefix = string.IsNullOrWhiteSpace(blockAlias) ? string.Empty : $"Block '{blockAlias}': ";
 
-        foreach (var requiredProp in required)
+        foreach (var requiredProp in required.Where(p => !covered.Contains(p)))
         {
-            if (covered.Contains(requiredProp))
-                continue;
-
             advices.Add(new MappingAdvice(
                 MappingAdviceKind.MissingRequiredNestedProperty, entry.SchemaTypeName, entry.SchemaPropertyName,
                 $"{prefix}{nestedType} does not map '{requiredProp}', which Google's rich result requires — " +

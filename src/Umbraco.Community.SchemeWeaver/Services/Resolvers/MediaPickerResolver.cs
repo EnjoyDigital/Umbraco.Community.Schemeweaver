@@ -51,11 +51,8 @@ public class MediaPickerResolver : IPropertyValueResolver
         };
 
         var images = new List<ImageObject>();
-        foreach (var node in mediaNodes)
+        foreach (var node in mediaNodes.OfType<IPublishedContent>())
         {
-            if (node is null)
-                continue;
-
             var image = MediaImageObjectFactory.Create(node, _urlProvider);
             if (image is not null)
                 images.Add(image);

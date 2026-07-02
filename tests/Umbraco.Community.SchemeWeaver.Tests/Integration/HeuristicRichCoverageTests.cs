@@ -90,7 +90,7 @@ public class HeuristicRichCoverageTests : IClassFixture<HeuristicRichCoverageFac
 
         foreach (var alias in RichContentTypes)
         {
-            var gold = ParseGold(Path.Combine(goldDir, GoldFileName(alias)));
+            var gold = ParseGold(Path.Join(goldDir, GoldFileName(alias)));
             var suggestions = (await autoMapper.SuggestMappingsAsync(alias, gold.SchemaType)).ToList();
 
             var score = Score(gold, suggestions);
@@ -256,7 +256,7 @@ public class HeuristicRichCoverageTests : IClassFixture<HeuristicRichCoverageFac
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(
+            var candidate = Path.Join(
                 dir.FullName,
                 "src", "Umbraco.Community.SchemeWeaver.TestHost", "uSync", "v18", "SchemeWeaverMappings");
             if (Directory.Exists(candidate))

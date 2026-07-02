@@ -152,12 +152,8 @@ public class SchemeWeaverService : ISchemeWeaverService
                 pm.NestedSchemaTypeName,
                 pm.ResolverConfig);
 
-            foreach (var advice in _advisor.AdviseEntry(entry))
-            {
-                if (flaggedPaths.Contains(advice.Path))
-                    continue;
+            foreach (var advice in _advisor.AdviseEntry(entry).Where(a => !flaggedPaths.Contains(a.Path)))
                 warnings.Add(new ValidationIssueDto("suggestion", advice.SchemaType, advice.Path, advice.Message));
-            }
         }
 
         return warnings;

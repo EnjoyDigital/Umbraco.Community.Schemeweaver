@@ -29,7 +29,7 @@
                 @Model.AddressLocality @Model.PostalCode
             </dd>
         }
-        @if (Model.OpeningHours?.Any() == true)
+        @if (Model.OpeningHours?.Any() is true)
         {
             <dt>Opening Hours</dt>
             <dd>@Model.OpeningHours</dd>

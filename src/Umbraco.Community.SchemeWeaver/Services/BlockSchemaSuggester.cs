@@ -202,22 +202,18 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
         var covered = new HashSet<string>(result.Select(r => r.SchemaProperty), StringComparer.OrdinalIgnoreCase);
 
         var suggestions = _autoMapper.SuggestMappings(element.Alias, entry.SchemaType);
-        foreach (var s in suggestions)
+        // Concrete content-property rows only; the keyword template wins for
+        // schema properties it already mapped.
+        foreach (var s in suggestions.Where(s =>
+                     !string.IsNullOrEmpty(s.SuggestedContentTypePropertyAlias)
+                     && string.Equals(s.SuggestedSourceType, "property", StringComparison.OrdinalIgnoreCase)
+                     && !s.SuggestedContentTypePropertyAlias.StartsWith(SchemeWeaverConstants.BuiltInProperties.Prefix, StringComparison.Ordinal)
+                     && !covered.Contains(s.SchemaPropertyName)))
         {
-            if (string.IsNullOrEmpty(s.SuggestedContentTypePropertyAlias))
-                continue;
-            if (!string.Equals(s.SuggestedSourceType, "property", StringComparison.OrdinalIgnoreCase))
-                continue;
-            if (s.SuggestedContentTypePropertyAlias.StartsWith(SchemeWeaverConstants.BuiltInProperties.Prefix, StringComparison.Ordinal))
-                continue;
-            // The keyword template wins for properties it already mapped.
-            if (covered.Contains(s.SchemaPropertyName))
-                continue;
-
             result.Add(new BlockRoutePropertyMappingSuggestion
             {
                 SchemaProperty = s.SchemaPropertyName,
-                ContentProperty = s.SuggestedContentTypePropertyAlias,
+                ContentProperty = s.SuggestedContentTypePropertyAlias!, // non-null: guarded in the Where above
                 // §3b: pre-fill stripHtml when a rich-text source feeds a plain-text nested property,
                 // so the suggested route emits clean text by default (revertible by the author).
                 TransformType = ShouldStripHtml(s) ? "stripHtml" : null,
@@ -296,11 +292,9 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
 
         foreach (var propInfo in element.PropertyInfos.Where(p => p.NestedBlockElementTypes.Count > 0))
         {
-            foreach (var suggestion in Suggest(propInfo.NestedBlockElementTypes, depth + 1))
+            foreach (var suggestion in Suggest(propInfo.NestedBlockElementTypes, depth + 1)
+                         .Where(s => s.Routes.Count > 0))
             {
-                if (suggestion.Routes.Count == 0)
-                    continue;
-
                 result.Add(new BlockRoutePropertyMappingSuggestion
                 {
                     SchemaProperty = suggestion.SchemaProperty,

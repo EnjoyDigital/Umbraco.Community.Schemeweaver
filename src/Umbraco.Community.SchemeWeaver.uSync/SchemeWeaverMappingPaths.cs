@@ -26,9 +26,23 @@ internal static class SchemeWeaverMappingPaths
     /// </summary>
     public static string ResolveWriteFolder(string contentRootPath)
     {
-        var uSyncRoot = Path.Combine(contentRootPath, RootFolderName);
-        var version = Versions.FirstOrDefault(v => Directory.Exists(Path.Combine(uSyncRoot, v)))
+        var uSyncRoot = Path.Join(contentRootPath, RootFolderName);
+        var version = Versions.FirstOrDefault(v => Directory.Exists(Path.Join(uSyncRoot, v)))
                       ?? Versions[0];
-        return Path.Combine(uSyncRoot, version, MappingsFolderName);
+        return Path.Join(uSyncRoot, version, MappingsFolderName);
     }
+
+    /// <summary>
+    /// True when the alias maps 1:1 to a plain file name inside the mappings folder — the
+    /// invariant that filename-keyed drift detection relies on. Aliases failing this are
+    /// refused by <see cref="MappingFileWriter"/> and reported as db-only by drift, so the
+    /// two sides must share this check. Both separators are rejected on every OS: uSync
+    /// folders travel between machines, so an alias that is a harmless file name on Linux
+    /// (backslash is legal there) must not become a traversal when imported on Windows.
+    /// </summary>
+    public static bool IsSafeAlias(string alias)
+        => !string.IsNullOrEmpty(alias)
+           && alias.IndexOfAny(['/', '\\']) < 0
+           && Path.GetFileName(alias) == alias
+           && alias.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 }

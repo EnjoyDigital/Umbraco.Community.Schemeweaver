@@ -48,7 +48,8 @@ public class JsonLdCacheInvalidationTests
         var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
-        handler.Handle(new ContentPublishedNotification(target, new EventMessages()));
+        using var messages = new EventMessages();
+        handler.Handle(new ContentPublishedNotification(target, messages));
 
         _provider.Received(1).Invalidate(target.Key);
         _provider.DidNotReceive().InvalidateAll();
@@ -63,7 +64,8 @@ public class JsonLdCacheInvalidationTests
         var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
-        handler.Handle(new ContentPublishedNotification(target, new EventMessages()));
+        using var messages = new EventMessages();
+        handler.Handle(new ContentPublishedNotification(target, messages));
 
         _provider.Received(1).Invalidate(target.Key);
         _provider.Received(1).InvalidateAll();
@@ -82,7 +84,8 @@ public class JsonLdCacheInvalidationTests
         var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
-        handler.Handle(new ContentPublishedNotification(target, new EventMessages()));
+        using var messages = new EventMessages();
+        handler.Handle(new ContentPublishedNotification(target, messages));
 
         _provider.Received(1).Invalidate(target.Key);
         _provider.Received(1).InvalidateAll();
@@ -97,7 +100,8 @@ public class JsonLdCacheInvalidationTests
         var handler = new InvalidateJsonLdCacheOnUnpublish(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnUnpublish>.Instance);
 
-        handler.Handle(new ContentUnpublishedNotification(target, new EventMessages()));
+        using var messages = new EventMessages();
+        handler.Handle(new ContentUnpublishedNotification(target, messages));
 
         _provider.Received(1).Invalidate(target.Key);
         _provider.Received(1).InvalidateAll();
@@ -110,7 +114,8 @@ public class JsonLdCacheInvalidationTests
         var handler = new InvalidateJsonLdCacheOnDelete(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnDelete>.Instance);
 
-        handler.Handle(new ContentDeletedNotification(target, new EventMessages()));
+        using var messages = new EventMessages();
+        handler.Handle(new ContentDeletedNotification(target, messages));
 
         _provider.Received(1).Invalidate(target.Key);
         _provider.DidNotReceive().InvalidateAll();
@@ -129,7 +134,8 @@ public class JsonLdCacheInvalidationTests
         var handler = new InvalidateJsonLdCacheOnMove(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
 
-        handler.Handle(new ContentMovedNotification(moveInfo, new EventMessages()));
+        using var messages = new EventMessages();
+        handler.Handle(new ContentMovedNotification(moveInfo, messages));
 
         _provider.Received(1).Invalidate(target.Key);
         _provider.Received(1).InvalidateAll(); // moves change ancestry/breadcrumbs regardless
@@ -143,7 +149,8 @@ public class JsonLdCacheInvalidationTests
         var handler = new InvalidateJsonLdCacheOnMove(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
 
-        handler.Handle(new ContentMovedToRecycleBinNotification(moveInfo, new EventMessages()));
+        using var messages = new EventMessages();
+        handler.Handle(new ContentMovedToRecycleBinNotification(moveInfo, messages));
 
         _provider.Received(1).Invalidate(target.Key);
         _provider.Received(1).InvalidateAll();
@@ -158,7 +165,8 @@ public class JsonLdCacheInvalidationTests
         var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
-        var act = () => handler.Handle(new ContentPublishedNotification(target, new EventMessages()));
+        using var messages = new EventMessages();
+        var act = () => handler.Handle(new ContentPublishedNotification(target, messages));
 
         act.Should().NotThrow();
         _provider.Received(1).Invalidate(target.Key);

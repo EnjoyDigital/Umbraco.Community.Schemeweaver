@@ -102,8 +102,8 @@ public class SchemaMappingHandlerTests
     {
         // Arrange: a content root with a uSync/v18 data folder so the path resolver
         // picks the current-convention version sub-folder.
-        var contentRoot = Path.Combine(Path.GetTempPath(), "sw-usync-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(contentRoot, "uSync", "v18"));
+        var contentRoot = Path.Join(Path.GetTempPath(), "sw-usync-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Join(contentRoot, "uSync", "v18"));
 
         try
         {
@@ -136,7 +136,7 @@ public class SchemaMappingHandlerTests
             fileWriter.Write(folder, mapping.ContentTypeAlias, serialised.Item!);
 
             // A flat {alias}.config file lands exactly where uSync's handler writes it.
-            var expectedFile = Path.Combine(contentRoot, "uSync", "v18", "SchemeWeaverMappings", "blogPost.config");
+            var expectedFile = Path.Join(contentRoot, "uSync", "v18", "SchemeWeaverMappings", "blogPost.config");
             File.Exists(expectedFile).Should().BeTrue();
 
             // Act 2 — import: read the file back and deserialise into the repository.

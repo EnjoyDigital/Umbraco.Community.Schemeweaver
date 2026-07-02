@@ -108,16 +108,14 @@ public sealed class MainEntityPiece : IGraphPiece
         // auto-wire them to the Organization piece. Scoped to these two
         // subtypes to avoid surprising users who map, say, an Article inside
         // a WebPage wrapper.
-        if (thing is AboutPage or ContactPage)
+        if (thing is AboutPage or ContactPage
+            && ctx.IdFor("organization") is { } orgId
+            && Uri.TryCreate(orgId, UriKind.Absolute, out var orgUri))
         {
-            if (ctx.IdFor("organization") is { } orgId
-                && Uri.TryCreate(orgId, UriKind.Absolute, out var orgUri))
-            {
-                if (page.About.Count == 0)
-                    page.About = new Organization { Id = orgUri };
-                if (page.MainEntity.Count == 0)
-                    page.MainEntity = new Organization { Id = orgUri };
-            }
+            if (page.About.Count == 0)
+                page.About = new Organization { Id = orgUri };
+            if (page.MainEntity.Count == 0)
+                page.MainEntity = new Organization { Id = orgUri };
         }
     }
 }

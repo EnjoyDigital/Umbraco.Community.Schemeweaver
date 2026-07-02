@@ -52,12 +52,12 @@ public class SchemaMappingImportNotificationHandler : INotificationAsyncHandler<
         // folder to actually contain mapping files so an empty "v18" (e.g. created by
         // an in-place upgrade) cannot shadow a populated legacy "v17".
         var mappingsFolder = new[] { "v18", "v17" }
-            .Select(version => Path.Combine(_hostEnvironment.ContentRootPath, "uSync", version, "SchemeWeaverMappings"))
+            .Select(version => Path.Join(_hostEnvironment.ContentRootPath, "uSync", version, "SchemeWeaverMappings"))
             .FirstOrDefault(path => Directory.Exists(path) && Directory.EnumerateFiles(path, "*.config", SearchOption.AllDirectories).Any());
 
         if (mappingsFolder is null)
         {
-            var defaultPath = Path.Combine(_hostEnvironment.ContentRootPath, "uSync", "v18", "SchemeWeaverMappings");
+            var defaultPath = Path.Join(_hostEnvironment.ContentRootPath, "uSync", "v18", "SchemeWeaverMappings");
             _logger.LogDebug("No SchemeWeaverMappings folder found (looked under v18/v17, e.g. {Path}) — skipping import", defaultPath);
             return;
         }
