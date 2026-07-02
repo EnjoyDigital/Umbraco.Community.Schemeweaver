@@ -61,26 +61,31 @@ async function ensureMappingDeleted(page: any, contentTypeAlias: string) {
 }
 
 async function openSchemaPickerFromWorkspace(page: any) {
-  const view = page.locator('schemeweaver-schema-mapping-view');
-  const mapBtn = view.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
+  // Empty-state affordance on the workspace view (data-mark contract).
+  const mapBtn = page.getByTestId('schemeweaver:map-to-schema');
   await expect(mapBtn).toBeVisible({ timeout: 15_000 });
   await mapBtn.click();
 
   const pickerModal = page.locator('schemeweaver-schema-picker-modal');
   await expect(pickerModal).toBeVisible({ timeout: 10_000 });
   await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-  await expect(pickerModal.locator('.schema-item').first()).toBeVisible({ timeout: 10_000 });
+  // The redesigned picker opens on the curated "Common types" shortlist
+  // (20 umb-ref-item rows) — not the full type-universe dump.
+  await expect(pickerModal.locator('umb-ref-item').first()).toBeVisible({ timeout: 10_000 });
   return pickerModal;
 }
 
 async function pickSchemaType(page: any, searchTerm: string, itemText: string) {
   const pickerModal = page.locator('schemeweaver-schema-picker-modal');
-  await fillUuiInput(pickerModal.locator('uui-input').first(), searchTerm);
-  await page.waitForTimeout(1_000);
-  const item = pickerModal.locator('.schema-item', { hasText: itemText }).first();
+  // Search filters in-memory (no debounce); the option row's own auto-waiting
+  // is all the synchronisation needed. Data-mark contract:
+  // schemeweaver:schema-search / schemeweaver:schema-option:<TypeName> /
+  // schemeweaver:schema-picker-submit.
+  await fillUuiInput(pickerModal.getByTestId('schemeweaver:schema-search'), searchTerm);
+  const item = pickerModal.getByTestId(`schemeweaver:schema-option:${itemText}`);
   await expect(item).toBeVisible({ timeout: 10_000 });
   await item.click();
-  await pickerModal.locator('uui-button[look="primary"]').last().click();
+  await pickerModal.getByTestId('schemeweaver:schema-picker-submit').click();
 }
 
 async function waitForMappingModal(page: any) {
@@ -93,11 +98,11 @@ async function waitForMappingModal(page: any) {
 
 async function saveMappingModal(page: any) {
   const mappingModal = page.locator('schemeweaver-property-mapping-modal');
-  const saveBtn = mappingModal.locator('uui-button[look="primary"]').last();
+  const saveBtn = mappingModal.getByTestId('schemeweaver:mapping-save');
   await expect(saveBtn).toBeVisible({ timeout: 10_000 });
   await saveBtn.click();
   await expect(mappingModal).not.toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('schemeweaver-schema-mapping-view uui-tag')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('schemeweaver:schema-type-badge')).toBeVisible({ timeout: 15_000 });
 }
 
 async function openSourcePicker(page: any, rowIndex = 0) {
@@ -110,9 +115,17 @@ async function openSourcePicker(page: any, rowIndex = 0) {
 }
 
 async function openNestedMapping(page: any) {
-  const configureBtn = page.locator('uui-button', { hasText: /Configure Block Mapping/i }).first();
-  await expect(configureBtn).toBeVisible({ timeout: 10_000 });
-  await configureBtn.click();
+  // The old 3-step wizard's "Configure Block Mapping" entry point is gone.
+  // Blocks are mapped per parent row via the scoped "Map blocks" button
+  // (data-mark schemeweaver:map-blocks:<SchemaProperty>). Scope through the
+  // workspace view — the same mark also renders inside the property-mapping
+  // modal's table when that modal is open.
+  const mapBlocksBtn = page
+    .locator('schemeweaver-schema-mapping-view')
+    .getByTestId(/^schemeweaver:map-blocks:/)
+    .first();
+  await expect(mapBlocksBtn).toBeVisible({ timeout: 10_000 });
+  await mapBlocksBtn.click();
   const nestedModal = page.locator('schemeweaver-nested-mapping-modal');
   await expect(nestedModal).toBeVisible({ timeout: 10_000 });
   await page.waitForTimeout(1_500);
@@ -121,6 +134,8 @@ async function openNestedMapping(page: any) {
 
 test.describe.serial('Documentation Screenshots', () => {
   test('02 — schema picker modal', async ({ umbracoUi }) => {
+    // Captures the picker's INITIAL state — with the redesign that is the
+    // 20 curated "Common types", which is the intended documentation shot.
     await ensureMappingDeleted(umbracoUi.page, 'faqPage');
     await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
     await openSchemaPickerFromWorkspace(umbracoUi.page);
@@ -232,7 +247,9 @@ test.describe.serial('Documentation Screenshots', () => {
     });
   });
 
-  test('11 — FAQ wizard', async ({ umbracoUi }) => {
+  test('11 — FAQ scoped block-mapping modal', async ({ umbracoUi }) => {
+    // Filename kept from the wizard era so existing docs references still
+    // resolve; the content is now the scoped "Map blocks" modal.
     await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
     await openNestedMapping(umbracoUi.page);
 
@@ -271,7 +288,9 @@ test.describe.serial('Documentation Screenshots', () => {
     });
   });
 
-  test('15 — FAQ wizard step 2 (block mapping table)', async ({ umbracoUi }) => {
+  test('15 — block mapping rows (scoped modal)', async ({ umbracoUi }) => {
+    // Filename kept from the wizard era so existing docs references still
+    // resolve; the wizard's "step 2" table is now the modal's block-row list.
     await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
     await openNestedMapping(umbracoUi.page);
 
@@ -283,14 +302,17 @@ test.describe.serial('Documentation Screenshots', () => {
     await umbracoUi.page.keyboard.press('Escape');
   });
 
-  test('16 — FAQ wizard step 3 (preview summary)', async ({ umbracoUi }) => {
+  test('16 — block row expanded (property mappings detail)', async ({ umbracoUi }) => {
+    // The wizard's step-3 "Preview" summary no longer exists. The closest
+    // redesigned analogue is an EXPANDED block row showing its per-property
+    // mappings. Filename kept so existing docs references still resolve.
     await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
     const nestedModal = await openNestedMapping(umbracoUi.page);
 
-    const previewBtn = nestedModal.locator('uui-button', { hasText: 'Preview' });
-    await expect(previewBtn).toBeVisible({ timeout: 10_000 });
-    await previewBtn.click();
-    await umbracoUi.page.waitForTimeout(2_000);
+    const expandBtn = nestedModal.locator('.row-expand').first();
+    await expect(expandBtn).toBeVisible({ timeout: 10_000 });
+    await expandBtn.click();
+    await umbracoUi.page.waitForTimeout(1_000);
 
     await umbracoUi.page.screenshot({
       path: join(SCREENSHOTS_DIR, '16-wizard-step3-preview.png'),

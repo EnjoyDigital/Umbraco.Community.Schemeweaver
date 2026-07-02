@@ -14,4 +14,14 @@ import { SchemeWeaverContext } from './context/schemeweaver.context.js';
  */
 export const onInit: UmbEntryPointOnInit = (host) => {
   new SchemeWeaverContext(host);
+
+  // Warm the Schema.org workspace-view chunk while the browser is idle so the
+  // first switch to the tab doesn't stall on a lazy chunk load (which left the
+  // previous view's content visible for seconds).
+  const warm = () => void import('./workspace-views/schema-mapping-view.element.js');
+  if ('requestIdleCallback' in globalThis) {
+    requestIdleCallback(warm, { timeout: 4000 });
+  } else {
+    setTimeout(warm, 2000);
+  }
 };

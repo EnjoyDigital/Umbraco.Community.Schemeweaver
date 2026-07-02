@@ -1,20 +1,49 @@
 import { css, html, customElement, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
+import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import type { SchemaTypeInfo, SchemaTypeSuggestion } from '../api/types.js';
 import type { SchemaPickerModalData, SchemaPickerModalValue } from './schema-picker-modal.token.js';
 
-interface SchemaTypeGroup {
-  parent: string;
-  types: SchemaTypeInfo[];
-}
+/**
+ * The curated shortlist shown when no search query has been entered. Order is
+ * significant (most commonly mapped types first); names missing from the
+ * server's type list are silently dropped.
+ */
+const COMMON_SCHEMA_TYPES: readonly string[] = [
+  'Article',
+  'NewsArticle',
+  'BlogPosting',
+  'WebPage',
+  'WebSite',
+  'CollectionPage',
+  'AboutPage',
+  'ContactPage',
+  'FAQPage',
+  'Product',
+  'Offer',
+  'Event',
+  'Recipe',
+  'HowTo',
+  'Organization',
+  'LocalBusiness',
+  'Person',
+  'JobPosting',
+  'Review',
+  'VideoObject',
+];
+
+/** Maximum number of rows rendered for a search query (the full Schema.org universe is ~800 types). */
+const RESULT_CAP = 50;
 
 @customElement('schemeweaver-schema-picker-modal')
 export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerModalData, SchemaPickerModalValue> {
   #repository = new SchemeWeaverRepository(this);
-  #searchTimer?: ReturnType<typeof setTimeout>;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
+
+  /** Full type list, fetched ONCE on open. All searching/filtering is in-memory. */
+  #allTypes: SchemaTypeInfo[] = [];
 
   constructor() {
     super();
@@ -30,16 +59,10 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   private _searchTerm = '';
 
   @state()
-  private _schemaTypes: SchemaTypeInfo[] = [];
-
-  @state()
   private _selectedType = '';
 
   @state()
   private _aiAvailable = false;
-
-  @state()
-  private _aiChecking = true;
 
   @state()
   private _aiLoading = false;
@@ -53,25 +76,19 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     this._checkAIStatus();
   }
 
-  override disconnectedCallback() {
-    // Clear any pending debounced search so a callback can't fire after the
-    // modal has been closed and the element is being torn down.
-    if (this.#searchTimer) {
-      clearTimeout(this.#searchTimer);
-      this.#searchTimer = undefined;
-    }
-    super.disconnectedCallback();
+  protected firstUpdated() {
+    // `autofocus` alone doesn't win against the modal dialog's own focus handling.
+    requestAnimationFrame(() => {
+      this.shadowRoot?.querySelector<HTMLElement>('#search')?.focus();
+    });
   }
 
   private async _checkAIStatus() {
-    this._aiChecking = true;
     try {
       const status = await this.#repository.requestAIStatus();
       this._aiAvailable = status?.available === true;
     } catch {
       this._aiAvailable = false;
-    } finally {
-      this._aiChecking = false;
     }
   }
 
@@ -108,7 +125,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     try {
       const types = await this.#repository.requestSchemaTypes();
       if (types) {
-        this._schemaTypes = types;
+        this.#allTypes = types;
       }
     } catch {
       this.#notificationContext?.peek('danger', {
@@ -120,47 +137,65 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   }
 
   private _handleSearch(e: Event) {
-    this._searchTerm = (e.target as HTMLInputElement).value;
-    this._loading = true;
-    clearTimeout(this.#searchTimer);
-    this.#searchTimer = setTimeout(() => this._doSearch(), 300);
+    this._searchTerm = (e.target as HTMLInputElement).value ?? '';
   }
 
-  private async _doSearch() {
-    this._loading = true;
-    try {
-      const types = await this.#repository.requestSchemaTypes(this._searchTerm || undefined);
-      if (types) {
-        this._schemaTypes = types;
-      }
-    } catch {
-      this.#notificationContext?.peek('warning', {
-        data: { message: this.localize.term('schemeWeaver_searchFailed') },
-      });
-    } finally {
-      this._loading = false;
+  /**
+   * In-memory filter over the cached type list.
+   * - No query: the curated {@link COMMON_SCHEMA_TYPES} shortlist (curated order).
+   * - Query: ranked — name startsWith, then name includes, then description
+   *   includes — capped at {@link RESULT_CAP}.
+   */
+  private _filterTypes(query: string): { items: SchemaTypeInfo[]; total: number } {
+    if (!query) {
+      const byName = new Map(this.#allTypes.map((t) => [t.name.toLowerCase(), t]));
+      const items = COMMON_SCHEMA_TYPES.map((name) => byName.get(name.toLowerCase())).filter(
+        (t): t is SchemaTypeInfo => t !== undefined,
+      );
+      return { items, total: items.length };
     }
+
+    const q = query.toLowerCase();
+    const nameStarts: SchemaTypeInfo[] = [];
+    const nameIncludes: SchemaTypeInfo[] = [];
+    const descriptionIncludes: SchemaTypeInfo[] = [];
+
+    for (const type of this.#allTypes) {
+      const name = type.name.toLowerCase();
+      if (name.startsWith(q)) {
+        nameStarts.push(type);
+      } else if (name.includes(q)) {
+        nameIncludes.push(type);
+      } else if (type.description?.toLowerCase().includes(q)) {
+        descriptionIncludes.push(type);
+      }
+    }
+
+    const ranked = [...nameStarts, ...nameIncludes, ...descriptionIncludes];
+    return { items: ranked.slice(0, RESULT_CAP), total: ranked.length };
   }
 
-  private get _groupedTypes(): SchemaTypeGroup[] {
-    const groups = new Map<string, SchemaTypeInfo[]>();
-
-    for (const type of this._schemaTypes) {
-      const parent = type.parentTypeName || 'Thing';
-      if (!groups.has(parent)) {
-        groups.set(parent, []);
-      }
-      groups.get(parent)!.push(type);
+  /** Single truncating detail line: `extends {parent} · {n} properties — {description}` (missing segments omitted). */
+  private _buildDetail(type: SchemaTypeInfo): string {
+    const segments: string[] = [];
+    if (type.parentTypeName) {
+      segments.push(`${this.localize.term('schemeWeaver_extends')} ${type.parentTypeName}`);
     }
-
-    return Array.from(groups.entries()).map(([parent, types]) => ({
-      parent,
-      types: types.sort((a, b) => a.name.localeCompare(b.name)),
-    }));
+    if (type.propertyCount > 0) {
+      segments.push(this.localize.term('schemeWeaver_schemaPropertyCount', type.propertyCount));
+    }
+    const head = segments.join(' · ');
+    const description = type.description ?? '';
+    if (head && description) return `${head} — ${description}`;
+    return head || description;
   }
 
   private _handleSelect(typeName: string) {
     this._selectedType = typeName;
+  }
+
+  private _handleDeselect() {
+    this._selectedType = '';
   }
 
   private _handleSubmit() {
@@ -176,70 +211,21 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
   render() {
     return html`
       <umb-body-layout headline=${this.localize.term('schemeWeaver_selectSchemaType')}>
-        <uui-box>
-          ${this._aiChecking ? html`
-            <div class="ai-section">
-              <uui-loader-bar></uui-loader-bar>
-            </div>
-          ` : this._aiAvailable ? html`
-            <div class="ai-section">
-              ${this._aiSuggestions.length === 0 ? html`
-                <uui-button
-                  look="outline"
-                  color="positive"
-                  @click=${this._handleAISuggest}
-                  ?disabled=${this._aiLoading}
-                  .state=${this._aiLoading ? 'waiting' : undefined}
-                  label=${this.localize.term('schemeWeaver_aiAnalyse')}
-                >
-                  <uui-icon name="icon-wand"></uui-icon>
-                  ${this._aiLoading ? this.localize.term('schemeWeaver_aiAnalysing') : this.localize.term('schemeWeaver_aiAnalyse')}
-                </uui-button>
-              ` : html`
-                <div class="ai-suggestions">
-                  <h4 class="group-header">${this.localize.term('schemeWeaver_aiSuggestedSchema')}</h4>
-                  <uui-ref-list>
-                    ${repeat(
-                      this._aiSuggestions,
-                      (s) => s.schemaTypeName,
-                      (suggestion) => html`
-                        <umb-ref-item
-                          standalone
-                          selectable
-                          select-only
-                          ?selected=${this._selectedType === suggestion.schemaTypeName}
-                          name=${suggestion.schemaTypeName}
-                          detail=${suggestion.reasoning ?? ''}
-                          icon="icon-wand"
-                          @selected=${() => this._handleAISuggestionSelect(suggestion.schemaTypeName)}
-                          @deselected=${() => { this._selectedType = ''; }}
-                        >
-                          <uui-tag
-                            slot="tag"
-                            color=${suggestion.confidence >= 80 ? 'positive' : suggestion.confidence >= 50 ? 'warning' : 'default'}
-                          >${suggestion.confidence}%</uui-tag>
-                        </umb-ref-item>
-                      `,
-                    )}
-                  </uui-ref-list>
-                </div>
-              `}
-            </div>
-          ` : ''}
-
+        <div id="main">
           <uui-input
+            id="search"
             type="search"
             placeholder=${this.localize.term('schemeWeaver_searchSchemaTypes')}
-            @input=${this._handleSearch}
-            .value=${this._searchTerm}
-            class="search-input"
             label=${this.localize.term('schemeWeaver_searchSchemaTypes')}
+            .value=${this._searchTerm}
+            data-mark="schemeweaver:schema-search"
+            autofocus
+            @input=${this._handleSearch}
           >
-            <div slot="prepend" class="search-prepend">
-              <uui-icon name="icon-search"></uui-icon>
-            </div>
+            <uui-icon name="search" slot="prepend" id="search-icon"></uui-icon>
           </uui-input>
 
+          ${this._renderAiBox()}
           ${this._loading
             ? html`
                 <div class="loading">
@@ -247,79 +233,141 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
                   <p>${this.localize.term('schemeWeaver_loadingSchemaTypes')}</p>
                 </div>
               `
-            : html`
-                <div class="schema-list">
-                  ${this._groupedTypes.map(
-                    (group) => html`
-                      <div class="schema-group">
-                        <h4 class="group-header">${group.parent}</h4>
-                        <uui-ref-list>
-                          ${repeat(
-                            group.types,
-                            (type) => type.name,
-                            (type) => html`
-                              <umb-ref-item
-                                selectable
-                                select-only
-                                ?selected=${this._selectedType === type.name}
-                                name=${type.name}
-                                detail=${type.description ?? ''}
-                                icon="icon-brackets"
-                                @selected=${() => this._handleSelect(type.name)}
-                                @deselected=${() => { this._selectedType = ''; }}
-                              >
-                                ${type.parentTypeName
-                                  ? html`<uui-tag slot="tag" look="secondary">${this.localize.term('schemeWeaver_extends')} ${type.parentTypeName}</uui-tag>`
-                                  : nothing}
-                                ${type.propertyCount > 0
-                                  ? html`<uui-tag slot="tag" look="secondary">${this.localize.term('schemeWeaver_schemaPropertyCount', type.propertyCount)}</uui-tag>`
-                                  : nothing}
-                              </umb-ref-item>
-                            `,
-                          )}
-                        </uui-ref-list>
-                      </div>
-                    `
-                  )}
-
-                  ${this._schemaTypes.length === 0
-                    ? html`<p class="no-results">${this.localize.term('schemeWeaver_noSchemaTypes')}</p>`
-                    : ''}
-                </div>
-              `}
-        </uui-box>
+            : this._renderResults()}
+        </div>
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
-            ${this.localize.term('schemeWeaver_cancel')}
-          </uui-button>
-          <uui-button look="primary" @click=${this._handleSubmit} ?disabled=${!this._selectedType} label=${this.localize.term('buttons_select')}>
-            ${this.localize.term('buttons_select')}
-          </uui-button>
-          ${!this._selectedType
-            ? html`<small class="disabled-hint">${this.localize.term('schemeWeaver_selectASchemaType')}</small>`
-            : nothing}
+          <uui-button
+            label=${this.localize.term('schemeWeaver_cancel')}
+            data-mark="schemeweaver:schema-picker-cancel"
+            @click=${this._handleClose}
+          ></uui-button>
+          <uui-button
+            look="primary"
+            color="positive"
+            label=${this.localize.term('buttons_select')}
+            data-mark="schemeweaver:schema-picker-submit"
+            ?disabled=${!this._selectedType}
+            @click=${this._handleSubmit}
+          ></uui-button>
         </div>
       </umb-body-layout>
     `;
   }
 
+  private _renderAiBox() {
+    if (!this._aiAvailable) return nothing;
+    return html`
+      <uui-box headline=${this.localize.term('schemeWeaver_aiSuggestedSchema')}>
+        ${this._aiSuggestions.length === 0
+          ? html`
+              <uui-button
+                look="outline"
+                color="positive"
+                @click=${this._handleAISuggest}
+                ?disabled=${this._aiLoading}
+                .state=${this._aiLoading ? 'waiting' : undefined}
+                label=${this.localize.term('schemeWeaver_aiAnalyse')}
+              >
+                <uui-icon name="icon-wand"></uui-icon>
+                ${this._aiLoading
+                  ? this.localize.term('schemeWeaver_aiAnalysing')
+                  : this.localize.term('schemeWeaver_aiAnalyse')}
+              </uui-button>
+            `
+          : html`
+              <uui-ref-list>
+                ${repeat(
+                  this._aiSuggestions,
+                  (s) => s.schemaTypeName,
+                  (suggestion) => html`
+                    <umb-ref-item
+                      selectable
+                      select-only
+                      ?selected=${this._selectedType === suggestion.schemaTypeName}
+                      name=${suggestion.schemaTypeName}
+                      detail=${suggestion.reasoning ?? ''}
+                      icon="icon-wand"
+                      @selected=${() => this._handleAISuggestionSelect(suggestion.schemaTypeName)}
+                      @deselected=${this._handleDeselect}
+                    >
+                      <uui-tag
+                        slot="tag"
+                        color=${suggestion.confidence >= 80 ? 'positive' : suggestion.confidence >= 50 ? 'warning' : 'default'}
+                      >${suggestion.confidence}%</uui-tag>
+                    </umb-ref-item>
+                  `,
+                )}
+              </uui-ref-list>
+            `}
+      </uui-box>
+    `;
+  }
+
+  private _renderResults() {
+    const query = this._searchTerm.trim();
+    const { items, total } = this._filterTypes(query);
+    const headline = query
+      ? this.localize.term('schemeWeaver_searchResults')
+      : this.localize.term('schemeWeaver_commonTypes');
+
+    return html`
+      <uui-box headline=${headline}>
+        ${items.length < total
+          ? html`<small class="cap-note">${this.localize.term('schemeWeaver_showingTopResults', items.length, total)}</small>`
+          : nothing}
+        ${items.length === 0
+          ? html`<p class="no-results">${this.localize.term('schemeWeaver_noSchemaTypes')}</p>`
+          : html`
+              <uui-ref-list>
+                ${repeat(
+                  items,
+                  (type) => type.name,
+                  (type) => html`
+                    <umb-ref-item
+                      selectable
+                      select-only
+                      ?selected=${this._selectedType === type.name}
+                      name=${type.name}
+                      detail=${this._buildDetail(type)}
+                      icon="icon-brackets"
+                      data-mark="schemeweaver:schema-option:${type.name}"
+                      @selected=${() => this._handleSelect(type.name)}
+                      @deselected=${this._handleDeselect}
+                    >
+                    </umb-ref-item>
+                  `,
+                )}
+              </uui-ref-list>
+            `}
+      </uui-box>
+    `;
+  }
+
   static styles = [
+    UmbTextStyles,
     css`
       :host {
         display: block;
+        height: 100%;
       }
 
-      .search-input {
+      #main {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-5);
+      }
+
+      #search {
         width: 100%;
-        margin-bottom: var(--uui-size-space-4);
       }
 
-      .search-prepend {
+      #search-icon {
+        height: 100%;
         display: flex;
         align-items: center;
-        padding: 0 var(--uui-size-space-3);
-        color: var(--uui-color-text-alt);
+        padding-left: var(--uui-size-space-2);
+        color: var(--uui-color-border);
       }
 
       .loading {
@@ -330,43 +378,17 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
         padding: var(--uui-size-space-6);
       }
 
-      .schema-list {
-        max-height: 500px;
-        overflow-y: auto;
-      }
-
-      .schema-group {
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .group-header {
+      .cap-note {
+        display: block;
         color: var(--uui-color-text-alt);
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        padding: var(--uui-size-space-2) 0;
-        margin: 0 0 var(--uui-size-space-1) 0;
+        margin-bottom: var(--uui-size-space-3);
       }
 
       .no-results {
         text-align: center;
         color: var(--uui-color-text-alt);
-        padding: var(--uui-size-space-6);
-      }
-
-      .disabled-hint {
-        display: block;
-        color: var(--uui-color-text-alt);
-        font-size: 0.8rem;
-        margin-top: var(--uui-size-space-2);
-      }
-
-      .ai-section {
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .ai-suggestions {
-        margin-bottom: var(--uui-size-space-2);
+        margin: 0;
+        padding: var(--uui-size-space-4) 0;
       }
     `,
   ];

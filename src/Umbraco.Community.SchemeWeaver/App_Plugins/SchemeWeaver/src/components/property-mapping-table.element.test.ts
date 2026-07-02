@@ -11,16 +11,60 @@ const mockMappings: PropertyMappingRow[] = [
 ];
 
 describe('PropertyMappingTableElement', () => {
-  it('renders table headers', async () => {
+  it('renders table headers (property, source, value + actions)', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[]}></schemeweaver-property-mapping-table>`);
     const headers = el.shadowRoot!.querySelectorAll('uui-table-head-cell');
-    expect(headers.length).to.equal(3);
+    expect(headers.length).to.equal(4);
+    // The actions header is visually empty but accessibly labelled.
+    expect(headers[3].getAttribute('aria-label')).to.equal('Actions');
+  });
+
+  it('renders sized uui-table-column elements for every column', async () => {
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[]}></schemeweaver-property-mapping-table>`);
+    const columns = el.shadowRoot!.querySelectorAll('uui-table > uui-table-column');
+    expect(columns.length).to.equal(4);
   });
 
   it('renders correct number of rows', async () => {
     const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings}></schemeweaver-property-mapping-table>`);
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
     expect(rows.length).to.equal(4);
+  });
+
+  it('renders four cells per row with the remove button in the actions cell', async () => {
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings} .availableProperties=${['title']}></schemeweaver-property-mapping-table>`);
+    const row = el.shadowRoot!.querySelector('uui-table-row') as HTMLElement;
+    const cells = row.querySelectorAll('uui-table-cell');
+    expect(cells.length).to.equal(4);
+    // Trash lives in the dedicated actions cell — never inside the property-name cell.
+    expect(row.querySelector('.actions-cell .remove-row-btn')).to.exist;
+    expect(row.querySelector('.property-name-cell .remove-row-btn')).to.not.exist;
+  });
+
+  it('does not render the remove button in readonly mode', async () => {
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings} ?readonly=${true}></schemeweaver-property-mapping-table>`);
+    expect(el.shadowRoot!.querySelector('.remove-row-btn')).to.not.exist;
+  });
+
+  it('removes the row and fires mappings-changed when the actions-cell trash is clicked', async () => {
+    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${mockMappings} .availableProperties=${['title']}></schemeweaver-property-mapping-table>`);
+    let eventDetail: any = null;
+    el.addEventListener('mappings-changed', (e: Event) => {
+      eventDetail = (e as CustomEvent).detail;
+    });
+
+    const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
+    const removeBtn = (rows[1] as HTMLElement).querySelector('.actions-cell .remove-row-btn') as HTMLElement;
+    expect(removeBtn).to.exist;
+    removeBtn.click();
+
+    expect(eventDetail).to.exist;
+    expect(eventDetail.mappings).to.have.lengthOf(3);
+    expect(eventDetail.mappings.map((m: PropertyMappingRow) => m.schemaPropertyName)).to.deep.equal([
+      'headline',
+      'datePublished',
+      'image',
+    ]);
   });
 
   it('shows positive confidence tag for >= 80', async () => {
