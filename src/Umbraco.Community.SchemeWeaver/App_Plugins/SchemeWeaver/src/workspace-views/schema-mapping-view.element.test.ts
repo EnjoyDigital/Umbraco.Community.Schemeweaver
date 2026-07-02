@@ -13,8 +13,10 @@ describe('SchemaMappingViewElement', () => {
 
   it('renders loading state initially', async () => {
     const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`);
-    const loader = el.shadowRoot!.querySelector('uui-loader-circle');
+    const loader = el.shadowRoot!.querySelector('#loader uui-loader');
     expect(loader).to.exist;
+    // The workspace editor provides the body layout — the view must not nest another.
+    expect(el.shadowRoot!.querySelector('umb-body-layout')).to.equal(null);
   });
 
   it('shows empty state when no mapping found', async () => {
@@ -28,6 +30,8 @@ describe('SchemaMappingViewElement', () => {
 
     const emptyState = el.shadowRoot!.querySelector('.empty-state');
     expect(emptyState).to.exist;
+    const mapButton = el.shadowRoot!.querySelector('[data-mark="schemeweaver:map-to-schema"]');
+    expect(mapButton).to.exist;
   });
 
   it('renders property table when mapping exists', async () => {
@@ -49,7 +53,9 @@ describe('SchemaMappingViewElement', () => {
     await el._fetchMapping();
     await el.updateComplete;
 
-    const tag = el.shadowRoot!.querySelector('uui-tag[color="primary"]');
+    const badge = el.shadowRoot!.querySelector('[data-mark="schemeweaver:schema-type-badge"]');
+    expect(badge).to.exist;
+    const tag = badge!.querySelector('uui-tag[color="primary"]');
     expect(tag).to.exist;
     expect(tag!.textContent!.trim()).to.equal('Article');
   });
@@ -61,8 +67,9 @@ describe('SchemaMappingViewElement', () => {
     await el._fetchMapping();
     await el.updateComplete;
 
-    const buttons = el.shadowRoot!.querySelectorAll('.actions-bar uui-button');
-    expect(buttons.length).to.equal(1);
+    const button = el.shadowRoot!.querySelector('uui-box [data-mark="schemeweaver:auto-map"]');
+    expect(button).to.exist;
+    expect(button!.getAttribute('slot')).to.equal('header-actions');
   });
 
   // Regression guards — two side-by-side workspace views for different

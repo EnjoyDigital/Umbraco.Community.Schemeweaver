@@ -1,5 +1,6 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
+import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_DOCUMENT_TYPE_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/document-type';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
@@ -565,176 +566,161 @@ export class SchemaMappingViewElement extends UmbLitElement {
   }
 
   render() {
+    // The workspace editor already provides the surrounding umb-body-layout
+    // (headline bar, scroll container) — this view renders content only.
     if (this._loading) {
       return html`
-        <umb-body-layout headline=${this.localize.term('schemeWeaver_schemaOrgMapping')}>
-          <div class="loading">
-            <uui-loader-circle></uui-loader-circle>
-            <p>${this.localize.term('schemeWeaver_loadingMappings')}</p>
-          </div>
-        </umb-body-layout>
+        <div id="loader">
+          <uui-loader></uui-loader>
+        </div>
       `;
     }
 
     if (!this._mapping) {
       return html`
-        <umb-body-layout headline=${this.localize.term('schemeWeaver_schemaOrgMapping')}>
-          <uui-box>
-            <div class="empty-state">
-              <uui-icon name="icon-brackets" class="empty-icon"></uui-icon>
-              <h3>${this.localize.term('schemeWeaver_noMapping')}</h3>
-              <p>${this.localize.term('schemeWeaver_noMappingDescription')}</p>
-              <uui-button look="primary" @click=${this._handleMapToSchema} label=${this.localize.term('schemeWeaver_mapToSchema')}>
-                <uui-icon name="icon-brackets"></uui-icon>
-                ${this.localize.term('schemeWeaver_mapToSchema')}
-              </uui-button>
-            </div>
-          </uui-box>
-        </umb-body-layout>
+        <div class="empty-state uui-text">
+          <umb-icon name="icon-brackets"></umb-icon>
+          <h4>${this.localize.term('schemeWeaver_noMapping')}</h4>
+          <p>${this.localize.term('schemeWeaver_noMappingDescription')}</p>
+          <uui-button
+            look="primary"
+            color="positive"
+            label=${this.localize.term('schemeWeaver_mapToSchema')}
+            data-mark="schemeweaver:map-to-schema"
+            @click=${this._handleMapToSchema}></uui-button>
+        </div>
       `;
     }
 
     return html`
-      <umb-body-layout headline=${this.localize.term('schemeWeaver_schemaOrgMapping')}>
-        <uui-box headline=${this.localize.term('schemeWeaver_schemaType')}>
-          <div class="schema-type-info">
+      <uui-box headline=${this.localize.term('schemeWeaver_schemaType')}>
+        <umb-property-layout label=${this.localize.term('schemeWeaver_schemaType')}>
+          <div id="schema-type-badge" slot="editor" data-mark="schemeweaver:schema-type-badge">
             <uui-tag color="primary" look="primary">${this._mapping.schemaTypeName}</uui-tag>
-            <span class="content-type-alias">${this._mapping.contentTypeAlias}</span>
+            <code>${this._mapping.contentTypeAlias}</code>
           </div>
-          <div class="inherited-toggle">
-            <uui-toggle
-              .checked=${this._mapping.isInherited}
-              @change=${this._handleInheritedToggle}
-              label=${this.localize.term('schemeWeaver_inherited')}
-            >
-              ${this.localize.term('schemeWeaver_inherited')}
-            </uui-toggle>
-            <small>${this.localize.term('schemeWeaver_inheritedDescription')}</small>
-          </div>
-          <div class="id-override">
-            <label for="id-override-input" class="id-override-label">
-              ${this.localize.term('schemeWeaver_idOverrideLabel')}
-            </label>
-            <uui-input
-              id="id-override-input"
-              type="text"
-              .value=${this._mapping.idOverride ?? ''}
-              placeholder="{url}#{type}"
-              @input=${this._handleIdOverrideInput}
-              label=${this.localize.term('schemeWeaver_idOverrideLabel')}
-            ></uui-input>
-            <small>${this.localize.term('schemeWeaver_idOverrideHint')}</small>
-          </div>
-        </uui-box>
+        </umb-property-layout>
 
-        <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
-          <div class="actions-bar" slot="header-actions">
-            <uui-button look="outline" compact @click=${this._handleAutoMap} label=${this.localize.term('schemeWeaver_autoMap')}>
-              <uui-icon name="icon-wand"></uui-icon>
-              ${this.localize.term('schemeWeaver_autoMap')}
-            </uui-button>
-          </div>
+        <umb-property-layout
+          label=${this.localize.term('schemeWeaver_inherited')}
+          description=${this.localize.term('schemeWeaver_inheritedDescription')}>
+          <uui-toggle
+            slot="editor"
+            label=${this.localize.term('schemeWeaver_inherited')}
+            .checked=${this._mapping.isInherited}
+            @change=${this._handleInheritedToggle}
+            data-mark="schemeweaver:inherited-toggle"></uui-toggle>
+        </umb-property-layout>
 
-          <schemeweaver-property-mapping-table
-            .mappings=${this._rows}
-            .availableProperties=${this._availableProperties}
-            .allSchemaProperties=${this._allSchemaProperties}
-            @mappings-changed=${this._handleMappingsChanged}
-            @pick-source-origin=${this._handlePickSourceOrigin}
-            @resolve-document-type=${this._handleResolveDocumentType}
-            @configure-nested-mapping=${this._handleConfigureNestedMapping}
-            @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
-          ></schemeweaver-property-mapping-table>
-        </uui-box>
+        <umb-property-layout
+          label=${this.localize.term('schemeWeaver_idOverrideLabel')}
+          description=${this.localize.term('schemeWeaver_idOverrideHint')}>
+          <uui-input
+            slot="editor"
+            type="text"
+            label=${this.localize.term('schemeWeaver_idOverrideLabel')}
+            .value=${this._mapping.idOverride ?? ''}
+            placeholder="{url}#{type}"
+            @input=${this._handleIdOverrideInput}
+            data-mark="schemeweaver:id-override"></uui-input>
+        </umb-property-layout>
+      </uui-box>
 
-      </umb-body-layout>
+      <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
+        <uui-button
+          slot="header-actions"
+          look="outline"
+          compact
+          label=${this.localize.term('schemeWeaver_autoMap')}
+          data-mark="schemeweaver:auto-map"
+          @click=${this._handleAutoMap}></uui-button>
+
+        <schemeweaver-property-mapping-table
+          .mappings=${this._rows}
+          .availableProperties=${this._availableProperties}
+          .allSchemaProperties=${this._allSchemaProperties}
+          @mappings-changed=${this._handleMappingsChanged}
+          @pick-source-origin=${this._handlePickSourceOrigin}
+          @resolve-document-type=${this._handleResolveDocumentType}
+          @configure-nested-mapping=${this._handleConfigureNestedMapping}
+          @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
+        ></schemeweaver-property-mapping-table>
+      </uui-box>
     `;
   }
 
   static styles = [
+    UmbTextStyles,
     css`
       :host {
         display: block;
-        padding: var(--uui-size-space-5);
+        padding: var(--uui-size-layout-1);
       }
 
-      uui-box {
-        margin-bottom: var(--uui-size-space-5);
-      }
-
-      .loading {
+      /* Delayed fade-in — never flashes on fast loads. */
+      #loader {
         display: flex;
-        flex-direction: column;
+        justify-content: center;
         align-items: center;
-        gap: var(--uui-size-space-3);
-        padding: var(--uui-size-space-6);
+        height: 50vh;
+        opacity: 0;
+        animation: fadeIn 240ms 240ms forwards;
       }
 
       .empty-state {
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         gap: var(--uui-size-space-4);
-        padding: var(--uui-size-space-6);
+        min-height: 50vh;
         text-align: center;
+        opacity: 0;
+        animation: fadeIn 240ms 240ms forwards;
       }
 
-      .empty-icon {
-        font-size: 3rem;
-        color: var(--uui-color-text-alt);
+      .empty-state umb-icon {
+        font-size: var(--uui-size-12);
+        color: var(--uui-color-border-emphasis);
       }
 
-      .schema-type-info {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-4);
+      .empty-state h4,
+      .empty-state p {
+        margin: 0;
       }
 
-      .inherited-toggle {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-4);
-        margin-top: var(--uui-size-space-4);
-        padding-top: var(--uui-size-space-4);
+      uui-box + uui-box {
+        margin-top: var(--uui-size-layout-1);
+      }
+
+      umb-property-layout {
         border-top: 1px solid var(--uui-color-border);
       }
-
-      .inherited-toggle small {
-        color: var(--uui-color-text-alt);
+      umb-property-layout:first-child {
+        padding-top: 0;
+        border: none;
       }
 
-      .id-override {
+      #schema-type-badge {
         display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-1);
-        margin-top: var(--uui-size-space-4);
-        padding-top: var(--uui-size-space-4);
-        border-top: 1px solid var(--uui-color-border);
+        align-items: center;
+        gap: var(--uui-size-space-3);
       }
 
-      .id-override uui-input {
-        width: 100%;
-        max-width: 560px;
-      }
-
-      .id-override-label {
-        font-weight: 600;
-      }
-
-      .id-override small {
-        color: var(--uui-color-text-alt);
-      }
-
-      .content-type-alias {
-        color: var(--uui-color-text-alt);
+      #schema-type-badge code {
         font-family: monospace;
+        color: var(--uui-color-text-alt);
       }
 
-      .actions-bar {
-        display: flex;
-        gap: var(--uui-size-space-2);
+      uui-input {
+        width: 100%;
       }
 
+      @keyframes fadeIn {
+        to {
+          opacity: 1;
+        }
+      }
     `,
   ];
 }
