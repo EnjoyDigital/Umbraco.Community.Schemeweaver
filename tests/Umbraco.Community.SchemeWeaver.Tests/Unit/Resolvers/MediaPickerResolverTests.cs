@@ -27,15 +27,31 @@ public class MediaPickerResolverTests
     static MediaPickerResolverTests()
     {
         // media.Value<int?>("umbracoWidth") flows through FriendlyPublishedContentExtensions,
-        // which resolves IPublishedValueFallback from StaticServiceProvider. Ensure it is set
-        // so the friendly extension does not throw during unit tests. Only set it when the
-        // ambient provider cannot already satisfy the dependency (e.g. under integration hosts).
+        // whose Umbraco 17 type initializer eagerly resolves ~17 services from
+        // StaticServiceProvider (18 resolves lazily per call). A fixed seed list is a moving
+        // target across minors, so install a provider that hands out substitutes on demand —
+        // with a real NoopPublishedValueFallback so Value<T>() behaves. Only installed when no
+        // ambient (integration-host) provider can already satisfy the friendly extensions;
+        // xUnit class scheduling is nondeterministic, so these tests must be hermetic.
         if (StaticServiceProvider.Instance?.GetService<IPublishedValueFallback>() is null)
         {
-            var services = new ServiceCollection();
-            services.AddSingleton<IPublishedValueFallback, NoopPublishedValueFallback>();
-            StaticServiceProvider.Instance = services.BuildServiceProvider();
+            StaticServiceProvider.Instance = new SubstituteServiceProvider();
         }
+    }
+
+    /// <summary>
+    /// Resolves a fresh NSubstitute mock for any interface requested, so eager static service
+    /// resolution in Umbraco's friendly extensions can never poison a type initializer here.
+    /// </summary>
+    private sealed class SubstituteServiceProvider : IServiceProvider
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<Type, object?> _services = new();
+
+        public object? GetService(Type serviceType)
+            => _services.GetOrAdd(serviceType, static t =>
+                t == typeof(IPublishedValueFallback) ? new NoopPublishedValueFallback()
+                : t.IsInterface ? Substitute.For(new[] { t }, Array.Empty<object>())
+                : null);
     }
 
     public MediaPickerResolverTests()
