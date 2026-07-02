@@ -263,15 +263,22 @@ export class SchemeWeaverServerDataSource {
   /**
    * Suggest routed block mappings for a block-list property. Returns one
    * suggestion per TARGET page property (mainEntity / hasPart / about / …),
-   * each carrying the block-element routes that feed it.
+   * each carrying the block-element routes that feed it. When
+   * `targetSchemaProperty` is given, every top-level route is annotated with
+   * `fitsTarget` — whether its nested type is range-assignable to that property
+   * (server-side subtype walk; the client cannot compute this).
    */
   async suggestBlockMappings(
     contentTypeAlias: string,
     propertyAlias: string,
+    targetSchemaProperty?: string,
   ): Promise<BlockMappingSuggestion[] | undefined> {
+    const query = targetSchemaProperty
+      ? `?targetSchemaProperty=${encodeURIComponent(targetSchemaProperty)}`
+      : '';
     return fetchApi<BlockMappingSuggestion[]>(
       this.#host,
-      `/content-types/${encodeURIComponent(contentTypeAlias)}/properties/${encodeURIComponent(propertyAlias)}/block-suggest`,
+      `/content-types/${encodeURIComponent(contentTypeAlias)}/properties/${encodeURIComponent(propertyAlias)}/block-suggest${query}`,
       { method: 'POST' },
     );
   }

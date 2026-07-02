@@ -122,15 +122,6 @@ describe('PropertyMappingTableElement', () => {
     expect(eventDetail.currentSourceType).to.equal(SourceType.Property);
   });
 
-  it('renders nested schema type input for blockContent source type', async () => {
-    const blockMapping: PropertyMappingRow[] = [
-      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: SourceType.BlockContent, contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
-    ];
-    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
-    const nestedInput = el.shadowRoot!.querySelector('.nested-schema-input');
-    expect(nestedInput).to.exist;
-  });
-
   it('shows configure button for blockContent source type', async () => {
     const blockMapping: PropertyMappingRow[] = [
       { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: SourceType.BlockContent, contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
@@ -279,28 +270,6 @@ describe('PropertyMappingTableElement', () => {
     expect(check).to.exist;
   });
 
-  it('renders dropdown instead of free text for nestedSchemaTypeName when acceptedTypes available', async () => {
-    const blockMapping: PropertyMappingRow[] = [
-      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: SourceType.BlockContent, contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: null, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
-    ];
-    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
-    // Should render a uui-select for nested type (not a uui-input with class nested-schema-input)
-    const nestedInput = el.shadowRoot!.querySelector('.nested-schema-input');
-    expect(nestedInput).to.not.exist;
-    // Should have a uui-select for nested schema type (source is a chip button, property is a combobox)
-    const selects = el.shadowRoot!.querySelectorAll('uui-select');
-    expect(selects.length).to.equal(1);
-  });
-
-  it('renders free text input for nestedSchemaTypeName when no acceptedTypes', async () => {
-    const blockMapping: PropertyMappingRow[] = [
-      { schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: SourceType.BlockContent, contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: 'Question', resolverConfig: null, acceptedTypes: [], isComplexType: false, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [] },
-    ];
-    const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${blockMapping} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
-    const nestedInput = el.shadowRoot!.querySelector('.nested-schema-input');
-    expect(nestedInput).to.exist;
-  });
-
   it('shows configured checkmark when resolverConfig has nested mappings', async () => {
     const config = JSON.stringify({ nestedMappings: [{ schemaProperty: 'name', contentProperty: 'question' }] });
     const blockMapping: PropertyMappingRow[] = [
@@ -444,6 +413,81 @@ describe('PropertyMappingTableElement', () => {
       ];
       const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${rows}></schemeweaver-property-mapping-table>`);
       expect(el.shadowRoot!.querySelector('uui-tag.suggestion-badge')).to.not.exist;
+    });
+  });
+
+  describe('block route summary + Map blocks button (blockContent rows)', () => {
+    const blockRow = (overrides: Partial<PropertyMappingRow> = {}): PropertyMappingRow => ({
+      schemaPropertyName: 'mainEntity', schemaPropertyType: 'Question', sourceType: SourceType.BlockContent, contentTypePropertyAlias: 'questions', sourceContentTypeAlias: '', staticValue: '', confidence: null, editorAlias: 'Umbraco.BlockList', nestedSchemaTypeName: '', resolverConfig: null, acceptedTypes: ['Question'], isComplexType: true, expanded: false, subMappings: [], selectedSubType: '', sourceContentTypeProperties: [],
+      ...overrides,
+    });
+
+    it('renders one summary tag per configured route', async () => {
+      const config = JSON.stringify({ routes: [
+        { blockAlias: 'faqItem', nestedSchemaType: 'Question' },
+        { blockAlias: 'reviewBlock', nestedSchemaType: 'Review' },
+      ]});
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[blockRow({ resolverConfig: config })]} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+      const summaryEl = el.shadowRoot!.querySelector('[data-mark="schemeweaver:block-summary:mainEntity"]');
+      expect(summaryEl).to.exist;
+      const tags = summaryEl!.querySelectorAll('uui-tag.route-summary-tag');
+      expect(tags.length).to.equal(2);
+      expect(tags[0].textContent).to.include('faqItem');
+      expect(tags[0].textContent).to.include('Question');
+      expect(tags[1].textContent).to.include('reviewBlock');
+      expect(tags[1].textContent).to.include('Review');
+    });
+
+    it('summarises a legacy wildcard config (nestedMappings + nestedSchemaTypeName) as "any block → type"', async () => {
+      const config = JSON.stringify({ nestedMappings: [{ schemaProperty: 'author', contentProperty: 'reviewAuthor' }] });
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[blockRow({ resolverConfig: config, nestedSchemaTypeName: 'Review' })]} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+      const summaryEl = el.shadowRoot!.querySelector('[data-mark="schemeweaver:block-summary:mainEntity"]');
+      const tags = summaryEl!.querySelectorAll('uui-tag.route-summary-tag');
+      expect(tags.length).to.equal(1);
+      // Wildcard alias renders the localized "any block" label (the raw term key in the test env).
+      expect(tags[0].textContent).to.match(/any ?block/i);
+      expect(tags[0].textContent).to.include('Review');
+    });
+
+    it('summarises a stringList config with its source property', async () => {
+      const config = JSON.stringify({ extractAs: 'stringList', contentProperty: 'ingredientName' });
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[blockRow({ resolverConfig: config })]} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+      const summaryEl = el.shadowRoot!.querySelector('[data-mark="schemeweaver:block-summary:mainEntity"]');
+      expect(summaryEl!.querySelectorAll('uui-tag.route-summary-tag').length).to.equal(0);
+      const stringList = summaryEl!.querySelector('.block-summary-string-list');
+      expect(stringList).to.exist;
+      // The test-env localizer drops term args, so the source property is asserted via the title attribute.
+      expect(stringList!.getAttribute('title')).to.equal('ingredientName');
+    });
+
+    it('renders muted empty state when nothing is configured', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[blockRow()]} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+      const summaryEl = el.shadowRoot!.querySelector('[data-mark="schemeweaver:block-summary:mainEntity"]');
+      expect(summaryEl).to.exist;
+      expect(summaryEl!.querySelectorAll('uui-tag.route-summary-tag').length).to.equal(0);
+      expect(summaryEl!.querySelector('.block-summary-empty')).to.exist;
+    });
+
+    it('does not render the removed nested schema type editor', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[blockRow()]} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+      expect(el.shadowRoot!.querySelector('.nested-schema-input')).to.not.exist;
+      expect(el.shadowRoot!.querySelectorAll('uui-select').length).to.equal(0);
+    });
+
+    it('renders the Map blocks button with a data-mark hook, enabled when a property alias is set', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[blockRow()]} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+      const button = el.shadowRoot!.querySelector('[data-mark="schemeweaver:map-blocks:mainEntity"]');
+      expect(button).to.exist;
+      expect(button!.hasAttribute('disabled')).to.be.false;
+      expect(button!.hasAttribute('title')).to.be.false;
+    });
+
+    it('disables the Map blocks button with an explanatory title when no property alias is chosen', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[blockRow({ contentTypePropertyAlias: '' })]} .availableProperties=${['questions']}></schemeweaver-property-mapping-table>`);
+      const button = el.shadowRoot!.querySelector('[data-mark="schemeweaver:map-blocks:mainEntity"]');
+      expect(button).to.exist;
+      expect(button!.hasAttribute('disabled')).to.be.true;
+      expect(button!.hasAttribute('title')).to.be.true;
     });
   });
 });

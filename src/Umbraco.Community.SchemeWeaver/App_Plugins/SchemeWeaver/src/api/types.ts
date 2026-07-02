@@ -158,6 +158,16 @@ export interface BlockRoutePropertyMapping {
   extractAs?: string | null;
   /** Inner block property alias read when `extractAs === 'stringList'`. */
   nestedContentProperty?: string | null;
+  /**
+   * Legacy flat-shape only: the block element type alias this entry applies to.
+   * Empty/absent = wildcard (applies to every block). Preserved verbatim so
+   * legacy configs round-trip; routed configs scope by the route instead.
+   */
+  blockAlias?: string | null;
+  /** Nested wrap-as-ListItem flag (C# NestedPropertyMapping.WrapInListItem). Preserved verbatim. */
+  wrapInListItem?: boolean;
+  /** Explicit-position block property for the nested wrap. Preserved verbatim. */
+  positionProperty?: string | null;
 }
 
 /**
@@ -169,14 +179,38 @@ export interface BlockRoute {
   blockAlias: string;
   nestedSchemaType: string;
   propertyMappings: BlockRoutePropertyMapping[];
+  /**
+   * Schema property names that must resolve for a routed Thing to be emitted
+   * (C# BlockRoute.RequiredProperties). Preserved verbatim through the editor.
+   */
+  requiredProperties?: string[] | null;
 }
 
 /**
  * The routed ResolverConfig shape stored on a `blockContent` PropertyMappingDto.
  * Serialised (JSON.stringify) into `PropertyMappingDto.resolverConfig`.
+ *
+ * Mirrors C# ResolverConfigModel: alongside `routes` the stored JSON may carry a
+ * legacy flat `nestedMappings` list and root-level extras (string-list extraction,
+ * ListItem wrapping, required properties). The editor must preserve every field it
+ * does not actively edit so existing configs round-trip byte-identically.
  */
 export interface RoutedResolverConfig {
-  routes: BlockRoute[];
+  routes?: BlockRoute[];
+  /** Legacy flat shape — applies to every block via the mapping-level NestedSchemaTypeName. */
+  nestedMappings?: BlockRoutePropertyMapping[];
+  /** `"stringList"` → blocks flatten to a string array instead of nested Things. */
+  extractAs?: string | null;
+  /** Block property alias read in string-list mode. */
+  contentProperty?: string | null;
+  /** Legacy-path required schema properties (root-level). */
+  requiredProperties?: string[] | null;
+  /** Wrap each mapped block in a ListItem with a position (for ItemList.itemListElement). */
+  wrapInListItem?: boolean;
+  /** Block property holding an explicit position for the ListItem wrap. */
+  positionProperty?: string | null;
+  /** Value transform applied per extracted string in string-list mode. */
+  transformType?: string | null;
 }
 
 /**
@@ -201,6 +235,13 @@ export interface BlockRouteSuggestion {
   nestedSchemaType: string;
   confidence: number;
   propertyMappings: BlockRoutePropertyMappingSuggestion[];
+  /**
+   * Additive: when the block-suggest request carried a `targetSchemaProperty`,
+   * whether this route's `nestedSchemaType` fits that property's Schema.org range
+   * (server-side subtype walk). Routes that don't fit are hints for OTHER targets,
+   * not candidates for the requested one. Omitted by older backends.
+   */
+  fitsTarget?: boolean;
 }
 
 /**

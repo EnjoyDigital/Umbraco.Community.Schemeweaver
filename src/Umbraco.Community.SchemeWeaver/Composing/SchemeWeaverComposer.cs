@@ -49,7 +49,10 @@ public class SchemeWeaverComposer : IComposer
 
         // Structural pre-checks surfaced on Save + Preview. Both scoped to match
         // the scoped SchemeWeaverService and the scoped IContentTypeService the
-        // reachability classifier depends on.
+        // reachability classifier depends on. The range checker is the shared
+        // Schema.NET subtype walk used by the validator AND the block suggester's
+        // FitsTarget annotation.
+        builder.Services.AddScoped<ISchemaRangeChecker, SchemaRangeChecker>();
         builder.Services.AddScoped<ISchemaRangeValidator, SchemaRangeValidator>();
         builder.Services.AddScoped<IMappingAdvisor, MappingAdvisor>();
         builder.Services.AddScoped<IMappingReachabilityClassifier, MappingReachabilityClassifier>();

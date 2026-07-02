@@ -5,8 +5,9 @@
  * The routing model is recursive: a block element type maps to a Schema.org type with a
  * table of property mappings; any property mapping whose chosen content property is itself
  * a Block List/Grid can carry its own nested `routes` for that inner block's element types.
- * Keeping the model + serialisation here lets the modal (depth 0, with target pickers) and
- * the sub-component (depth ≥ 1) share one implementation instead of copy-pasting it.
+ * Keeping the model + serialisation here lets the modal (depth 0, scoped to one parent
+ * property-mapping row) and the sub-component (depth ≥ 1) share one implementation instead
+ * of copy-pasting it.
  */
 import type {
   RankedSchemaPropertyInfo,
@@ -16,6 +17,7 @@ import type {
   BlockRouteSuggestion,
   BlockRoutePropertyMapping,
   BlockRoutePropertyMappingSuggestion,
+  RoutedResolverConfig,
 } from '../api/types.js';
 import { filterOutPrimitiveAcceptedTypes } from '../utils/schema-primitives.js';
 
@@ -49,6 +51,15 @@ export interface RoutePropEntry {
   nestedSuggestedRoutes: BlockRouteSuggestion[];
   /** UI: whether the nested editor is revealed. */
   nestedExpanded: boolean;
+  /**
+   * Stored fields this editor does not actively edit (string-list extraction, nested
+   * ListItem wrapping). Captured on load and spread back on save so existing configs
+   * round-trip without silent loss.
+   */
+  extras?: Pick<
+    BlockRoutePropertyMapping,
+    'extractAs' | 'nestedContentProperty' | 'wrapInListItem' | 'positionProperty'
+  >;
 }
 
 /** One block element type as a row in the (possibly nested) panel. */
@@ -68,8 +79,22 @@ export interface BlockMappingRow {
   /** UI: reveal the long tail of low-confidence unmapped properties (progressive disclosure). */
   showAll: boolean;
   confidence: number | null;
-  /** Target page property — top level only; undefined for nested levels. */
+  /**
+   * The parent row's Schema.org property this block maps into. Always equals the
+   * panel's `data.schemaPropertyName` at the top level (the panel is scoped to one
+   * row and never re-targets); undefined for nested levels. Kept on the row so the
+   * explicit fan-out affordance can group off-target routes it creates.
+   */
   targetProperty?: string;
+  /**
+   * The heuristic suggester's preferred target for this block (e.g. `hasPart`),
+   * when it differs from the panel's target. Display-only hint — never applied.
+   */
+  suggestedTarget?: string;
+  /** Sibling rows (other targets) that already route this block — read-only context tags. */
+  claimedBy?: string[];
+  /** Route-level required schema properties, preserved verbatim from the stored route. */
+  requiredProperties?: string[];
 }
 
 /** Normalise an element type's `propertyInfos`, falling back to plain aliases. */
@@ -127,6 +152,7 @@ export interface PropEntrySeed {
   nestedSeed?: BlockRoute[];
   nestedRoutes?: BlockRoute[];
   nestedSuggestedRoutes?: BlockRouteSuggestion[];
+  extras?: RoutePropEntry['extras'];
 }
 
 /** Build one property-mapping row, resolving nested block element types from the content property. */
@@ -157,6 +183,7 @@ export function makePropEntry(
     nestedRoutes: seed?.nestedRoutes ?? seed?.nestedSeed ?? [],
     nestedSuggestedRoutes: seed?.nestedSuggestedRoutes ?? [],
     nestedExpanded: false,
+    extras: seed?.extras,
   };
 }
 
@@ -173,6 +200,13 @@ export function seedEntriesFromRaw(
     const nested = fromSuggestion
       ? convertSuggestedRoutes((m as BlockRoutePropertyMappingSuggestion).routes)
       : ((m as BlockRoutePropertyMapping).routes ?? []);
+    const stored = fromSuggestion ? undefined : (m as BlockRoutePropertyMapping);
+    const hasExtras =
+      stored &&
+      (stored.extractAs != null ||
+        stored.nestedContentProperty != null ||
+        stored.wrapInListItem === true ||
+        stored.positionProperty != null);
     return makePropEntry(m.schemaProperty, '', false, [], propertyInfos, {
       contentProperty: m.contentProperty,
       wrapInType: m.wrapInType,
@@ -183,6 +217,14 @@ export function seedEntriesFromRaw(
       nestedSuggestedRoutes: fromSuggestion
         ? (m as BlockRoutePropertyMappingSuggestion).routes ?? []
         : [],
+      extras: hasExtras
+        ? {
+            extractAs: stored.extractAs,
+            nestedContentProperty: stored.nestedContentProperty,
+            wrapInListItem: stored.wrapInListItem,
+            positionProperty: stored.positionProperty,
+          }
+        : undefined,
     });
   });
 }
@@ -214,7 +256,8 @@ export function alignPropertyMappings(
   propertyInfos: BlockElementPropertyInfo[],
 ): RoutePropEntry[] {
   const byName = new Map(seed.map((m) => [m.schemaProperty.toLowerCase(), m]));
-  return props.map((sp) => {
+  const known = new Set(props.map((sp) => sp.name.toLowerCase()));
+  const aligned = props.map((sp) => {
     const prev = byName.get(sp.name.toLowerCase());
     return makePropEntry(sp.name, sp.propertyType, sp.isComplexType, sp.acceptedTypes ?? [], propertyInfos, prev && {
       contentProperty: prev.contentProperty,
@@ -224,8 +267,16 @@ export function alignPropertyMappings(
       nestedSeed: prev.nestedSeed,
       nestedRoutes: prev.nestedRoutes,
       nestedSuggestedRoutes: prev.nestedSuggestedRoutes,
+      extras: prev.extras,
     }, sp.confidence, sp.isPopular);
   });
+  // Stored entries whose schema property is not among the type's known
+  // properties (renamed/nonstandard) are appended rather than silently dropped
+  // on the next save — the user can see and remove them deliberately.
+  const orphans = seed.filter(
+    (m) => m.contentProperty.trim() !== '' && !known.has(m.schemaProperty.toLowerCase()),
+  );
+  return [...aligned, ...orphans];
 }
 
 /** Build a block row from an element type and an optional seed. */
@@ -234,6 +285,8 @@ export interface RowSeed {
   propertyMappings: RoutePropEntry[];
   confidence?: number | null;
   targetProperty?: string;
+  suggestedTarget?: string;
+  requiredProperties?: string[];
 }
 
 export function makeBlockRow(bt: BlockElementTypeInfo, seed?: RowSeed): BlockMappingRow {
@@ -251,6 +304,8 @@ export function makeBlockRow(bt: BlockElementTypeInfo, seed?: RowSeed): BlockMap
     showAll: false,
     confidence: seed?.confidence ?? null,
     targetProperty: seed?.targetProperty,
+    suggestedTarget: seed?.suggestedTarget,
+    requiredProperties: seed?.requiredProperties,
   };
 }
 
@@ -262,6 +317,16 @@ export function mappedCount(row: BlockMappingRow): number {
 /** Count of property rows shown by default — recommended OR already mapped. */
 export function recommendedCount(row: BlockMappingRow): number {
   return row.propertyMappings.filter((m) => m.recommended || m.contentProperty.trim() !== '').length;
+}
+
+/** Total recommended (Google-relevant) property rows for the chosen type. */
+export function recommendedTotal(row: BlockMappingRow): number {
+  return row.propertyMappings.filter((m) => m.recommended).length;
+}
+
+/** Recommended property rows that actually have a chosen content value (mapped ∩ recommended). */
+export function recommendedMapped(row: BlockMappingRow): number {
+  return row.propertyMappings.filter((m) => m.recommended && m.contentProperty.trim() !== '').length;
 }
 
 /**
@@ -303,19 +368,30 @@ export function serialisePropertyMappings(entries: RoutePropEntry[]): BlockRoute
       };
       if (m.transformType) pm.transformType = m.transformType;
       if (m.nestedRoutes.length > 0) pm.routes = m.nestedRoutes;
+      // Spread stored-but-unedited fields back so a load→save round-trip never loses them.
+      if (m.extras) {
+        if (m.extras.extractAs != null) pm.extractAs = m.extras.extractAs;
+        if (m.extras.nestedContentProperty != null) pm.nestedContentProperty = m.extras.nestedContentProperty;
+        if (m.extras.wrapInListItem === true) pm.wrapInListItem = m.extras.wrapInListItem;
+        if (m.extras.positionProperty != null) pm.positionProperty = m.extras.positionProperty;
+      }
       return pm;
     });
 }
 
-/** Serialise nested block rows (no target grouping) to a `routes` array. */
+/** Serialise block rows to a `routes` array (the panel's target is the owning row). */
 export function serialiseRoutes(rows: BlockMappingRow[]): BlockRoute[] {
   return rows
     .filter((r) => r.mapped && r.nestedSchemaType)
-    .map((r) => ({
-      blockAlias: r.alias,
-      nestedSchemaType: r.nestedSchemaType,
-      propertyMappings: serialisePropertyMappings(r.propertyMappings),
-    }));
+    .map((r) => {
+      const route: BlockRoute = {
+        blockAlias: r.alias,
+        nestedSchemaType: r.nestedSchemaType,
+        propertyMappings: serialisePropertyMappings(r.propertyMappings),
+      };
+      if (r.requiredProperties?.length) route.requiredProperties = r.requiredProperties;
+      return route;
+    });
 }
 
 /** Convert suggested routes (with confidence) to the stored route shape, recursively. */
@@ -337,4 +413,131 @@ export function convertSuggestedRoutes(routes?: BlockRouteSuggestion[]): BlockRo
       return pm;
     }),
   }));
+}
+
+/** Safe-parse a stored ResolverConfig JSON string; `null` for empty/invalid JSON. */
+export function parseResolverConfig(json: string | null | undefined): RoutedResolverConfig | null {
+  if (!json?.trim()) return null;
+  try {
+    const parsed = JSON.parse(json);
+    return parsed && typeof parsed === 'object' ? (parsed as RoutedResolverConfig) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Seed per-block RowSeeds from a LEGACY flat config (`nestedMappings` + the mapping-level
+ * `nestedSchemaTypeName`), matching the renderer's actual semantics: entries with an empty
+ * or absent `blockAlias` are WILDCARD and apply to every block element type; entries with a
+ * `blockAlias` apply only to that type (in addition to any wildcard entries). This is the
+ * fix for the old modal keying a wildcard legacy config by `''` and matching no block.
+ *
+ * Returns a map keyed by LOWERCASED block alias → RowSeed. Block types with no applicable
+ * entries are omitted (they stay unmapped).
+ */
+export function seedRowsFromLegacyConfig(
+  blockTypes: BlockElementTypeInfo[],
+  nestedMappings: BlockRoutePropertyMapping[],
+  nestedSchemaTypeName: string | null | undefined,
+): Map<string, RowSeed> {
+  const seeds = new Map<string, RowSeed>();
+  const wildcard = nestedMappings.filter((m) => !m.blockAlias);
+  const byAlias = new Map<string, BlockRoutePropertyMapping[]>();
+  for (const m of nestedMappings) {
+    if (!m.blockAlias) continue;
+    const key = m.blockAlias.toLowerCase();
+    const list = byAlias.get(key) ?? [];
+    list.push(m);
+    byAlias.set(key, list);
+  }
+  for (const bt of blockTypes) {
+    const entries = [...wildcard, ...(byAlias.get(bt.alias.toLowerCase()) ?? [])];
+    if (entries.length === 0) continue;
+    seeds.set(bt.alias.toLowerCase(), {
+      nestedSchemaType: nestedSchemaTypeName ?? '',
+      propertyMappings: seedEntriesFromRaw(entries, rowPropertyInfos(bt), false),
+    });
+  }
+  return seeds;
+}
+
+/**
+ * Convert a LEGACY flat config to behavior-equivalent explicit routes, without
+ * needing the block element type list. Legacy semantics: a block receives the
+ * wildcard entries PLUS its alias-specific entries. Route semantics: an exact
+ * alias route wins outright, else the wildcard route applies. So each alias
+ * route carries wildcard + alias entries, and a wildcard route (wildcard
+ * entries only) covers every other block. Used when merging fan-out routes
+ * into a sibling row that still holds a legacy config — merging `routes` on
+ * top of untouched `nestedMappings` would silently shadow the flat list (the
+ * renderer prefers routes).
+ */
+export function legacyConfigToRoutes(
+  nestedMappings: BlockRoutePropertyMapping[],
+  nestedSchemaTypeName: string | null | undefined,
+): BlockRoute[] {
+  const type = nestedSchemaTypeName ?? '';
+  // Entries become route-scoped: the per-entry blockAlias is dropped from copies.
+  const scoped = ({ blockAlias: _alias, ...entry }: BlockRoutePropertyMapping): BlockRoutePropertyMapping => entry;
+  const wildcard = nestedMappings.filter((m) => !m.blockAlias).map(scoped);
+  const byAlias = new Map<string, BlockRoutePropertyMapping[]>();
+  for (const m of nestedMappings) {
+    if (!m.blockAlias) continue;
+    const list = byAlias.get(m.blockAlias) ?? [];
+    list.push(scoped(m));
+    byAlias.set(m.blockAlias, list);
+  }
+  const routes: BlockRoute[] = [...byAlias.entries()].map(([blockAlias, entries]) => ({
+    blockAlias,
+    nestedSchemaType: type,
+    propertyMappings: [...wildcard, ...entries],
+  }));
+  if (wildcard.length > 0) {
+    routes.push({ blockAlias: '', nestedSchemaType: type, propertyMappings: wildcard });
+  }
+  return routes;
+}
+
+/** A human-readable summary of a stored blockContent ResolverConfig, for the mapping table row. */
+export type ResolverConfigSummary =
+  | { kind: 'routes'; routes: Array<{ blockAlias: string; nestedSchemaType: string }> }
+  | { kind: 'stringList'; contentProperty: string }
+  | { kind: 'empty' };
+
+/**
+ * Summarise a stored config for display: routed configs list `blockAlias → type` pairs
+ * (legacy flat configs summarise as a single wildcard pair using the mapping-level nested
+ * type, since they apply to every block); string-list extraction reports its source
+ * property; anything else is `empty`. `blockAlias === ''` means "any block" — callers
+ * localise that label.
+ */
+export function summariseResolverConfig(
+  resolverConfig: string | null | undefined,
+  nestedSchemaTypeName?: string | null,
+): ResolverConfigSummary {
+  const config = parseResolverConfig(resolverConfig);
+  if (config?.extractAs === 'stringList') {
+    return { kind: 'stringList', contentProperty: config.contentProperty ?? '' };
+  }
+  if (config?.routes?.length) {
+    return {
+      kind: 'routes',
+      routes: config.routes.map((r) => ({
+        blockAlias: r.blockAlias ?? '',
+        nestedSchemaType: r.nestedSchemaType ?? '',
+      })),
+    };
+  }
+  if (config?.nestedMappings?.length || (!config && nestedSchemaTypeName)) {
+    // Legacy flat shape (or a bare nestedSchemaTypeName with auto-mapped properties):
+    // one implicit route for every block, typed by the mapping-level nested type.
+    const aliases = new Set((config?.nestedMappings ?? []).map((m) => m.blockAlias || ''));
+    const list = aliases.size > 0 ? [...aliases] : [''];
+    return {
+      kind: 'routes',
+      routes: list.map((blockAlias) => ({ blockAlias, nestedSchemaType: nestedSchemaTypeName ?? '' })),
+    };
+  }
+  return { kind: 'empty' };
 }

@@ -6,6 +6,8 @@ import type { PropertyMappingRow } from '../components/property-mapping-table.el
 import '../components/property-mapping-table.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from './nested-mapping-modal.token.js';
+import type { NestedMappingModalValue, NestedMappingModalSiblingClaim } from './nested-mapping-modal.token.js';
+import { parseResolverConfig, legacyConfigToRoutes } from '../components/block-route-model.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { mergeAutoMapSuggestions, applySourceTypeChange } from '../utils/mapping-converters.js';
@@ -221,8 +223,8 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     const index = detail.index as number;
     const mapping = this._mappings[index];
 
-    // The flat block-mapping panel configures the WHOLE block-list property, so
-    // it only needs the property alias — not a pre-chosen nested schema type.
+    // The panel is scoped to THIS row: it maps the block-list property's element
+    // types INTO this row's schema property. It needs a chosen property alias.
     if (!mapping || !mapping.contentTypePropertyAlias) {
       this.#notificationContext?.peek('warning', {
         data: {
@@ -234,21 +236,16 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
     const blockListProp = mapping.contentTypePropertyAlias;
 
-    // Pre-fill from every existing blockContent row that targets the same
-    // block-list property (each is a separate target page property).
-    const existingMappings = this._mappings
-      .filter((m) => m.sourceType === SourceType.BlockContent && m.contentTypePropertyAlias === blockListProp)
-      .map((m) => ({
-        schemaPropertyName: m.schemaPropertyName,
-        nestedSchemaTypeName: m.nestedSchemaTypeName || null,
-        resolverConfig: m.resolverConfig,
-      }));
-
     const modalHandler = this.#modalManagerContext?.open(this, SCHEMEWEAVER_NESTED_MAPPING_MODAL, {
       data: {
         contentTypeAlias: this.data?.contentTypeAlias || '',
         contentTypePropertyAlias: blockListProp,
-        existingMappings,
+        schemaPropertyName: mapping.schemaPropertyName,
+        schemaPropertyType: mapping.schemaPropertyType || undefined,
+        acceptedTypes: mapping.acceptedTypes,
+        existingConfig: mapping.resolverConfig ?? null,
+        nestedSchemaTypeName: mapping.nestedSchemaTypeName || null,
+        siblingClaims: this._computeSiblingClaims(index, blockListProp),
       },
     });
 
@@ -256,8 +253,8 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
     try {
       const result = await modalHandler.onSubmit();
-      if (result?.mappings) {
-        this._applyBlockMappings(blockListProp, mapping.editorAlias, result.mappings);
+      if (result) {
+        this._applyNestedMappingResult(index, mapping.editorAlias, result);
       }
     } catch {
       // Modal was rejected / closed — do nothing
@@ -265,45 +262,108 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   }
 
   /**
-   * Replace every blockContent row for a given block-list property with the
-   * panel's grouped target mappings — one PropertyMappingRow per target page
-   * property (mainEntity / hasPart / about / …).
+   * Blocks already routed by OTHER blockContent rows on the same block-list
+   * property — read-only context for the panel. Legacy-wildcard siblings (flat
+   * `nestedMappings` with no routes) are skipped: they apply to every block, so
+   * per-block attribution would be misleading.
    */
-  private _applyBlockMappings(
-    blockListProp: string,
-    editorAlias: string,
-    mappings: Array<{ schemaPropertyName: string; contentTypePropertyAlias: string; resolverConfig: string }>,
-  ) {
-    // Drop existing blockContent rows for this block-list property.
-    const retained = this._mappings.filter(
-      (m) => !(m.sourceType === SourceType.BlockContent && m.contentTypePropertyAlias === blockListProp),
-    );
-
-    const newRows: PropertyMappingRow[] = mappings.map((tm) => {
-      const sp = this._allSchemaProperties.find(
-        (s) => s.name.toLowerCase() === tm.schemaPropertyName.toLowerCase(),
-      );
-      return {
-        schemaPropertyName: tm.schemaPropertyName,
-        schemaPropertyType: sp?.propertyType || '',
-        sourceType: SourceType.BlockContent,
-        contentTypePropertyAlias: tm.contentTypePropertyAlias,
-        sourceContentTypeAlias: '',
-        staticValue: '',
-        confidence: null,
-        editorAlias,
-        nestedSchemaTypeName: '',
-        resolverConfig: tm.resolverConfig,
-        acceptedTypes: sp?.acceptedTypes || [],
-        isComplexType: sp?.isComplexType || false,
-        expanded: false,
-        subMappings: [],
-        selectedSubType: '',
-        sourceContentTypeProperties: [],
-      };
+  private _computeSiblingClaims(openedIndex: number, blockListProp: string): NestedMappingModalSiblingClaim[] {
+    const claims: NestedMappingModalSiblingClaim[] = [];
+    this._mappings.forEach((row, i) => {
+      if (i === openedIndex) return;
+      if (row.sourceType !== SourceType.BlockContent || row.contentTypePropertyAlias !== blockListProp) return;
+      const config = parseResolverConfig(row.resolverConfig);
+      const blockAliases = (config?.routes ?? [])
+        .map((r) => r.blockAlias)
+        .filter((alias): alias is string => !!alias);
+      if (blockAliases.length === 0) return;
+      claims.push({ schemaPropertyName: row.schemaPropertyName, blockAliases });
     });
+    return claims;
+  }
 
-    this._mappings = [...retained, ...newRows];
+  /**
+   * Merge the panel's row-scoped result back into the table. Patches ONLY the
+   * opened row's `resolverConfig`; a verbatim-unchanged config touches NOTHING.
+   * Explicit fan-out entries merge into an existing sibling row or append a new
+   * one. No row is ever deleted or re-keyed.
+   */
+  private _applyNestedMappingResult(index: number, editorAlias: string, value: NestedMappingModalValue) {
+    const opened = this._mappings[index];
+    const blockListProp = opened.contentTypePropertyAlias;
+    const rows = [...this._mappings];
+
+    const returned = value.resolverConfig ?? null;
+    if (returned !== (opened.resolverConfig ?? null)) {
+      const patched: PropertyMappingRow = { ...opened, resolverConfig: returned };
+      // A config that now carries routes has upgraded past the legacy
+      // mapping-level nested type — clear it so the routes alone drive placement.
+      if (parseResolverConfig(returned)?.routes) patched.nestedSchemaTypeName = '';
+      rows[index] = patched;
+    }
+
+    for (const target of value.additionalTargets ?? []) {
+      // Never re-route the opened row via fan-out — its config is `value.resolverConfig`.
+      if (target.schemaPropertyName.toLowerCase() === opened.schemaPropertyName.toLowerCase()) continue;
+      const siblingIndex = rows.findIndex(
+        (row, i) =>
+          i !== index &&
+          row.sourceType === SourceType.BlockContent &&
+          row.contentTypePropertyAlias === blockListProp &&
+          row.schemaPropertyName.toLowerCase() === target.schemaPropertyName.toLowerCase(),
+      );
+
+      if (siblingIndex >= 0) {
+        // Merge routes: block aliases present in the new set replace, others kept.
+        // A sibling still on the LEGACY flat shape is expanded to equivalent
+        // explicit routes first — merging routes on top of untouched
+        // nestedMappings would silently shadow the whole flat list (the
+        // renderer prefers routes).
+        const sibling = rows[siblingIndex];
+        const siblingConfig = parseResolverConfig(sibling.resolverConfig) ?? {};
+        const baseRoutes =
+          siblingConfig.routes ??
+          (siblingConfig.nestedMappings?.length
+            ? legacyConfigToRoutes(siblingConfig.nestedMappings, sibling.nestedSchemaTypeName)
+            : sibling.nestedSchemaTypeName
+              ? [{ blockAlias: '', nestedSchemaType: sibling.nestedSchemaTypeName, propertyMappings: [] }]
+              : []);
+        const newRoutes = parseResolverConfig(target.resolverConfig)?.routes ?? [];
+        const newAliases = new Set(newRoutes.map((r) => (r.blockAlias ?? '').toLowerCase()));
+        const keptRoutes = baseRoutes.filter((r) => !newAliases.has((r.blockAlias ?? '').toLowerCase()));
+        const { nestedMappings: _legacy, ...rootExtras } = siblingConfig;
+        rows[siblingIndex] = {
+          ...sibling,
+          resolverConfig: JSON.stringify({ ...rootExtras, routes: [...keptRoutes, ...newRoutes] }),
+          // Routes now drive placement — the legacy mapping-level type is upgraded away.
+          nestedSchemaTypeName: '',
+        };
+      } else {
+        const sp = this._allSchemaProperties.find(
+          (s) => s.name.toLowerCase() === target.schemaPropertyName.toLowerCase(),
+        );
+        rows.push({
+          schemaPropertyName: target.schemaPropertyName,
+          schemaPropertyType: sp?.propertyType || '',
+          sourceType: SourceType.BlockContent,
+          contentTypePropertyAlias: blockListProp,
+          sourceContentTypeAlias: '',
+          staticValue: '',
+          confidence: null,
+          editorAlias,
+          nestedSchemaTypeName: '',
+          resolverConfig: target.resolverConfig,
+          acceptedTypes: sp?.acceptedTypes || [],
+          isComplexType: sp?.isComplexType || false,
+          expanded: false,
+          subMappings: [],
+          selectedSubType: '',
+          sourceContentTypeProperties: [],
+        });
+      }
+    }
+
+    this._mappings = rows;
   }
 
   private async _handleSave() {

@@ -2,7 +2,7 @@ import { expect } from '@open-wc/testing';
 import type { PropertyMappingDto, PropertyMappingSuggestion, ValidationIssue } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import { SourceType } from '../constants/source-type.js';
-import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, applySourceTypeChange, applyWarningsToRows } from './mapping-converters.js';
+import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows } from './mapping-converters.js';
 
 /** Helper to create a minimal PropertyMappingDto */
 function makeDto(overrides: Partial<PropertyMappingDto> & { schemaPropertyName: string }): PropertyMappingDto {
@@ -412,5 +412,51 @@ describe('applyWarningsToRows', () => {
     ]);
     expect(result[0].rangeWarning).to.equal('out of range');
     expect(result[0].suggestion).to.equal('consider stripHtml');
+  });
+});
+
+describe('persistence fidelity (loadOrder / isAutoMapped / transformType round-trip)', () => {
+  it('dtoToRow captures load position, stored isAutoMapped and top-level transformType', () => {
+    const dtos = [
+      makeDto({ schemaPropertyName: 'Name', isAutoMapped: true, transformType: 'stripHtml' }),
+      makeDto({ schemaPropertyName: 'Review' }),
+    ];
+    const rows = dtos.map(dtoToRow);
+    expect(rows[0].loadOrder).to.equal(0);
+    expect(rows[1].loadOrder).to.equal(1);
+    expect(rows[0].isAutoMapped).to.equal(true);
+    expect(rows[0].transformType).to.equal('stripHtml');
+    expect(rows[1].isAutoMapped).to.equal(false);
+  });
+
+  it('rowsInPersistenceOrder restores stored order regardless of display sorting, new rows last', () => {
+    const stored = [
+      makeDto({ schemaPropertyName: 'Name' }),
+      makeDto({ schemaPropertyName: 'Description' }),
+      makeDto({ schemaPropertyName: 'Review' }),
+    ].map(dtoToRow);
+    const fresh = makeRow({ schemaPropertyName: 'AggregateRating' }); // no loadOrder
+    const displaySorted = sortMappingRows([fresh, stored[2], stored[0], stored[1]]);
+    const persisted = rowsInPersistenceOrder(displaySorted).map((r) => r.schemaPropertyName);
+    expect(persisted).to.deep.equal(['Name', 'Description', 'Review', 'AggregateRating']);
+  });
+
+  it('mergeAutoMapSuggestions and applySourceTypeChange preserve loadOrder and stored flags', () => {
+    const row = dtoToRow(
+      makeDto({
+        schemaPropertyName: 'Name',
+        contentTypePropertyAlias: 'title',
+        isAutoMapped: true,
+        transformType: 'stripHtml',
+      }),
+      3,
+    );
+    const merged = mergeAutoMapSuggestions([row], [])[0];
+    expect(merged.loadOrder).to.equal(3);
+    expect(merged.isAutoMapped).to.equal(true);
+    expect(merged.transformType).to.equal('stripHtml');
+    const changed = applySourceTypeChange(merged, SourceType.Static);
+    expect(changed.loadOrder).to.equal(3);
+    expect(changed.isAutoMapped).to.equal(true);
   });
 });

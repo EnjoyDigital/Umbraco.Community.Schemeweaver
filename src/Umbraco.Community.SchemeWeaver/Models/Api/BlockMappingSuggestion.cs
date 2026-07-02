@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Umbraco.Community.SchemeWeaver.Models.Api;
 
 /// <summary>
@@ -29,6 +31,20 @@ public class BlockRouteSuggestion
     public string BlockAlias { get; set; } = string.Empty;
     public string NestedSchemaType { get; set; } = string.Empty;
     public int Confidence { get; set; }
+
+    /// <summary>
+    /// Row-scoped fit (additive): when the block-suggest request carried a
+    /// <c>targetSchemaProperty</c>, whether <see cref="NestedSchemaType"/> is assignable to
+    /// that property's accepted Schema.org range (the same subtype walk
+    /// <c>SchemaRangeValidator</c> uses). Routes that don't fit are hints for OTHER targets,
+    /// not candidates for the requested row. Null — and omitted from the JSON — when no
+    /// target was supplied or its range could not be resolved, so pre-existing clients see
+    /// an unchanged payload shape. Only set on top-level routes: nested routes (blocks
+    /// inside blocks) feed properties of their parent block's type, not the caller's row.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? FitsTarget { get; set; }
+
     public List<BlockRoutePropertyMappingSuggestion> PropertyMappings { get; set; } = [];
 }
 

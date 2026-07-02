@@ -9,36 +9,66 @@ import type { SchemaTypeInputElement } from '../components/schema-type-input.ele
 import {
   type BlockMappingRow as BlockRow,
   type RoutePropEntry,
+  type RowSeed,
   makeBlockRow,
+  rowPropertyInfos,
   seedEntriesFromRaw,
+  seedRowsFromLegacyConfig,
+  parseResolverConfig,
   threadNestedSuggestions,
   alignPropertyMappings,
   resolveNestedBlockTypes,
   allowedObjectSchemaTypes,
   schemaTypeSelectOptions,
-  serialisePropertyMappings,
+  serialiseRoutes,
+  convertSuggestedRoutes,
   mappedCount,
-  recommendedCount,
+  recommendedMapped,
+  recommendedTotal,
   visibleEntries,
 } from '../components/block-route-model.js';
+import { filterOutPrimitiveAcceptedTypes } from '../utils/schema-primitives.js';
 import type {
   RankedSchemaPropertyInfo,
   BlockElementTypeInfo,
   BlockMappingSuggestion,
   BlockRouteSuggestion,
-  BlockRoutePropertyMapping,
   RoutedResolverConfig,
 } from '../api/types.js';
 
 import type {
   NestedMappingModalData,
   NestedMappingModalValue,
-  NestedMappingModalTargetMapping,
+  NestedMappingModalAdditionalTarget,
 } from './nested-mapping-modal.token.js';
 
-/** Target page properties offered for routing block content. */
-const DEFAULT_TARGET_PROPERTIES = ['mainEntity', 'hasPart', 'about', 'mentions'];
+/** A block-suggest hit for one block element type. */
+interface SuggestionHit {
+  /** The suggester's preferred TARGET page property (may differ from this panel's). */
+  target: string;
+  route: BlockRouteSuggestion;
+  confidence: number;
+}
 
+/** An auto-map suggestion that fits a DIFFERENT target than this panel's row. */
+interface OffTargetRoute {
+  blockAlias: string;
+  blockName: string;
+  target: string;
+  route: BlockRouteSuggestion;
+}
+
+/** Sentinel option value for the constrained type picker's "Other type…" escape hatch. */
+const OTHER_TYPE_OPTION = '__schemeweaver-other-type__';
+
+/**
+ * Route editor scoped to exactly ONE parent property-mapping row: maps the block
+ * element types of a Block List/Grid property INTO the parent row's Schema.org
+ * property. The target is immutable context — placement is decided by the parent
+ * row's `schemaPropertyName` on the main table, never in here. Multi-target is
+ * expressed as separate rows; off-target auto-map suggestions are offered as an
+ * explicit fan-out (`value.additionalTargets`) instead of silently re-targeting.
+ */
 @customElement('schemeweaver-nested-mapping-modal')
 export class NestedMappingModalElement extends UmbModalBaseElement<NestedMappingModalData, NestedMappingModalValue> {
   // Own repository instance — sidesteps context-consumption timing (see the
@@ -54,6 +84,46 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
   @state()
   private _blockRows: BlockRow[] = [];
+
+  /** True when the stored config is a string-list extraction — read-only notice, no route editor. */
+  @state()
+  private _stringListMode = false;
+
+  /** The string-list source block property, for the notice text. */
+  @state()
+  private _stringListSource = '';
+
+  /** Suggested routes that fit OTHER targets — offered as an explicit fan-out, never applied here. */
+  @state()
+  private _offTargetRoutes: OffTargetRoute[] = [];
+
+  /** True once the user opted into the fan-out — `additionalTargets` are emitted on save. */
+  @state()
+  private _fanOutQueued = false;
+
+  /** Rows whose constrained type picker was toggled to the free searchable input. */
+  @state()
+  private _freeTypeRows: ReadonlySet<string> = new Set<string>();
+
+  /**
+   * Whether the user changed anything. When false, save returns
+   * `data.existingConfig` VERBATIM — a no-change open+save is a persistence no-op
+   * (byte fidelity is a hard invariant: legacy configs only upgrade on real edits).
+   */
+  private _dirty = false;
+
+  /** Fan-out targets queued by the explicit "create rows" affordance. */
+  private _queuedAdditionalTargets: NestedMappingModalAdditionalTarget[] = [];
+
+  /** Latest block-suggest hits keyed by LOWERCASED block alias. */
+  private _suggestionByBlock = new Map<string, SuggestionHit>();
+
+  /**
+   * Nested child editors that have delivered their initial (mount) `change` emit.
+   * The child emits once after its first build — that sync must not mark the
+   * panel dirty; only subsequent (user-driven) emits do.
+   */
+  #nestedSyncedChildren = new WeakSet<EventTarget>();
 
   /** Cache of ranked schema-type properties keyed by type name. */
   private _typePropsCache: Record<string, RankedSchemaPropertyInfo[]> = {};
@@ -75,6 +145,15 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
   private async _initialise() {
     this._loading = true;
     try {
+      const config = parseResolverConfig(this.data?.existingConfig);
+      if (config?.extractAs === 'stringList') {
+        // String-list extraction has no block routes to edit — render a read-only
+        // notice and round-trip the stored config VERBATIM on save.
+        this._stringListMode = true;
+        this._stringListSource = config.contentProperty ?? '';
+        return;
+      }
+
       const contentTypeAlias = this.data?.contentTypeAlias || '';
       const propertyAlias = this.data?.contentTypePropertyAlias || '';
 
@@ -83,17 +162,27 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           ? this.#repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
         propertyAlias
-          ? this.#repository.requestBlockSuggestions(contentTypeAlias, propertyAlias)
+          ? this.#repository.requestBlockSuggestions(contentTypeAlias, propertyAlias, this.data?.schemaPropertyName)
           : Promise.resolve(undefined),
       ]);
 
       const blocks = blockTypes ?? [];
-      const routeByBlock = this._indexSuggestionRoutes(suggestions ?? []);
-      const existingByBlock = this._indexExistingRoutes();
+      this._suggestionByBlock = this._indexSuggestionRoutes(suggestions ?? []);
+      const claimsByBlock = this._indexSiblingClaims();
+      const seeds = this._buildSeeds(blocks, config);
 
-      // One row per block element type, seeded from existing config first
-      // (re-editing wins), then the heuristic suggestion, else SKIP.
-      this._blockRows = blocks.map((bt) => this._buildRow(bt, routeByBlock.get(bt.alias.toLowerCase()), existingByBlock.get(bt.alias)));
+      this._blockRows = blocks.map((bt) => {
+        const key = bt.alias.toLowerCase();
+        const row = makeBlockRow(bt, seeds.get(key));
+        const claims = claimsByBlock.get(key);
+        if (claims?.length) row.claimedBy = claims;
+        if (!row.mapped) {
+          // Display-only hint: the suggester routes this block to a DIFFERENT target.
+          const hit = this._suggestionByBlock.get(key);
+          if (hit && !this._routeFits(hit.route)) row.suggestedTarget = hit.target;
+        }
+        return row;
+      });
 
       // Hydrate full editable property tables for every mapped row.
       await Promise.all(this._blockRows.map((_, i) => this._hydrateRow(i)));
@@ -109,11 +198,86 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     }
   }
 
-  /** blockAlias → { target, route } from the block-suggest response. */
-  private _indexSuggestionRoutes(
-    suggestions: BlockMappingSuggestion[],
-  ): Map<string, { target: string; route: BlockRouteSuggestion; confidence: number }> {
-    const map = new Map<string, { target: string; route: BlockRouteSuggestion; confidence: number }>();
+  /**
+   * Build per-block RowSeeds for THIS row's stored config (all legacy shapes
+   * must round-trip):
+   * - routed (`routes[]`) → one seed per route; wildcard routes apply to every
+   *   block without an explicit route.
+   * - legacy flat (`nestedMappings[]`) → {@link seedRowsFromLegacyConfig}, so
+   *   wildcard entries seed EVERY block row (the old modal keyed them by `''`
+   *   and matched nothing — the invisible-legacy bug).
+   * - bare `nestedSchemaTypeName` → every block seeded with that type and an
+   *   empty table (the renderer auto-maps by name today; shown honestly).
+   * - fresh (no config, no hint) → seed from the suggester, but ONLY routes
+   *   whose nested type fits this row's target.
+   */
+  private _buildSeeds(blocks: BlockElementTypeInfo[], config: RoutedResolverConfig | null): Map<string, RowSeed> {
+    const target = this.data?.schemaPropertyName ?? '';
+    const seeds = new Map<string, RowSeed>();
+
+    if (config && Array.isArray(config.routes)) {
+      const explicit = config.routes.filter((r) => !!r.blockAlias);
+      const wildcard = config.routes.filter((r) => !r.blockAlias);
+      for (const bt of blocks) {
+        const route =
+          explicit.find((r) => r.blockAlias.toLowerCase() === bt.alias.toLowerCase()) ?? wildcard[0];
+        if (!route) continue;
+        const entries = seedEntriesFromRaw(route.propertyMappings ?? [], rowPropertyInfos(bt), false);
+        // Stored routes carry no suggestions; thread the heuristic's nested suggestions
+        // through so the nested editor can still offer "Auto-map nested" when re-editing.
+        threadNestedSuggestions(entries, this._suggestionByBlock.get(bt.alias.toLowerCase())?.route.propertyMappings);
+        seeds.set(bt.alias.toLowerCase(), {
+          nestedSchemaType: route.nestedSchemaType ?? '',
+          propertyMappings: entries,
+          targetProperty: target,
+          requiredProperties: route.requiredProperties ?? undefined,
+        });
+      }
+      return seeds;
+    }
+
+    if (config && Array.isArray(config.nestedMappings)) {
+      const legacy = seedRowsFromLegacyConfig(blocks, config.nestedMappings, this.data?.nestedSchemaTypeName);
+      for (const [alias, seed] of legacy) {
+        threadNestedSuggestions(seed.propertyMappings, this._suggestionByBlock.get(alias)?.route.propertyMappings);
+        seeds.set(alias, { ...seed, targetProperty: target });
+      }
+      return seeds;
+    }
+
+    if (this.data?.nestedSchemaTypeName) {
+      for (const bt of blocks) {
+        seeds.set(bt.alias.toLowerCase(), {
+          nestedSchemaType: this.data.nestedSchemaTypeName,
+          propertyMappings: [],
+          targetProperty: target,
+        });
+      }
+      return seeds;
+    }
+
+    if (!this.data?.existingConfig) {
+      // Fresh row: auto-seed only the suggested routes that FIT this target.
+      // Emitting them is a real change from `null`, so seeding marks the panel dirty.
+      for (const bt of blocks) {
+        const hit = this._suggestionByBlock.get(bt.alias.toLowerCase());
+        if (!hit || !this._routeFits(hit.route)) continue;
+        seeds.set(bt.alias.toLowerCase(), {
+          nestedSchemaType: hit.route.nestedSchemaType,
+          propertyMappings: seedEntriesFromRaw(hit.route.propertyMappings, rowPropertyInfos(bt), true),
+          confidence: hit.confidence,
+          targetProperty: target,
+        });
+      }
+      if (seeds.size > 0) this._dirty = true;
+    }
+
+    return seeds;
+  }
+
+  /** blockAlias → suggestion hit from the block-suggest response. */
+  private _indexSuggestionRoutes(suggestions: BlockMappingSuggestion[]): Map<string, SuggestionHit> {
+    const map = new Map<string, SuggestionHit>();
     for (const s of suggestions) {
       for (const route of s.routes) {
         // Key case-insensitively so a block alias whose casing differs between the
@@ -124,76 +288,31 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     return map;
   }
 
-  /** blockAlias → { target, nestedSchemaType, propertyMappings } parsed from existing saved config. */
-  private _indexExistingRoutes(): Map<string, { target: string; nestedSchemaType: string; propertyMappings: BlockRoutePropertyMapping[] }> {
-    const map = new Map<string, { target: string; nestedSchemaType: string; propertyMappings: BlockRoutePropertyMapping[] }>();
-    for (const existing of this.data?.existingMappings ?? []) {
-      const target = existing.schemaPropertyName;
-      if (!existing.resolverConfig) continue;
-      let config: Record<string, unknown>;
-      try {
-        config = JSON.parse(existing.resolverConfig);
-      } catch {
-        continue;
-      }
-
-      const routes = config.routes;
-      if (Array.isArray(routes)) {
-        // NEW routed shape
-        for (const route of routes as Array<Record<string, unknown>>) {
-          const blockAlias = (route.blockAlias as string) || '';
-          map.set(blockAlias, {
-            target,
-            nestedSchemaType: (route.nestedSchemaType as string) || existing.nestedSchemaTypeName || '',
-            propertyMappings: (route.propertyMappings as BlockRoutePropertyMapping[]) || [],
-          });
-        }
-      } else if (Array.isArray(config.nestedMappings)) {
-        // LEGACY flat shape → one implicit route keyed by its blockAlias (or wildcard).
-        const flat = config.nestedMappings as Array<Record<string, unknown>>;
-        const blockAlias = (flat[0]?.blockAlias as string) || '';
-        map.set(blockAlias, {
-          target,
-          nestedSchemaType: existing.nestedSchemaTypeName || '',
-          propertyMappings: flat.map((m) => ({
-            schemaProperty: m.schemaProperty as string,
-            contentProperty: m.contentProperty as string,
-            wrapInType: (m.wrapInType as string) ?? null,
-            wrapInProperty: (m.wrapInProperty as string) ?? null,
-          })),
-        });
+  /** LOWERCASED block alias → sibling target properties that already route it. */
+  private _indexSiblingClaims(): Map<string, string[]> {
+    const map = new Map<string, string[]>();
+    for (const claim of this.data?.siblingClaims ?? []) {
+      for (const alias of claim.blockAliases) {
+        const key = alias.toLowerCase();
+        const list = map.get(key) ?? [];
+        list.push(claim.schemaPropertyName);
+        map.set(key, list);
       }
     }
     return map;
   }
 
-  private _buildRow(
-    bt: BlockElementTypeInfo,
-    suggestion?: { target: string; route: BlockRouteSuggestion; confidence: number },
-    existing?: { target: string; nestedSchemaType: string; propertyMappings: BlockRoutePropertyMapping[] },
-  ): BlockRow {
-    const propertyInfos = makeBlockRow(bt).propertyInfos;
-    if (existing) {
-      const entries = seedEntriesFromRaw(existing.propertyMappings, propertyInfos, false);
-      // Stored routes carry no suggestions; thread the heuristic's nested suggestions through
-      // so the nested editor can still offer "Auto-map nested" when re-editing.
-      threadNestedSuggestions(entries, suggestion?.route.propertyMappings);
-      return makeBlockRow(bt, {
-        targetProperty: existing.target,
-        nestedSchemaType: existing.nestedSchemaType,
-        propertyMappings: entries,
-        confidence: suggestion?.confidence ?? null,
-      });
-    }
-    if (suggestion) {
-      return makeBlockRow(bt, {
-        targetProperty: suggestion.target,
-        nestedSchemaType: suggestion.route.nestedSchemaType,
-        propertyMappings: seedEntriesFromRaw(suggestion.route.propertyMappings, propertyInfos, true),
-        confidence: suggestion.confidence,
-      });
-    }
-    return makeBlockRow(bt);
+  /**
+   * Whether a suggested route's nested type fits THIS row's target property.
+   * Server-authoritative when `fitsTarget` is present; else a client-side range
+   * check (empty/`Thing` ranges accept anything).
+   */
+  private _routeFits(route: BlockRouteSuggestion): boolean {
+    if (typeof route.fitsTarget === 'boolean') return route.fitsTarget;
+    const accepted = this.data?.acceptedTypes ?? [];
+    if (accepted.length === 0) return true;
+    if (accepted.includes('Thing')) return true;
+    return accepted.some((t) => t.toLowerCase() === route.nestedSchemaType.toLowerCase());
   }
 
   /**
@@ -232,28 +351,54 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       const suggestions = await this.#repository.requestBlockSuggestions(
         this.data?.contentTypeAlias || '',
         this.data?.contentTypePropertyAlias || '',
+        this.data?.schemaPropertyName,
       );
-      const routeByBlock = this._indexSuggestionRoutes(suggestions ?? []);
+      this._suggestionByBlock = this._indexSuggestionRoutes(suggestions ?? []);
+
+      // Recomputing the off-target list invalidates any previously queued fan-out —
+      // otherwise the banner would show the new list while save emits the old queue.
+      this._queuedAdditionalTargets = [];
+      this._fanOutQueued = false;
 
       let appliedAny = false;
+      const offTarget: OffTargetRoute[] = [];
       this._blockRows = this._blockRows.map((row) => {
-        const hit = routeByBlock.get(row.alias.toLowerCase());
+        const hit = this._suggestionByBlock.get(row.alias.toLowerCase());
         if (!hit) return row; // no suggestion — leave as-is (e.g. SKIP blocks)
+        if (!this._routeFits(hit.route)) {
+          // Fits a DIFFERENT target — never applied to this row; offered as fan-out.
+          offTarget.push({ blockAlias: row.alias, blockName: row.name, target: hit.target, route: hit.route });
+          return row.mapped ? row : { ...row, suggestedTarget: hit.target };
+        }
         appliedAny = true;
-        return this._applyRouteToRow(row, hit.target, hit.route, hit.confidence);
+        return this._applyRouteToRow(row, hit.route, hit.confidence);
       });
+      if (appliedAny) this._dirty = true;
+      this._offTargetRoutes = offTarget;
 
       await Promise.all(this._blockRows.map((_, i) => this._hydrateRow(i)));
       this._blockRows = [...this._blockRows];
 
+      if (offTarget.length > 0) {
+        this.#notificationContext?.peek('warning', {
+          data: {
+            message: this.localize.term(
+              'schemeWeaver_blockAutoMapSkipped',
+              offTarget.length,
+              offTarget.map((o) => `${o.blockName} → ${o.target}`).join(', '),
+            ),
+          },
+        });
+      }
+
       // Feedback so the wand is never a silent no-op: nothing matched, or matches produced
       // no resolvable property mappings.
       const mappedAnything = this._blockRows.some((row) => row.mapped && this._mappedCount(row) > 0);
-      if (!appliedAny) {
+      if (!appliedAny && offTarget.length === 0) {
         this.#notificationContext?.peek('warning', {
           data: { message: this.localize.term('schemeWeaver_blockNoSuggestion') },
         });
-      } else if (!mappedAnything) {
+      } else if (appliedAny && !mappedAnything) {
         this.#notificationContext?.peek('warning', {
           data: { message: this.localize.term('schemeWeaver_blockNoMappings') },
         });
@@ -269,6 +414,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     const suggestions = await this.#repository.requestBlockSuggestions(
       this.data?.contentTypeAlias || '',
       this.data?.contentTypePropertyAlias || '',
+      this.data?.schemaPropertyName,
     );
     const hit = this._indexSuggestionRoutes(suggestions ?? []).get(row.alias.toLowerCase());
     if (!hit) {
@@ -277,9 +423,19 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       });
       return;
     }
+    if (!this._routeFits(hit.route)) {
+      // The only suggestion fits a different target — say so instead of mis-applying it.
+      this.#notificationContext?.peek('warning', {
+        data: {
+          message: this.localize.term('schemeWeaver_blockAutoMapSkipped', 1, `${row.name} → ${hit.target}`),
+        },
+      });
+      return;
+    }
     const updated = [...this._blockRows];
-    updated[index] = this._applyRouteToRow(row, hit.target, hit.route, hit.confidence);
+    updated[index] = this._applyRouteToRow(row, hit.route, hit.confidence);
     this._blockRows = updated;
+    this._dirty = true;
     await this._hydrateRow(index);
     this._blockRows = [...this._blockRows];
     // A hit that produced no resolvable property mappings still opens the table; tell the
@@ -291,16 +447,49 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     }
   }
 
-  private _applyRouteToRow(row: BlockRow, target: string, route: BlockRouteSuggestion, confidence: number): BlockRow {
+  private _applyRouteToRow(row: BlockRow, route: BlockRouteSuggestion, confidence: number): BlockRow {
     return {
       ...row,
       mapped: true,
       nestedSchemaType: route.nestedSchemaType,
-      targetProperty: target,
+      // Scoped panel: blocks always map into the parent row's property.
+      targetProperty: this.data?.schemaPropertyName ?? '',
+      suggestedTarget: undefined,
       confidence,
       propertyMappings: seedEntriesFromRaw(route.propertyMappings, row.propertyInfos, true),
       totalSchemaProps: route.propertyMappings.length,
     };
+  }
+
+  /**
+   * Queue the off-target suggestions as explicit fan-out rows: grouped by their
+   * suggested target and emitted via `value.additionalTargets` on save. The
+   * caller merges/creates SIBLING rows — this row is never touched.
+   */
+  private _handleFanOutCreate() {
+    if (this._offTargetRoutes.length === 0) return;
+    const panelTarget = (this.data?.schemaPropertyName ?? '').toLowerCase();
+    const byTarget = new Map<string, BlockRouteSuggestion[]>();
+    for (const o of this._offTargetRoutes) {
+      // Never fan out to THIS row's own property — that would create a duplicate
+      // sibling row for the same target (possible only when the server-side fit
+      // annotation is unavailable and the client fallback rejected a subtype).
+      if (o.target.toLowerCase() === panelTarget) continue;
+      const list = byTarget.get(o.target) ?? [];
+      list.push(o.route);
+      byTarget.set(o.target, list);
+    }
+    if (byTarget.size === 0) return;
+    this._queuedAdditionalTargets = [...byTarget.entries()].map(([schemaPropertyName, routes]) => ({
+      schemaPropertyName,
+      resolverConfig: JSON.stringify({ routes: convertSuggestedRoutes(routes) }),
+    }));
+    this._fanOutQueued = true;
+    this.#notificationContext?.peek('positive', {
+      data: {
+        message: this.localize.term('schemeWeaver_blockFanOutCreated', [...byTarget.keys()].join(', ')),
+      },
+    });
   }
 
   // ── Row edits ──────────────────────────────────────────────────────────────
@@ -309,16 +498,42 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     return mappedCount(row);
   }
 
+  /**
+   * Opt a block in. Never defaults a target — this panel's target is fixed.
+   * The nested type seeds from the block's suggestion when it FITS, else the
+   * single accepted object type, else stays empty for the user to choose.
+   */
   private async _enableRow(index: number) {
+    const row = this._blockRows[index];
+    let nestedSchemaType = '';
+    const hit = this._suggestionByBlock.get(row.alias.toLowerCase());
+    if (hit && this._routeFits(hit.route)) {
+      nestedSchemaType = hit.route.nestedSchemaType;
+    } else {
+      const allowed = filterOutPrimitiveAcceptedTypes(this.data?.acceptedTypes ?? []);
+      if (allowed.length === 1 && allowed[0] !== 'Thing') nestedSchemaType = allowed[0];
+    }
     const updated = [...this._blockRows];
-    updated[index] = { ...updated[index], mapped: true, targetProperty: updated[index].targetProperty || 'hasPart', expanded: true };
+    updated[index] = {
+      ...row,
+      mapped: true,
+      nestedSchemaType,
+      targetProperty: this.data?.schemaPropertyName ?? '',
+      expanded: true,
+    };
     this._blockRows = updated;
+    this._dirty = true;
+    if (nestedSchemaType) {
+      await this._hydrateRow(index);
+      this._blockRows = [...this._blockRows];
+    }
   }
 
   private _disableRow(index: number) {
     const updated = [...this._blockRows];
     updated[index] = { ...updated[index], mapped: false, expanded: false };
     this._blockRows = updated;
+    this._dirty = true;
   }
 
   private _toggleExpand(index: number) {
@@ -331,14 +546,18 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     const updated = [...this._blockRows];
     updated[index] = { ...updated[index], nestedSchemaType: value };
     this._blockRows = updated;
+    this._dirty = true;
     await this._hydrateRow(index);
     this._blockRows = [...this._blockRows];
   }
 
-  private _handleTargetChange(index: number, value: string) {
-    const updated = [...this._blockRows];
-    updated[index] = { ...updated[index], targetProperty: value };
-    this._blockRows = updated;
+  private async _handleTypeSelectChange(index: number, value: string) {
+    if (value === OTHER_TYPE_OPTION) {
+      // Escape hatch: switch this row to the free searchable type input.
+      this._freeTypeRows = new Set([...this._freeTypeRows, this._blockRows[index].alias]);
+      return;
+    }
+    await this._handleSchemaTypeChange(index, value);
   }
 
   private _setEntry(rowIndex: number, propIndex: number, patch: Partial<RoutePropEntry>) {
@@ -364,10 +583,12 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       nestedSuggestedRoutes: [],
       nestedExpanded: false,
     });
+    this._dirty = true;
   }
 
   private _handleWrapInTypeChange(rowIndex: number, propIndex: number, value: string) {
     this._setEntry(rowIndex, propIndex, { wrapInType: value });
+    this._dirty = true;
   }
 
   private _toggleNested(rowIndex: number, propIndex: number) {
@@ -379,35 +600,44 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     e.stopPropagation();
     const child = e.target as NestedBlockRoutesElement;
     this._setEntry(rowIndex, propIndex, { nestedRoutes: child.value });
+    // The child emits once after its initial build — that sync is not a user edit.
+    if (this.#nestedSyncedChildren.has(child)) {
+      this._dirty = true;
+    } else {
+      this.#nestedSyncedChildren.add(child);
+    }
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
 
-  /** Serialise the mapped rows into one PropertyMappingDto-shaped target per group. */
-  private _buildTargetMappings(): NestedMappingModalTargetMapping[] {
-    const blockListProp = this.data?.contentTypePropertyAlias || '';
-    const byTarget = new Map<string, RoutedResolverConfig>();
+  /**
+   * Serialise THIS row's ResolverConfig. Byte fidelity: when nothing changed
+   * (or the config is a string-list extraction) the stored JSON is returned
+   * VERBATIM. On a real edit the config upgrades to the routed shape,
+   * preserving every root-level field except `routes`/`nestedMappings`
+   * (`wrapInListItem`, `positionProperty`, `requiredProperties`, unknown keys).
+   */
+  private _buildResolverConfig(): string | null {
+    const existing = this.data?.existingConfig ?? null;
+    if (this._stringListMode || !this._dirty) return existing;
 
-    for (const row of this._blockRows) {
-      if (!row.mapped || !row.nestedSchemaType || !row.targetProperty) continue;
-      const config = byTarget.get(row.targetProperty) ?? { routes: [] };
-      config.routes.push({
-        blockAlias: row.alias,
-        nestedSchemaType: row.nestedSchemaType,
-        propertyMappings: serialisePropertyMappings(row.propertyMappings),
-      });
-      byTarget.set(row.targetProperty, config);
+    const parsed = parseResolverConfig(existing);
+    const extras: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parsed ?? {})) {
+      if (key === 'routes' || key === 'nestedMappings') continue;
+      extras[key] = value;
     }
-
-    return [...byTarget.entries()].map(([schemaPropertyName, config]) => ({
-      schemaPropertyName,
-      contentTypePropertyAlias: blockListProp,
-      resolverConfig: JSON.stringify(config),
-    }));
+    const routes = serialiseRoutes(this._blockRows);
+    const hasMeaningfulExtras = Object.values(extras).some((v) => v !== null && v !== undefined);
+    if (routes.length === 0 && !hasMeaningfulExtras) return null;
+    return JSON.stringify({ ...extras, routes });
   }
 
   private _handleSave() {
-    this.modalContext?.setValue({ mappings: this._buildTargetMappings() });
+    this.modalContext?.setValue({
+      resolverConfig: this._buildResolverConfig(),
+      additionalTargets: this._fanOutQueued ? this._queuedAdditionalTargets : [],
+    });
     this.modalContext?.submit();
   }
 
@@ -417,14 +647,9 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  private get _targetOptions(): string[] {
-    const fromRows = this._blockRows.map((r) => r.targetProperty).filter(Boolean);
-    return Array.from(new Set([...DEFAULT_TARGET_PROPERTIES, ...fromRows]));
-  }
-
   render() {
     return html`
-      <umb-body-layout headline="${this.localize.term('schemeWeaver_blockMappings')}: ${this.data?.contentTypePropertyAlias ?? ''}">
+      <umb-body-layout headline="${this.localize.term('schemeWeaver_blockMappingsFor', this.data?.schemaPropertyName ?? '')}">
         ${this._loading
           ? html`
               <div class="loading">
@@ -438,7 +663,12 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
             ${this.localize.term('schemeWeaver_cancel')}
           </uui-button>
-          <uui-button look="primary" @click=${this._handleSave} label=${this.localize.term('schemeWeaver_save')}>
+          <uui-button
+            look="primary"
+            data-mark="schemeweaver:block-modal-save"
+            @click=${this._handleSave}
+            label=${this.localize.term('schemeWeaver_save')}
+          >
             ${this.localize.term('schemeWeaver_save')}
           </uui-button>
         </div>
@@ -446,10 +676,46 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     `;
   }
 
+  /** The immutable-target context strip rendered under the headline. */
+  private _renderContextStrip() {
+    const target = this.data?.schemaPropertyName ?? '';
+    const targetType = this.data?.schemaPropertyType ?? '';
+    const accepted = this.data?.acceptedTypes ?? [];
+    return html`
+      <div class="context-strip">
+        <p class="context-route">
+          <code>${this.data?.contentTypePropertyAlias ?? ''}</code>
+          <span class="context-kind">(${this.localize.term('schemeWeaver_blockModalEditorKind')})</span>
+          <span class="context-arrow" aria-hidden="true">→</span>
+          <strong>${target}</strong>
+          ${targetType ? html`<span class="context-type">(${targetType})</span>` : nothing}
+        </p>
+        <p class="context-sentence">
+          ${this.localize.term('schemeWeaver_blockModalContext', target, this.data?.contentTypeAlias ?? '')}
+        </p>
+        ${accepted.length > 0
+          ? html`<p class="context-accepts">${this.localize.term('schemeWeaver_blockModalAccepts', accepted.join(', '))}</p>`
+          : nothing}
+      </div>
+    `;
+  }
+
   private _renderPanel() {
+    if (this._stringListMode) {
+      return html`
+        <uui-box headline=${this.localize.term('schemeWeaver_blockMappings')}>
+          ${this._renderContextStrip()}
+          <p class="string-list-notice">
+            ${this.localize.term('schemeWeaver_stringListNotice', this._stringListSource)}
+          </p>
+        </uui-box>
+      `;
+    }
+
     if (this._blockRows.length === 0) {
       return html`
         <uui-box headline=${this.localize.term('schemeWeaver_blockMappings')}>
+          ${this._renderContextStrip()}
           <p class="no-block-types-hint">${this.localize.term('schemeWeaver_noBlockTypesHint')}</p>
           <p class="no-block-types-hint">${this.localize.term('schemeWeaver_noBlockTypesConfigureHint')}</p>
         </uui-box>
@@ -458,11 +724,13 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_blockMappings')}>
+        ${this._renderContextStrip()}
         <div class="panel-header">
           <p class="panel-description">${this.localize.term('schemeWeaver_blockMappingsDescription')}</p>
           <uui-button
             class="auto-map-all"
             look="secondary"
+            data-mark="schemeweaver:block-automap-all"
             ?disabled=${this._autoMapping}
             @click=${this._handleAutoMapAll}
             label=${this.localize.term('schemeWeaver_autoMapAll')}
@@ -472,6 +740,8 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           </uui-button>
         </div>
 
+        ${this._renderFanOutBanner()}
+
         <div class="block-rows">
           ${repeat(this._blockRows, (r) => r.alias, (row, index) => this._renderBlockRow(row, index))}
         </div>
@@ -479,16 +749,96 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     `;
   }
 
+  /** Inline offer to create sibling rows for off-target auto-map suggestions. */
+  private _renderFanOutBanner() {
+    if (this._offTargetRoutes.length === 0) return nothing;
+    const summary = this._offTargetRoutes.map((o) => `${o.blockName} → ${o.target}`).join(', ');
+    if (this._fanOutQueued) {
+      const targets = [...new Set(this._offTargetRoutes.map((o) => o.target))].join(', ');
+      return html`
+        <div class="fan-out-banner queued">
+          <span>${this.localize.term('schemeWeaver_blockFanOutCreated', targets)}</span>
+        </div>
+      `;
+    }
+    return html`
+      <div class="fan-out-banner">
+        <span>${this.localize.term('schemeWeaver_blockFanOutOffer', this._offTargetRoutes.length, summary)}</span>
+        <uui-button
+          compact
+          look="secondary"
+          data-mark="schemeweaver:block-fanout-create"
+          @click=${this._handleFanOutCreate}
+          label=${this.localize.term('schemeWeaver_blockFanOutCreate')}
+        >
+          ${this.localize.term('schemeWeaver_blockFanOutCreate')}
+        </uui-button>
+      </div>
+    `;
+  }
+
+  /** Read-only tags for sibling rows (other targets) that already route this block. */
+  private _renderClaimTags(row: BlockRow) {
+    if (!row.claimedBy?.length) return nothing;
+    return html`${row.claimedBy.map(
+      (schemaPropertyName) => html`
+        <uui-tag look="secondary" class="claim-tag">
+          ${this.localize.term('schemeWeaver_mappedViaProperty', schemaPropertyName)}
+        </uui-tag>
+      `,
+    )}`;
+  }
+
+  /**
+   * The per-block nested-type picker. Constrained to the parent property's object
+   * accepted types when they are known and narrower than `Thing` — with an explicit
+   * "Other type…" escape hatch to the free searchable input. Broad/unknown ranges
+   * keep the searchable input as before.
+   */
+  private _renderTypePicker(row: BlockRow, index: number) {
+    const allowed = filterOutPrimitiveAcceptedTypes(this.data?.acceptedTypes ?? []);
+    const constrained = allowed.length > 0 && !allowed.includes('Thing') && !this._freeTypeRows.has(row.alias);
+    if (!constrained) {
+      return html`
+        <schemeweaver-schema-type-input
+          class="schema-type-input"
+          .value=${row.nestedSchemaType}
+          .contentTypeAlias=${this.data?.contentTypeAlias || ''}
+          @change=${(e: Event) => this._handleSchemaTypeChange(index, (e.target as SchemaTypeInputElement).value)}
+        ></schemeweaver-schema-type-input>
+      `;
+    }
+    const options = [
+      ...schemaTypeSelectOptions(allowed, row.nestedSchemaType, this.localize.term('schemeWeaver_none')),
+      { name: this.localize.term('schemeWeaver_otherSchemaType'), value: OTHER_TYPE_OPTION, selected: false },
+    ];
+    return html`
+      <uui-select
+        class="schema-type-select"
+        label=${this.localize.term('schemeWeaver_nestedTypeForProperty', row.name)}
+        .options=${options}
+        @change=${(e: Event) => this._handleTypeSelectChange(index, (e.target as HTMLSelectElement).value)}
+      ></uui-select>
+    `;
+  }
+
   private _renderBlockRow(row: BlockRow, index: number) {
     if (!row.mapped) {
+      const suggestedType = this._suggestionByBlock.get(row.alias.toLowerCase())?.route.nestedSchemaType ?? '';
       return html`
-        <div class="block-row unmapped">
+        <div class="block-row unmapped" data-mark="schemeweaver:block-row:${row.alias}">
           <div class="block-row-main">
             <div class="block-identity">
               <strong>${row.name}</strong>
               <small class="block-alias">${row.alias}</small>
             </div>
+            ${this._renderClaimTags(row)}
             <uui-tag look="secondary" class="not-mapped-badge">${this.localize.term('schemeWeaver_notMapped')}</uui-tag>
+            ${row.suggestedTarget
+              ? html`<span class="suggested-hint">
+                  ${this.localize.term('schemeWeaver_suggestedTypeViaProperty', suggestedType, row.suggestedTarget)}
+                </span>`
+              : nothing}
             <uui-button
               class="map-block-btn"
               look="secondary"
@@ -504,30 +854,32 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     }
 
     const mapped = this._mappedCount(row);
+    const badgeDetail = this.localize.term(
+      'schemeWeaver_blockMappedCountDetail',
+      mapped,
+      row.propertyMappings.length,
+      recommendedMapped(row),
+      recommendedTotal(row),
+    );
     return html`
-      <div class="block-row mapped">
+      <div class="block-row mapped" data-mark="schemeweaver:block-row:${row.alias}">
         <div class="block-row-main">
           <div class="block-identity">
             <strong>${row.name}</strong>
             <small class="block-alias">${row.alias}</small>
           </div>
 
-          <schemeweaver-schema-type-input
-            class="schema-type-input"
-            .value=${row.nestedSchemaType}
-            .contentTypeAlias=${this.data?.contentTypeAlias || ''}
-            @change=${(e: Event) => this._handleSchemaTypeChange(index, (e.target as SchemaTypeInputElement).value)}
-          ></schemeweaver-schema-type-input>
+          ${this._renderClaimTags(row)}
+          ${this._renderTypePicker(row, index)}
 
-          <uui-select
-            class="target-select"
-            label=${this.localize.term('schemeWeaver_targetProperty')}
-            .options=${this._targetOptions.map((t) => ({ name: t, value: t, selected: row.targetProperty === t }))}
-            @change=${(e: Event) => this._handleTargetChange(index, (e.target as HTMLSelectElement).value)}
-          ></uui-select>
-
-          <uui-tag look="secondary" color="positive" class="mapped-badge">
-            ${this.localize.term('schemeWeaver_recommendedMappedCount', mapped, recommendedCount(row))}
+          <uui-tag
+            look="secondary"
+            color="positive"
+            class="mapped-badge"
+            title=${badgeDetail}
+            aria-label=${badgeDetail}
+          >
+            ${this.localize.term('schemeWeaver_blockMappedCount', mapped)}
           </uui-tag>
 
           <uui-button
@@ -699,6 +1051,49 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         padding: var(--uui-size-space-6);
       }
 
+      .context-strip {
+        border-bottom: 1px solid var(--uui-color-border);
+        padding-bottom: var(--uui-size-space-3);
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .context-route {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        margin: 0 0 var(--uui-size-space-1) 0;
+        flex-wrap: wrap;
+      }
+
+      .context-route code {
+        font-family: monospace;
+        background: var(--uui-color-surface-alt);
+        padding: 1px 4px;
+        border-radius: var(--uui-border-radius);
+      }
+
+      .context-kind,
+      .context-type {
+        color: var(--uui-color-text-alt);
+        font-size: 0.85rem;
+      }
+
+      .context-arrow {
+        color: var(--uui-color-text-alt);
+      }
+
+      .context-sentence,
+      .context-accepts {
+        color: var(--uui-color-text-alt);
+        margin: 0;
+        font-size: 0.9rem;
+      }
+
+      .string-list-notice {
+        color: var(--uui-color-text-alt);
+        margin: 0;
+      }
+
       .panel-header {
         display: flex;
         align-items: center;
@@ -714,6 +1109,28 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
 
       .auto-map-all {
         margin-left: auto;
+      }
+
+      .fan-out-banner {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-3);
+        border: 1px solid var(--uui-color-warning-standalone, var(--uui-color-border));
+        background: var(--uui-color-warning, var(--uui-color-surface-alt));
+        color: var(--uui-color-warning-contrast, inherit);
+        border-radius: var(--uui-border-radius);
+        padding: var(--uui-size-space-3);
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .fan-out-banner.queued {
+        border-color: var(--uui-color-positive-standalone, var(--uui-color-border));
+        background: var(--uui-color-positive, var(--uui-color-surface-alt));
+        color: var(--uui-color-positive-contrast, inherit);
+      }
+
+      .fan-out-banner span {
+        flex: 1;
       }
 
       .block-rows {
@@ -756,15 +1173,23 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
         font-size: 0.8rem;
       }
 
-      .not-mapped-badge {
+      .not-mapped-badge,
+      .claim-tag {
         font-size: 0.75rem;
+      }
+
+      .suggested-hint {
+        color: var(--uui-color-text-alt);
+        font-size: 0.85rem;
+        font-style: italic;
       }
 
       .map-block-btn {
         margin-left: auto;
       }
 
-      .schema-type-input {
+      .schema-type-input,
+      .schema-type-select {
         min-width: 160px;
       }
 

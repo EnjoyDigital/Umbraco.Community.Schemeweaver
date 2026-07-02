@@ -2,6 +2,7 @@ import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
 import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
+import { summariseResolverConfig } from './block-route-model.js';
 import './property-combobox.element.js';
 
 /** Local shape for uui-combobox events — search/value are exposed by the web component. */
@@ -70,6 +71,26 @@ export interface PropertyMappingRow {
    * and drives the High/Med/Low badge. Undefined when ranked data is unavailable.
    */
   schemaRank?: number;
+  /**
+   * Position of this row in the STORED mapping at load time. Persistence re-emits
+   * rows in this order (display sorting is presentation-only) so an untouched save
+   * never reorders stored rows — reordering flips uSync drift to content-differs
+   * for mappings the user never edited. New rows have no loadOrder and append
+   * after all stored rows.
+   */
+  loadOrder?: number;
+  /**
+   * The stored isAutoMapped flag, carried through the UI so an untouched save
+   * round-trips it verbatim. Rows auto-mapped in THIS session signal via
+   * {@link confidence} instead.
+   */
+  isAutoMapped?: boolean;
+  /**
+   * The stored top-level transform (e.g. `stripHtml`), carried through the UI
+   * so an untouched save round-trips it verbatim — there is no top-level
+   * transform editor, so persistence must never null it out.
+   */
+  transformType?: string | null;
 }
 
 /** Map of complex editor aliases to their display badge labels */
@@ -218,13 +239,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
         })
       );
     }
-  }
-
-  private _handleNestedSchemaTypeChange(index: number, value: string) {
-    const updated = [...this.mappings];
-    updated[index] = { ...updated[index], nestedSchemaTypeName: value };
-    this.mappings = updated;
-    this._dispatchChange();
   }
 
   private _handleConfigureNestedMapping(index: number) {
@@ -597,7 +611,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
   }
 
   private _renderBlockContentInput(mapping: PropertyMappingRow, index: number) {
-    const hasAcceptedTypes = mapping.acceptedTypes.length > 0;
+    const hasPropertyAlias = !!mapping.contentTypePropertyAlias;
 
     return html`
       <div class="value-inputs">
@@ -613,43 +627,49 @@ export class PropertyMappingTableElement extends UmbLitElement {
           ${this._renderRangeWarningBadge(mapping)}
           ${this._renderSuggestionBadge(mapping)}
         </div>
-        ${hasAcceptedTypes
-          ? html`
-              <uui-select
-                label=${this.localize.term('schemeWeaver_nestedSchemaType')}
-                .options=${[
-                  { name: this.localize.term('schemeWeaver_selectNestedType'), value: '', selected: !mapping.nestedSchemaTypeName },
-                  ...mapping.acceptedTypes.map((t) => ({
-                    name: t,
-                    value: t,
-                    selected: mapping.nestedSchemaTypeName === t,
-                  })),
-                ]}
-                @change=${(e: Event) => this._handleNestedSchemaTypeChange(index, (e.target as HTMLSelectElement).value)}
-              ></uui-select>
-            `
-          : html`
-              <uui-input
-                .value=${mapping.nestedSchemaTypeName}
-                @input=${(e: Event) => this._handleNestedSchemaTypeChange(index, (e.target as HTMLInputElement).value)}
-                placeholder=${this.localize.term('schemeWeaver_nestedSchemaType')}
-                label=${this.localize.term('schemeWeaver_nestedSchemaType')}
-                class="nested-schema-input"
-              ></uui-input>
-            `}
         <div class="block-actions">
           <uui-button
             look="secondary"
             compact
-            label=${this.localize.term('schemeWeaver_configureNestedMapping')}
+            data-mark="schemeweaver:map-blocks:${mapping.schemaPropertyName}"
+            label=${this.localize.term('schemeWeaver_mapBlocks')}
+            title=${hasPropertyAlias ? nothing : this.localize.term('schemeWeaver_mapBlocksDisabledHint')}
+            ?disabled=${!hasPropertyAlias}
             @click=${() => this._handleConfigureNestedMapping(index)}
           >
-            ${this.localize.term('schemeWeaver_configureNestedMapping')}
+            ${this.localize.term('schemeWeaver_mapBlocks')}
           </uui-button>
           ${mapping.resolverConfig
             ? html`<uui-icon name="icon-check" class="configured-check"></uui-icon>`
             : nothing}
         </div>
+        ${this._renderBlockRouteSummary(mapping)}
+      </div>
+    `;
+  }
+
+  /**
+   * Honest read-only summary of the configured block routes for a blockContent row.
+   * The per-row "Nested Schema Type" input is gone — the backend ignores it once
+   * routes exist, so the per-route types shown here are the source of truth. Legacy
+   * flat configs (nestedMappings + the persisted nestedSchemaTypeName) summarise as
+   * wildcard routes; string-list extraction reports its source property instead.
+   */
+  private _renderBlockRouteSummary(mapping: PropertyMappingRow) {
+    const summary = summariseResolverConfig(mapping.resolverConfig, mapping.nestedSchemaTypeName);
+    return html`
+      <div class="block-route-summary" data-mark="schemeweaver:block-summary:${mapping.schemaPropertyName}">
+        ${summary.kind === 'routes'
+          ? summary.routes.map(
+              (r) => html`<uui-tag look="secondary" class="route-summary-tag">
+                ${r.blockAlias || this.localize.term('schemeWeaver_anyBlock')} → ${r.nestedSchemaType}
+              </uui-tag>`,
+            )
+          : summary.kind === 'stringList'
+            ? html`<span class="block-summary-string-list" title=${summary.contentProperty}>
+                ${this.localize.term('schemeWeaver_textListSummary', summary.contentProperty)}
+              </span>`
+            : html`<span class="block-summary-empty">${this.localize.term('schemeWeaver_noBlocksMappedYet')}</span>`}
       </div>
     `;
   }
@@ -729,10 +749,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
         white-space: nowrap;
       }
 
-      .nested-schema-input {
-        font-size: 0.85rem;
-      }
-
       .block-actions {
         display: flex;
         align-items: center;
@@ -744,8 +760,27 @@ export class PropertyMappingTableElement extends UmbLitElement {
         font-size: 1.2rem;
       }
 
-      uui-select {
-        min-width: 150px;
+      .block-route-summary {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--uui-size-space-1);
+      }
+
+      .route-summary-tag {
+        font-size: 0.7rem;
+        --uui-tag-min-height: 20px;
+      }
+
+      .block-summary-string-list {
+        color: var(--uui-color-text-alt);
+        font-size: 0.8rem;
+      }
+
+      .block-summary-empty {
+        color: var(--uui-color-text-alt);
+        font-style: italic;
+        font-size: 0.8rem;
       }
 
       .no-mappings-hint {
