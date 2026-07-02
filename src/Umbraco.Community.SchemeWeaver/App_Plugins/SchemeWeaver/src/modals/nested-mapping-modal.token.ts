@@ -17,10 +17,9 @@ export interface NestedMappingModalData {
   contentTypePropertyAlias: string;
   /**
    * The parent row's Schema.org property the blocks map into (e.g. `review`).
-   * Immutable context. Optional only until every caller is migrated off
-   * `existingMappings` — treat as required.
+   * Immutable context.
    */
-  schemaPropertyName?: string;
+  schemaPropertyName: string;
   /** Display type of the parent schema property (e.g. `Review`), when known. */
   schemaPropertyType?: string;
   /**
@@ -33,7 +32,7 @@ export interface NestedMappingModalData {
    * (`{ nestedMappings: [...] }`), or a string-list extraction shape. `null` for a
    * freshly added row (the panel then seeds from the heuristic suggester).
    */
-  existingConfig?: string | null;
+  existingConfig: string | null;
   /**
    * The row's legacy mapping-level nested type (`NestedSchemaTypeName`) — the
    * implicit single-route type used by legacy flat configs. Needed to seed the
@@ -46,23 +45,6 @@ export interface NestedMappingModalData {
    * accidentally emitted under two properties; never edited from this panel.
    */
   siblingClaims?: NestedMappingModalSiblingClaim[];
-  /**
-   * @deprecated Old multi-target contract (every blockContent row for the alias).
-   * Superseded by the row-scoped `existingConfig` + `siblingClaims`. Removed once
-   * all callers are migrated.
-   */
-  existingMappings?: Array<{ schemaPropertyName: string; nestedSchemaTypeName?: string | null; resolverConfig: string | null }>;
-}
-
-/**
- * @deprecated Old multi-target save shape — the panel no longer groups rows by
- * target. Kept only until all callers are migrated to `NestedMappingModalValue`'s
- * row-scoped `resolverConfig` + `additionalTargets`.
- */
-export interface NestedMappingModalTargetMapping {
-  schemaPropertyName: string;
-  contentTypePropertyAlias: string;
-  resolverConfig: string;
 }
 
 /** Blocks a sibling row (another target on the same block-list property) has routed. */
@@ -90,13 +72,10 @@ export interface NestedMappingModalValue {
    * The opened row's serialised ResolverConfig. When the user made no changes this
    * is `data.existingConfig` VERBATIM (byte-fidelity — a no-change save must be a
    * persistence no-op). `null` when no blocks are mapped and none were before.
-   * Optional only while the deprecated `mappings` shape coexists — treat as the value.
    */
-  resolverConfig?: string | null;
+  resolverConfig: string | null;
   /** Explicit fan-out to other targets; empty unless the user opted in. */
-  additionalTargets?: NestedMappingModalAdditionalTarget[];
-  /** @deprecated Old grouped-by-target save shape. Removed once all callers are migrated. */
-  mappings?: NestedMappingModalTargetMapping[];
+  additionalTargets: NestedMappingModalAdditionalTarget[];
 }
 
 export const SCHEMEWEAVER_NESTED_MAPPING_MODAL = new UmbModalToken<

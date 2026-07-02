@@ -191,6 +191,8 @@ export default {
     blockMappingsDescription: 'Choose which block types feed this property and map each block’s fields to its Schema.org type.',
     blockMappingsFor: 'Map blocks to {0}',
     blockModalContext: 'Blocks mapped here are output as the {0} property of {1}.',
+    // Editor-kind label in the panel's context strip: `{alias} (Block List/Grid) → {target}`.
+    blockModalEditorKind: 'Block List/Grid',
     blockModalAccepts: 'Accepts: {0}',
     autoMapAll: 'Auto-map all',
     targetProperty: 'Target Property',

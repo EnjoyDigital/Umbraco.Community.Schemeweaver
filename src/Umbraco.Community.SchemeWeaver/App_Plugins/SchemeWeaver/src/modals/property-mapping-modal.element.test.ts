@@ -88,4 +88,59 @@ describe('PropertyMappingModalElement', () => {
     expect(aliasesB).to.not.include('authorName');
     expect(aliasesB).to.not.include('publishDate');
   });
+
+  // The block panel result must patch ONLY the opened row (never delete/rebuild
+  // every blockContent row for the property) — mirrors the workspace view.
+  it('nested-mapping result patches only the opened row and appends fan-out rows', async () => {
+    const el = createElement('productPage', 'Product');
+    await waitForLoad(el);
+
+    function blockRow(overrides: Record<string, unknown> = {}): any {
+      return {
+        schemaPropertyName: 'review',
+        schemaPropertyType: 'Review',
+        sourceType: 'blockContent',
+        contentTypePropertyAlias: 'reviews',
+        sourceContentTypeAlias: '',
+        staticValue: '',
+        confidence: 80,
+        editorAlias: 'Umbraco.BlockList',
+        nestedSchemaTypeName: '',
+        resolverConfig: null,
+        acceptedTypes: ['Review'],
+        isComplexType: true,
+        expanded: false,
+        subMappings: [],
+        selectedSubType: '',
+        sourceContentTypeProperties: [],
+        ...overrides,
+      };
+    }
+
+    const openedConfig = '{"routes":[{"blockAlias":"reviewItem","nestedSchemaType":"Review","propertyMappings":[]}]}';
+    const siblingConfig = '{"routes":[{"blockAlias":"teamBlock","nestedSchemaType":"Person","propertyMappings":[]}]}';
+    const opened = blockRow({ resolverConfig: null });
+    const sibling = blockRow({ schemaPropertyName: 'hasPart', resolverConfig: siblingConfig });
+    el._mappings = [opened, sibling];
+
+    const fanOutConfig = '{"routes":[{"blockAlias":"promoBanner","nestedSchemaType":"WPHeader","propertyMappings":[]}]}';
+    el._applyNestedMappingResult(0, 'Umbraco.BlockList', {
+      resolverConfig: openedConfig,
+      additionalTargets: [{ schemaPropertyName: 'mentions', resolverConfig: fanOutConfig }],
+    });
+
+    expect(el._mappings).to.have.lengthOf(3);
+    const review = el._mappings.find((r: any) => r.schemaPropertyName === 'review');
+    expect(review.resolverConfig).to.equal(openedConfig);
+    // Sibling untouched — same object, byte-identical config.
+    expect(el._mappings).to.include(sibling);
+    expect(sibling.resolverConfig).to.equal(siblingConfig);
+    // Fan-out target appended as a new blockContent row on the same property.
+    const mentions = el._mappings.find((r: any) => r.schemaPropertyName === 'mentions');
+    expect(mentions).to.exist;
+    expect(mentions.sourceType).to.equal('blockContent');
+    expect(mentions.contentTypePropertyAlias).to.equal('reviews');
+    expect(mentions.resolverConfig).to.equal(fanOutConfig);
+    expect(mentions.confidence).to.equal(null);
+  });
 });

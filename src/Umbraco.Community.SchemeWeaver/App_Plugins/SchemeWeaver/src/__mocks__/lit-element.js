@@ -62,15 +62,39 @@ const translations = {
   'schemeWeaver_valid': 'Valid',
   'schemeWeaver_invalid': 'Invalid',
   'general_submit': 'Submit',
+  // Row-scoped block-mapping panel
+  'schemeWeaver_blockMappingsFor': 'Map blocks to {0}',
+  'schemeWeaver_blockModalContext': 'Blocks mapped here are output as the {0} property of {1}.',
+  'schemeWeaver_blockModalEditorKind': 'Block List/Grid',
+  'schemeWeaver_blockModalAccepts': 'Accepts: {0}',
+  'schemeWeaver_mappedViaProperty': 'Mapped via {0}',
+  'schemeWeaver_suggestedTypeViaProperty': 'Suggested: {0} via {1}',
+  'schemeWeaver_otherSchemaType': 'Other type…',
+  'schemeWeaver_blockMappedCount': '{0} mapped',
+  'schemeWeaver_blockMappedCountDetail': '{0} of {1} properties mapped · {2} of {3} recommended',
+  'schemeWeaver_blockAutoMapSkipped': '{0} block(s) fit other properties and were not mapped here: {1}',
+  'schemeWeaver_blockFanOutOffer': '{0} block(s) fit other properties: {1}',
+  'schemeWeaver_blockFanOutCreate': 'Create rows for other properties',
+  'schemeWeaver_blockFanOutCreated': 'Added mapping rows for: {0}',
+  'schemeWeaver_stringListNotice': 'This mapping extracts a text list from {0} — there are no block routes to edit. Saving keeps the string-list configuration unchanged.',
+  'schemeWeaver_mapThisBlock': 'Map this block',
+  'schemeWeaver_notMapped': 'Not mapped',
 };
 
-/** Resolve a localisation key to its English value, falling back to the key itself. */
-export function resolveLocalizationKey(key) {
-  return translations[key] || key;
+/**
+ * Resolve a localisation key to its English value, falling back to the key
+ * itself, interpolating `{0}`/`{1}`… tokens like the real UmbLocalizationController.
+ */
+export function resolveLocalizationKey(key, ...args) {
+  let text = translations[key] || key;
+  args.forEach((arg, i) => {
+    text = text.replaceAll(`{${i}}`, String(arg));
+  });
+  return text;
 }
 
 const localize = {
-  term: (key) => resolveLocalizationKey(key),
+  term: (key, ...args) => resolveLocalizationKey(key, ...args),
 };
 
 export class UmbLitElement extends LitElement {
