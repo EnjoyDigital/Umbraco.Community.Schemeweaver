@@ -1,8 +1,10 @@
+using System.Text.Json;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.Validation;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 
@@ -19,8 +21,10 @@ public class BlockSchemaSuggesterTests
             .Returns([]);
         // Real registry so the range-aware target check (IsCreativeWork) walks the
         // genuine Schema.NET parent chain (WPHeader/Review -> CreativeWork; Person/
-        // Place/Service/Organization -> not).
-        _sut = new BlockSchemaSuggester(_autoMapper, new SchemaTypeRegistry());
+        // Place/Service/Organization -> not), and the real range checker so
+        // FitsTarget exercises the genuine interface-DAG subtype walk.
+        var registry = new SchemaTypeRegistry();
+        _sut = new BlockSchemaSuggester(_autoMapper, registry, new SchemaRangeChecker(registry));
     }
 
     private static BlockElementTypeInfo Element(string alias, string? name = null, params string[] propertyAliases)
@@ -312,5 +316,139 @@ public class BlockSchemaSuggesterTests
         route.PropertyMappings.Should().ContainSingle();
         route.PropertyMappings[0].SchemaProperty.Should().Be("name");
         route.PropertyMappings[0].ContentProperty.Should().Be("memberName");
+    }
+
+    // --------------------------------------------------------------------
+    // review target: testimonial/review blocks belong on `review` when the
+    // page's schema type declares that property (Product does), falling back
+    // to hasPart otherwise (Review IS a CreativeWork, so hasPart stays safe).
+    // --------------------------------------------------------------------
+
+    [Fact]
+    public void Suggest_TestimonialBlock_OnProductPage_TargetsReview()
+    {
+        var result = _sut.Suggest(
+            [Element("testimonialBlock", "Testimonial", "author", "quote")],
+            pageSchemaType: "Product").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SchemaProperty.Should().Be("review", "Product declares the `review` property");
+        result[0].Routes[0].NestedSchemaType.Should().Be("Review");
+    }
+
+    [Fact]
+    public void Suggest_TestimonialBlock_PageTypeWithoutReview_FallsBackToHasPart()
+    {
+        // Person declares no `review` property; Review IS a CreativeWork so the
+        // fallback lands on hasPart, not the about demotion.
+        var result = _sut.Suggest(
+            [Element("testimonialBlock", "Testimonial", "author", "quote")],
+            pageSchemaType: "Person").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SchemaProperty.Should().Be("hasPart");
+        result[0].Routes[0].NestedSchemaType.Should().Be("Review");
+    }
+
+    [Fact]
+    public void Suggest_TestimonialBlock_NoPageContext_FallsBackToHasPart()
+    {
+        // Context-free legacy call: without positive evidence the page type has
+        // `review`, the type-specific target must not be emitted.
+        var result = _sut.Suggest([Element("testimonialBlock", "Testimonial", "author", "quote")]).ToList();
+
+        result.Should().ContainSingle();
+        result[0].SchemaProperty.Should().Be("hasPart");
+        result[0].Routes[0].NestedSchemaType.Should().Be("Review");
+    }
+
+    // --------------------------------------------------------------------
+    // FitsTarget: row-scoped fit annotation (targetSchemaProperty).
+    // --------------------------------------------------------------------
+
+    [Fact]
+    public void Suggest_WithoutTargetSchemaProperty_LeavesFitsTargetNull()
+    {
+        var result = _sut.Suggest(
+            [Element("testimonialBlock", "Testimonial", "quote")],
+            pageSchemaType: "Product").ToList();
+
+        result.SelectMany(s => s.Routes).Should().OnlyContain(r => r.FitsTarget == null,
+            "without the row scope the response must be byte-identical to the legacy shape");
+    }
+
+    [Fact]
+    public void Suggest_ReviewRouteAgainstReviewTarget_FitsTargetTrue()
+    {
+        var result = _sut.Suggest(
+            [Element("testimonialBlock", "Testimonial", "quote")],
+            pageSchemaType: "Product",
+            targetSchemaProperty: "review").ToList();
+
+        var route = result.SelectMany(s => s.Routes).Single(r => r.NestedSchemaType == "Review");
+        route.FitsTarget.Should().BeTrue("Review is exactly `review`'s accepted range");
+    }
+
+    [Fact]
+    public void Suggest_QuestionRouteAgainstReviewTarget_FitsTargetFalse()
+    {
+        // FAQ routes to Question, which is not a Review — a row-scoped auto-map on
+        // Product.review must be able to skip it.
+        var result = _sut.Suggest(
+            [Element("faqBlock", "FAQ", "question", "answer")],
+            pageSchemaType: "Product",
+            targetSchemaProperty: "review").ToList();
+
+        var route = result.SelectMany(s => s.Routes).Single(r => r.NestedSchemaType == "Question");
+        route.FitsTarget.Should().BeFalse("Question is not assignable to Review");
+    }
+
+    [Fact]
+    public void Suggest_WPHeaderRouteAgainstHasPartTarget_FitsTargetTrue()
+    {
+        // The genuine subtype walk: WPHeader -> WebPageElement -> CreativeWork
+        // satisfies hasPart's CreativeWork range via the Schema.NET interface DAG.
+        var result = _sut.Suggest(
+            [Element("heroBlock", "Hero", "title", "subtitle")],
+            pageSchemaType: "WebPage",
+            targetSchemaProperty: "hasPart").ToList();
+
+        var route = result.SelectMany(s => s.Routes).Single(r => r.NestedSchemaType == "WPHeader");
+        route.FitsTarget.Should().BeTrue("WPHeader is a CreativeWork subtype");
+    }
+
+    [Fact]
+    public void Suggest_TargetOnAllGroups_AnnotatesRoutesOutsideTheTargetGroupToo()
+    {
+        // The modal may re-route fitting routes from other groups onto its row, so
+        // EVERY top-level route gets annotated — not just the target's own group.
+        var result = _sut.Suggest(
+            [
+                Element("testimonialBlock", "Testimonial", "quote"),
+                Element("teamMemberBlock", "Team Member", "memberName"),
+            ],
+            pageSchemaType: "Product",
+            targetSchemaProperty: "review").ToList();
+
+        var routes = result.SelectMany(s => s.Routes).ToList();
+        routes.Should().HaveCount(2);
+        routes.Single(r => r.NestedSchemaType == "Review").FitsTarget.Should().BeTrue();
+        routes.Single(r => r.NestedSchemaType == "Person").FitsTarget.Should().BeFalse();
+    }
+
+    // Wire contract: null FitsTarget must be OMITTED from the JSON (ignore-when-null),
+    // so requests without targetSchemaProperty keep the frozen legacy payload shape.
+    [Fact]
+    public void BlockRouteSuggestion_FitsTargetNull_IsOmittedFromJson()
+    {
+        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        var withoutFit = JsonSerializer.Serialize(
+            new BlockRouteSuggestion { BlockAlias = "x", NestedSchemaType = "Review" }, camelCase);
+        withoutFit.Should().NotContainEquivalentOf("fitsTarget");
+
+        var withFit = JsonSerializer.Serialize(
+            new BlockRouteSuggestion { BlockAlias = "x", NestedSchemaType = "Review", FitsTarget = false }, camelCase);
+        withFit.Should().Contain("\"fitsTarget\":false");
     }
 }

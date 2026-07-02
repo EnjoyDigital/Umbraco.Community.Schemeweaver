@@ -563,10 +563,17 @@ public class SchemeWeaverService : ISchemeWeaverService
         return result;
     }
 
-    public async Task<IEnumerable<BlockMappingSuggestion>> SuggestBlockMappingsAsync(string contentTypeAlias, string propertyAlias)
+    public async Task<IEnumerable<BlockMappingSuggestion>> SuggestBlockMappingsAsync(string contentTypeAlias, string propertyAlias, string? targetSchemaProperty = null)
     {
         var elementTypes = await GetBlockElementTypesAsync(contentTypeAlias, propertyAlias).ConfigureAwait(false);
-        return _blockSchemaSuggester.Suggest(elementTypes);
+
+        // The saved mapping's schema type is the page context: it gates type-specific
+        // targets (a Product page routes testimonials to `review`) and is the type the
+        // SchemaRangeValidator-style range resolution runs against for FitsTarget.
+        // No saved mapping -> null -> context-free legacy behaviour, FitsTarget omitted.
+        var pageSchemaType = _repository.GetByContentTypeAlias(contentTypeAlias)?.SchemaTypeName;
+
+        return _blockSchemaSuggester.Suggest(elementTypes, pageSchemaType, targetSchemaProperty);
     }
 
     /// <summary>

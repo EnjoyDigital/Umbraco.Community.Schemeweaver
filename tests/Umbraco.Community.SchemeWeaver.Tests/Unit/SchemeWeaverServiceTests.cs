@@ -102,6 +102,37 @@ public class SchemeWeaverServiceTests
     }
 
     [Fact]
+    public async Task SuggestBlockMappings_PassesPageSchemaTypeAndRowTargetToSuggester()
+    {
+        // The saved mapping's schema type is the page context the suggester needs to
+        // gate type-specific targets (review) and resolve the row target's range.
+        _repository.GetByContentTypeAlias("productPage").Returns(new SchemaMapping
+        {
+            Id = 7,
+            ContentTypeAlias = "productPage",
+            SchemaTypeName = "Product",
+            IsEnabled = true
+        });
+
+        await _sut.SuggestBlockMappingsAsync("productPage", "blocks", "review");
+
+        _blockSchemaSuggester.Received(1).Suggest(
+            Arg.Any<IEnumerable<BlockElementTypeInfo>>(), "Product", "review");
+    }
+
+    [Fact]
+    public async Task SuggestBlockMappings_NoSavedMapping_PassesNullContext()
+    {
+        _repository.GetByContentTypeAlias("unmappedPage").Returns((SchemaMapping?)null);
+
+        await _sut.SuggestBlockMappingsAsync("unmappedPage", "blocks");
+
+        // Context-free legacy behaviour: no page type to gate targets, no row target.
+        _blockSchemaSuggester.Received(1).Suggest(
+            Arg.Any<IEnumerable<BlockElementTypeInfo>>(), null, null);
+    }
+
+    [Fact]
     public void AutoMap_DelegatesToAutoMapper()
     {
         var suggestions = new List<PropertyMappingSuggestion>

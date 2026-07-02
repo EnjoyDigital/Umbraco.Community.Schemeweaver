@@ -32,7 +32,12 @@ public interface ISchemeWeaverService
     /// <summary>
     /// Suggests routed block mappings for a BlockList/BlockGrid property: each block
     /// element type is matched to a best-fit Schema.org type and target page property,
-    /// grouped one suggestion per target property.
+    /// grouped one suggestion per target property. The saved mapping's schema type (when
+    /// one exists for <paramref name="contentTypeAlias"/>) provides the page context that
+    /// gates type-specific targets like <c>review</c>. When the optional
+    /// <paramref name="targetSchemaProperty"/> row scope is supplied, every top-level
+    /// route is annotated with <see cref="BlockRouteSuggestion.FitsTarget"/> — whether its
+    /// nested type fits that property's accepted Schema.org range.
     /// </summary>
-    Task<IEnumerable<BlockMappingSuggestion>> SuggestBlockMappingsAsync(string contentTypeAlias, string propertyAlias);
+    Task<IEnumerable<BlockMappingSuggestion>> SuggestBlockMappingsAsync(string contentTypeAlias, string propertyAlias, string? targetSchemaProperty = null);
 }

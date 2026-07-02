@@ -1,5 +1,6 @@
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services.Advisory;
+using Umbraco.Community.SchemeWeaver.Services.Validation;
 
 namespace Umbraco.Community.SchemeWeaver.Services;
 
@@ -13,6 +14,7 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
 {
     private readonly ISchemaAutoMapper _autoMapper;
     private readonly ISchemaTypeRegistry _registry;
+    private readonly ISchemaRangeChecker _rangeChecker;
 
     /// <summary>Base confidence awarded to a catalogue (keyword) hit.</summary>
     private const int CatalogueConfidence = 80;
@@ -20,7 +22,16 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
     private const string MainEntity = "mainEntity";
     private const string HasPart = "hasPart";
     private const string About = "about";
+    private const string ReviewTarget = "review";
     private const string CreativeWork = "CreativeWork";
+
+    /// <summary>
+    /// Targets every context type can host: the Thing/CreativeWork catch-alls the
+    /// catalogue has always used. Anything else (currently <see cref="ReviewTarget"/>)
+    /// is type-specific and only survives <see cref="ResolveTarget"/> when the context
+    /// schema type actually declares the property.
+    /// </summary>
+    private static readonly string[] UniversalTargets = [MainEntity, HasPart, About];
 
     /// <summary>
     /// Keyword catalogue. Keywords match (after alphanumeric-lowercasing) the block
@@ -69,7 +80,10 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
                 new("postalCode", ["postcode", "postalcode", "zip"]),
             ]),
         new(["map", "geo", "coordinates"], "Place", HasPart),
-        new(["testimonial", "review", "quote"], "Review", HasPart,
+        // Preferred target is the type-specific `review` (right for Product-like pages);
+        // ResolveTarget demotes it to hasPart when the page type doesn't declare review —
+        // safe because Review IS a CreativeWork, so the hasPart→about rule never fires.
+        new(["testimonial", "review", "quote"], "Review", ReviewTarget,
             Mappings:
             [
                 new("author", ["author", "reviewer", "name", "customer"]),
@@ -101,19 +115,30 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
     private static readonly string[] SkipKeywords =
         ["richtext", "body", "cta", "calltoaction", "link", "button"];
 
-    public BlockSchemaSuggester(ISchemaAutoMapper autoMapper, ISchemaTypeRegistry registry)
+    public BlockSchemaSuggester(ISchemaAutoMapper autoMapper, ISchemaTypeRegistry registry, ISchemaRangeChecker rangeChecker)
     {
         _autoMapper = autoMapper;
         _registry = registry;
+        _rangeChecker = rangeChecker;
     }
 
     /// <summary>Maximum block-nesting depth the suggester will descend.</summary>
     private const int MaxNestDepth = 3;
 
-    public IEnumerable<BlockMappingSuggestion> Suggest(IEnumerable<BlockElementTypeInfo> elementTypes)
-        => Suggest(elementTypes, depth: 0);
+    public IEnumerable<BlockMappingSuggestion> Suggest(
+        IEnumerable<BlockElementTypeInfo> elementTypes,
+        string? pageSchemaType = null,
+        string? targetSchemaProperty = null)
+    {
+        var suggestions = Suggest(elementTypes, pageSchemaType, depth: 0);
 
-    private List<BlockMappingSuggestion> Suggest(IEnumerable<BlockElementTypeInfo> elementTypes, int depth)
+        if (!string.IsNullOrWhiteSpace(targetSchemaProperty))
+            AnnotateTargetFit(suggestions, pageSchemaType, targetSchemaProperty!);
+
+        return suggestions;
+    }
+
+    private List<BlockMappingSuggestion> Suggest(IEnumerable<BlockElementTypeInfo> elementTypes, string? contextSchemaType, int depth)
     {
         // Each entry: the built route plus its (mutable) target property.
         var routed = new List<RoutePlan>();
@@ -154,12 +179,14 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
 
             // Recurse into any property that is itself a Block List/Grid, attaching the nested
             // block's suggested routes to a property mapping keyed by that block property.
-            route.PropertyMappings.AddRange(BuildNestedBlockMappings(element, depth));
+            // The nested context type is THIS route's schema type: the nested target property
+            // is set on the parent block's entity, not on the page.
+            route.PropertyMappings.AddRange(BuildNestedBlockMappings(element, entry.SchemaType, depth));
 
-            routed.Add(new RoutePlan(route, ResolveTarget(entry.SchemaType, entry.TargetProperty), entry.CanBeMainEntity));
+            routed.Add(new RoutePlan(route, ResolveTarget(entry.SchemaType, entry.TargetProperty, contextSchemaType), entry.CanBeMainEntity));
         }
 
-        ApplyMainEntityDominance(routed);
+        ApplyMainEntityDominance(routed, contextSchemaType);
 
         // Group by final target schema property — one suggestion per target, each
         // carrying the routes (block element types) that feed it.
@@ -284,7 +311,7 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
     /// level deeper. Depth-capped to mirror the resolver's nesting limit.
     /// </summary>
     private List<BlockRoutePropertyMappingSuggestion> BuildNestedBlockMappings(
-        BlockElementTypeInfo element, int depth)
+        BlockElementTypeInfo element, string parentSchemaType, int depth)
     {
         var result = new List<BlockRoutePropertyMappingSuggestion>();
         if (depth + 1 >= MaxNestDepth)
@@ -292,7 +319,7 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
 
         foreach (var propInfo in element.PropertyInfos.Where(p => p.NestedBlockElementTypes.Count > 0))
         {
-            foreach (var suggestion in Suggest(propInfo.NestedBlockElementTypes, depth + 1)
+            foreach (var suggestion in Suggest(propInfo.NestedBlockElementTypes, parentSchemaType, depth + 1)
                          .Where(s => s.Routes.Count > 0))
             {
                 result.Add(new BlockRoutePropertyMappingSuggestion
@@ -312,7 +339,7 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
     /// highest-confidence candidate keeps it; the rest fall back to hasPart. Ties are
     /// broken by input order (the first catalogue match wins).
     /// </summary>
-    private void ApplyMainEntityDominance(List<RoutePlan> routed)
+    private void ApplyMainEntityDominance(List<RoutePlan> routed, string? contextSchemaType)
     {
         var mainCandidates = routed
             .Select((plan, index) => (plan, index))
@@ -326,24 +353,71 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
         // The highest-confidence candidate keeps mainEntity; the rest fall back to a
         // range-safe supporting target (hasPart for CreativeWork, else about).
         foreach (var (plan, index) in mainCandidates.Skip(1))
-            routed[index] = plan with { Target = ResolveTarget(plan.Route.NestedSchemaType, HasPart) };
+            routed[index] = plan with { Target = ResolveTarget(plan.Route.NestedSchemaType, HasPart, contextSchemaType) };
     }
 
     /// <summary>
-    /// Resolves a range-safe target page property for a nested schema type. The most
-    /// common catalogue target, <c>hasPart</c>, only accepts <c>CreativeWork</c> — so a
-    /// non-CreativeWork type (Person, Place, Service, Organization) routed there would be
-    /// silently discarded by the strongly-typed Schema.NET model at generation time.
-    /// Those fall back to <c>about</c> (range <c>Thing</c>), which accepts any entity.
-    /// <c>mainEntity</c> and <c>about</c> are already <c>Thing</c>-range and pass through.
+    /// Resolves a range-safe target page property for a nested schema type, in two steps.
+    /// (1) A type-specific target (currently <c>review</c>) only exists on some context
+    /// types — Product declares it, plain WebPage-ish types don't — so when the context
+    /// schema type is unknown or doesn't declare the property, the desired target demotes
+    /// to <c>hasPart</c> and step 2 runs on that. (2) <c>hasPart</c> only accepts
+    /// <c>CreativeWork</c> — a non-CreativeWork type (Person, Place, Service, Organization)
+    /// routed there would be silently discarded by the strongly-typed Schema.NET model at
+    /// generation time — so those fall back to <c>about</c> (range <c>Thing</c>), which
+    /// accepts any entity. <c>mainEntity</c> and <c>about</c> are already
+    /// <c>Thing</c>-range and pass through.
     /// </summary>
-    private string ResolveTarget(string schemaType, string desiredTarget)
+    private string ResolveTarget(string schemaType, string desiredTarget, string? contextSchemaType)
     {
+        if (!UniversalTargets.Contains(desiredTarget, StringComparer.OrdinalIgnoreCase)
+            && !TypeDeclaresProperty(contextSchemaType, desiredTarget))
+        {
+            desiredTarget = HasPart;
+        }
+
         if (string.Equals(desiredTarget, HasPart, StringComparison.Ordinal)
             && !IsCreativeWork(schemaType))
             return About;
 
         return desiredTarget;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="schemaTypeName"/> declares a property named
+    /// <paramref name="propertyName"/> (case-insensitive: the registry surfaces Schema.NET's
+    /// PascalCase CLR names while catalogue targets use Schema.org camelCase). Unknown or
+    /// absent context types answer false, so type-specific targets never survive without
+    /// positive evidence.
+    /// </summary>
+    private bool TypeDeclaresProperty(string? schemaTypeName, string propertyName)
+        => !string.IsNullOrWhiteSpace(schemaTypeName)
+           && _registry.GetProperties(schemaTypeName!)
+               .Any(p => string.Equals(p.Name, propertyName, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Row-scoped fit annotation: resolves the accepted object types of
+    /// <paramref name="targetSchemaProperty"/> on the page schema type (the same
+    /// AcceptedTypes surface <c>SchemaRangeValidator</c> range-checks against) and marks
+    /// every top-level route — across ALL suggestion groups, since the caller may re-route
+    /// fitting routes onto its row — with whether its nested type is assignable to that
+    /// range. Nested routes (blocks inside blocks) stay unannotated: they feed properties
+    /// of their parent block's type, not the caller's row. When the range cannot be
+    /// resolved (no page schema type, unknown property) every FitsTarget stays null,
+    /// keeping the wire shape identical to a request without the parameter.
+    /// </summary>
+    private void AnnotateTargetFit(List<BlockMappingSuggestion> suggestions, string? pageSchemaType, string targetSchemaProperty)
+    {
+        if (string.IsNullOrWhiteSpace(pageSchemaType))
+            return;
+
+        var targetProp = _registry.GetProperties(pageSchemaType!)
+            .FirstOrDefault(p => string.Equals(p.Name, targetSchemaProperty, StringComparison.OrdinalIgnoreCase));
+        if (targetProp is null)
+            return;
+
+        foreach (var route in suggestions.SelectMany(s => s.Routes))
+            route.FitsTarget = _rangeChecker.IsInRange(route.NestedSchemaType, targetProp.AcceptedTypes);
     }
 
     /// <summary>
