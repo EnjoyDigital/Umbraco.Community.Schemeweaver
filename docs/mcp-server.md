@@ -20,7 +20,7 @@ end to end.
 
 The quickest way to use the server with [Claude Code](https://claude.com/claude-code) — no clone,
 no build. The plugin is served straight from this GitHub repo and bundles a pre-built, self-contained
-server, so installation is two commands:
+server, so installation is three commands:
 
 ```text
 /plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver

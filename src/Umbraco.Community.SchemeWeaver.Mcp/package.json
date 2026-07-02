@@ -58,7 +58,16 @@
     "ts-jest": "^29.3.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.4.0",
-    "undici": "^7.0.0",
+    "undici": "^7.28.0",
     "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "@stoplight/spectral-functions": "^1.10.5",
+    "orval": {
+      "js-yaml": "^4.2.0"
+    },
+    "tsup": {
+      "esbuild": "^0.28.1"
+    }
   }
 }
