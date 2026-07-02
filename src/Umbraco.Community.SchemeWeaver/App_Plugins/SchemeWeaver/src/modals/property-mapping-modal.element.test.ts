@@ -6,7 +6,7 @@ import './property-mapping-modal.element.js';
 async function waitForLoad(el: any): Promise<void> {
   await el.updateComplete;
   await waitUntil(
-    () => el.shadowRoot && !el.shadowRoot.querySelector('.loading'),
+    () => el.shadowRoot && !el.shadowRoot.querySelector('#loading'),
     'Loading did not complete',
     { timeout: 5000 }
   );
@@ -52,10 +52,24 @@ describe('PropertyMappingModalElement', () => {
   it('has Save and Cancel buttons', async () => {
     const el = createElement();
     await waitForLoad(el);
-    const saveBtn = el.shadowRoot!.querySelector('uui-button[label="Save Mapping"]');
-    const cancelBtn = el.shadowRoot!.querySelector('uui-button[label="Cancel"]');
+    const saveBtn = el.shadowRoot!.querySelector('uui-button[data-mark="schemeweaver:mapping-save"]');
+    const cancelBtn = el.shadowRoot!.querySelector('uui-button[data-mark="schemeweaver:mapping-cancel"]');
     expect(saveBtn).to.exist;
     expect(cancelBtn).to.exist;
+    expect(saveBtn!.getAttribute('label')).to.equal('Save Mapping');
+    expect(cancelBtn!.getAttribute('label')).to.equal('Cancel');
+  });
+
+  // Pinned-footer contract: both footer buttons must live in the body-layout's
+  // actions slot so umb-body-layout can pin them below the scrolling #main —
+  // buttons rendered in the default slot scroll out of view at short viewports.
+  it('renders Save and Cancel inside the [slot="actions"] footer', async () => {
+    const el = createElement();
+    await waitForLoad(el);
+    const saveBtn = el.shadowRoot!.querySelector('uui-button[data-mark="schemeweaver:mapping-save"]');
+    const cancelBtn = el.shadowRoot!.querySelector('uui-button[data-mark="schemeweaver:mapping-cancel"]');
+    expect(saveBtn!.closest('[slot="actions"]')).to.exist;
+    expect(cancelBtn!.closest('[slot="actions"]')).to.exist;
   });
 
   it('shows schema type in headline', async () => {

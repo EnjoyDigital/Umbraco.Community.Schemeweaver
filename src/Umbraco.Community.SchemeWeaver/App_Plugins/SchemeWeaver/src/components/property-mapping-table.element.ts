@@ -1,5 +1,6 @@
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
+import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
 import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
 import { summariseResolverConfig } from './block-route-model.js';
@@ -380,19 +381,8 @@ export class PropertyMappingTableElement extends UmbLitElement {
       <uui-table-row>
         <uui-table-cell>
           <div class="property-name-cell">
-            <div>
-              <strong>${mapping.schemaPropertyName}</strong>
-              <small class="type-label">${mapping.schemaPropertyType}</small>
-            </div>
-            ${!this.readonly
-              ? html`<uui-button
-                  compact
-                  look="outline"
-                  class="remove-row-btn"
-                  label=${this.localize.term('schemeWeaver_removeProperty')}
-                  @click=${() => this._handleRemoveRow(index)}
-                ><uui-icon name="icon-trash"></uui-icon></uui-button>`
-              : nothing}
+            <strong>${mapping.schemaPropertyName}</strong>
+            <small class="type-label">${mapping.schemaPropertyType}</small>
           </div>
         </uui-table-cell>
         <uui-table-cell>
@@ -416,10 +406,18 @@ export class PropertyMappingTableElement extends UmbLitElement {
             ${this.readonly
               ? html`<span>${mapping.sourceType === SourceType.Static ? mapping.staticValue : mapping.contentTypePropertyAlias}</span>`
               : this._renderValueInput(mapping, index)}
-            ${this._renderConfidenceTag(mapping)}
-            ${this._renderRangeWarningBadge(mapping)}
-            ${this._renderSuggestionBadge(mapping)}
+            <div class="value-badges">${this._renderConfidenceTag(mapping)}${this._renderRangeWarningBadge(mapping)}${this._renderSuggestionBadge(mapping)}</div>
           </div>
+        </uui-table-cell>
+        <uui-table-cell class="actions-cell">
+          ${!this.readonly
+            ? html`<uui-button
+                compact
+                class="remove-row-btn"
+                label=${this.localize.term('schemeWeaver_removeProperty')}
+                @click=${() => this._handleRemoveRow(index)}
+              ><uui-icon name="icon-trash"></uui-icon></uui-button>`
+            : nothing}
         </uui-table-cell>
       </uui-table-row>
     `;
@@ -428,10 +426,15 @@ export class PropertyMappingTableElement extends UmbLitElement {
   render() {
     return html`
       <uui-table aria-label=${this.localize.term('schemeWeaver_propertyMappings')}>
+        <uui-table-column class="col-property"></uui-table-column>
+        <uui-table-column class="col-source"></uui-table-column>
+        <uui-table-column class="col-value"></uui-table-column>
+        <uui-table-column class="col-actions"></uui-table-column>
         <uui-table-head>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_schemaProperty')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_source')}</uui-table-head-cell>
           <uui-table-head-cell>${this.localize.term('schemeWeaver_value')}</uui-table-head-cell>
+          <uui-table-head-cell aria-label=${this.localize.term('schemeWeaver_actions')}></uui-table-head-cell>
         </uui-table-head>
 
         ${repeat(
@@ -472,11 +475,13 @@ export class PropertyMappingTableElement extends UmbLitElement {
           <uui-label slot="label" for="add-schema-property">
             ${this.localize.term('schemeWeaver_addSchemaProperty')}
           </uui-label>
-          <span slot="description">${this.localize.term('schemeWeaver_addSchemaPropertyDescription')}</span>
+          <span slot="description" class="add-property-description">${this.localize.term('schemeWeaver_addSchemaPropertyDescription')}</span>
         <uui-combobox
           id="add-schema-property"
+          data-mark="schemeweaver:add-schema-property"
           .value=${this._addPropertyValue}
           label=${this.localize.term('schemeWeaver_addSchemaProperty')}
+          placeholder=${this.localize.term('schemeWeaver_addSchemaPropertyPlaceholder')}
           @search=${(e: Event) => {
             e.stopPropagation();
             this._addPropertySearch = (e.currentTarget as UUIComboboxEventTarget | null)?.search ?? '';
@@ -491,6 +496,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
             }
           }}
         >
+          <uui-icon slot="input-prepend" name="icon-add" id="add-property-icon"></uui-icon>
           <uui-combobox-list>
             ${repeat(
               filtered,
@@ -624,8 +630,6 @@ export class PropertyMappingTableElement extends UmbLitElement {
             @change=${(e: CustomEvent) => this._handlePropertyChange(index, e.detail.value)}
           ></schemeweaver-property-combobox>
           ${this._renderEditorBadge(mapping.editorAlias)}
-          ${this._renderRangeWarningBadge(mapping)}
-          ${this._renderSuggestionBadge(mapping)}
         </div>
         <div class="block-actions">
           <uui-button
@@ -675,16 +679,31 @@ export class PropertyMappingTableElement extends UmbLitElement {
   }
 
   static styles = [
+    UmbTextStyles,
     css`
       :host {
         display: block;
+      }
+
+      /* Column sizing — uui-table-column is UUI's <col> equivalent. */
+      uui-table-column.col-property {
+        width: 30%;
+      }
+
+      uui-table-column.col-source {
+        width: 18%;
+        min-width: 150px;
+      }
+
+      uui-table-column.col-actions {
+        width: 48px;
       }
 
       .type-label {
         display: block;
         color: var(--uui-color-text-alt);
         font-family: monospace;
-        font-size: 0.8rem;
+        font-size: var(--uui-type-small-size);
         margin-top: 2px;
       }
 
@@ -695,13 +714,27 @@ export class PropertyMappingTableElement extends UmbLitElement {
       }
 
       .value-cell > :first-child {
-        flex: 1;
+        flex: 1 1 auto;
         min-width: 0;
+      }
+
+      /* Badges cluster left-aligned with a fixed gap right after the input —
+         never stretched apart to the far edge of the cell. */
+      .value-badges {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        flex: 0 0 auto;
+      }
+
+      .value-badges:empty {
+        display: none;
       }
 
       .confidence-tag {
         flex-shrink: 0;
-        font-size: 0.75rem;
+        font-size: var(--uui-type-small-size);
         --uui-tag-min-height: 22px;
       }
 
@@ -711,35 +744,30 @@ export class PropertyMappingTableElement extends UmbLitElement {
         gap: var(--uui-size-space-2);
       }
 
-      .content-type-input {
-        font-size: 0.85rem;
-      }
-
-      .source-content-type-row {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-      }
-
       .property-select-row {
         display: flex;
         align-items: center;
         gap: var(--uui-size-space-2);
       }
 
+      .property-select-row > schemeweaver-property-combobox {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
       .editor-badge {
-        font-size: 0.7rem;
+        font-size: var(--uui-type-small-size);
         --uui-tag-min-height: 20px;
       }
 
       .suggestion-badge {
         flex-shrink: 0;
-        font-size: 0.7rem;
+        font-size: var(--uui-type-small-size);
         --uui-tag-min-height: 20px;
       }
 
       .suggestion-badge uui-icon {
-        font-size: 0.85rem;
+        font-size: var(--uui-type-small-size);
         margin-right: 2px;
       }
 
@@ -768,19 +796,19 @@ export class PropertyMappingTableElement extends UmbLitElement {
       }
 
       .route-summary-tag {
-        font-size: 0.7rem;
+        font-size: var(--uui-type-small-size);
         --uui-tag-min-height: 20px;
       }
 
       .block-summary-string-list {
         color: var(--uui-color-text-alt);
-        font-size: 0.8rem;
+        font-size: var(--uui-type-small-size);
       }
 
       .block-summary-empty {
         color: var(--uui-color-text-alt);
         font-style: italic;
-        font-size: 0.8rem;
+        font-size: var(--uui-type-small-size);
       }
 
       .no-mappings-hint {
@@ -790,43 +818,56 @@ export class PropertyMappingTableElement extends UmbLitElement {
         padding: var(--uui-size-space-4);
       }
 
-      .property-name-cell {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-      }
-
       .source-chip {
         white-space: nowrap;
-        font-size: 0.85rem;
+        font-size: var(--uui-type-default-size);
       }
 
       .source-chip uui-icon {
         margin-right: var(--uui-size-space-1);
       }
 
+      /* Row actions: icon-only trash in its own column, hover-revealed per row. */
+      .actions-cell {
+        text-align: right;
+      }
+
       .remove-row-btn {
         opacity: 0;
         transition: opacity 0.15s ease;
-        --uui-button-font-size: 0.75rem;
       }
 
-      .property-name-cell:hover .remove-row-btn,
-      .property-name-cell:focus-within .remove-row-btn {
+      uui-table-row:hover .remove-row-btn,
+      uui-table-row:focus-within .remove-row-btn {
         opacity: 0.6;
       }
 
       .remove-row-btn:hover,
       .remove-row-btn:focus {
-        opacity: 1 !important;
+        opacity: 1;
       }
 
       .add-property-row {
-        padding: var(--uui-size-space-3) 0;
+        margin-top: var(--uui-size-space-4);
+        padding: var(--uui-size-space-4) 0 var(--uui-size-space-3);
+        border-top: 1px solid var(--uui-color-divider);
       }
 
       .add-property-row uui-combobox {
         width: 100%;
+      }
+
+      .add-property-description {
+        color: var(--uui-color-text-alt);
+        font-size: var(--uui-type-small-size);
+      }
+
+      #add-property-icon {
+        display: flex;
+        height: 100%;
+        align-items: center;
+        padding-left: var(--uui-size-space-2);
+        color: var(--uui-color-border);
       }
 
       .add-option {
@@ -843,17 +884,17 @@ export class PropertyMappingTableElement extends UmbLitElement {
       .add-option-type {
         color: var(--uui-color-text-alt);
         font-family: monospace;
-        font-size: 0.8rem;
+        font-size: var(--uui-type-small-size);
       }
 
       .add-option-rec {
         margin-left: auto;
         --uui-tag-min-height: 18px;
-        font-size: 0.7rem;
+        font-size: var(--uui-type-small-size);
       }
 
       .add-option-complex-icon {
-        font-size: 0.8rem;
+        font-size: var(--uui-type-small-size);
         color: var(--uui-color-text-alt);
       }
 
