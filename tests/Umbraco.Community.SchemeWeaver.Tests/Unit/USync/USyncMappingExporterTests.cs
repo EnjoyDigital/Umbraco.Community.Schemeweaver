@@ -15,7 +15,7 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit.USync;
 
 public class USyncMappingExporterTests : IDisposable
 {
-    private readonly string _contentRoot = Path.Combine(Path.GetTempPath(), "sw-export-" + Guid.NewGuid().ToString("N"));
+    private readonly string _contentRoot = Path.Join(Path.GetTempPath(), "sw-export-" + Guid.NewGuid().ToString("N"));
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly IHostEnvironment _hostEnvironment = Substitute.For<IHostEnvironment>();
 
@@ -66,8 +66,8 @@ public class USyncMappingExporterTests : IDisposable
         result.UsyncAvailable.Should().BeTrue();
         result.Items.Should().HaveCount(2);
         result.Items.Should().OnlyContain(i => i.Written);
-        File.Exists(Path.Combine(result.Folder!, "article.config")).Should().BeTrue();
-        File.Exists(Path.Combine(result.Folder!, "newsItem.config")).Should().BeTrue();
+        File.Exists(Path.Join(result.Folder!, "article.config")).Should().BeTrue();
+        File.Exists(Path.Join(result.Folder!, "newsItem.config")).Should().BeTrue();
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class USyncMappingExporterTests : IDisposable
         var result = exporter.Export("article");
 
         result.Items.Should().ContainSingle(i => i.Alias == "article" && i.Written);
-        File.Exists(Path.Combine(result.Folder!, "article.config")).Should().BeTrue();
+        File.Exists(Path.Join(result.Folder!, "article.config")).Should().BeTrue();
     }
 
     [Fact]

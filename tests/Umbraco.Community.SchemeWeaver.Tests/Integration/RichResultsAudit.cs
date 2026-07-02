@@ -251,10 +251,10 @@ public class RichResultsAudit : IClassFixture<RichResultsAuditFactory>
     private static string WriteReport(IReadOnlyList<AuditRow> rows)
     {
         var repoRoot = LocateRepoRoot();
-        var auditDir = Path.Combine(repoRoot, "docs", "audit");
+        var auditDir = Path.Join(repoRoot, "docs", "audit");
         Directory.CreateDirectory(auditDir);
 
-        var reportPath = Path.Combine(auditDir, $"rich-results-audit-{DateTime.UtcNow:yyyy-MM-dd}.md");
+        var reportPath = Path.Join(auditDir, $"rich-results-audit-{DateTime.UtcNow:yyyy-MM-dd}.md");
         var sb = new StringBuilder();
 
         var total = rows.Count;
@@ -330,7 +330,7 @@ public class RichResultsAudit : IClassFixture<RichResultsAuditFactory>
     private static string LocateRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Umbraco.Community.SchemeWeaver.slnx")))
+        while (dir is not null && !File.Exists(Path.Join(dir.FullName, "Umbraco.Community.SchemeWeaver.slnx")))
             dir = dir.Parent;
         return dir?.FullName ?? AppContext.BaseDirectory;
     }
