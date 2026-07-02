@@ -85,12 +85,15 @@ public class USyncMappingExporterTests : IDisposable
         File.Exists(Path.Join(result.Folder!, "article.config")).Should().BeTrue();
     }
 
-    [Fact]
-    public void Export_UnsafeAlias_ReportsRefusal_WritesNothing()
+    [Theory]
+    [InlineData("../evil")]
+    [InlineData(@"..\evil")]
+    public void Export_UnsafeAlias_ReportsRefusal_WritesNothing(string unsafeAlias)
     {
-        // The writer refuses aliases that aren't plain file names; the export result must say
+        // The writer refuses aliases that aren't plain file names — with BOTH separators, on
+        // every OS (uSync folders travel between machines) — and the export result must say
         // so rather than claim Written = true for a file that does not exist.
-        _repository.GetAll().Returns(new[] { Mapping(1, @"..\evil") });
+        _repository.GetAll().Returns(new[] { Mapping(1, unsafeAlias) });
         _repository.GetPropertyMappings(Arg.Any<int>()).Returns([]);
         var (serializers, scopeFactory) = BuildSerializer();
         var exporter = new USyncMappingExporter(serializers, scopeFactory, _hostEnvironment,
@@ -98,7 +101,7 @@ public class USyncMappingExporterTests : IDisposable
 
         var result = exporter.Export();
 
-        result.Items.Should().ContainSingle(i => i.Alias == @"..\evil" && !i.Written && i.Error != null);
+        result.Items.Should().ContainSingle(i => i.Alias == unsafeAlias && !i.Written && i.Error != null);
         File.Exists(Path.Join(_contentRoot, "uSync", "evil.config")).Should().BeFalse();
     }
 

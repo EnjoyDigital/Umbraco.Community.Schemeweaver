@@ -36,10 +36,13 @@ internal static class SchemeWeaverMappingPaths
     /// True when the alias maps 1:1 to a plain file name inside the mappings folder — the
     /// invariant that filename-keyed drift detection relies on. Aliases failing this are
     /// refused by <see cref="MappingFileWriter"/> and reported as db-only by drift, so the
-    /// two sides must share this check.
+    /// two sides must share this check. Both separators are rejected on every OS: uSync
+    /// folders travel between machines, so an alias that is a harmless file name on Linux
+    /// (backslash is legal there) must not become a traversal when imported on Windows.
     /// </summary>
     public static bool IsSafeAlias(string alias)
         => !string.IsNullOrEmpty(alias)
+           && alias.IndexOfAny(['/', '\\']) < 0
            && Path.GetFileName(alias) == alias
            && alias.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 }
