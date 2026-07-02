@@ -6,6 +6,7 @@ import {
   serialiseRoutes,
   seedEntriesFromRaw,
   seedRowsFromLegacyConfig,
+  legacyConfigToRoutes,
   summariseResolverConfig,
   parseResolverConfig,
   makePropEntry,
@@ -265,6 +266,65 @@ describe('block-route-model legacy config seeding (wildcard semantics)', () => {
       'Review',
     );
     expect(seeds.get('reviewitem')!.propertyMappings).to.have.length(1);
+  });
+});
+
+describe('block-route-model legacyConfigToRoutes (behavior-equivalent expansion)', () => {
+  it('wildcard-only legacy config becomes a single wildcard route', () => {
+    const routes = legacyConfigToRoutes(
+      [{ schemaProperty: 'Author', contentProperty: 'reviewAuthor' }],
+      'Review',
+    );
+    expect(routes).to.have.length(1);
+    expect(routes[0].blockAlias).to.equal('');
+    expect(routes[0].nestedSchemaType).to.equal('Review');
+    expect(routes[0].propertyMappings.map((m) => m.schemaProperty)).to.deep.equal(['Author']);
+    expect('blockAlias' in routes[0].propertyMappings[0]).to.equal(false);
+  });
+
+  it('alias entries get wildcard entries merged in, and a wildcard route covers the rest', () => {
+    const routes = legacyConfigToRoutes(
+      [
+        { schemaProperty: 'Description', contentProperty: 'summary' },
+        { schemaProperty: 'Name', contentProperty: 'title', blockAlias: 'promoBanner' },
+      ],
+      'WebPageElement',
+    );
+    const promo = routes.find((r) => r.blockAlias === 'promoBanner')!;
+    expect(promo.propertyMappings.map((m) => m.schemaProperty)).to.deep.equal(['Description', 'Name']);
+    const wildcard = routes.find((r) => r.blockAlias === '')!;
+    expect(wildcard.propertyMappings.map((m) => m.schemaProperty)).to.deep.equal(['Description']);
+  });
+
+  it('alias-only legacy config produces no wildcard route', () => {
+    const routes = legacyConfigToRoutes(
+      [{ schemaProperty: 'Name', contentProperty: 'title', blockAlias: 'promoBanner' }],
+      'Thing',
+    );
+    expect(routes).to.have.length(1);
+    expect(routes[0].blockAlias).to.equal('promoBanner');
+  });
+});
+
+describe('block-route-model alignPropertyMappings orphan preservation', () => {
+  it('appends stored entries whose schema property is unknown to the type instead of dropping them', () => {
+    const ranked: RankedSchemaPropertyInfo[] = [
+      { name: 'name', propertyType: 'String', isRequired: false, acceptedTypes: [], isComplexType: false, confidence: 80, isPopular: true },
+    ];
+    const stored = seedEntriesFromRaw(
+      [
+        { schemaProperty: 'name', contentProperty: 'title' },
+        { schemaProperty: 'legacyRenamedProp', contentProperty: 'oldField' },
+      ],
+      [],
+      false,
+    );
+    const aligned = alignPropertyMappings(ranked, stored, []);
+    expect(aligned.map((m) => m.schemaProperty)).to.deep.equal(['name', 'legacyRenamedProp']);
+    expect(serialisePropertyMappings(aligned).map((m) => m.schemaProperty)).to.deep.equal([
+      'name',
+      'legacyRenamedProp',
+    ]);
   });
 });
 

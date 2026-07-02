@@ -219,15 +219,24 @@ test.describe('Review block mapping — scoped modal E2E', () => {
 
       // The reviewItem block row is PRE-SEEDED as mapped from the legacy
       // wildcard config (the wildcard-keyed-by-'' fix), routed to nested type
-      // 'Review' (exact tag text — 'Review Item' block name must not satisfy it).
+      // 'Review'. The narrow accepted range renders the type as a constrained
+      // select, so assert its VALUE — option text always reports hidden.
       const blockRow = modal.getByTestId('schemeweaver:block-row:reviewItem');
       await expect(blockRow).toBeVisible({ timeout: 10_000 });
-      await expect(blockRow.getByText('Review', { exact: true }).first()).toBeVisible();
+      await expect(blockRow.locator('select').first()).toHaveValue('Review');
 
-      // Expanded, the legacy nestedMappings are visible as pre-filled values.
-      await blockRow.click();
-      await expect(modal.getByText('reviewAuthor').first()).toBeVisible({ timeout: 10_000 });
-      await expect(modal.getByText('reviewBody').first()).toBeVisible();
+      // Expanded (dedicated expand button, not the row itself), the legacy
+      // nestedMappings pre-fill the property table: schema-property labels are
+      // text cells, while the chosen content properties are SELECT VALUES.
+      await blockRow.locator('.row-expand').click();
+      await expect(blockRow.getByText('Author', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+      await expect(async () => {
+        const values = await blockRow
+          .locator('select')
+          .evaluateAll((els) => els.map((el) => (el as HTMLSelectElement).value));
+        expect(values).toContain('reviewAuthor');
+        expect(values).toContain('reviewBody');
+      }).toPass({ timeout: 10_000 });
 
       // The per-block target-property dropdown is GONE by design: the target
       // is fixed context from the parent row, never chosen inside the modal.

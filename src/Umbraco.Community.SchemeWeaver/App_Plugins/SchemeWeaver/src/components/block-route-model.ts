@@ -256,7 +256,8 @@ export function alignPropertyMappings(
   propertyInfos: BlockElementPropertyInfo[],
 ): RoutePropEntry[] {
   const byName = new Map(seed.map((m) => [m.schemaProperty.toLowerCase(), m]));
-  return props.map((sp) => {
+  const known = new Set(props.map((sp) => sp.name.toLowerCase()));
+  const aligned = props.map((sp) => {
     const prev = byName.get(sp.name.toLowerCase());
     return makePropEntry(sp.name, sp.propertyType, sp.isComplexType, sp.acceptedTypes ?? [], propertyInfos, prev && {
       contentProperty: prev.contentProperty,
@@ -269,6 +270,13 @@ export function alignPropertyMappings(
       extras: prev.extras,
     }, sp.confidence, sp.isPopular);
   });
+  // Stored entries whose schema property is not among the type's known
+  // properties (renamed/nonstandard) are appended rather than silently dropped
+  // on the next save — the user can see and remove them deliberately.
+  const orphans = seed.filter(
+    (m) => m.contentProperty.trim() !== '' && !known.has(m.schemaProperty.toLowerCase()),
+  );
+  return [...aligned, ...orphans];
 }
 
 /** Build a block row from an element type and an optional seed. */
@@ -452,6 +460,43 @@ export function seedRowsFromLegacyConfig(
     });
   }
   return seeds;
+}
+
+/**
+ * Convert a LEGACY flat config to behavior-equivalent explicit routes, without
+ * needing the block element type list. Legacy semantics: a block receives the
+ * wildcard entries PLUS its alias-specific entries. Route semantics: an exact
+ * alias route wins outright, else the wildcard route applies. So each alias
+ * route carries wildcard + alias entries, and a wildcard route (wildcard
+ * entries only) covers every other block. Used when merging fan-out routes
+ * into a sibling row that still holds a legacy config — merging `routes` on
+ * top of untouched `nestedMappings` would silently shadow the flat list (the
+ * renderer prefers routes).
+ */
+export function legacyConfigToRoutes(
+  nestedMappings: BlockRoutePropertyMapping[],
+  nestedSchemaTypeName: string | null | undefined,
+): BlockRoute[] {
+  const type = nestedSchemaTypeName ?? '';
+  // Entries become route-scoped: the per-entry blockAlias is dropped from copies.
+  const scoped = ({ blockAlias: _alias, ...entry }: BlockRoutePropertyMapping): BlockRoutePropertyMapping => entry;
+  const wildcard = nestedMappings.filter((m) => !m.blockAlias).map(scoped);
+  const byAlias = new Map<string, BlockRoutePropertyMapping[]>();
+  for (const m of nestedMappings) {
+    if (!m.blockAlias) continue;
+    const list = byAlias.get(m.blockAlias) ?? [];
+    list.push(scoped(m));
+    byAlias.set(m.blockAlias, list);
+  }
+  const routes: BlockRoute[] = [...byAlias.entries()].map(([blockAlias, entries]) => ({
+    blockAlias,
+    nestedSchemaType: type,
+    propertyMappings: [...wildcard, ...entries],
+  }));
+  if (wildcard.length > 0) {
+    routes.push({ blockAlias: '', nestedSchemaType: type, propertyMappings: wildcard });
+  }
+  return routes;
 }
 
 /** A human-readable summary of a stored blockContent ResolverConfig, for the mapping table row. */

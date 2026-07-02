@@ -8,8 +8,13 @@ export const POPULAR_PROPERTIES = [
   'author', 'datePublished', 'dateModified', 'sku', 'price',
 ];
 
-/** Convert stored PropertyMappingDto to UI row model */
-export function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
+/**
+ * Convert stored PropertyMappingDto to UI row model. `loadOrder` (the DTO's
+ * position in the stored mapping — Array.map supplies it automatically) is
+ * carried so persistence can re-emit rows in stored order; display sorting
+ * stays presentation-only.
+ */
+export function dtoToRow(dto: PropertyMappingDto, loadOrder?: number): PropertyMappingRow {
   return {
     schemaPropertyName: dto.schemaPropertyName || '',
     schemaPropertyType: '',
@@ -29,7 +34,21 @@ export function dtoToRow(dto: PropertyMappingDto): PropertyMappingRow {
     sourceContentTypeProperties: [],
     dynamicRootConfig: dto.dynamicRootConfig ? JSON.parse(dto.dynamicRootConfig) : undefined,
     sourceDocumentTypeUnique: undefined,
+    loadOrder,
+    isAutoMapped: dto.isAutoMapped,
+    transformType: dto.transformType ?? null,
   };
+}
+
+/**
+ * Rows in persistence order: stored rows by their load position, new rows
+ * (no loadOrder) appended in display order. Array.sort is stable, so ties keep
+ * their relative display order.
+ */
+export function rowsInPersistenceOrder(rows: PropertyMappingRow[]): PropertyMappingRow[] {
+  return [...rows].sort(
+    (a, b) => (a.loadOrder ?? Number.MAX_SAFE_INTEGER) - (b.loadOrder ?? Number.MAX_SAFE_INTEGER),
+  );
 }
 
 /** Convert PropertyMappingSuggestion to UI row model */

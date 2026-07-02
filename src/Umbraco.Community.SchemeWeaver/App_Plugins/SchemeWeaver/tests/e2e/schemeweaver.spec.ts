@@ -707,10 +707,13 @@ test.describe('Complex Mapping Workflows', () => {
       await expect(modal.locator('.step-indicator')).toHaveCount(0);
 
       // The seeded legacy flat config (no blockAlias) pre-fills the faqItem
-      // block row, routed to nested type Question.
+      // block row, routed to nested type Question. The type control may be a
+      // constrained select or the free-search input depending on the target's
+      // accepted range — assert the VALUE either way (option/input text always
+      // reports hidden to Playwright).
       const blockRow = modal.getByTestId('schemeweaver:block-row:faqItem');
       await expect(blockRow).toBeVisible({ timeout: 10_000 });
-      await expect(blockRow.getByText('Question', { exact: true }).first()).toBeVisible();
+      await expect(blockRow.locator('select, input').first()).toHaveValue('Question');
 
       // No per-block target-property dropdown: the target is fixed context
       // from the parent row.

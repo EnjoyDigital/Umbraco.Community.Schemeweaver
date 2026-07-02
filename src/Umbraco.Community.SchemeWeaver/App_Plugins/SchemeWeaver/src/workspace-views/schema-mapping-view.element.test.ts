@@ -233,6 +233,58 @@ describe('SchemaMappingViewElement', () => {
       expect(mentions.schemaPropertyType).to.equal('Thing');
     });
 
+    it('fan-out into a LEGACY sibling expands its flat config to equivalent routes first (no shadowing)', async () => {
+      const opened = blockRow({ resolverConfig: CFG_REVIEW });
+      const legacySibling = blockRow({
+        schemaPropertyName: 'about',
+        resolverConfig: '{"nestedMappings":[{"schemaProperty":"name","contentProperty":"teamName"}]}',
+        nestedSchemaTypeName: 'Person',
+      });
+      const el = await createView([opened, legacySibling]);
+
+      el._applyNestedMappingResult(0, 'Umbraco.BlockList', {
+        resolverConfig: CFG_REVIEW,
+        additionalTargets: [
+          {
+            schemaPropertyName: 'about',
+            resolverConfig: '{"routes":[{"blockAlias":"promoBanner","nestedSchemaType":"Service","propertyMappings":[]}]}',
+          },
+        ],
+      });
+
+      const about = el._rows.find((r: any) => r.schemaPropertyName === 'about');
+      const merged = JSON.parse(about.resolverConfig);
+      // The legacy wildcard flat list survives as an explicit wildcard route —
+      // it is NOT silently shadowed by the new routes.
+      const wildcard = merged.routes.find((r: any) => r.blockAlias === '');
+      expect(wildcard, 'legacy flat config expanded to a wildcard route').to.exist;
+      expect(wildcard.nestedSchemaType).to.equal('Person');
+      expect(wildcard.propertyMappings.map((m: any) => m.schemaProperty)).to.deep.equal(['name']);
+      const promo = merged.routes.find((r: any) => r.blockAlias === 'promoBanner');
+      expect(promo.nestedSchemaType).to.equal('Service');
+      // nestedMappings dropped from storage, mapping-level type upgraded away.
+      expect(merged.nestedMappings).to.equal(undefined);
+      expect(about.nestedSchemaTypeName).to.equal('');
+    });
+
+    it('a fan-out entry naming the OPENED row is ignored — never a duplicate sibling row', async () => {
+      const opened = blockRow({ resolverConfig: CFG_REVIEW });
+      const el = await createView([opened]);
+
+      el._applyNestedMappingResult(0, 'Umbraco.BlockList', {
+        resolverConfig: CFG_REVIEW,
+        additionalTargets: [
+          {
+            schemaPropertyName: 'Review',
+            resolverConfig: '{"routes":[{"blockAlias":"promoBanner","nestedSchemaType":"WPHeader","propertyMappings":[]}]}',
+          },
+        ],
+      });
+
+      expect(el._rows).to.have.lengthOf(1);
+      expect(el._rows[0].resolverConfig).to.equal(CFG_REVIEW);
+    });
+
     it('computes sibling claims from routed configs only, skipping legacy-wildcard siblings', async () => {
       const opened = blockRow({ resolverConfig: CFG_REVIEW });
       const routedSibling = blockRow({ schemaPropertyName: 'hasPart', resolverConfig: CFG_HASPART });

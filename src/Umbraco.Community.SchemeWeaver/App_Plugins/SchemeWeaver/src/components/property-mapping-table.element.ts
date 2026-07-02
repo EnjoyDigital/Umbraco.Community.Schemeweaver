@@ -71,6 +71,26 @@ export interface PropertyMappingRow {
    * and drives the High/Med/Low badge. Undefined when ranked data is unavailable.
    */
   schemaRank?: number;
+  /**
+   * Position of this row in the STORED mapping at load time. Persistence re-emits
+   * rows in this order (display sorting is presentation-only) so an untouched save
+   * never reorders stored rows — reordering flips uSync drift to content-differs
+   * for mappings the user never edited. New rows have no loadOrder and append
+   * after all stored rows.
+   */
+  loadOrder?: number;
+  /**
+   * The stored isAutoMapped flag, carried through the UI so an untouched save
+   * round-trips it verbatim. Rows auto-mapped in THIS session signal via
+   * {@link confidence} instead.
+   */
+  isAutoMapped?: boolean;
+  /**
+   * The stored top-level transform (e.g. `stripHtml`), carried through the UI
+   * so an untouched save round-trips it verbatim — there is no top-level
+   * transform editor, so persistence must never null it out.
+   */
+  transformType?: string | null;
 }
 
 /** Map of complex editor aliases to their display badge labels */

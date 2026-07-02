@@ -162,7 +162,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
           ? this.#repository.requestBlockElementTypes(contentTypeAlias, propertyAlias)
           : Promise.resolve(undefined),
         propertyAlias
-          ? this.#repository.requestBlockSuggestions(contentTypeAlias, propertyAlias)
+          ? this.#repository.requestBlockSuggestions(contentTypeAlias, propertyAlias, this.data?.schemaPropertyName)
           : Promise.resolve(undefined),
       ]);
 
@@ -351,8 +351,14 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
       const suggestions = await this.#repository.requestBlockSuggestions(
         this.data?.contentTypeAlias || '',
         this.data?.contentTypePropertyAlias || '',
+        this.data?.schemaPropertyName,
       );
       this._suggestionByBlock = this._indexSuggestionRoutes(suggestions ?? []);
+
+      // Recomputing the off-target list invalidates any previously queued fan-out —
+      // otherwise the banner would show the new list while save emits the old queue.
+      this._queuedAdditionalTargets = [];
+      this._fanOutQueued = false;
 
       let appliedAny = false;
       const offTarget: OffTargetRoute[] = [];
@@ -408,6 +414,7 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
     const suggestions = await this.#repository.requestBlockSuggestions(
       this.data?.contentTypeAlias || '',
       this.data?.contentTypePropertyAlias || '',
+      this.data?.schemaPropertyName,
     );
     const hit = this._indexSuggestionRoutes(suggestions ?? []).get(row.alias.toLowerCase());
     if (!hit) {
@@ -461,12 +468,18 @@ export class NestedMappingModalElement extends UmbModalBaseElement<NestedMapping
    */
   private _handleFanOutCreate() {
     if (this._offTargetRoutes.length === 0) return;
+    const panelTarget = (this.data?.schemaPropertyName ?? '').toLowerCase();
     const byTarget = new Map<string, BlockRouteSuggestion[]>();
     for (const o of this._offTargetRoutes) {
+      // Never fan out to THIS row's own property — that would create a duplicate
+      // sibling row for the same target (possible only when the server-side fit
+      // annotation is unavailable and the client fallback rejected a subtype).
+      if (o.target.toLowerCase() === panelTarget) continue;
       const list = byTarget.get(o.target) ?? [];
       list.push(o.route);
       byTarget.set(o.target, list);
     }
+    if (byTarget.size === 0) return;
     this._queuedAdditionalTargets = [...byTarget.entries()].map(([schemaPropertyName, routes]) => ({
       schemaPropertyName,
       resolverConfig: JSON.stringify({ routes: convertSuggestedRoutes(routes) }),

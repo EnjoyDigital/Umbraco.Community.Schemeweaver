@@ -7,7 +7,7 @@ import '../components/property-mapping-table.element.js';
 import { SchemeWeaverRepository } from '../repository/schemeweaver.repository.js';
 import { SCHEMEWEAVER_NESTED_MAPPING_MODAL } from './nested-mapping-modal.token.js';
 import type { NestedMappingModalValue, NestedMappingModalSiblingClaim } from './nested-mapping-modal.token.js';
-import { parseResolverConfig } from '../components/block-route-model.js';
+import { parseResolverConfig, legacyConfigToRoutes } from '../components/block-route-model.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { mergeAutoMapSuggestions, applySourceTypeChange } from '../utils/mapping-converters.js';
@@ -303,6 +303,8 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     }
 
     for (const target of value.additionalTargets ?? []) {
+      // Never re-route the opened row via fan-out — its config is `value.resolverConfig`.
+      if (target.schemaPropertyName.toLowerCase() === opened.schemaPropertyName.toLowerCase()) continue;
       const siblingIndex = rows.findIndex(
         (row, i) =>
           i !== index &&
@@ -313,16 +315,28 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
 
       if (siblingIndex >= 0) {
         // Merge routes: block aliases present in the new set replace, others kept.
+        // A sibling still on the LEGACY flat shape is expanded to equivalent
+        // explicit routes first — merging routes on top of untouched
+        // nestedMappings would silently shadow the whole flat list (the
+        // renderer prefers routes).
         const sibling = rows[siblingIndex];
         const siblingConfig = parseResolverConfig(sibling.resolverConfig) ?? {};
+        const baseRoutes =
+          siblingConfig.routes ??
+          (siblingConfig.nestedMappings?.length
+            ? legacyConfigToRoutes(siblingConfig.nestedMappings, sibling.nestedSchemaTypeName)
+            : sibling.nestedSchemaTypeName
+              ? [{ blockAlias: '', nestedSchemaType: sibling.nestedSchemaTypeName, propertyMappings: [] }]
+              : []);
         const newRoutes = parseResolverConfig(target.resolverConfig)?.routes ?? [];
         const newAliases = new Set(newRoutes.map((r) => (r.blockAlias ?? '').toLowerCase()));
-        const keptRoutes = (siblingConfig.routes ?? []).filter(
-          (r) => !newAliases.has((r.blockAlias ?? '').toLowerCase()),
-        );
+        const keptRoutes = baseRoutes.filter((r) => !newAliases.has((r.blockAlias ?? '').toLowerCase()));
+        const { nestedMappings: _legacy, ...rootExtras } = siblingConfig;
         rows[siblingIndex] = {
           ...sibling,
-          resolverConfig: JSON.stringify({ ...siblingConfig, routes: [...keptRoutes, ...newRoutes] }),
+          resolverConfig: JSON.stringify({ ...rootExtras, routes: [...keptRoutes, ...newRoutes] }),
+          // Routes now drive placement — the legacy mapping-level type is upgraded away.
+          nestedSchemaTypeName: '',
         };
       } else {
         const sp = this._allSchemaProperties.find(
