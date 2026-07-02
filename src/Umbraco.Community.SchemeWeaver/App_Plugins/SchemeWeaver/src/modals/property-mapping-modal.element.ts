@@ -1,4 +1,5 @@
-import { css, html, customElement, state } from '@umbraco-cms/backoffice/external/lit';
+import { css, html, customElement, state, nothing } from '@umbraco-cms/backoffice/external/lit';
+import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
@@ -419,56 +420,20 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
   render() {
     return html`
       <umb-body-layout headline="${this.localize.term('schemeWeaver_mapProperties')}: ${this.data?.schemaType ?? ''}">
-        ${this._loading
-          ? html`
-              <div class="loading">
-                <uui-loader-circle></uui-loader-circle>
-                <p>${this.localize.term('schemeWeaver_loadingProperties')}</p>
-              </div>
-            `
-          : html`
-              <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
-                <div class="mapping-info">
-                  <uui-tag color="primary">${this.data?.schemaType}</uui-tag>
-                  <span>${this.localize.term('schemeWeaver_mappedTo')}</span>
-                  <uui-tag color="default">${this.data?.contentTypeAlias}</uui-tag>
-                  ${this._aiChecking
-                    ? html`<uui-loader-bar class="ai-checking"></uui-loader-bar>`
-                    : this._aiAvailable ? html`
-                    <uui-button
-                      look="outline"
-                      color="positive"
-                      compact
-                      @click=${this._handleAIAutoMap}
-                      ?disabled=${this._aiLoading}
-                      .state=${this._aiLoading ? 'waiting' : undefined}
-                      label=${this.localize.term('schemeWeaver_aiAutoMap')}
-                    >
-                      <uui-icon name="icon-wand"></uui-icon>
-                      ${this._aiLoading ? this.localize.term('schemeWeaver_aiAnalysing') : this.localize.term('schemeWeaver_aiAutoMap')}
-                    </uui-button>
-                  ` : ''}
-                </div>
-
-                <schemeweaver-property-mapping-table
-                  .mappings=${this._mappings}
-                  .availableProperties=${this._availableProperties}
-                  .allSchemaProperties=${this._allSchemaProperties}
-                  @mappings-changed=${this._handleMappingsChanged}
-                  @configure-nested-mapping=${this._handleConfigureNestedMapping}
-                  @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
-                  @pick-source-origin=${this._handlePickSourceOrigin}
-                  @resolve-document-type=${this._handleResolveDocumentType}
-                ></schemeweaver-property-mapping-table>
-              </uui-box>
-            `}
+        ${this._loading ? this._renderLoading() : this._renderContent()}
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleClose} label=${this.localize.term('schemeWeaver_cancel')}>
+          <uui-button
+            look="secondary"
+            data-mark="schemeweaver:mapping-cancel"
+            @click=${this._handleClose}
+            label=${this.localize.term('schemeWeaver_cancel')}
+          >
             ${this.localize.term('schemeWeaver_cancel')}
           </uui-button>
           <uui-button
             look="primary"
+            data-mark="schemeweaver:mapping-save"
             @click=${this._handleSave}
             ?disabled=${this._saving || this._loading}
             .state=${this._saving ? 'waiting' : undefined}
@@ -481,25 +446,79 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     `;
   }
 
+  private _renderLoading() {
+    return html`
+      <div id="loading">
+        <uui-loader></uui-loader>
+      </div>
+    `;
+  }
+
+  private _renderContent() {
+    return html`
+      <uui-box headline=${this.localize.term('schemeWeaver_propertyMappings')}>
+        ${this._aiAvailable && !this._aiChecking
+          ? html`
+              <uui-button
+                slot="header-actions"
+                look="outline"
+                color="positive"
+                compact
+                @click=${this._handleAIAutoMap}
+                ?disabled=${this._aiLoading}
+                .state=${this._aiLoading ? 'waiting' : undefined}
+                label=${this.localize.term('schemeWeaver_aiAutoMap')}
+              >
+                <uui-icon name="icon-wand"></uui-icon>
+                ${this._aiLoading ? this.localize.term('schemeWeaver_aiAnalysing') : this.localize.term('schemeWeaver_aiAutoMap')}
+              </uui-button>
+            `
+          : nothing}
+
+        <p id="mapping-context" class="uui-text">
+          ${this.data?.schemaType} ${this.localize.term('schemeWeaver_mappedTo')} ${this.data?.contentTypeAlias}
+        </p>
+
+        <schemeweaver-property-mapping-table
+          .mappings=${this._mappings}
+          .availableProperties=${this._availableProperties}
+          .allSchemaProperties=${this._allSchemaProperties}
+          @mappings-changed=${this._handleMappingsChanged}
+          @configure-nested-mapping=${this._handleConfigureNestedMapping}
+          @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
+          @pick-source-origin=${this._handlePickSourceOrigin}
+          @resolve-document-type=${this._handleResolveDocumentType}
+        ></schemeweaver-property-mapping-table>
+      </uui-box>
+    `;
+  }
+
   static styles = [
+    UmbTextStyles,
     css`
       :host {
         display: block;
+        height: 100%;
       }
 
-      .loading {
+      #loading {
         display: flex;
-        flex-direction: column;
+        justify-content: center;
         align-items: center;
-        gap: var(--uui-size-space-3);
-        padding: var(--uui-size-space-6);
+        height: 100%;
+        opacity: 0;
+        animation: fadeIn 240ms 240ms forwards;
       }
 
-      .mapping-info {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-3);
-        margin-bottom: var(--uui-size-space-4);
+      @keyframes fadeIn {
+        100% {
+          opacity: 1;
+        }
+      }
+
+      #mapping-context {
+        margin: 0 0 var(--uui-size-space-4);
+        color: var(--uui-color-text-alt);
       }
     `,
   ];
