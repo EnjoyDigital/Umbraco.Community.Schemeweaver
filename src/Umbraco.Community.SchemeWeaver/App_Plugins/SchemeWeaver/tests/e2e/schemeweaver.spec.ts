@@ -38,19 +38,19 @@ async function fillUuiInput(locator: any, text: string) {
 }
 
 /**
- * Type into the schema picker's search input and wait for a matching schema
- * item to appear. Replaces a blind 1 s `waitForTimeout()` that was there to
- * cover the debounced search render — the locator-based wait is both faster
- * on cache hits and more resilient on slow CI.
+ * Search the redesigned schema picker and pick a type by its exact name, then
+ * submit. Built on the frozen data-mark contract:
+ *   - search input  data-mark="schemeweaver:schema-search"   (uui-input)
+ *   - result row    data-mark="schemeweaver:schema-option:<TypeName>" (umb-ref-item)
+ *   - submit        data-mark="schemeweaver:schema-picker-submit"
+ * Filtering is in-memory (no debounce), so the option locator's own
+ * auto-waiting is all the synchronisation needed. The uui-input host is not
+ * itself fillable — fill its inner native input (Playwright pierces shadow DOM).
  */
 async function searchAndPickSchema(pickerModal: any, schemaName: string) {
-  await fillUuiInput(pickerModal.locator('uui-input').first(), schemaName);
-  const match = pickerModal
-    .locator('.schema-item', { hasText: new RegExp(`^${schemaName}$`, 'i') })
-    .first();
-  await match.waitFor({ state: 'visible', timeout: 10_000 });
-  await match.click();
-  await pickerModal.locator('uui-button[look="primary"]').last().click();
+  await fillUuiInput(pickerModal.getByTestId('schemeweaver:schema-search'), schemaName);
+  await pickerModal.getByTestId(`schemeweaver:schema-option:${schemaName}`).click();
+  await pickerModal.getByTestId('schemeweaver:schema-picker-submit').click();
 }
 
 /**
@@ -504,67 +504,140 @@ test.describe('Document Type Workspace View', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Initial Mapping Flow (redesigned picker + property-mapping modal)
+// ---------------------------------------------------------------------------
+
+test.describe('Initial Mapping Flow', () => {
+  const BASE = '/umbraco/management/api/v1/schemeweaver';
+  const ALIAS = 'categoriesListing';
+  const CONTENT_TYPE_KEY = '0b154cb4-8fdf-4afc-a274-4173278d5618';
+
+  /**
+   * Unconditional end-to-end coverage of the redesigned initial-mapping flow:
+   * empty state → "Select Schema.org Type" picker → "Map Properties" modal →
+   * mapped view. Every assertion is unconditional — no isVisible() guards —
+   * so a regression can never silently no-op the test the way the old
+   * wizard-era selectors did.
+   *
+   * Selector policy: ONLY the frozen data-mark hooks (testIdAttribute is
+   * 'data-mark') + the stable schemeweaver-* element names. Table-level marks
+   * are always scoped through a parent element because
+   * schemeweaver-property-mapping-table renders in BOTH the workspace view and
+   * the property-mapping modal.
+   *
+   * Environment safety (same idiom as review-block-mapping-ui.spec.ts):
+   * categoriesListing is the known UNMAPPED seed doc type, so the arrange GET
+   * normally 404s — but we snapshot defensively and restore in `finally` so
+   * the TestHost leaves exactly as found.
+   */
+  test('empty state → schema picker → property mapping modal → mapped view (categoriesListing → CollectionPage)', async ({ umbracoUi }) => {
+    const page = umbracoUi.page;
+
+    // ── ARRANGE: categoriesListing must be unmapped.
+    const before = await page.request.get(`${BASE}/mappings/${ALIAS}`);
+    const snapshot = before.ok() ? await before.json() : null;
+    if (snapshot) {
+      const del = await page.request.delete(`${BASE}/mappings/${ALIAS}`);
+      expect(del.ok(), `arrange DELETE failed: ${del.status()}`).toBeTruthy();
+    }
+
+    try {
+      await goToDocTypeSchemaTab(umbracoUi, 'Categories Listing');
+
+      // ── Empty state: the single Map to Schema.org affordance.
+      const mapToSchemaBtn = page.getByTestId('schemeweaver:map-to-schema');
+      await expect(mapToSchemaBtn).toBeVisible({ timeout: 15_000 });
+
+      // ── Open the picker (first pass: picker UX locks + the cancel path).
+      await mapToSchemaBtn.click();
+      const picker = page.locator('schemeweaver-schema-picker-modal');
+      await expect(picker).toBeVisible({ timeout: 10_000 });
+      await picker.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+
+      // Pinned-footer regression lock: the Select button must be inside the
+      // viewport as soon as the picker opens (it used to sit below the fold).
+      await expect(picker.getByTestId('schemeweaver:schema-picker-submit')).toBeInViewport();
+
+      // No query → the curated "Common types" shortlist: exactly 20 rows
+      // (never the full ~800-type universe dump).
+      await expect(picker.locator('umb-ref-item')).toHaveCount(20);
+
+      // Typing filters in-memory with a render cap of 50 plus an explicit
+      // "Showing X of N" note — the broad query 'a' matches most of the
+      // type universe, so the cap note must appear.
+      await fillUuiInput(picker.getByTestId('schemeweaver:schema-search'), 'a');
+      await expect(picker.locator('.cap-note')).toContainText(/Showing 50 of \d+/);
+
+      // ── Cancel must not persist anything.
+      await picker.getByTestId('schemeweaver:schema-picker-cancel').click();
+      await expect(picker).toBeHidden({ timeout: 10_000 });
+      const afterCancel = await page.request.get(`${BASE}/mappings/${ALIAS}`);
+      expect(afterCancel.status(), 'cancelling the picker must not create a mapping').toBe(404);
+
+      // ── Re-open and run the real flow: search → pick → submit.
+      await page.getByTestId('schemeweaver:map-to-schema').click();
+      await expect(picker).toBeVisible({ timeout: 10_000 });
+      await picker.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
+      await searchAndPickSchema(picker, 'CollectionPage');
+
+      // ── Property-mapping modal: auto-map suggestions render as table rows.
+      const mappingModal = page.locator('schemeweaver-property-mapping-modal');
+      await expect(mappingModal).toBeVisible({ timeout: 10_000 });
+      const table = mappingModal.locator('schemeweaver-property-mapping-table');
+      await expect(table).toBeVisible({ timeout: 10_000 });
+      // categoriesListing (title/description/heroImage + system fields) yields
+      // 8 suggestion rows for CollectionPage; asserting ≥5 guards "real rows
+      // rendered" without welding the test to the exact heuristic output.
+      await expect(table.locator('uui-table-row').nth(4)).toBeVisible({ timeout: 10_000 });
+
+      // Below-the-fold regression lock: Save must be pinned inside the viewport.
+      const saveBtn = mappingModal.getByTestId('schemeweaver:mapping-save');
+      await expect(saveBtn).toBeInViewport();
+
+      await saveBtn.click();
+      await expect(mappingModal).toBeHidden({ timeout: 15_000 });
+
+      // ── Mapped view: the badge names the chosen type.
+      await expect(page.getByTestId('schemeweaver:schema-type-badge')).toContainText('CollectionPage', {
+        timeout: 15_000,
+      });
+
+      // ── The API is the source of truth: the mapping persisted.
+      const persistedRes = await page.request.get(`${BASE}/mappings/${ALIAS}`);
+      expect(persistedRes.ok(), `GET mappings/${ALIAS} after save failed: ${persistedRes.status()}`).toBeTruthy();
+      const persisted = await persistedRes.json();
+      expect(persisted.schemaTypeName).toBe('CollectionPage');
+      expect(persisted.contentTypeAlias).toBe(ALIAS);
+      expect(persisted.contentTypeKey?.toLowerCase()).toBe(CONTENT_TYPE_KEY);
+      expect(persisted.propertyMappings.length).toBeGreaterThan(0);
+    } finally {
+      // ── RESTORE: remove the created mapping (and reinstate any snapshot) so
+      // the TestHost returns to its prior state.
+      const del = await umbracoUi.page.request.delete(`${BASE}/mappings/${ALIAS}`);
+      expect([200, 204, 404]).toContain(del.status());
+      if (snapshot) {
+        const restore = await umbracoUi.page.request.post(`${BASE}/mappings`, { data: snapshot });
+        expect(restore.ok(), `restore POST failed: ${restore.status()}`).toBeTruthy();
+      } else {
+        const after = await umbracoUi.page.request.get(`${BASE}/mappings/${ALIAS}`);
+        expect(after.status(), 'restore must leave categoriesListing unmapped (404)').toBe(404);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Complex Mapping Workflows Tests (via Document Type Workspace View)
 // ---------------------------------------------------------------------------
 
 test.describe('Complex Mapping Workflows', () => {
-  test('FAQPage auto-map shows blockContent suggestion for mainEntity', async ({ umbracoUi }) => {
-    await goToDocTypeSchemaTab(umbracoUi, 'FAQ Page');
-
-    // The Schema.org workspace view should show the mapping UI
-    const schemaView = umbracoUi.page.locator('schemeweaver-schema-mapping-view');
-    await expect(schemaView).toBeVisible({ timeout: 10_000 });
-
-    // If not yet mapped, click the Map to Schema.org button on the workspace view
-    const mapBtn = schemaView.locator('uui-button', { hasText: /Map to Schema\.org/i }).first();
-    if (await mapBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await mapBtn.click();
-
-      // Pick FAQPage schema type
-      const pickerModal = umbracoUi.page.locator('schemeweaver-schema-picker-modal');
-      await pickerModal.locator('uui-loader-circle').waitFor({ state: 'hidden', timeout: 15_000 });
-      await searchAndPickSchema(pickerModal, 'FAQPage');
-
-      // Property mapping modal should show blockContent suggestion
-      const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
-      await expect(mappingModal).toBeVisible({ timeout: 10_000 });
-
-      const table = mappingModal.locator('schemeweaver-property-mapping-table');
-      await expect(table).toBeVisible({ timeout: 10_000 });
-
-      // Should have a configure nested mapping button (from blockContent suggestion)
-      const configButton = table.locator('uui-button', { hasText: /Configure Block Mapping/i });
-      const hasConfigButton = await configButton.isVisible({ timeout: 5_000 }).catch(() => false);
-
-      // If config button exists, test the wizard flow
-      if (hasConfigButton) {
-        await configButton.first().click();
-
-        // Nested mapping wizard should open
-        const nestedModal = umbracoUi.page.locator('schemeweaver-nested-mapping-modal');
-        await expect(nestedModal).toBeVisible({ timeout: 10_000 });
-
-        // Should show wizard step indicators
-        const stepIndicators = nestedModal.locator('.step-indicator');
-        const stepCount = await stepIndicators.count();
-        expect(stepCount).toBe(3);
-
-        // Close wizard
-        const cancelBtn = nestedModal.locator('uui-button[label="Cancel"]');
-        if (await cancelBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-          await cancelBtn.click();
-        } else {
-          const backBtn = nestedModal.locator('uui-button[label="Back"]');
-          if (await backBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-            await backBtn.click();
-          }
-        }
-      }
-
-      // Close mapping modal
-      await mappingModal.locator('uui-button[label="Cancel"]').click();
-    }
-  });
+  // NOTE: the old "FAQPage auto-map shows blockContent suggestion for
+  // mainEntity" test lived here. It asserted the removed 3-step wizard
+  // (`.step-indicator` × 3) behind isVisible() guards, so it silently
+  // no-opped once the redesign shipped. The scoped block-mapping test below
+  // ("scoped block-mapping modal opens from the parent row…") covers the same
+  // ground unconditionally on the data-mark contract, so the stale test was
+  // deleted rather than rewritten.
 
   test('Product mapping shows complex type suggestions for offers and brand', async ({ umbracoUi }) => {
     await goToDocTypeSchemaTab(umbracoUi, 'Product Page');
@@ -583,7 +656,7 @@ test.describe('Complex Mapping Workflows', () => {
       const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
       await expect(mappingModal).toBeVisible({ timeout: 10_000 });
 
-      await mappingModal.locator('uui-button[label="Cancel"]').click();
+      await mappingModal.getByTestId('schemeweaver:mapping-cancel').click();
     }
   });
 
@@ -604,7 +677,7 @@ test.describe('Complex Mapping Workflows', () => {
       const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
       await expect(mappingModal).toBeVisible({ timeout: 10_000 });
 
-      await mappingModal.locator('uui-button[label="Cancel"]').click();
+      await mappingModal.getByTestId('schemeweaver:mapping-cancel').click();
     }
   });
 
@@ -625,7 +698,7 @@ test.describe('Complex Mapping Workflows', () => {
       const mappingModal = umbracoUi.page.locator('schemeweaver-property-mapping-modal');
       await expect(mappingModal).toBeVisible({ timeout: 10_000 });
 
-      await mappingModal.locator('uui-button[label="Cancel"]').click();
+      await mappingModal.getByTestId('schemeweaver:mapping-cancel').click();
     }
   });
 
@@ -755,7 +828,7 @@ test.describe('Complex Mapping Workflows', () => {
     // Find a complex type property's Configure button (e.g., Brand → Organization/Brand)
     const configButton = mappingModal.locator('uui-button', { hasText: /Configure Schema\.org Type/i }).first();
     if (!await configButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await mappingModal.locator('uui-button[label="Cancel"]').click();
+      await mappingModal.getByTestId('schemeweaver:mapping-cancel').click();
       return;
     }
 
@@ -800,7 +873,7 @@ test.describe('Complex Mapping Workflows', () => {
     }
 
     // Close the mapping modal
-    await mappingModal.locator('uui-button[label="Cancel"]').click();
+    await mappingModal.getByTestId('schemeweaver:mapping-cancel').click();
   });
 });
 
