@@ -76,6 +76,13 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
     this._checkAIStatus();
   }
 
+  protected firstUpdated() {
+    // `autofocus` alone doesn't win against the modal dialog's own focus handling.
+    requestAnimationFrame(() => {
+      this.shadowRoot?.querySelector<HTMLElement>('#search')?.focus();
+    });
+  }
+
   private async _checkAIStatus() {
     try {
       const status = await this.#repository.requestAIStatus();
