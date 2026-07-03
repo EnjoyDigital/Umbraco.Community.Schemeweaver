@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Schema.NET;
 using Umbraco.Extensions;
 
@@ -9,7 +10,9 @@ namespace Umbraco.Community.SchemeWeaver.Graph.Pieces;
 /// <c>isPartOf</c> and by Organization via <c>publisher</c> (in reverse). Named
 /// after the root content node or the site settings node's <c>siteName</c> /
 /// <c>name</c> property. Auto-wires <c>publisher</c> → Organization piece's
-/// @id when present.
+/// @id when present. When <c>SchemeWeaver:SiteSearch:UrlTemplate</c> is
+/// configured, also emits a <c>potentialAction</c> <c>SearchAction</c>
+/// (sitelinks search box).
 ///
 /// @id convention: <c>{siteUrl}#website</c>. Skipped entirely when there's no
 /// resolvable site URL (the piece has nothing meaningful to emit).
@@ -17,10 +20,12 @@ namespace Umbraco.Community.SchemeWeaver.Graph.Pieces;
 public sealed class WebSitePiece : IGraphPiece
 {
     private readonly ILogger<WebSitePiece> _logger;
+    private readonly SchemeWeaverOptions _options;
 
-    public WebSitePiece(ILogger<WebSitePiece> logger)
+    public WebSitePiece(ILogger<WebSitePiece> logger, IOptions<SchemeWeaverOptions> options)
     {
         _logger = logger;
+        _options = options.Value;
     }
 
     public string Key => "website";
@@ -51,7 +56,43 @@ public sealed class WebSitePiece : IGraphPiece
         if (!string.IsNullOrWhiteSpace(ctx.Culture))
             site.InLanguage = ctx.Culture;
 
+        ApplySiteSearchAction(site);
+
         return site;
+    }
+
+    /// <summary>
+    /// Emits <c>potentialAction</c> as a <c>SearchAction</c> when
+    /// <c>SchemeWeaver:SiteSearch:UrlTemplate</c> is configured — the markup
+    /// Google requires for the sitelinks search box. Off (no potentialAction)
+    /// when unconfigured. A template missing its <c>{placeholder}</c> is still
+    /// emitted (Google tolerates it) but logged as a warning.
+    /// </summary>
+    private void ApplySiteSearchAction(WebSite site)
+    {
+        var search = _options.SiteSearch;
+        if (string.IsNullOrWhiteSpace(search?.UrlTemplate))
+            return;
+
+        var template = search.UrlTemplate;
+        var inputName = string.IsNullOrWhiteSpace(search.QueryInputName)
+            ? "search_term_string"
+            : search.QueryInputName;
+
+        var placeholder = $"{{{inputName}}}";
+        if (!template.Contains(placeholder, StringComparison.Ordinal))
+        {
+            _logger.LogWarning(
+                "SchemeWeaver:SiteSearch:UrlTemplate {UrlTemplate} does not contain the {Placeholder} placeholder — "
+                + "emitting the SearchAction anyway, but the sitelinks search box needs the placeholder to inject the query",
+                template, placeholder);
+        }
+
+        site.PotentialAction = new SearchAction
+        {
+            Target = new EntryPoint { UrlTemplate = template },
+            QueryInput = $"required name={inputName}",
+        };
     }
 
     private string ResolveSiteName(GraphPieceContext ctx)
