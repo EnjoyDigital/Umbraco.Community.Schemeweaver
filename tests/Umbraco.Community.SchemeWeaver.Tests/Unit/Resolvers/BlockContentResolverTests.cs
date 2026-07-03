@@ -7,10 +7,13 @@ using Xunit;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.PropertyEditors.ValueConverters;
+using Umbraco.Cms.Core.Routing;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
+using Umbraco.Community.SchemeWeaver.Tests.Unit.TestSupport;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit.Resolvers;
 
@@ -463,6 +466,97 @@ public class BlockContentResolverTests
 
         var strings = result.Should().BeOfType<List<string>>().Subject;
         strings.Should().Equal("https://twitter.com/acme", "https://facebook.com/acme");
+    }
+
+    [Fact]
+    public void Resolve_StringListExtraction_NumericBlockProperty_EmitsInvariantString()
+    {
+        // extractAs:stringList over a block whose contentProperty is Umbraco.Integer.
+        // The factory routes it to NumericResolver, which returns a boxed int — the
+        // stringList path must reduce it to its invariant string form ("5"), matching
+        // what the legacy ResolveElementPropertyValue path emitted, not drop it.
+        var block = CreateBlockElementWithEditors("stepBlock", ("minutes", 5, "Umbraco.Integer"));
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new { extractAs = "stringList", contentProperty = "minutes" });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var factory = new PropertyValueResolverFactory([
+            new NumericResolver(),
+            new DefaultPropertyValueResolver()
+        ]);
+        var context = CreateContext(property, resolverConfig: resolverConfig, resolverFactory: factory);
+
+        var result = _sut.Resolve(context);
+
+        var strings = result.Should().BeOfType<List<string>>().Subject;
+        strings.Should().Equal("5");
+    }
+
+    [Fact]
+    public void Resolve_StringListExtraction_BooleanBlockProperty_EmitsStringForm()
+    {
+        // extractAs:stringList over a block whose contentProperty is Umbraco.TrueFalse.
+        // BooleanResolver returns a bool — the stringList path must emit its string form
+        // ("True", as the legacy ToString() path did), not silently drop the value.
+        var block = CreateBlockElementWithEditors("featureBlock", ("included", true, "Umbraco.TrueFalse"));
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new { extractAs = "stringList", contentProperty = "included" });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var factory = new PropertyValueResolverFactory([
+            new BooleanResolver(),
+            new DefaultPropertyValueResolver()
+        ]);
+        var context = CreateContext(property, resolverConfig: resolverConfig, resolverFactory: factory);
+
+        var result = _sut.Resolve(context);
+
+        var strings = result.Should().BeOfType<List<string>>().Subject;
+        strings.Should().Equal("True");
+    }
+
+    [Fact]
+    public void Resolve_StringListExtraction_MediaPickerBlockProperty_EmitsMediaUrl()
+    {
+        // extractAs:stringList over a block whose contentProperty is a MediaPicker3.
+        // The factory routes it to MediaPickerResolver, which returns ImageObject(s) —
+        // the stringList path must reduce each to its URL string (the legacy
+        // TryExtractMediaUrl behaviour), not silently drop the value.
+        HermeticStaticServiceProvider.EnsureInstalled();
+
+        var media = Substitute.For<IPublishedContent>();
+        var urlProvider = Substitute.For<IPublishedUrlProvider>();
+        urlProvider
+            .GetMediaUrl(media, UrlMode.Absolute, Arg.Any<string?>(), Arg.Any<string>(), Arg.Any<Uri?>())
+            .Returns("https://example.com/media/photo.jpg");
+        var mediaWithCrops = new MediaWithCrops(
+            media, Substitute.For<IPublishedValueFallback>(), new ImageCropperValue());
+
+        var block = CreateBlockElementWithEditors("galleryBlock",
+            ("photo", mediaWithCrops, "Umbraco.MediaPicker3"));
+        var blockListModel = CreateBlockListModel(block);
+
+        var resolverConfig = JsonSerializer.Serialize(new { extractAs = "stringList", contentProperty = "photo" });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var factory = new PropertyValueResolverFactory([
+            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance, urlProvider),
+            new DefaultPropertyValueResolver()
+        ]);
+        var context = CreateContext(property, resolverConfig: resolverConfig, resolverFactory: factory);
+
+        var result = _sut.Resolve(context);
+
+        var strings = result.Should().BeOfType<List<string>>().Subject;
+        strings.Should().Equal("https://example.com/media/photo.jpg");
     }
 
     [Fact]

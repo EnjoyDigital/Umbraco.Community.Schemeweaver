@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -58,12 +59,21 @@ public class BlockContentResolver : IPropertyValueResolver
                 // Route through the per-editor resolver pipeline (when a factory is wired) so
                 // e.g. a MultiUrlPicker block property yields its URL string(s) rather than the
                 // raw model's ToString() garbage. A multi-value resolver result (List<string>)
-                // is flattened into the extracted list.
+                // is flattened into the extracted list. Non-string resolver results are reduced
+                // to the string form the legacy ResolveElementPropertyValue path emitted: media
+                // ImageObject(s) contribute their URL(s), and scalars (Umbraco.Integer/Decimal →
+                // int/decimal, Umbraco.TrueFalse → bool, …) their invariant ToString(). Only
+                // non-image Things are dropped — they have no faithful scalar form.
                 var rawValue = ResolveBlockElementProperty(blockContent, resolverConfig.ContentProperty, context);
                 IEnumerable<string> extracted = rawValue switch
                 {
                     string single => [single],
                     IEnumerable<string> many => many,
+                    IImageObject image => ImageUrls([image]),
+                    IEnumerable<IImageObject> images => ImageUrls(images),
+                    Thing or IEnumerable<Thing> => [],
+                    IFormattable formattable => [formattable.ToString(null, CultureInfo.InvariantCulture)],
+                    not null => rawValue.ToString() is { Length: > 0 } stringified ? [stringified] : [],
                     _ => []
                 };
 
@@ -127,6 +137,17 @@ public class BlockContentResolver : IPropertyValueResolver
 
         return BuildBlockResult(things, resolverConfig, context);
     }
+
+    /// <summary>
+    /// Reduces resolved media <see cref="IImageObject"/>(s) to their URL strings for the
+    /// stringList extraction path — parity with the legacy behaviour where a media picker
+    /// block property contributed its media URL. Images without a URL are skipped.
+    /// </summary>
+    private static IEnumerable<string> ImageUrls(IEnumerable<IImageObject> images) =>
+        images
+            .Select(image => image.Url.FirstOrDefault()?.ToString())
+            .Where(url => !string.IsNullOrEmpty(url))
+            .Cast<string>();
 
     /// <summary>
     /// Builds the final resolver result from the mapped (block, Thing) pairs: either a bare

@@ -149,6 +149,25 @@ public static class SchemaPropertySetter
                       && p.GetValue(thing) is IValues { Count: > 0 });
 
     /// <summary>
+    /// Whether the named schema property on <paramref name="instance"/> can carry a resolved
+    /// media value: its (possibly generic) type accepts an <see cref="IImageObject"/> leaf
+    /// directly, or a <see cref="Uri"/> leaf (in which case <see cref="SetPropertyValue"/>
+    /// downgrades the image to its URL). A missing or read-only property accepts nothing.
+    /// Render-time counterpart of the validator's AcceptsMedia check — when this returns
+    /// false the setter would silently drop the ImageObject, which is the only case where
+    /// the complexType adoption repair in <c>JsonLdGenerator</c> may fire.
+    /// </summary>
+    internal static bool PropertyAcceptsImageValue(Thing instance, string propertyName)
+    {
+        var property = instance.GetType().GetProperty(propertyName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+
+        return property is { CanWrite: true }
+               && (TargetAcceptsLeaf(property.PropertyType, typeof(IImageObject))
+                   || TargetAcceptsLeaf(property.PropertyType, typeof(Uri)));
+    }
+
+    /// <summary>
     /// Walks a generic property type looking for Schema.NET interface type arguments
     /// (e.g., IBrand, IPerson, IOrganization) so we can auto-construct a concrete Thing
     /// for scalar-to-object auto-wrapping.

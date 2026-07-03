@@ -1984,6 +1984,50 @@ public class JsonLdGeneratorTests
     }
 
     [Fact]
+    public void GenerateJsonLd_ComplexTypeImage_MediaSubPropertyInRange_IsNotAdopted()
+    {
+        HermeticStaticServiceProvider.EnsureInstalled();
+
+        // A VALID persisted shape: complexType/ImageObject whose media sub-mapping targets
+        // ImageObject.Thumbnail — a sub-property whose range ACCEPTS an ImageObject — plus a
+        // static contentUrl. The broken-shape adoption repair must NOT hijack it: the media
+        // stays nested under 'thumbnail' and the static contentUrl lands on the OUTER image,
+        // exactly as configured (and exactly as the range validator blesses).
+        var content = CreateContentWithMediaProperty(
+            "article", "thumbMedia", "https://example.com/media/thumb.png");
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Image",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "ImageObject",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Thumbnail","sourceType":"property","contentTypePropertyAlias":"thumbMedia"},{"schemaProperty":"ContentUrl","sourceType":"static","staticValue":"https://example.com/media/full.png"}]}"""
+            }
+        });
+
+        var sut = CreateMediaAwareGenerator();
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.TryGetProperty("image", out var image)
+            .Should().BeTrue("the mapped image must be emitted");
+        image.GetProperty("@type").GetString().Should().Be("ImageObject");
+        image.GetProperty("contentUrl").GetString().Should().Be(
+            "https://example.com/media/full.png",
+            "the static contentUrl belongs on the OUTER image, not stamped onto an adopted thumbnail");
+        image.TryGetProperty("thumbnail", out var thumbnail).Should().BeTrue(
+            "the media sub-mapping targets 'thumbnail', which accepts an ImageObject — it must bind there");
+        thumbnail.GetProperty("url").GetString().Should().Be("https://example.com/media/thumb.png");
+        image.TryGetProperty("url", out _).Should().BeFalse(
+            "no sub-mapping sets the outer image url — its presence would mean the thumbnail media was adopted");
+    }
+
+    [Fact]
     public void GenerateJsonLd_ComplexTypeAllSubValuesNull_OmitsEmptyShell()
     {
         // A complexType whose configured sub-values ALL resolve to null must be omitted

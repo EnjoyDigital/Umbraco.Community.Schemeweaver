@@ -681,13 +681,18 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         // ImageObject.Name <- the media alias. At render time the media resolves (via the
         // resolver factory) to a FULL ImageObject that can never be assigned into a string-only
         // sub-property — it would be silently dropped, leaving an empty {"@type":"ImageObject"}
-        // shell. Instead, adopt the first property-sourced resolved ImageObject AS the nested
-        // instance, then apply the remaining sub-mappings (e.g. static captions) on top of it.
+        // shell. Instead, adopt the first such resolved ImageObject AS the nested instance, then
+        // apply the remaining sub-mappings (e.g. static captions) on top of it.
+        // The adoption is strictly limited to that broken-shape case: a sub-property whose range
+        // DOES accept an ImageObject or URL (e.g. ImageObject.Thumbnail, contentUrl) is a valid
+        // config the setter handles — adopting it would hijack the intended structure (the
+        // thumbnail would masquerade as the whole image), so it is left to bind normally.
         if (nestedInstance is ImageObject)
         {
             var adoptIndex = resolved.FindIndex(r =>
                 string.Equals(r.SubMapping.SourceType, "property", StringComparison.OrdinalIgnoreCase)
-                && FirstImageObject(r.Value) is not null);
+                && FirstImageObject(r.Value) is not null
+                && !SchemaPropertySetter.PropertyAcceptsImageValue(nestedInstance, r.SubMapping.SchemaProperty));
             if (adoptIndex >= 0)
             {
                 nestedInstance = FirstImageObject(resolved[adoptIndex].Value)!;

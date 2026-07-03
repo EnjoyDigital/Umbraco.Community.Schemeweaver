@@ -409,6 +409,27 @@ public class SchemaPropertySetterTests
     }
 
     [Fact]
+    public void SetPropertyValue_MultipleUrlStrings_OnLogo_FallsBackToFirstUrl()
+    {
+        // Organization.Logo is OneOrMany<Values<IImageObject, Uri>> — plain strings cannot
+        // be converted into Values<IImageObject, Uri> items, so the whole-collection path
+        // (TrySetStringCollectionValue) fails. A MultiUrlPicker resolving SEVERAL links must
+        // then fall back to the FIRST url (the pre-multi-link single-string behaviour) rather
+        // than silently dropping the value entirely. This pins the first-string fallback in
+        // SetPropertyValue: without it this logo would vanish from the JSON-LD.
+        var org = new Organization();
+        var urls = new List<string> { "https://example.com/logo.png", "https://example.com/logo-alt.png" };
+
+        SchemaPropertySetter.SetPropertyValue(org, "Logo", urls);
+
+        var jsonLd = org.ToString();
+        jsonLd.Should().Contain("logo", "the first URL must survive via the first-string fallback");
+        jsonLd.Should().Contain("https://example.com/logo.png");
+        jsonLd.Should().NotContain("logo-alt.png",
+            "only the first link can be represented when the collection cannot be set as a whole");
+    }
+
+    [Fact]
     public void SetPropertyValue_ImageObject_ToLogo_SetsImageObject()
     {
         // Organization.Logo is OneOrMany<Values<IImageObject, Uri>> — accepts IImageObject, so
