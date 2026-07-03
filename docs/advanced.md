@@ -144,6 +144,10 @@ suit most sites — you only need this section to change behaviour.
     "SiteSettings": {
       "ContentTypeAlias": "schemaSiteSettings",
       "ContentKey": null
+    },
+    "SiteSearch": {
+      "UrlTemplate": "https://example.com/search?q={search_term_string}",
+      "QueryInputName": "search_term_string"
     }
   }
 }
@@ -157,6 +161,8 @@ suit most sites — you only need this section to change behaviour.
 | `CacheDuration` | `00:30:00` | Absolute cache duration for the per-content JSON-LD blocks served by the Delivery API. A safety-net only — invalidation is event-driven (publish/unpublish/move/delete). |
 | `SiteSettings.ContentTypeAlias` | `schemaSiteSettings` | Content type alias of the singleton settings node that drives the site-level part of the graph (Organization / WebSite pieces). The first published node of this type is used. |
 | `SiteSettings.ContentKey` | `null` | Optional explicit GUID of the settings node. Overrides the alias-based lookup when the convention doesn't fit. |
+| `SiteSearch.UrlTemplate` | `null` | Absolute URL template of your search results page, containing the literal `{search_term_string}` placeholder. When set, the WebSite graph node emits a `potentialAction` `SearchAction` — the markup Google requires for the sitelinks search box. Unset (default) emits no `potentialAction`. |
+| `SiteSearch.QueryInputName` | `search_term_string` | The variable name declared in `query-input` (`required name=…`) and expected as the `{placeholder}` in `UrlTemplate`. Rarely needs changing. |
 
 ## Extending SchemeWeaver
 
