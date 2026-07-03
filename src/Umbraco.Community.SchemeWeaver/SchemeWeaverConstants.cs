@@ -60,6 +60,19 @@ public static class SchemeWeaverConstants
         };
 
         /// <summary>
+        /// Editor aliases for media pickers. The single source of truth for "this property
+        /// resolves to media" — referenced by <see cref="Resolvers.MediaPickerResolver"/>
+        /// (what it resolves), the auto-mapper (media-shaped properties stay plain
+        /// <c>property</c> mappings so the resolver can emit a full ImageObject) and the
+        /// range validator (flagging media bound onto string-only nested sub-properties).
+        /// </summary>
+        public static readonly HashSet<string> MediaPickerAliases = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Umbraco.MediaPicker3",
+            "Umbraco.MediaPicker"
+        };
+
+        /// <summary>
         /// Editor aliases whose resolved value is HTML/markup. The single source of truth for
         /// "this source produces HTML" — referenced by <see cref="Resolvers.RichTextResolver"/>
         /// (what it resolves) and by the mapping advisor (which suggests <c>stripHtml</c> when one

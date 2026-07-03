@@ -29,7 +29,7 @@ public class MediaPickerResolver : IPropertyValueResolver
     }
 
     public IEnumerable<string> SupportedEditorAliases =>
-        ["Umbraco.MediaPicker3", "Umbraco.MediaPicker"];
+        SchemeWeaverConstants.PropertyEditors.MediaPickerAliases;
 
     public int Priority => 10;
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
@@ -9,6 +10,9 @@ public class SchemaRangeValidator : ISchemaRangeValidator
 {
     private readonly ISchemaTypeRegistry _registry;
     private readonly ISchemaRangeChecker _rangeChecker;
+    private readonly IContentTypeService? _contentTypeService;
+
+    private static HashSet<string> MediaPickerAliases => SchemeWeaverConstants.PropertyEditors.MediaPickerAliases;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -21,10 +25,19 @@ public class SchemaRangeValidator : ISchemaRangeValidator
     // doesn't fit its current property.
     private static readonly string[] PreferredAlternatives = ["about", "mainEntity", "mentions"];
 
-    public SchemaRangeValidator(ISchemaTypeRegistry registry, ISchemaRangeChecker rangeChecker)
+    /// <param name="registry">Schema registry for property/CLR-type lookup.</param>
+    /// <param name="rangeChecker">Range checker for Schema.NET assignability.</param>
+    /// <param name="contentTypeService">Optional: enables editor-alias lookup for the inner
+    /// complexTypeMappings inspection (media-picker-onto-string detection). When null those
+    /// editor-dependent checks are skipped; everything else still validates.</param>
+    public SchemaRangeValidator(
+        ISchemaTypeRegistry registry,
+        ISchemaRangeChecker rangeChecker,
+        IContentTypeService? contentTypeService = null)
     {
         _registry = registry;
         _rangeChecker = rangeChecker;
+        _contentTypeService = contentTypeService;
     }
 
     public IReadOnlyList<ValidationIssue> Validate(SchemaMappingDto mapping)
@@ -67,16 +80,177 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             if (chosenClr is null)
                 continue; // typo / unknown chosen type — skip gracefully
 
-            if (_rangeChecker.IsInRange(chosenClr, targetProp.AcceptedTypes))
+            if (!_rangeChecker.IsInRange(chosenClr, targetProp.AcceptedTypes))
+            {
+                issues.Add(BuildIssue(
+                    mapping, pm.SchemaPropertyName, targetProp, pm.NestedSchemaTypeName!,
+                    chosenClr, schemaProps, blockAlias: null));
                 continue;
+            }
 
-            issues.Add(BuildIssue(
-                mapping, pm.SchemaPropertyName, targetProp, pm.NestedSchemaTypeName!,
-                chosenClr, schemaProps, blockAlias: null));
+            // Outer type is in range — but the INNER complexTypeMappings can still be
+            // broken (unknown sub-properties, media pickers bound onto string-only
+            // sub-properties, out-of-range nested sub-types). Inspect them too.
+            ValidateComplexTypeConfig(pm, mapping, issues);
         }
 
         return issues;
     }
+
+    /// <summary>
+    /// Inspects a complexType mapping's inner <c>complexTypeMappings</c> (the
+    /// <see cref="ComplexTypeConfigModel"/> shape persisted in ResolverConfig JSON) and warns on:
+    /// sub-properties that don't exist on the nested type; property-sourced sub-mappings that
+    /// bind a media picker onto a sub-property accepting neither ImageObject nor URL (the
+    /// resolved ImageObject is silently dropped, leaving an empty nested shell); and
+    /// complexType-sourced entries whose SelectedSubType is outside the sub-property's range
+    /// (one level of recursion, mirroring <see cref="ValidateBlockRoutes"/>).
+    /// </summary>
+    private void ValidateComplexTypeConfig(
+        PropertyMappingDto pm,
+        SchemaMappingDto mapping,
+        List<ValidationIssue> issues)
+    {
+        ComplexTypeConfigModel? config;
+        try
+        {
+            config = string.IsNullOrEmpty(pm.ResolverConfig)
+                ? null
+                : JsonSerializer.Deserialize<ComplexTypeConfigModel>(pm.ResolverConfig, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (config?.ComplexTypeMappings is not { Count: > 0 } entries)
+            return;
+
+        var nestedProps = _registry.GetProperties(pm.NestedSchemaTypeName!).ToList();
+        if (nestedProps.Count == 0)
+            return;
+
+        foreach (var entry in entries)
+        {
+            var subProp = nestedProps.FirstOrDefault(
+                p => string.Equals(p.Name, entry.SchemaProperty, StringComparison.OrdinalIgnoreCase));
+            if (subProp is null)
+            {
+                issues.Add(new ValidationIssue(
+                    ValidationSeverity.Warning, mapping.SchemaTypeName, pm.SchemaPropertyName,
+                    $"'{pm.SchemaPropertyName}' has an inner mapping for '{entry.SchemaProperty}', " +
+                    $"which does not exist on '{pm.NestedSchemaTypeName}' — the value will be dropped."));
+                continue;
+            }
+
+            if (string.Equals(entry.SourceType, "property", StringComparison.OrdinalIgnoreCase))
+            {
+                ValidateMediaOntoSubProperty(pm, mapping, entry, subProp, issues);
+            }
+            else if (string.Equals(entry.SourceType, "complexType", StringComparison.OrdinalIgnoreCase))
+            {
+                ValidateNestedSubType(pm, mapping, entry, subProp, issues);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Warns when a property-sourced sub-mapping binds a media-picker content property onto a
+    /// nested sub-property that accepts neither ImageObject nor URL — the resolver's ImageObject
+    /// is dropped by the strongly-typed setter (e.g. string-only ImageObject.Name), so the
+    /// nested object renders as an empty shell. The media property should be mapped directly
+    /// to the outer schema property as a plain property source instead.
+    /// </summary>
+    private void ValidateMediaOntoSubProperty(
+        PropertyMappingDto pm,
+        SchemaMappingDto mapping,
+        ComplexTypeMappingEntry entry,
+        SchemaPropertyInfo subProp,
+        List<ValidationIssue> issues)
+    {
+        var editorAlias = GetEditorAlias(mapping.ContentTypeAlias, entry.ContentTypePropertyAlias);
+        if (editorAlias is null || !MediaPickerAliases.Contains(editorAlias))
+            return;
+
+        if (AcceptsMedia(subProp.AcceptedTypes))
+            return;
+
+        issues.Add(new ValidationIssue(
+            ValidationSeverity.Warning, mapping.SchemaTypeName, pm.SchemaPropertyName,
+            $"'{pm.SchemaPropertyName}' binds media picker '{entry.ContentTypePropertyAlias}' onto " +
+            $"'{pm.NestedSchemaTypeName}.{subProp.Name}', which accepts neither an ImageObject nor a URL — " +
+            "the resolved media is dropped and an empty shell is emitted. " +
+            $"Map '{entry.ContentTypePropertyAlias}' directly to '{pm.SchemaPropertyName}' as a property source instead."));
+    }
+
+    /// <summary>
+    /// Range-checks a complexType-sourced sub-entry's SelectedSubType against the sub-property's
+    /// accepted types — one level of recursion, mirroring <see cref="ValidateBlockRoutes"/>.
+    /// </summary>
+    private void ValidateNestedSubType(
+        PropertyMappingDto pm,
+        SchemaMappingDto mapping,
+        ComplexTypeMappingEntry entry,
+        SchemaPropertyInfo subProp,
+        List<ValidationIssue> issues)
+    {
+        ComplexTypeConfigModel? subConfig;
+        try
+        {
+            subConfig = string.IsNullOrEmpty(entry.ResolverConfig)
+                ? null
+                : JsonSerializer.Deserialize<ComplexTypeConfigModel>(entry.ResolverConfig, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(subConfig?.SelectedSubType))
+            return;
+
+        var subClr = _registry.GetClrType(subConfig.SelectedSubType);
+        if (subClr is null)
+            return;
+
+        if (_rangeChecker.IsInRange(subClr, subProp.AcceptedTypes))
+            return;
+
+        var acceptedList = subProp.AcceptedTypes.Count > 0
+            ? string.Join(", ", subProp.AcceptedTypes)
+            : "(no object types)";
+
+        issues.Add(new ValidationIssue(
+            ValidationSeverity.Warning, mapping.SchemaTypeName, pm.SchemaPropertyName,
+            $"'{pm.SchemaPropertyName}': inner '{pm.NestedSchemaTypeName}.{subProp.Name}' accepts {acceptedList} " +
+            $"but is mapped to '{subConfig.SelectedSubType}', which is not in that range — the value will be dropped."));
+    }
+
+    /// <summary>
+    /// Resolves the editor alias behind a content property via the mapping's content type.
+    /// Returns null when no <see cref="IContentTypeService"/> was injected or nothing matches.
+    /// </summary>
+    private string? GetEditorAlias(string? contentTypeAlias, string? propertyAlias)
+    {
+        if (_contentTypeService is null
+            || string.IsNullOrWhiteSpace(contentTypeAlias)
+            || string.IsNullOrWhiteSpace(propertyAlias))
+            return null;
+
+        return _contentTypeService.Get(contentTypeAlias)?
+            .CompositionPropertyTypes
+            .FirstOrDefault(p => string.Equals(p.Alias, propertyAlias, StringComparison.OrdinalIgnoreCase))?
+            .PropertyEditorAlias;
+    }
+
+    /// <summary>
+    /// True when the sub-property can carry resolved media: an ImageObject fits its range
+    /// (directly or via a MediaObject/CreativeWork base) or it accepts a plain URL.
+    /// </summary>
+    private bool AcceptsMedia(IReadOnlyList<string> acceptedTypes) =>
+        _rangeChecker.IsInRange("ImageObject", acceptedTypes)
+        || acceptedTypes.Any(t => string.Equals(t, "Uri", StringComparison.OrdinalIgnoreCase)
+                                  || string.Equals(t, "URL", StringComparison.OrdinalIgnoreCase));
 
     private void ValidateBlockRoutes(
         PropertyMappingDto pm,
