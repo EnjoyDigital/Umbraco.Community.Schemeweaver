@@ -1,9 +1,14 @@
 using FluentAssertions;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -22,6 +27,7 @@ public class JsonLdCacheInvalidationTests
 {
     private readonly IJsonLdBlocksProvider _provider = Substitute.For<IJsonLdBlocksProvider>();
     private readonly ISchemaMappingRepository _repo = Substitute.For<ISchemaMappingRepository>();
+    private readonly IOptions<SchemeWeaverOptions> _options = Options.Create(new SchemeWeaverOptions());
 
     public JsonLdCacheInvalidationTests()
     {
@@ -45,7 +51,7 @@ public class JsonLdCacheInvalidationTests
     public void Publish_LeafWithNoDependencies_InvalidatesOnlyTarget_NoInvalidateAll()
     {
         var target = MakeContent("article");
-        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo, _options,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
         using var messages = new EventMessages();
@@ -61,7 +67,7 @@ public class JsonLdCacheInvalidationTests
         var target = MakeContent("homePage");
         _repo.GetByContentTypeAlias("homePage").Returns(new SchemaMapping { ContentTypeAlias = "homePage", IsInherited = true, IsEnabled = true });
 
-        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo, _options,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
         using var messages = new EventMessages();
@@ -81,7 +87,7 @@ public class JsonLdCacheInvalidationTests
             [1] = new() { new PropertyMapping { SchemaPropertyName = "Publisher", SourceType = "ancestor" } },
         });
 
-        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo, _options,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
         using var messages = new EventMessages();
@@ -97,7 +103,7 @@ public class JsonLdCacheInvalidationTests
         var target = MakeContent("homePage");
         _repo.GetByContentTypeAlias("homePage").Returns(new SchemaMapping { IsInherited = true, IsEnabled = true });
 
-        var handler = new InvalidateJsonLdCacheOnUnpublish(_provider, _repo,
+        var handler = new InvalidateJsonLdCacheOnUnpublish(_provider, _repo, _options,
             NullLogger<InvalidateJsonLdCacheOnUnpublish>.Instance);
 
         using var messages = new EventMessages();
@@ -111,7 +117,7 @@ public class JsonLdCacheInvalidationTests
     public void Delete_LeafWithNoDependencies_InvalidatesOnlyTarget()
     {
         var target = MakeContent("article");
-        var handler = new InvalidateJsonLdCacheOnDelete(_provider, _repo,
+        var handler = new InvalidateJsonLdCacheOnDelete(_provider, _repo, _options,
             NullLogger<InvalidateJsonLdCacheOnDelete>.Instance);
 
         using var messages = new EventMessages();
@@ -131,7 +137,7 @@ public class JsonLdCacheInvalidationTests
 #else
         var moveInfo = new MoveEventInfo<IContent>(target, "-1,1", 99);
 #endif
-        var handler = new InvalidateJsonLdCacheOnMove(_provider, _repo,
+        var handler = new InvalidateJsonLdCacheOnMove(_provider, _repo, _options,
             NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
 
         using var messages = new EventMessages();
@@ -146,7 +152,7 @@ public class JsonLdCacheInvalidationTests
     {
         var target = MakeContent("article");
         var moveInfo = new MoveToRecycleBinEventInfo<IContent>(target, "-1,1");
-        var handler = new InvalidateJsonLdCacheOnMove(_provider, _repo,
+        var handler = new InvalidateJsonLdCacheOnMove(_provider, _repo, _options,
             NullLogger<InvalidateJsonLdCacheOnMove>.Instance);
 
         using var messages = new EventMessages();
@@ -157,12 +163,94 @@ public class JsonLdCacheInvalidationTests
     }
 
     [Fact]
+    public void Publish_SiteSettingsNode_RipplesWithInvalidateAll()
+    {
+        // The site-scope graph (Organization/WebSite) is generated FROM the settings node but
+        // cached under every ROUTED page's key. Publishing the settings node must therefore
+        // ripple to InvalidateAll — per-key eviction alone evicts only entries keyed on the
+        // (unrouted) settings node itself, leaving every page serving the old site graph until
+        // absolute expiry or an application restart.
+        var target = MakeContent("schemaSiteSettings"); // default SiteSettingsOptions.ContentTypeAlias
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo, _options,
+            NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
+
+        using var messages = new EventMessages();
+        handler.Handle(new ContentPublishedNotification(target, messages));
+
+        _provider.Received(1).Invalidate(target.Key);
+        _provider.Received(1).InvalidateAll();
+    }
+
+    [Fact]
+    public void Publish_SiteSettingsNodeMatchedByConfiguredContentKey_RipplesWithInvalidateAll()
+    {
+        // SiteSettingsOptions.ContentKey overrides the alias-based lookup in the resolver, so the
+        // invalidator must recognise the settings node by key too — even when its content type
+        // alias differs from the configured one.
+        var key = Guid.NewGuid();
+        var target = MakeContent("globalConfig", key);
+        var options = Options.Create(new SchemeWeaverOptions
+        {
+            SiteSettings = new SiteSettingsOptions { ContentTypeAlias = "somethingElse", ContentKey = key },
+        });
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo, options,
+            NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
+
+        using var messages = new EventMessages();
+        handler.Handle(new ContentPublishedNotification(target, messages));
+
+        _provider.Received(1).Invalidate(target.Key);
+        _provider.Received(1).InvalidateAll();
+    }
+
+    [Fact]
+    public void SiteScopeGraph_ReflectsSettingsChange_AfterSettingsPublish_WithoutRestart()
+    {
+        // End-to-end across the real seam: real provider + real MemoryCache, with a substituted
+        // graph generator standing in for "the settings node's current published values".
+        // Shape: generate site graph → publish the settings node → generate again WITHOUT
+        // restarting → second render must reflect the new value.
+        var graphGenerator = Substitute.For<IGraphGenerator>();
+        var currentGraph = /*lang=json,strict*/ """{"@context":"https://schema.org","@graph":[{"@type":"Organization"}]}""";
+        graphGenerator
+            .GenerateGraphJson(Arg.Any<IPublishedContent>(), Arg.Any<string?>(), Arg.Any<PieceScopeFilter>())
+            .Returns(_ => currentGraph);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(graphGenerator);
+        using var serviceProvider = services.BuildServiceProvider();
+
+        using var provider = new JsonLdBlocksProvider(
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            new MemoryCache(new MemoryCacheOptions()),
+            Options.Create(new SchemeWeaverOptions()), // UseGraphModel = true (default)
+            NullLogger<JsonLdBlocksProvider>.Instance);
+
+        var routedPage = Substitute.For<IPublishedContent>();
+        routedPage.Key.Returns(Guid.NewGuid());
+
+        provider.GetBlocks(routedPage, culture: null, PieceScopeFilter.Site)
+            .Should().ContainSingle().Which.Should().NotContain("logo");
+
+        // An editor populates the logo on the site-settings node and publishes it.
+        currentGraph = /*lang=json,strict*/ """{"@context":"https://schema.org","@graph":[{"@type":"Organization","logo":{"@type":"ImageObject"}}]}""";
+        var settingsNode = MakeContent("schemaSiteSettings");
+        var handler = new InvalidateJsonLdCacheOnPublish(provider, _repo, _options,
+            NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
+        using var messages = new EventMessages();
+        handler.Handle(new ContentPublishedNotification(settingsNode, messages));
+
+        provider.GetBlocks(routedPage, culture: null, PieceScopeFilter.Site)
+            .Should().ContainSingle().Which.Should().Contain("logo");
+    }
+
+    [Fact]
     public void MappingLookupThrows_IsSwallowed_TargetStillEvicted_AndRipplesToBeSafe()
     {
         var target = MakeContent("article");
         _repo.GetByContentTypeAlias("article").Returns(_ => throw new InvalidOperationException("db unavailable"));
 
-        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo,
+        var handler = new InvalidateJsonLdCacheOnPublish(_provider, _repo, _options,
             NullLogger<InvalidateJsonLdCacheOnPublish>.Instance);
 
         using var messages = new EventMessages();

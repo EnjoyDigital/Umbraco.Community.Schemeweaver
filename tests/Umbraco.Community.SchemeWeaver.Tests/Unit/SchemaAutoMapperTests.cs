@@ -1780,4 +1780,74 @@ public class SchemaAutoMapperTests
     }
 
     #endregion
+
+    #region Media logo complexType trap (regression)
+
+    [Theory]
+    [InlineData("RealEstateAgent")]
+    [InlineData("Organization")]
+    [InlineData("LocalBusiness")]
+    public void SuggestMappings_LogoMediaPicker_StaysPropertySourced_NotComplexType(string schemaTypeName)
+    {
+        // A MediaPicker3 'logo' property must be suggested as a plain property mapping —
+        // MediaPickerResolver already yields a fully-populated ImageObject at render time
+        // (exactly like 'image', which has no popular default and therefore works).
+        // Adopting the "{Type}.logo" popular default (complexType/ImageObject, null config)
+        // is a trap: StructuralEnricher then binds ImageObject.Name <- the media alias, and
+        // the renderer drops the resolved ImageObject on string-only ImageObject.Name,
+        // emitting an empty {"@type":"ImageObject"} shell.
+        var contentType = CreateContentTypeWithEditors(("logo", "Umbraco.MediaPicker3"));
+        _contentTypeService.Get("siteSettings").Returns(contentType);
+        _schemaTypeRegistry.GetProperties(schemaTypeName).Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "logo",
+                PropertyType = "OneOrMany<Values<IImageObject, Uri>>",
+                IsComplexType = true,
+                AcceptedTypes = ["ImageObject", "URL"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("siteSettings", schemaTypeName).ToList();
+
+        var logo = result.Should().ContainSingle(s => s.SchemaPropertyName == "logo").Subject;
+        logo.SuggestedContentTypePropertyAlias.Should().Be("logo");
+        logo.SuggestedSourceType.Should().Be("property",
+            "a media picker resolves to a complete ImageObject via MediaPickerResolver — " +
+            "the complexType popular default strands it in an empty shell");
+        logo.SuggestedNestedSchemaTypeName.Should().BeNull(
+            "property-sourced media needs no nested type — the resolver picks ImageObject itself");
+        logo.SuggestedResolverConfig.Should().BeNull(
+            "property-sourced media needs no inner complexTypeMappings config");
+    }
+
+    [Fact]
+    public void SuggestMappings_NoLogoishProperty_DoesNotEmitDeadLogoRow()
+    {
+        // The popular default Organization.logo = complexType/ImageObject(null config).
+        // With NO logo-ish content property there is nothing for an inner config to bind:
+        // the suggestion would be a dead row (no ContentTypePropertyAlias, no config) that
+        // renders an empty ImageObject shell if the editor accepts it. It must not surface.
+        var contentType = CreateContentTypeWithEditors(("pageTitle", "Umbraco.TextBox"));
+        _contentTypeService.Get("siteSettings").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Organization").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "logo",
+                PropertyType = "OneOrMany<Values<IImageObject, Uri>>",
+                IsComplexType = true,
+                AcceptedTypes = ["ImageObject", "URL"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("siteSettings", "Organization").ToList();
+
+        result.Should().NotContain(
+            s => s.SchemaPropertyName == "logo" && string.IsNullOrEmpty(s.SuggestedContentTypePropertyAlias),
+            "a logo popular default with no bindable content property is a dead complexType row");
+    }
+
+    #endregion
 }

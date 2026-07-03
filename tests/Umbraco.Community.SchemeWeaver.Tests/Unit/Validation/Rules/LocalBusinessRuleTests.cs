@@ -147,4 +147,47 @@ public class LocalBusinessRuleTests
             i.Severity == ValidationSeverity.Warning
             && i.Path == "$.priceRange");
     }
+
+    [Fact]
+    public void Check_OpeningHoursText_WithoutSpecification_ProducesNoOpeningHoursWarning()
+    {
+        // schema.org and Google both accept the simple openingHours TEXT property
+        // (e.g. "Mo-Fr 09:00-17:30") as an alternative to the structured
+        // openingHoursSpecification — a static property mapping can express the
+        // former but not the latter, so it must satisfy the rule.
+        var json = """
+            {
+              "@type": "Restaurant",
+              "name": "The Test Kitchen",
+              "address": "1 High St, London SW1A 1AA",
+              "telephone": "+44 20 0000 0000",
+              "url": "https://example.com",
+              "image": "https://example.com/restaurant.jpg",
+              "priceRange": "££",
+              "geo": { "@type": "GeoCoordinates", "latitude": 51.5, "longitude": -0.1 },
+              "openingHours": "Mo-Fr 09:00-17:30"
+            }
+            """;
+        var issues = _sut.Check(Parse(json), "$").ToList();
+
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Check_NeitherOpeningHoursNorSpecification_ProducesWarning()
+    {
+        var json = FullyPopulated.Replace(
+            """
+            ,
+              "openingHoursSpecification": [
+                { "@type": "OpeningHoursSpecification", "dayOfWeek": "Monday", "opens": "09:00", "closes": "17:00" }
+              ]
+            """,
+            string.Empty);
+        var issues = _sut.Check(Parse(json), "$").ToList();
+
+        issues.Should().ContainSingle(i =>
+            i.Severity == ValidationSeverity.Warning
+            && i.Path == "$.openingHoursSpecification");
+    }
 }

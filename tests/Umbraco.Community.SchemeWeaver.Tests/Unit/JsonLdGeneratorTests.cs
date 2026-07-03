@@ -6,15 +6,21 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 using NSubstitute;
+using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.PropertyEditors.ValueConverters;
 using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Routing;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Services.Navigation;
+using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Resolvers;
+using Umbraco.Community.SchemeWeaver.Services.Validation;
+using Umbraco.Community.SchemeWeaver.Tests.Unit.TestSupport;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 
@@ -1885,6 +1891,325 @@ public class JsonLdGeneratorTests
 
         result.Should().NotBeNull();
         result!.Id!.ToString().Should().Be("https://example.com/explicit/#thing");
+    }
+
+    #endregion
+
+    #region Media logo complexType regression (broken persisted shape + empty shells)
+
+    /// <summary>
+    /// Generator wired with the real <see cref="MediaPickerResolver"/> so complexType
+    /// sub-mappings that point at a MediaPicker3 property resolve through the factory
+    /// exactly as production does.
+    /// </summary>
+    private JsonLdGenerator CreateMediaAwareGenerator()
+    {
+        var factory = new PropertyValueResolverFactory([
+            new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance, _urlProvider),
+            new DefaultPropertyValueResolver()
+        ]);
+        return new JsonLdGenerator(
+            _repository, _registry, _httpContextAccessor,
+            _navigationQueryService, _publishedStatusFilteringService,
+            factory, _urlProvider, _variationContextAccessor,
+            _logger, Options.Create(new SchemeWeaverOptions()));
+    }
+
+    /// <summary>
+    /// Content node carrying one MediaPicker3 property whose media resolves to
+    /// <paramref name="mediaUrl"/> via the shared <see cref="_urlProvider"/> stub
+    /// (MediaPickerResolverTests fixture style: MediaWithCrops + url provider stub).
+    /// </summary>
+    private IPublishedContent CreateContentWithMediaProperty(
+        string contentTypeAlias, string mediaPropertyAlias, string mediaUrl)
+    {
+        var content = Substitute.For<IPublishedContent>();
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns(contentTypeAlias);
+        content.ContentType.Returns(contentType);
+        content.Id.Returns(1);
+        content.Key.Returns(Guid.NewGuid());
+
+        var media = Substitute.For<IPublishedContent>();
+        _urlProvider
+            .GetMediaUrl(media, UrlMode.Absolute, Arg.Any<string?>(), Arg.Any<string>(), Arg.Any<Uri?>())
+            .Returns(mediaUrl);
+        var mediaWithCrops = new MediaWithCrops(
+            media, Substitute.For<IPublishedValueFallback>(), new ImageCropperValue());
+
+        var property = Substitute.For<IPublishedProperty>();
+        var propertyType = Substitute.For<IPublishedPropertyType>();
+        propertyType.EditorAlias.Returns("Umbraco.MediaPicker3");
+        property.PropertyType.Returns(propertyType);
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(mediaWithCrops);
+        content.GetProperty(mediaPropertyAlias).Returns(property);
+
+        return content;
+    }
+
+    [Fact]
+    public void GenerateJsonLd_PersistedBrokenLogoShape_EmitsImageObjectWithUrl()
+    {
+        HermeticStaticServiceProvider.EnsureInstalled();
+
+        // The shape SchemaAutoMapper + StructuralEnricher persisted for MediaPicker logos:
+        // complexType/ImageObject binding ImageObject.Name <- the media property alias.
+        // At render time the media resolves to a full ImageObject, which cannot be set into
+        // the string-only ImageObject.Name — the resolved media must repair into the emitted
+        // logo (url populated), not be silently dropped leaving an empty shell.
+        var content = CreateContentWithMediaProperty(
+            "siteSettings", "logo", "https://example.com/media/brand/logo.png");
+        var mapping = CreateMapping("siteSettings", "Organization");
+        _repository.GetByContentTypeAlias("siteSettings").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Logo",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "ImageObject",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"logo"}]}"""
+            }
+        });
+
+        var sut = CreateMediaAwareGenerator();
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.TryGetProperty("logo", out var logo)
+            .Should().BeTrue("the mapped logo must be emitted");
+        logo.GetProperty("@type").GetString().Should().Be("ImageObject");
+        logo.TryGetProperty("url", out var url)
+            .Should().BeTrue("the logo must carry the resolved media URL, not be an empty ImageObject shell");
+        url.GetString().Should().Be("https://example.com/media/brand/logo.png");
+    }
+
+    /// <summary>
+    /// Content node carrying one MULTI-select MediaPicker3 property whose value is an
+    /// <see cref="IEnumerable{MediaWithCrops}"/> — the resolver then returns a
+    /// <c>List&lt;ImageObject&gt;</c>, exercising <c>FirstImageObject</c>'s <c>many</c> branch.
+    /// </summary>
+    private IPublishedContent CreateContentWithMultipleMediaProperty(
+        string contentTypeAlias, string mediaPropertyAlias, params string[] mediaUrls)
+    {
+        var content = Substitute.For<IPublishedContent>();
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns(contentTypeAlias);
+        content.ContentType.Returns(contentType);
+        content.Id.Returns(1);
+        content.Key.Returns(Guid.NewGuid());
+
+        var items = new List<MediaWithCrops>();
+        foreach (var mediaUrl in mediaUrls)
+        {
+            var media = Substitute.For<IPublishedContent>();
+            _urlProvider
+                .GetMediaUrl(media, UrlMode.Absolute, Arg.Any<string?>(), Arg.Any<string>(), Arg.Any<Uri?>())
+                .Returns(mediaUrl);
+            items.Add(new MediaWithCrops(
+                media, Substitute.For<IPublishedValueFallback>(), new ImageCropperValue()));
+        }
+
+        var property = Substitute.For<IPublishedProperty>();
+        var propertyType = Substitute.For<IPublishedPropertyType>();
+        propertyType.EditorAlias.Returns("Umbraco.MediaPicker3");
+        property.PropertyType.Returns(propertyType);
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(items);
+        content.GetProperty(mediaPropertyAlias).Returns(property);
+
+        return content;
+    }
+
+    [Fact]
+    public void GenerateJsonLd_PersistedBrokenLogoShape_MultiSelectMedia_EmitsImageObjectWithUrl()
+    {
+        HermeticStaticServiceProvider.EnsureInstalled();
+
+        // Same persisted broken shape, but the bound MediaPicker3 is MULTI-select so the
+        // resolver returns a List<ImageObject> rather than a single ImageObject. The adoption
+        // repair must still fire via FirstImageObject's `many` branch — adopt the first resolved
+        // ImageObject as the nested instance and emit a populated logo (single-image adoption
+        // picking the first is acceptable behaviour).
+        var content = CreateContentWithMultipleMediaProperty(
+            "siteSettings", "logos",
+            "https://example.com/media/brand/logo-a.png",
+            "https://example.com/media/brand/logo-b.png");
+        var mapping = CreateMapping("siteSettings", "Organization");
+        _repository.GetByContentTypeAlias("siteSettings").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Logo",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "ImageObject",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"logos"}]}"""
+            }
+        });
+
+        var sut = CreateMediaAwareGenerator();
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.TryGetProperty("logo", out var logo)
+            .Should().BeTrue("the mapped logo must be emitted");
+        logo.GetProperty("@type").GetString().Should().Be("ImageObject");
+        logo.TryGetProperty("url", out var url)
+            .Should().BeTrue("the adopted first image must carry a resolved media URL, not be an empty shell");
+        url.GetString().Should().Be("https://example.com/media/brand/logo-a.png");
+    }
+
+    [Fact]
+    public void MediaLogoAdoption_ValidatorAndRenderAgree()
+    {
+        HermeticStaticServiceProvider.EnsureInstalled();
+
+        // Pins the G2 (render adopt) and G3 (validator warn) seams to AGREE on the exact
+        // logo -> complexType/ImageObject with Name <- media shape: the validator must report
+        // NO issue AND the render must emit a populated ImageObject. A disagreement here — a
+        // warning telling users to "fix" a mapping the render renders correctly — is the bug.
+        const string resolverConfig =
+            """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"logo"}]}""";
+
+        // Validator leg: real registry + checker + a content-type service exposing the media picker.
+        var registry = new SchemaTypeRegistry();
+        registry.EnsureInitialised();
+        var logoProp = Substitute.For<IPropertyType>();
+        logoProp.Alias.Returns("logo");
+        logoProp.PropertyEditorAlias.Returns("Umbraco.MediaPicker3");
+        var contentType = Substitute.For<IContentType>();
+        contentType.CompositionPropertyTypes.Returns(new[] { logoProp });
+        var contentTypeService = Substitute.For<IContentTypeService>();
+        contentTypeService.Get("siteSettings").Returns(contentType);
+        var validator = new SchemaRangeValidator(
+            registry, new SchemaRangeChecker(registry), contentTypeService);
+
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "siteSettings",
+            SchemaTypeName = "Organization",
+            IsEnabled = true,
+            PropertyMappings =
+            [
+                new PropertyMappingDto
+                {
+                    SchemaPropertyName = "Logo",
+                    SourceType = "complexType",
+                    NestedSchemaTypeName = "ImageObject",
+                    ResolverConfig = resolverConfig
+                }
+            ]
+        };
+
+        validator.Validate(dto).Should().BeEmpty(
+            "the render adopts the media as the ImageObject, so the validator must not warn");
+
+        // Render leg: the SAME shape must emit a populated ImageObject carrying the media URL.
+        var content = CreateContentWithMediaProperty(
+            "siteSettings", "logo", "https://example.com/media/brand/logo.png");
+        _repository.GetByContentTypeAlias("siteSettings")
+            .Returns(CreateMapping("siteSettings", "Organization"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Logo",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "ImageObject",
+                ResolverConfig = resolverConfig
+            }
+        });
+
+        var result = CreateMediaAwareGenerator().GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.TryGetProperty("logo", out var logo)
+            .Should().BeTrue("the mapped logo must be emitted");
+        logo.GetProperty("@type").GetString().Should().Be("ImageObject");
+        logo.GetProperty("url").GetString().Should().Be("https://example.com/media/brand/logo.png");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_ComplexTypeImage_MediaSubPropertyInRange_IsNotAdopted()
+    {
+        HermeticStaticServiceProvider.EnsureInstalled();
+
+        // A VALID persisted shape: complexType/ImageObject whose media sub-mapping targets
+        // ImageObject.Thumbnail — a sub-property whose range ACCEPTS an ImageObject — plus a
+        // static contentUrl. The broken-shape adoption repair must NOT hijack it: the media
+        // stays nested under 'thumbnail' and the static contentUrl lands on the OUTER image,
+        // exactly as configured (and exactly as the range validator blesses).
+        var content = CreateContentWithMediaProperty(
+            "article", "thumbMedia", "https://example.com/media/thumb.png");
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Image",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "ImageObject",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Thumbnail","sourceType":"property","contentTypePropertyAlias":"thumbMedia"},{"schemaProperty":"ContentUrl","sourceType":"static","staticValue":"https://example.com/media/full.png"}]}"""
+            }
+        });
+
+        var sut = CreateMediaAwareGenerator();
+        var result = sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.TryGetProperty("image", out var image)
+            .Should().BeTrue("the mapped image must be emitted");
+        image.GetProperty("@type").GetString().Should().Be("ImageObject");
+        image.GetProperty("contentUrl").GetString().Should().Be(
+            "https://example.com/media/full.png",
+            "the static contentUrl belongs on the OUTER image, not stamped onto an adopted thumbnail");
+        image.TryGetProperty("thumbnail", out var thumbnail).Should().BeTrue(
+            "the media sub-mapping targets 'thumbnail', which accepts an ImageObject — it must bind there");
+        thumbnail.GetProperty("url").GetString().Should().Be("https://example.com/media/thumb.png");
+        image.TryGetProperty("url", out _).Should().BeFalse(
+            "no sub-mapping sets the outer image url — its presence would mean the thumbnail media was adopted");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_ComplexTypeAllSubValuesNull_OmitsEmptyShell()
+    {
+        // A complexType whose configured sub-values ALL resolve to null must be omitted
+        // from the output entirely — emitting {"@type":"Person"} (or ImageObject) shells
+        // is invalid structured data and is exactly the visible symptom of the logo trap.
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "Test Article"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" },
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"authorName"}]}"""
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(content);
+
+        result.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.TryGetProperty("author", out _).Should().BeFalse(
+            "a complexType whose sub-values all resolve null must be omitted, " +
+            "not emitted as an empty {\"@type\":\"Person\"} shell");
     }
 
     #endregion

@@ -645,6 +645,9 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (config?.ComplexTypeMappings is null or { Count: 0 })
             return null; // No sub-mappings configured — skip rather than emit empty object
 
+        // Resolve every sub-mapping up front so a resolved media ImageObject can be ADOPTED
+        // as the nested instance (see below) before any sub-value is applied to it.
+        var resolved = new List<(ComplexTypeMappingEntry SubMapping, object Value)>();
         foreach (var subMapping in config.ComplexTypeMappings.Where(m => !string.IsNullOrEmpty(m.SchemaProperty)))
         {
             object? value = subMapping.SourceType switch
@@ -670,11 +673,53 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             }
 
             if (value is not null)
-                SchemaPropertySetter.SetPropertyValue(nestedInstance, subMapping.SchemaProperty, value);
+                resolved.Add((subMapping, value));
         }
 
-        return nestedInstance;
+        // Render-time repair for persisted MediaPicker→ImageObject shapes: the auto-mapper +
+        // enricher historically persisted complexType/ImageObject configs binding e.g.
+        // ImageObject.Name <- the media alias. At render time the media resolves (via the
+        // resolver factory) to a FULL ImageObject that can never be assigned into a string-only
+        // sub-property — it would be silently dropped, leaving an empty {"@type":"ImageObject"}
+        // shell. Instead, adopt the first such resolved ImageObject AS the nested instance, then
+        // apply the remaining sub-mappings (e.g. static captions) on top of it.
+        // The adoption is strictly limited to that broken-shape case: a sub-property whose range
+        // DOES accept an ImageObject or URL (e.g. ImageObject.Thumbnail, contentUrl) is a valid
+        // config the setter handles — adopting it would hijack the intended structure (the
+        // thumbnail would masquerade as the whole image), so it is left to bind normally.
+        if (nestedInstance is ImageObject)
+        {
+            var adoptIndex = resolved.FindIndex(r =>
+                string.Equals(r.SubMapping.SourceType, "property", StringComparison.OrdinalIgnoreCase)
+                && FirstImageObject(r.Value) is not null
+                && !SchemaPropertySetter.PropertyAcceptsImageValue(nestedInstance, r.SubMapping.SchemaProperty));
+            if (adoptIndex >= 0)
+            {
+                nestedInstance = FirstImageObject(resolved[adoptIndex].Value)!;
+                resolved.RemoveAt(adoptIndex);
+            }
+        }
+
+        foreach (var (subMapping, value) in resolved)
+            SchemaPropertySetter.SetPropertyValue(nestedInstance, subMapping.SchemaProperty, value);
+
+        // Empty-shell guard: when no sub-mapping actually landed a value on the nested
+        // instance (all resolved null, or every set was dropped by type conversion), omit
+        // the nested Thing entirely — {"@type":"Person"} shells are invalid structured data.
+        return SchemaPropertySetter.HasResolvedProperty(nestedInstance) ? nestedInstance : null;
     }
+
+    /// <summary>
+    /// Extracts the first Schema.NET <see cref="ImageObject"/> from a resolved sub-mapping
+    /// value — a single instance or the first of a resolved list (the two shapes
+    /// <see cref="Resolvers.MediaPickerResolver"/> produces). Null when the value is not image-shaped.
+    /// </summary>
+    private static ImageObject? FirstImageObject(object value) => value switch
+    {
+        ImageObject image => image,
+        IEnumerable<IImageObject> many => many.OfType<ImageObject>().FirstOrDefault(),
+        _ => null
+    };
 
     /// <summary>
     /// Resolves a nested complex type sub-mapping by parsing its ResolverConfig and recursing.

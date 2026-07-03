@@ -56,6 +56,14 @@ public class SchemeWeaverOptions
     public SiteSettingsOptions SiteSettings { get; set; } = new();
 
     /// <summary>
+    /// Site search declaration for the WebSite graph node. When
+    /// <see cref="SiteSearchOptions.UrlTemplate"/> is configured, the built-in
+    /// WebSite piece emits a <c>potentialAction</c> <c>SearchAction</c> —
+    /// the markup Google requires for the sitelinks search box. Off by default.
+    /// </summary>
+    public SiteSearchOptions SiteSearch { get; set; } = new();
+
+    /// <summary>
     /// When <c>true</c>, the optional uSync addon exports a mapping to its uSync
     /// data folder every time it is saved or deleted in the backoffice, so the
     /// change is ready to commit to source control. Default is <c>false</c> —
@@ -125,6 +133,33 @@ public class SchemaAutoMapperOptions
     /// so the UI can offer them as "click to accept". Default is <c>60</c>.
     /// </summary>
     public int ShowConfidenceThreshold { get; set; } = 60;
+}
+
+/// <summary>
+/// Configures the WebSite node's sitelinks-search-box <c>SearchAction</c>,
+/// bound to the <c>SchemeWeaver:SiteSearch</c> configuration section. Unset by
+/// default — SchemeWeaver cannot guess a site's search URL, so the consumer
+/// declares it here and the WebSite piece does the rest.
+/// </summary>
+public class SiteSearchOptions
+{
+    /// <summary>
+    /// Absolute URL template of the site's search results page, containing the
+    /// literal query placeholder — e.g.
+    /// <c>https://example.com/search?q={search_term_string}</c>. When null or
+    /// empty (the default) no <c>potentialAction</c> is emitted. The placeholder
+    /// name must match <see cref="QueryInputName"/>; a template without the
+    /// placeholder is still emitted (Google tolerates it) but logs a warning.
+    /// </summary>
+    public string? UrlTemplate { get; set; }
+
+    /// <summary>
+    /// The variable name declared in the <c>query-input</c> property
+    /// (<c>required name={value}</c>) and expected as the <c>{placeholder}</c>
+    /// inside <see cref="UrlTemplate"/>. Default is Google's conventional
+    /// <c>search_term_string</c> — you rarely need to change it.
+    /// </summary>
+    public string QueryInputName { get; set; } = "search_term_string";
 }
 
 /// <summary>

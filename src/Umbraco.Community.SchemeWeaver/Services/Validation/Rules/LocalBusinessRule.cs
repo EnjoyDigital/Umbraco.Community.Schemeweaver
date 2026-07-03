@@ -83,9 +83,13 @@ public sealed class LocalBusinessRule : ITypeRule
                 $"{path}.geo",
                 "Missing `geo` — recommended (GeoCoordinates with latitude/longitude) so Google can pin the business on the map.");
 
-        if (!RuleHelpers.HasNonEmptyArrayOrObject(node, "OpeningHoursSpecification"))
+        // Google accepts either the structured openingHoursSpecification or the
+        // simpler openingHours text (e.g. "Mo-Fr 09:00-17:30") — only warn when
+        // neither is present.
+        if (!RuleHelpers.HasNonEmptyArrayOrObject(node, "OpeningHoursSpecification")
+            && !RuleHelpers.HasNonEmptyString(node, "OpeningHours"))
             yield return new ValidationIssue(ValidationSeverity.Warning, type,
                 $"{path}.openingHoursSpecification",
-                "Missing `openingHoursSpecification` — recommended so Google can show open/closed status and hours.");
+                "Missing opening hours — recommended so Google can show open/closed status and hours; provide either structured `openingHoursSpecification` objects or the simpler `openingHours` text (e.g. `Mo-Fr 09:00-17:30`).");
     }
 }

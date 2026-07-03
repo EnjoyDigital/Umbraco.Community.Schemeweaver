@@ -8,10 +8,12 @@ namespace Umbraco.Community.SchemeWeaver.Notifications;
 /// <summary>
 /// Shared eviction helper used by every content-lifecycle notification handler.
 ///
-/// Always evicts the affected content's own cache entries. It then ripples to descendants ONLY
-/// when descendants can actually depend on the affected node's JSON-LD — i.e. the site uses
-/// inherited schemas or cross-node source types (ancestor/parent/sibling/reference), or the event
-/// is a move (which changes the moved subtree's ancestry/breadcrumbs). The ripple is a single O(1)
+/// Always evicts the affected content's own cache entries. It then ripples to the whole cache ONLY
+/// when other nodes can actually depend on the affected node's JSON-LD — i.e. the site uses
+/// inherited schemas or cross-node source types (ancestor/parent/sibling/reference), the affected
+/// node is the site-settings node (whose Organization/WebSite graph pieces are baked into EVERY
+/// routed page's cached graph), or the event is a move (which changes the moved subtree's
+/// ancestry/breadcrumbs). The ripple is a single O(1)
 /// <see cref="IJsonLdBlocksProvider.InvalidateAll"/> rather than the previous per-publish
 /// <c>IContentService.GetPagedDescendants</c> walk, which loaded the whole subtree's full
 /// <see cref="IContent"/> from the DB inside the publish scope (under the SQLite ContentTree write
@@ -28,6 +30,7 @@ internal static class JsonLdCacheInvalidator
         ISchemaMappingRepository mappingRepository,
         ILogger logger,
         IEnumerable<IContent> entities,
+        SiteSettingsOptions siteSettings,
         bool alwaysRippleToDescendants = false)
     {
         var ripple = alwaysRippleToDescendants;
@@ -37,6 +40,12 @@ internal static class JsonLdCacheInvalidator
         {
             provider.Invalidate(content.Key);
             any = true;
+
+            // The site-settings node feeds the Site-scoped graph pieces (Organization, …), which
+            // are cached under every ROUTED page's key — its own key holds nothing of interest.
+            // Cheap alias/key comparison, so check it before the repository lookup.
+            if (!ripple && IsSiteSettingsNode(siteSettings, content))
+                ripple = true;
 
             // Descendants render THIS node's schema only when its mapping is inherited.
             if (!ripple && IsInheritedType(mappingRepository, content, logger))
@@ -53,6 +62,23 @@ internal static class JsonLdCacheInvalidator
 
         if (ripple)
             provider.InvalidateAll();
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="Graph.SiteSettingsResolver"/>'s discovery logic: a node counts as the
+    /// site-settings node when it matches the configured <see cref="SiteSettingsOptions.ContentKey"/>
+    /// or carries the configured <see cref="SiteSettingsOptions.ContentTypeAlias"/>. Both are
+    /// checked (the resolver falls back to the alias lookup when the key resolves nothing), and the
+    /// alias comparison is case-insensitive — over-invalidating on a rare settings publish is far
+    /// cheaper than serving a stale site graph until restart.
+    /// </summary>
+    private static bool IsSiteSettingsNode(SiteSettingsOptions siteSettings, IContent content)
+    {
+        if (siteSettings.ContentKey is { } key && key != Guid.Empty && content.Key == key)
+            return true;
+
+        return !string.IsNullOrWhiteSpace(siteSettings.ContentTypeAlias)
+            && string.Equals(content.ContentType.Alias, siteSettings.ContentTypeAlias, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsInheritedType(ISchemaMappingRepository repo, IContent content, ILogger logger)

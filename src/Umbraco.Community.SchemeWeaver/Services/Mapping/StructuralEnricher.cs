@@ -41,6 +41,9 @@ public sealed class StructuralEnricher
     private static readonly HashSet<string> BlockEditorAliases =
         SchemeWeaverConstants.PropertyEditors.BlockEditorAliases;
 
+    private static readonly HashSet<string> MediaPickerAliases =
+        SchemeWeaverConstants.PropertyEditors.MediaPickerAliases;
+
     /// <param name="registry">Schema registry, for nested-type property lookup and range checks.</param>
     /// <param name="matchAlias">Best-effort exact/synonym/partial match of a schema property name against a set of candidate aliases (mirrors the flat loop), or null when nothing matches.</param>
     /// <param name="showThreshold">The show-confidence threshold, used as a floor for structurally-confirmed rows.</param>
@@ -133,6 +136,23 @@ public sealed class StructuralEnricher
                 SupplementNestedMappings(suggestion, elements);
                 return;
             }
+        }
+
+        // Media-picker guard: a media picker matched onto an image-shaped complex property
+        // (e.g. logo → ImageObject) must stay a plain property mapping — MediaPickerResolver
+        // yields fully-populated ImageObject(s) at render time, whereas any inner bindings
+        // Branch 1 could author here (ImageObject.Name <- the media alias) would drop the
+        // resolved media on a string-only sub-property and emit an empty shell.
+        if (string.Equals(suggestion.SuggestedSourceType, "complexType", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrEmpty(suggestion.EditorAlias)
+            && MediaPickerAliases.Contains(suggestion.EditorAlias!)
+            && (string.Equals(suggestion.SuggestedNestedSchemaTypeName, "ImageObject", StringComparison.OrdinalIgnoreCase)
+                || AcceptsImage(suggestion.AcceptedTypes)))
+        {
+            suggestion.SuggestedSourceType = "property";
+            suggestion.SuggestedNestedSchemaTypeName = null;
+            suggestion.SuggestedResolverConfig = null;
+            return;
         }
 
         // Branch 1: complexType-from-scalar. A complex schema property that name-matched a scalar
@@ -359,6 +379,10 @@ public sealed class StructuralEnricher
     private static bool AcceptsText(IReadOnlyList<string> acceptedTypes) =>
         acceptedTypes.Any(t => string.Equals(t, "Text", StringComparison.OrdinalIgnoreCase)
                                || string.Equals(t, "String", StringComparison.OrdinalIgnoreCase));
+
+    private static bool AcceptsImage(IReadOnlyList<string> acceptedTypes) =>
+        acceptedTypes.Any(t => string.Equals(t, "ImageObject", StringComparison.OrdinalIgnoreCase)
+                               || string.Equals(t, "MediaObject", StringComparison.OrdinalIgnoreCase));
 
     // ---- camelCase tokenisation ------------------------------------------------------------
 

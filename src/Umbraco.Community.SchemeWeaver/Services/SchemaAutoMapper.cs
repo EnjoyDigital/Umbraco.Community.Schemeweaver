@@ -24,6 +24,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
     private static HashSet<string> BlockEditorAliases => SchemeWeaverConstants.PropertyEditors.BlockEditorAliases;
 
+    private static HashSet<string> MediaPickerAliases => SchemeWeaverConstants.PropertyEditors.MediaPickerAliases;
+
     private static readonly HashSet<string> ContentPickerAliases = new(StringComparer.OrdinalIgnoreCase)
     {
         "Umbraco.ContentPicker"
@@ -251,7 +253,13 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["LocalBusiness.address"] = new("complexType", "PostalAddress", null),
         ["LocalBusiness.openingHoursSpecification"] = new("blockContent", "OpeningHoursSpecification", null),
         ["LocalBusiness.geo"] = new("complexType", "GeoCoordinates", null),
-        ["LocalBusiness.logo"] = new("complexType", "ImageObject", null),
+        // logo stays "property"-sourced: a matched media property resolves to a
+        // fully-populated ImageObject via MediaPickerResolver (exactly like "image").
+        // A complexType/ImageObject default here is a trap — the enricher would bind
+        // ImageObject.Name <- the media alias and the string-only setter drops the
+        // resolved media, emitting an empty {"@type":"ImageObject"} shell. The key is
+        // kept so RankSchemaProperties still ranks logo at confidence 100.
+        ["LocalBusiness.logo"] = new("property", null, null),
         ["LocalBusiness.contactPoint"] = new("blockContent", "ContactPoint", null),
         ["LocalBusiness.hasCredential"] = new("blockContent", "EducationalOccupationalCredential", null),
         ["LocalBusiness.makesOffer"] = new("blockContent", "Offer", null),
@@ -262,7 +270,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["RealEstateAgent.address"] = new("complexType", "PostalAddress", null),
         ["RealEstateAgent.openingHoursSpecification"] = new("blockContent", "OpeningHoursSpecification", null),
         ["RealEstateAgent.geo"] = new("complexType", "GeoCoordinates", null),
-        ["RealEstateAgent.logo"] = new("complexType", "ImageObject", null),
+        ["RealEstateAgent.logo"] = new("property", null, null),
         ["RealEstateAgent.contactPoint"] = new("blockContent", "ContactPoint", null),
         ["RealEstateAgent.hasCredential"] = new("blockContent", "EducationalOccupationalCredential", null),
         ["RealEstateAgent.makesOffer"] = new("blockContent", "Offer", null),
@@ -272,7 +280,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         // Organization-level defaults (apply when the mapping is plain Organization
         // rather than a LocalBusiness subtype).
         ["Organization.address"] = new("complexType", "PostalAddress", null),
-        ["Organization.logo"] = new("complexType", "ImageObject", null),
+        ["Organization.logo"] = new("property", null, null),
         ["Organization.contactPoint"] = new("blockContent", "ContactPoint", null),
         ["Organization.founder"] = new("complexType", "Person", null),
 
@@ -472,8 +480,12 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 }
             }
 
-            // No content property match — check for complex type defaults
-            if (schemaProp.IsComplexType && hasPopularDefault)
+            // No content property match — check for complex type defaults. A "property"-
+            // sourced popular default (e.g. *.logo) needs a real content property to bind;
+            // with no match it would author a dead alias-less row, so fall through to the
+            // generic complexType handling instead.
+            if (schemaProp.IsComplexType && hasPopularDefault
+                && !string.Equals(popularDefault!.SourceType, "property", StringComparison.OrdinalIgnoreCase))
             {
                 suggestion.SuggestedSourceType = popularDefault!.SourceType;
                 suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
@@ -677,7 +689,10 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             // partial 50). A block editor doesn't make a strong name match weaker, nor a
             // weak one stronger — so partial-name block matches stay below the show
             // threshold and drop out, while exact/synonym block matches auto-apply.
-            if (hasPopularDefault)
+            // "property"-sourced defaults (e.g. *.logo) are meaningless for a block
+            // editor, so they fall through to the generic blockContent shape.
+            if (hasPopularDefault
+                && !string.Equals(popularDefault!.SourceType, "property", StringComparison.OrdinalIgnoreCase))
             {
                 suggestion.SuggestedSourceType = popularDefault!.SourceType;
                 suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
@@ -698,6 +713,15 @@ public class SchemaAutoMapper : ISchemaAutoMapper
                 suggestion.SuggestedNestedSchemaTypeName = popularDefault!.NestedSchemaTypeName;
                 suggestion.SuggestedTargetPieceKey = popularDefault.TargetPieceKey;
             }
+        }
+        else if (MediaPickerAliases.Contains(editorAlias)
+            && AcceptsAny(suggestion.AcceptedTypes, "ImageObject", "MediaObject"))
+        {
+            // Media picker feeding an image-shaped property — keep the plain "property"
+            // source and adopt nothing from any popular default: MediaPickerResolver
+            // already yields fully-populated ImageObject(s) at render time. A nested
+            // complexType here would strand the resolved media in an empty shell
+            // (its inner bindings land on string-only sub-properties like Name).
         }
         else if (hasPopularDefault)
         {
