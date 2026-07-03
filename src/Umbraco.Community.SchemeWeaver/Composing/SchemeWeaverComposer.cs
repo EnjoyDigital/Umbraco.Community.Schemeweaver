@@ -78,9 +78,10 @@ public class SchemeWeaverComposer : IComposer
         // cached blocks drive both the Examine index field and the dedicated endpoint.
         builder.Services.AddSingleton<IContentIndexHandler, SchemaJsonLdContentIndexHandler>();
 
-        // Cache invalidation. Each handler evicts the target content + all descendants —
-        // inherited schemas ripple from ancestor to every descendant, so touching any node
-        // dirties the cache for the subtree.
+        // Cache invalidation. Each handler evicts the target content's own entries, rippling to
+        // an InvalidateAll only when other nodes can depend on the change: inherited schemas,
+        // cross-node source types, moves, or the site-settings node (whose Organization/WebSite
+        // pieces are baked into every routed page's cached graph). See JsonLdCacheInvalidator.
         builder.AddNotificationHandler<ContentPublishedNotification, InvalidateJsonLdCacheOnPublish>();
         builder.AddNotificationHandler<ContentUnpublishedNotification, InvalidateJsonLdCacheOnUnpublish>();
         builder.AddNotificationHandler<ContentMovedNotification, InvalidateJsonLdCacheOnMove>();
