@@ -55,19 +55,33 @@ public class BlockContentResolver : IPropertyValueResolver
             var strings = new List<string>();
             foreach (var blockContent in blockItems)
             {
-                var rawValue = SchemaPropertySetter.ResolveElementPropertyValue(
-                    blockContent, resolverConfig.ContentProperty, context.HttpContextAccessor);
-                if (rawValue is not string s || string.IsNullOrEmpty(s))
-                    continue;
+                // Route through the per-editor resolver pipeline (when a factory is wired) so
+                // e.g. a MultiUrlPicker block property yields its URL string(s) rather than the
+                // raw model's ToString() garbage. A multi-value resolver result (List<string>)
+                // is flattened into the extracted list.
+                var rawValue = ResolveBlockElementProperty(blockContent, resolverConfig.ContentProperty, context);
+                IEnumerable<string> extracted = rawValue switch
+                {
+                    string single => [single],
+                    IEnumerable<string> many => many,
+                    _ => []
+                };
 
-                // Honour a transform on the string-list path too (e.g. stripHtml a RichText
-                // value pulled via extractAs:stringList). Re-check for emptiness after the
-                // transform so a value that collapses to whitespace is dropped, not emitted blank.
-                if (!string.IsNullOrEmpty(resolverConfig.TransformType))
-                    s = SchemaValueTransformer.Apply(s, resolverConfig.TransformType, context.HttpContextAccessor, _logger) ?? string.Empty;
+                foreach (var extractedValue in extracted)
+                {
+                    var s = extractedValue;
+                    if (string.IsNullOrEmpty(s))
+                        continue;
 
-                if (!string.IsNullOrEmpty(s))
-                    strings.Add(s);
+                    // Honour a transform on the string-list path too (e.g. stripHtml a RichText
+                    // value pulled via extractAs:stringList). Re-check for emptiness after the
+                    // transform so a value that collapses to whitespace is dropped, not emitted blank.
+                    if (!string.IsNullOrEmpty(resolverConfig.TransformType))
+                        s = SchemaValueTransformer.Apply(s, resolverConfig.TransformType, context.HttpContextAccessor, _logger) ?? string.Empty;
+
+                    if (!string.IsNullOrEmpty(s))
+                        strings.Add(s);
+                }
             }
             return strings.Count > 0 ? strings : null;
         }
@@ -318,15 +332,11 @@ public class BlockContentResolver : IPropertyValueResolver
 
     /// <summary>
     /// True when <paramref name="thing"/> has at least one resolved Schema.org value property.
-    /// Only properties whose type implements <see cref="IValues"/> (every <c>OneOrMany</c>/
-    /// <c>Values</c> wrapper) with <c>Count &gt; 0</c> count — which cleanly excludes the
-    /// <c>@type</c> (string), <c>@id</c> (Uri) and <c>@context</c> identity members and mirrors
-    /// Schema.NET's own serializer, so "has a resolved property" ⇔ "will emit a property".
+    /// Delegates to the shared <see cref="SchemaPropertySetter.HasResolvedProperty"/> helper
+    /// (also used by the complexType empty-shell guard in <c>JsonLdGenerator</c>).
     /// </summary>
     private static bool HasResolvedProperty(Thing thing)
-        => thing.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Any(p => p.GetIndexParameters().Length == 0
-                      && p.GetValue(thing) is IValues { Count: > 0 });
+        => SchemaPropertySetter.HasResolvedProperty(thing);
 
     /// <summary>
     /// True when the named schema property (case-insensitive) is set to a non-empty

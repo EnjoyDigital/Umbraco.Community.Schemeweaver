@@ -73,9 +73,22 @@ public static class SchemaPropertySetter
             return;
 
         // Handle IEnumerable<string> for string array properties (e.g., recipeIngredient)
-        if (value is IEnumerable<string> strings
-            && TrySetStringCollectionValue(property, instance, targetType, strings))
-            return;
+        if (value is IEnumerable<string> strings)
+        {
+            if (TrySetStringCollectionValue(property, instance, targetType, strings))
+                return;
+
+            // The collection could not be set as a whole (e.g. a bare Values<...> target).
+            // Fall back to the FIRST string so a multi-value resolver result (e.g. a
+            // MultiUrlPicker with several links) never regresses a target that previously
+            // accepted a single string value.
+            var firstString = strings.FirstOrDefault(s => !string.IsNullOrEmpty(s));
+            if (firstString is not null)
+            {
+                SetPropertyValue(instance, propertyName, firstString, logger);
+                return;
+            }
+        }
 
         // Handle OneOrMany<T> types from Schema.NET by building from inside out
         if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany")
@@ -121,6 +134,19 @@ public static class SchemaPropertySetter
             "is not convertible to the property's type {TargetType} and was dropped",
             propertyName, instance.GetType().Name, value.GetType().Name, targetType.Name);
     }
+
+    /// <summary>
+    /// True when <paramref name="thing"/> has at least one resolved Schema.org value property.
+    /// Only properties whose type implements <see cref="IValues"/> (every <c>OneOrMany</c>/
+    /// <c>Values</c> wrapper) with <c>Count &gt; 0</c> count — which cleanly excludes the
+    /// <c>@type</c> (string), <c>@id</c> (Uri) and <c>@context</c> identity members and mirrors
+    /// Schema.NET's own serializer, so "has a resolved property" ⇔ "will emit a property".
+    /// Shared by the block-content empty-Thing drop (P2.1) and the complexType empty-shell guard.
+    /// </summary>
+    internal static bool HasResolvedProperty(Thing thing)
+        => thing.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Any(p => p.GetIndexParameters().Length == 0
+                      && p.GetValue(thing) is IValues { Count: > 0 });
 
     /// <summary>
     /// Walks a generic property type looking for Schema.NET interface type arguments
@@ -434,8 +460,15 @@ public static class SchemaPropertySetter
 
         var innerType = targetType.GetGenericArguments()[0];
 
+        // Uri inner types (e.g. Organization.SameAs is OneOrMany<Uri>) have no
+        // string→Uri op_Implicit, so parse each string instead — mirroring the
+        // single-string path in TrySetOneOrManyValue.
+        object? ConvertItem(string s) => innerType == typeof(Uri)
+            ? Uri.TryCreate(s, UriKind.RelativeOrAbsolute, out var uri) ? uri : null
+            : TryConvertViaImplicit(innerType, s);
+
         // Build a list of inner-type values by converting each string
-        var firstConverted = TryConvertViaImplicit(innerType, stringList[0]);
+        var firstConverted = ConvertItem(stringList[0]);
         if (firstConverted is null)
             return false;
 
@@ -445,7 +478,7 @@ public static class SchemaPropertySetter
 
         for (var i = 1; i < stringList.Count; i++)
         {
-            var itemConverted = TryConvertViaImplicit(innerType, stringList[i]);
+            var itemConverted = ConvertItem(stringList[i]);
             if (itemConverted is not null)
                 list.Add(itemConverted);
         }

@@ -5,7 +5,9 @@ namespace Umbraco.Community.SchemeWeaver.Services.Resolvers;
 /// <summary>
 /// Resolves multi URL picker property values to absolute URL string(s) for Schema.NET.
 /// The Umbraco.MultiUrlPicker editor returns IEnumerable&lt;Link&gt;.
-/// For single links, returns a string; for multiple, returns the first URL.
+/// Returns a plain string for a single link and a <c>List&lt;string&gt;</c> of ALL URLs for
+/// several — dropping every link after the first would silently lose data the editor
+/// deliberately entered (e.g. social profiles feeding Organization.sameAs).
 /// </summary>
 public class MultiUrlPickerResolver : IPropertyValueResolver
 {
@@ -22,15 +24,18 @@ public class MultiUrlPickerResolver : IPropertyValueResolver
 
         if (value is IEnumerable<Link> links)
         {
-            var firstLink = links.FirstOrDefault();
-            if (firstLink is null)
-                return null;
+            var urls = links
+                .Select(link => link.Url)
+                .Where(url => !string.IsNullOrEmpty(url))
+                .Select(url => ToAbsoluteUrl(url!, context))
+                .ToList();
 
-            var url = firstLink.Url;
-            if (string.IsNullOrEmpty(url))
-                return null;
-
-            return ToAbsoluteUrl(url, context);
+            return urls.Count switch
+            {
+                0 => null,
+                1 => urls[0],
+                _ => urls
+            };
         }
 
         if (value is Link singleLink)
