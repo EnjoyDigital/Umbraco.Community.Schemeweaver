@@ -265,20 +265,21 @@ public class SchemaRangeValidatorTests
     }
 
     [Fact]
-    public void BrokenMediaLogoShape_WarnsOnce_ControlPropertySourcedLogoIsClean()
+    public void MediaOntoImageObjectSubProperty_RenderAdopts_NoWarning_ControlPropertySourcedLogoIsClean()
     {
-        // Organization.Logo mapped as complexType/ImageObject with the persisted inner
-        // binding ImageObject.Name <- 'logo', where 'logo' is a MediaPicker3: the media
-        // resolves to a full ImageObject that the string-only ImageObject.Name silently
-        // drops at render time — an empty {"@type":"ImageObject"} shell. Today only the
-        // OUTER NestedSchemaTypeName is range-checked (ImageObject is in Logo's range, so
-        // it validates allClear); the validator must inspect the inner complexTypeMappings
-        // and warn.
+        // Organization.Logo mapped as complexType/ImageObject with the persisted inner binding
+        // ImageObject.Name <- 'logo' (a MediaPicker3). At render time the media resolves to a
+        // full ImageObject; because the nested type IS an ImageObject-family type, the render
+        // (JsonLdGenerator.ResolveComplexTypeFromConfig) ADOPTS that ImageObject AS the nested
+        // instance and emits a populated logo — see the agreeing render test
+        // JsonLdGeneratorTests.MediaLogoAdoption_ValidatorAndRenderAgree. The validator must
+        // therefore stay SILENT: warning "the media is dropped" here would tell the user to
+        // break a mapping that renders correctly.
         var contentTypeService = ContentTypeServiceWith(
             "siteSettings", ("logo", "Umbraco.MediaPicker3"));
         var sut = CreateValidator(contentTypeService);
 
-        var broken = new SchemaMappingDto
+        var adopted = new SchemaMappingDto
         {
             ContentTypeAlias = "siteSettings",
             SchemaTypeName = "Organization",
@@ -296,16 +297,11 @@ public class SchemaRangeValidatorTests
             ]
         };
 
-        var issues = sut.Validate(broken);
-
-        issues.Should().ContainSingle(
-            "binding a media-picker value onto string-only ImageObject.Name drops the logo at render time");
-        issues[0].Severity.Should().Be(ValidationSeverity.Warning);
-        issues[0].Path.Should().Be("Logo");
-        issues[0].Message.Should().Contain("Logo");
+        sut.Validate(adopted).Should().BeEmpty(
+            "the render adopts the resolved media as the ImageObject nested instance, so nothing is dropped");
 
         // Control: the healthy shape — a plain property-sourced logo mapping (the resolver
-        // builds the ImageObject itself) — must NOT be flagged by the fix.
+        // builds the ImageObject itself) — must also be clean.
         var healthy = new SchemaMappingDto
         {
             ContentTypeAlias = "siteSettings",
@@ -323,5 +319,62 @@ public class SchemaRangeValidatorTests
         };
 
         sut.Validate(healthy).Should().BeEmpty("property-sourced media logos are the correct shape");
+    }
+
+    [Fact]
+    public void MediaOntoNonImageNestedType_RenderCannotAdopt_Warns()
+    {
+        // Author mapped as complexType/Person with the inner binding Person.Name <- 'authorPhoto'
+        // (a MediaPicker3). Person is NOT an ImageObject-family type, so the render cannot adopt
+        // the resolved media: a full ImageObject cannot be set onto the string-only Person.Name
+        // and is silently dropped, leaving an empty {"@type":"Person"} shell. This is the mirror
+        // of the ImageObject case above — here the warning MUST still fire.
+        var contentTypeService = ContentTypeServiceWith(
+            "article", ("authorPhoto", "Umbraco.MediaPicker3"));
+        var sut = CreateValidator(contentTypeService);
+
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings =
+            [
+                new PropertyMappingDto
+                {
+                    SchemaPropertyName = "Author",
+                    SourceType = "complexType",
+                    NestedSchemaTypeName = "Person",
+                    ResolverConfig =
+                        """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"authorPhoto"}]}"""
+                }
+            ]
+        };
+
+        var issues = sut.Validate(dto);
+
+        issues.Should().ContainSingle(
+            "a media ImageObject dropped onto string-only Person.Name leaves an empty shell — the render cannot adopt into a non-image nested type");
+        issues[0].Severity.Should().Be(ValidationSeverity.Warning);
+        issues[0].Path.Should().Be("Author");
+    }
+
+    [Fact]
+    public void TwoArgConstructorOverload_Constructs_AndValidateRuns()
+    {
+        // Binary-compat guard (3b): the 2-arg constructor must remain a distinct signature so
+        // consumers precompiled against it don't hit MissingMethodException. Pin that it
+        // constructs and Validate() runs (the editor-alias-dependent checks are simply skipped
+        // because no IContentTypeService is supplied).
+        var registry = new SchemaTypeRegistry();
+        registry.EnsureInitialised();
+        var sut = new SchemaRangeValidator(registry, new SchemaRangeChecker(registry));
+
+        sut.Validate(Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Name",
+            SourceType = "property",
+            ContentTypePropertyAlias = "title"
+        })).Should().BeEmpty();
     }
 }

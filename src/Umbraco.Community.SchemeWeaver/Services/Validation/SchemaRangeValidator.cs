@@ -25,15 +25,30 @@ public class SchemaRangeValidator : ISchemaRangeValidator
     // doesn't fit its current property.
     private static readonly string[] PreferredAlternatives = ["about", "mainEntity", "mentions"];
 
+    /// <summary>
+    /// Two-argument overload kept as a DISTINCT method signature for binary compatibility:
+    /// a consumer precompiled against the original two-parameter constructor would otherwise
+    /// hit <see cref="MissingMethodException"/> once the third parameter was added (an optional
+    /// parameter is a source-only convenience — it does not preserve the old arity in IL).
+    /// DI resolves the richer three-arg constructor (IContentTypeService is registered); this
+    /// overload delegates to it with <c>null</c>, disabling only the editor-alias lookups.
+    /// </summary>
     /// <param name="registry">Schema registry for property/CLR-type lookup.</param>
     /// <param name="rangeChecker">Range checker for Schema.NET assignability.</param>
-    /// <param name="contentTypeService">Optional: enables editor-alias lookup for the inner
+    public SchemaRangeValidator(ISchemaTypeRegistry registry, ISchemaRangeChecker rangeChecker)
+        : this(registry, rangeChecker, null)
+    {
+    }
+
+    /// <param name="registry">Schema registry for property/CLR-type lookup.</param>
+    /// <param name="rangeChecker">Range checker for Schema.NET assignability.</param>
+    /// <param name="contentTypeService">Enables editor-alias lookup for the inner
     /// complexTypeMappings inspection (media-picker-onto-string detection). When null those
     /// editor-dependent checks are skipped; everything else still validates.</param>
     public SchemaRangeValidator(
         ISchemaTypeRegistry registry,
         ISchemaRangeChecker rangeChecker,
-        IContentTypeService? contentTypeService = null)
+        IContentTypeService? contentTypeService)
     {
         _registry = registry;
         _rangeChecker = rangeChecker;
@@ -159,7 +174,10 @@ public class SchemaRangeValidator : ISchemaRangeValidator
     /// nested sub-property that accepts neither ImageObject nor URL — the resolver's ImageObject
     /// is dropped by the strongly-typed setter (e.g. string-only ImageObject.Name), so the
     /// nested object renders as an empty shell. The media property should be mapped directly
-    /// to the outer schema property as a plain property source instead.
+    /// to the outer schema property as a plain property source instead. Suppressed when the
+    /// nested type is itself an ImageObject-family type, because the render then ADOPTS the
+    /// resolved media AS the nested instance (see <see cref="NestedTypeIsImageObjectFamily"/>)
+    /// and the mapping renders correctly.
     /// </summary>
     private void ValidateMediaOntoSubProperty(
         PropertyMappingDto pm,
@@ -173,6 +191,16 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             return;
 
         if (AcceptsMedia(subProp.AcceptedTypes))
+            return;
+
+        // Mirror the render's adoption rule (JsonLdGenerator.ResolveComplexTypeFromConfig):
+        // when the nested type is itself an ImageObject-family type, the resolved media
+        // ImageObject is ADOPTED as the whole nested instance instead of being set onto — and
+        // silently dropped by — this string-only sub-property. That shape (the exact
+        // logo -> complexType/ImageObject with Name <- media case) RENDERS CORRECTLY, so
+        // warning "the media is dropped" would be a false alarm telling the user to break a
+        // working mapping. Only a non-image nested type (e.g. Person.name) genuinely drops it.
+        if (NestedTypeIsImageObjectFamily(pm.NestedSchemaTypeName))
             return;
 
         issues.Add(new ValidationIssue(
@@ -251,6 +279,22 @@ public class SchemaRangeValidator : ISchemaRangeValidator
         _rangeChecker.IsInRange("ImageObject", acceptedTypes)
         || acceptedTypes.Any(t => string.Equals(t, "Uri", StringComparison.OrdinalIgnoreCase)
                                   || string.Equals(t, "URL", StringComparison.OrdinalIgnoreCase));
+
+    // Single-entry range used to ask "is this nested type an ImageObject-family type?" — the
+    // render path's `nestedInstance is ImageObject` adoption guard, expressed via the shared
+    // range checker so the two can never drift.
+    private static readonly string[] ImageObjectRange = ["ImageObject"];
+
+    /// <summary>
+    /// True when the complexType's nested Schema.org type is an ImageObject-family type: the
+    /// exact condition under which the render (JsonLdGenerator.ResolveComplexTypeFromConfig)
+    /// ADOPTS a resolved media ImageObject AS the nested instance rather than dropping it into
+    /// a string-only sub-property. Reuses the shared <see cref="ISchemaRangeChecker"/> so the
+    /// validator's suppression cannot drift from the render's adoption.
+    /// </summary>
+    private bool NestedTypeIsImageObjectFamily(string? nestedTypeName) =>
+        !string.IsNullOrWhiteSpace(nestedTypeName)
+        && _rangeChecker.IsInRange(nestedTypeName, ImageObjectRange);
 
     private void ValidateBlockRoutes(
         PropertyMappingDto pm,
