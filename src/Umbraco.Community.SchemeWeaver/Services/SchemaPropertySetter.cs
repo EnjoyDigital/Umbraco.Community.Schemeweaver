@@ -775,7 +775,7 @@ public static class SchemaPropertySetter
 
         // Check if this is a media picker property by editor alias
         var editorAlias = prop.PropertyType?.EditorAlias;
-        if (editorAlias is "Umbraco.MediaPicker3" or "Umbraco.MediaPicker")
+        if (editorAlias is not null && SchemeWeaverConstants.PropertyEditors.MediaPickerAliases.Contains(editorAlias))
         {
             // Media pickers must NEVER fall through to value.ToString() below — that would
             // leak raw MediaWithCrops JSON. Return the extracted URL (which may be null when
