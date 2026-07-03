@@ -1,4 +1,7 @@
 using FluentAssertions;
+using NSubstitute;
+using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Services.Validation;
@@ -209,5 +212,116 @@ public class SchemaRangeValidatorTests
         });
 
         _sut.Validate(dto).Should().BeEmpty();
+    }
+
+    // --- Inner complexTypeMappings blind spot (media logo trap) --------------
+
+    /// <summary>
+    /// Builds the validator against its RICHEST available constructor, injecting the real
+    /// registry/checker and the supplied <see cref="IContentTypeService"/> (any other new
+    /// dependency gets an NSubstitute mock). Inspecting the INNER complexTypeMappings needs an
+    /// editor-alias lookup, so the fix is expected to add an IContentTypeService parameter —
+    /// constructing reflectively keeps this file compiling against both the current 2-param
+    /// ctor (the test then runs RED against current behaviour) and the fixed ctor.
+    /// </summary>
+    private static SchemaRangeValidator CreateValidator(IContentTypeService contentTypeService)
+    {
+        var registry = new SchemaTypeRegistry();
+        registry.EnsureInitialised();
+        var checker = new SchemaRangeChecker(registry);
+
+        var ctor = typeof(SchemaRangeValidator).GetConstructors()
+            .OrderByDescending(c => c.GetParameters().Length)
+            .First();
+
+        var args = ctor.GetParameters()
+            .Select(p =>
+                p.ParameterType.IsInstanceOfType(registry) ? (object)registry
+                : p.ParameterType.IsInstanceOfType(checker) ? checker
+                : p.ParameterType.IsInstanceOfType(contentTypeService) ? contentTypeService
+                : Substitute.For(new[] { p.ParameterType }, Array.Empty<object>()))
+            .ToArray();
+
+        return (SchemaRangeValidator)ctor.Invoke(args);
+    }
+
+    private static IContentTypeService ContentTypeServiceWith(
+        string contentTypeAlias, params (string alias, string editorAlias)[] properties)
+    {
+        var contentType = Substitute.For<IContentType>();
+        var propertyTypes = properties.Select(p =>
+        {
+            var pt = Substitute.For<IPropertyType>();
+            pt.Alias.Returns(p.alias);
+            pt.PropertyEditorAlias.Returns(p.editorAlias);
+            return pt;
+        }).ToList();
+        contentType.PropertyTypes.Returns(propertyTypes);
+        contentType.CompositionPropertyTypes.Returns(propertyTypes);
+
+        var service = Substitute.For<IContentTypeService>();
+        service.Get(contentTypeAlias).Returns(contentType);
+        return service;
+    }
+
+    [Fact]
+    public void BrokenMediaLogoShape_WarnsOnce_ControlPropertySourcedLogoIsClean()
+    {
+        // Organization.Logo mapped as complexType/ImageObject with the persisted inner
+        // binding ImageObject.Name <- 'logo', where 'logo' is a MediaPicker3: the media
+        // resolves to a full ImageObject that the string-only ImageObject.Name silently
+        // drops at render time — an empty {"@type":"ImageObject"} shell. Today only the
+        // OUTER NestedSchemaTypeName is range-checked (ImageObject is in Logo's range, so
+        // it validates allClear); the validator must inspect the inner complexTypeMappings
+        // and warn.
+        var contentTypeService = ContentTypeServiceWith(
+            "siteSettings", ("logo", "Umbraco.MediaPicker3"));
+        var sut = CreateValidator(contentTypeService);
+
+        var broken = new SchemaMappingDto
+        {
+            ContentTypeAlias = "siteSettings",
+            SchemaTypeName = "Organization",
+            IsEnabled = true,
+            PropertyMappings =
+            [
+                new PropertyMappingDto
+                {
+                    SchemaPropertyName = "Logo",
+                    SourceType = "complexType",
+                    NestedSchemaTypeName = "ImageObject",
+                    ResolverConfig =
+                        """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"logo"}]}"""
+                }
+            ]
+        };
+
+        var issues = sut.Validate(broken);
+
+        issues.Should().ContainSingle(
+            "binding a media-picker value onto string-only ImageObject.Name drops the logo at render time");
+        issues[0].Severity.Should().Be(ValidationSeverity.Warning);
+        issues[0].Path.Should().Be("Logo");
+        issues[0].Message.Should().Contain("Logo");
+
+        // Control: the healthy shape — a plain property-sourced logo mapping (the resolver
+        // builds the ImageObject itself) — must NOT be flagged by the fix.
+        var healthy = new SchemaMappingDto
+        {
+            ContentTypeAlias = "siteSettings",
+            SchemaTypeName = "Organization",
+            IsEnabled = true,
+            PropertyMappings =
+            [
+                new PropertyMappingDto
+                {
+                    SchemaPropertyName = "Logo",
+                    SourceType = "property",
+                    ContentTypePropertyAlias = "logo"
+                }
+            ]
+        };
+
+        sut.Validate(healthy).Should().BeEmpty("property-sourced media logos are the correct shape");
     }
 }

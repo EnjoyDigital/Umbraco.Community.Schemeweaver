@@ -391,6 +391,24 @@ public class SchemaPropertySetterTests
     }
 
     [Fact]
+    public void SetPropertyValue_ListOfUrlStrings_SetsOnOrganizationSameAs()
+    {
+        // Organization.SameAs is OneOrMany<Uri>. A MultiUrlPicker resolving several
+        // profile URLs arrives as List<string>; there is no string→Uri implicit operator,
+        // so the string-collection path must parse each URL into a Uri — every URL must
+        // land in the output, not be silently dropped.
+        var org = new Organization();
+        var urls = new List<string> { "https://twitter.com/acme", "https://facebook.com/acme" };
+
+        SchemaPropertySetter.SetPropertyValue(org, "SameAs", urls);
+
+        var jsonLd = org.ToString();
+        jsonLd.Should().Contain("sameAs");
+        jsonLd.Should().Contain("https://twitter.com/acme");
+        jsonLd.Should().Contain("https://facebook.com/acme");
+    }
+
+    [Fact]
     public void SetPropertyValue_ImageObject_ToLogo_SetsImageObject()
     {
         // Organization.Logo is OneOrMany<Values<IImageObject, Uri>> — accepts IImageObject, so

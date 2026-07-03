@@ -129,6 +129,41 @@ public class MultiUrlPickerResolverTests
     }
 
     [Fact]
+    public void Resolve_MultipleLinks_ReturnsAllUrls()
+    {
+        // A multi-link value (e.g. an editor's social profiles feeding Organization.sameAs)
+        // must resolve to ALL URLs as a List<string> — silently returning only the first
+        // link loses data the editor deliberately entered. Relative links absolutise
+        // against the current request host, matching the single-link behaviour.
+        var links = new List<Link>
+        {
+            new() { Url = "https://twitter.com/acme", Name = "Twitter" },
+            new() { Url = "https://facebook.com/acme", Name = "Facebook" },
+            new() { Url = "/about-us/", Name = "About" }
+        };
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(links);
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var httpContext = Substitute.For<HttpContext>();
+        var request = Substitute.For<HttpRequest>();
+        request.Scheme.Returns("https");
+        request.Host.Returns(new HostString("www.example.com"));
+        httpContext.Request.Returns(request);
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var context = CreateContext(property, httpContextAccessor);
+
+        var result = _sut.Resolve(context);
+
+        var urls = result.Should().BeOfType<List<string>>().Subject;
+        urls.Should().Equal(
+            "https://twitter.com/acme",
+            "https://facebook.com/acme",
+            "https://www.example.com/about-us/");
+    }
+
+    [Fact]
     public void Resolve_NonLinkValue_ReturnsToString()
     {
         var property = Substitute.For<IPublishedProperty>();

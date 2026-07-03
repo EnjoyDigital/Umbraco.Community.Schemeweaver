@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
+using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
@@ -431,6 +432,37 @@ public class BlockContentResolverTests
         strings.Should().HaveCount(2);
         strings[0].Should().Be("200g flour");
         strings[1].Should().Be("100g sugar");
+    }
+
+    [Fact]
+    public void Resolve_StringListExtraction_MultiUrlPickerProperty_ReturnsAbsoluteUrls()
+    {
+        // extractAs:stringList over blocks whose contentProperty is a MultiUrlPicker
+        // (e.g. a social-profile link block feeding Organization.sameAs). The value is
+        // IEnumerable<Link>, not a string — the stringList path must route it through the
+        // factory's MultiUrlPickerResolver instead of falling back to .ToString(), which
+        // yields "System.Collections.Generic.List`1[Umbraco.Cms.Core.Models.Link]" garbage.
+        var block1 = CreateBlockElementWithEditors("socialLink",
+            ("href", new List<Link> { new() { Url = "https://twitter.com/acme", Name = "Twitter" } }, "Umbraco.MultiUrlPicker"));
+        var block2 = CreateBlockElementWithEditors("socialLink",
+            ("href", new List<Link> { new() { Url = "https://facebook.com/acme", Name = "Facebook" } }, "Umbraco.MultiUrlPicker"));
+        var blockListModel = CreateBlockListModel(block1, block2);
+
+        var resolverConfig = JsonSerializer.Serialize(new { extractAs = "stringList", contentProperty = "href" });
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var factory = new PropertyValueResolverFactory([
+            new MultiUrlPickerResolver(),
+            new DefaultPropertyValueResolver()
+        ]);
+        var context = CreateContext(property, resolverConfig: resolverConfig, resolverFactory: factory);
+
+        var result = _sut.Resolve(context);
+
+        var strings = result.Should().BeOfType<List<string>>().Subject;
+        strings.Should().Equal("https://twitter.com/acme", "https://facebook.com/acme");
     }
 
     [Fact]

@@ -2,11 +2,22 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Schema.NET;
+using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.PropertyEditors.ValueConverters;
+using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Routing;
+using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Community.SchemeWeaver.Graph;
+using Umbraco.Community.SchemeWeaver.Graph.Pieces;
+using Umbraco.Community.SchemeWeaver.Models.Entities;
+using Umbraco.Community.SchemeWeaver.Persistence;
+using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.Resolvers;
+using Umbraco.Community.SchemeWeaver.Tests.Unit.TestSupport;
 using Xunit;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit.Graph;
@@ -326,6 +337,96 @@ public class GraphGeneratorTests
         var jsonExplicitAll = sut.GenerateGraphJson(Page(), scope: PieceScopeFilter.All);
 
         jsonNoArg.Should().Be(jsonExplicitAll);
+    }
+
+    // --- Site-settings logo repair (media logo complexType trap) ------------
+
+    [Fact]
+    public void GenerateGraphJson_SiteScope_OrganizationLogo_FromBrokenPersistedShape_HasUrl()
+    {
+        HermeticStaticServiceProvider.EnsureInstalled();
+
+        // Settings node carrying the broken persisted Logo shape (complexType/ImageObject
+        // binding ImageObject.Name <- the MediaPicker3 'logo' alias) plus a real media value.
+        // This drives the REAL OrganizationPiece -> JsonLdGenerator path: the site-scope
+        // #organization node must emit a populated logo (url present), not an empty
+        // {"@type":"ImageObject"} shell.
+        var settings = Substitute.For<IPublishedContent>();
+        var settingsType = Substitute.For<IPublishedContentType>();
+        settingsType.Alias.Returns("siteSettings");
+        settings.ContentType.Returns(settingsType);
+        settings.Id.Returns(7);
+        settings.Key.Returns(Guid.NewGuid());
+
+        var nameProp = Substitute.For<IPublishedProperty>();
+        nameProp.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("Acme Lettings");
+        settings.GetProperty("organisationName").Returns(nameProp);
+
+        var media = Substitute.For<IPublishedContent>();
+        _urlProvider
+            .GetMediaUrl(media, UrlMode.Absolute, Arg.Any<string?>(), Arg.Any<string>(), Arg.Any<Uri?>())
+            .Returns("https://example.com/media/brand/logo.png");
+        var logoProp = Substitute.For<IPublishedProperty>();
+        var logoPropType = Substitute.For<IPublishedPropertyType>();
+        logoPropType.EditorAlias.Returns("Umbraco.MediaPicker3");
+        logoProp.PropertyType.Returns(logoPropType);
+        logoProp.GetValue(Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns(new MediaWithCrops(media, Substitute.For<IPublishedValueFallback>(), new ImageCropperValue()));
+        settings.GetProperty("logo").Returns(logoProp);
+
+        _siteSettingsResolver.Resolve().Returns(settings);
+
+        var repository = Substitute.For<ISchemaMappingRepository>();
+        repository.GetByContentTypeAlias("siteSettings").Returns(new SchemaMapping
+        {
+            Id = 7,
+            ContentTypeAlias = "siteSettings",
+            SchemaTypeName = "Organization",
+            IsEnabled = true
+        });
+        repository.GetPropertyMappings(7).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "organisationName" },
+            new()
+            {
+                SchemaPropertyName = "Logo",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "ImageObject",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"logo"}]}"""
+            }
+        });
+
+        var registry = new SchemaTypeRegistry();
+        var generator = new JsonLdGenerator(
+            repository,
+            registry,
+            _httpContextAccessor,
+            Substitute.For<IDocumentNavigationQueryService>(),
+            Substitute.For<IPublishedContentStatusFilteringService>(),
+            new PropertyValueResolverFactory([
+                new MediaPickerResolver(NullLogger<MediaPickerResolver>.Instance, _urlProvider),
+                new DefaultPropertyValueResolver()
+            ]),
+            _urlProvider,
+            Substitute.For<IVariationContextAccessor>(),
+            NullLogger<JsonLdGenerator>.Instance,
+            Options.Create(new SchemeWeaverOptions()));
+
+        var sut = Build(new OrganizationPiece(generator, registry, NullLogger<OrganizationPiece>.Instance));
+
+        var json = sut.GenerateGraphJson(Page(), scope: PieceScopeFilter.Site);
+
+        json.Should().NotBeNull("the settings node has an enabled Organization mapping");
+        using var doc = JsonDocument.Parse(json!);
+        var org = doc.RootElement.GetProperty("@graph").EnumerateArray()
+            .Single(n => n.GetProperty("@type").GetString() == "Organization");
+        org.GetProperty("name").GetString().Should().Be("Acme Lettings");
+        org.TryGetProperty("logo", out var logo)
+            .Should().BeTrue("the #organization node must carry its mapped logo");
+        logo.TryGetProperty("url", out var url)
+            .Should().BeTrue("the logo must be populated — an empty ImageObject shell is the regression");
+        url.GetString().Should().Be("https://example.com/media/brand/logo.png");
     }
 
     private sealed class StubPiece : IGraphPiece
