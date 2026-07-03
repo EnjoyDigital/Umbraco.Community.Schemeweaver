@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -18,15 +19,18 @@ public sealed class InvalidateJsonLdCacheOnMove :
 {
     private readonly IJsonLdBlocksProvider _provider;
     private readonly ISchemaMappingRepository _mappingRepository;
+    private readonly SchemeWeaverOptions _options;
     private readonly ILogger<InvalidateJsonLdCacheOnMove> _logger;
 
     public InvalidateJsonLdCacheOnMove(
         IJsonLdBlocksProvider provider,
         ISchemaMappingRepository mappingRepository,
+        IOptions<SchemeWeaverOptions> options,
         ILogger<InvalidateJsonLdCacheOnMove> logger)
     {
         _provider = provider;
         _mappingRepository = mappingRepository;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -34,11 +38,13 @@ public sealed class InvalidateJsonLdCacheOnMove :
         JsonLdCacheInvalidator.InvalidateTree(
             _provider, _mappingRepository, _logger,
             notification.MoveInfoCollection.Select(m => m.Entity),
+            _options.SiteSettings,
             alwaysRippleToDescendants: true);
 
     public void Handle(ContentMovedToRecycleBinNotification notification) =>
         JsonLdCacheInvalidator.InvalidateTree(
             _provider, _mappingRepository, _logger,
             notification.MoveInfoCollection.Select(m => m.Entity),
+            _options.SiteSettings,
             alwaysRippleToDescendants: true);
 }
