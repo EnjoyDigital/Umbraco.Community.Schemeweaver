@@ -41,10 +41,22 @@ public sealed class BreadcrumbListPiece : IGraphPiece
 
     public string? ResolveId(GraphPieceContext ctx)
     {
-        if (ctx.PageUrl is null)
-            return null;
         var ancestors = WalkAncestors(ctx.Content);
-        return ancestors.Count < 2 ? null : $"{ctx.PageUrl}#breadcrumb";
+        if (ancestors.Count < 2)
+            return null;
+
+        // Don't gate the whole breadcrumb on an absolute PageUrl. In the
+        // backoffice preview and behind a reverse proxy (X-Forwarded-Host)
+        // absolute-URL resolution can come back null/"#", which used to drop
+        // the entire BreadcrumbList. Build() already tolerates missing per-item
+        // URLs, so fall back to a relative URL and finally a synthetic key so
+        // the trail always emits when the page has ancestors.
+        var basis = ctx.PageUrl?.ToString();
+        if (string.IsNullOrEmpty(basis) || basis == "#")
+            basis = _urlProvider.GetUrl(ctx.Content, UrlMode.Relative);
+        return string.IsNullOrEmpty(basis) || basis == "#"
+            ? $"#breadcrumb-{ctx.Content.Key}"
+            : $"{basis}#breadcrumb";
     }
 
     public Thing? Build(GraphPieceContext ctx)

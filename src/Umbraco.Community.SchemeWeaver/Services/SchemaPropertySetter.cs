@@ -309,6 +309,38 @@ public static class SchemaPropertySetter
     }
 
     /// <summary>
+    /// Builds an @id-only cross-reference value typed to match the target
+    /// property's Schema.org range. A graph reference is a Thing carrying only
+    /// <c>@id</c>, but narrowly-typed properties would silently drop a bare
+    /// <see cref="Thing"/>: e.g. <c>Article.publisher</c> accepts
+    /// <see cref="IOrganization"/>, so a plain Thing never binds and the
+    /// publisher vanishes. Pick the concrete type from the property's range
+    /// using the same name heuristic as scalar auto-wrapping (publisher →
+    /// Organization, author → Person). Falls back to a bare Thing when the
+    /// range already accepts <see cref="IThing"/> (e.g. about/mainEntity) or
+    /// can't be resolved. GraphGenerator's ref-collapse then reduces the
+    /// serialised <c>{@type,@id}</c> to <c>{@id}</c>.
+    /// </summary>
+    internal static Thing CreateReferenceShell(Thing instance, string propertyName, Uri id)
+    {
+        var property = instance.GetType().GetProperty(propertyName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+
+        if (property is { CanWrite: true })
+        {
+            var candidates = CollectCandidateThingInterfaces(property.PropertyType);
+            if (ChooseConcreteThingType(candidates, propertyName) is { } concreteType
+                && Activator.CreateInstance(concreteType) is Thing typed)
+            {
+                typed.Id = id;
+                return typed;
+            }
+        }
+
+        return new Thing { Id = id };
+    }
+
+    /// <summary>
     /// Chooses a concrete Schema.NET type to instantiate for a property mapping.
     /// Picks the best match from the candidate interfaces using a small property-name
     /// heuristic, then falls back to the first candidate.

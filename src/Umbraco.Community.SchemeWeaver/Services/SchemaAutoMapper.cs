@@ -238,10 +238,13 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         ["Event.offers"] = new("complexType", "Offer", null),
 
         ["Article.author"] = new("complexType", "Person", null),
-        ["Article.publisher"] = new("complexType", "Organization", null),
+        // publisher on an article is the site publisher — reference the shared
+        // Organization graph node (as the page types do), NOT a fresh empty
+        // Organization shell. Matches ReferenceCandidates["publisher"].
+        ["Article.publisher"] = new("reference", null, null, "organization"),
 
         ["BlogPosting.author"] = new("complexType", "Person", null),
-        ["BlogPosting.publisher"] = new("complexType", "Organization", null),
+        ["BlogPosting.publisher"] = new("reference", null, null, "organization"),
 
         ["Recipe.recipeIngredient"] = new("blockContent", null,
             """{"extractAs":"stringList","contentProperty":"ingredient"}"""),
@@ -286,9 +289,9 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
         // NewsArticle / TechArticle (inherit Article patterns)
         ["NewsArticle.author"] = new("complexType", "Person", null),
-        ["NewsArticle.publisher"] = new("complexType", "Organization", null),
+        ["NewsArticle.publisher"] = new("reference", null, null, "organization"),
         ["TechArticle.author"] = new("complexType", "Person", null),
-        ["TechArticle.publisher"] = new("complexType", "Organization", null),
+        ["TechArticle.publisher"] = new("reference", null, null, "organization"),
 
         // JobPosting
         ["JobPosting.hiringOrganization"] = new("complexType", "Organization", null),
@@ -304,7 +307,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
         // Book
         ["Book.author"] = new("complexType", "Person", null),
-        ["Book.publisher"] = new("complexType", "Organization", null),
+        ["Book.publisher"] = new("reference", null, null, "organization"),
         ["Book.offers"] = new("complexType", "Offer", null),
 
         // HowTo

@@ -397,6 +397,40 @@ public class SchemaAutoMapperTests
         offers.SuggestedNestedSchemaTypeName.Should().Be("Offer");
     }
 
+    [Theory]
+    [InlineData("Article")]
+    [InlineData("BlogPosting")]
+    [InlineData("NewsArticle")]
+    [InlineData("TechArticle")]
+    [InlineData("Book")]
+    public void ArticleFamily_Publisher_SuggestsReferenceToOrganization(string schemaType)
+    {
+        // publisher on an article/book is the site publisher: it must reference
+        // the shared Organization graph node (as the page types do), NOT author a
+        // fresh empty Organization shell (the old complexType/Organization default,
+        // which produced a detached, @id-less publisher).
+        var contentType = CreateContentTypeWithProperties("unrelated");
+        _contentTypeService.Get("node").Returns(contentType);
+        _schemaTypeRegistry.GetProperties(schemaType).Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "publisher",
+                PropertyType = "Organization",
+                IsComplexType = true,
+                AcceptedTypes = ["Organization", "Person"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("node", schemaType).ToList();
+
+        var publisher = result.First(s => s.SchemaPropertyName == "publisher");
+        publisher.SuggestedSourceType.Should().Be("reference");
+        publisher.SuggestedTargetPieceKey.Should().Be("organization");
+        publisher.IsAutoMapped.Should().BeTrue();
+        publisher.Confidence.Should().Be(90);
+    }
+
     [Fact]
     public void LocalBusiness_Address_SuggestsPostalAddress()
     {
