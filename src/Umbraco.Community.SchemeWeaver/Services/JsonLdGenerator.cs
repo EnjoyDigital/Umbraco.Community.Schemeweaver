@@ -130,14 +130,15 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                         || !Uri.TryCreate(refId, UriKind.Absolute, out var refUri))
                         continue;
 
-                    // Thing shell with only @id — GraphGenerator's ref-collapse
-                    // will reduce the serialised form to {"@id": "..."}. Works
-                    // for any target property that accepts a Thing-typed value,
-                    // which covers all cross-entity links in Schema.org.
+                    // @id-only shell typed to the target property's range so it
+                    // binds even to narrowly-typed properties (e.g. publisher
+                    // needs an Organization, not a bare Thing). GraphGenerator's
+                    // ref-collapse then reduces the serialised form to {"@id": …}.
                     SchemaPropertySetter.SetPropertyValue(
                         instance,
                         propMapping.SchemaPropertyName,
-                        new Thing { Id = refUri });
+                        SchemaPropertySetter.CreateReferenceShell(
+                            instance, propMapping.SchemaPropertyName, refUri));
                     continue;
                 }
 

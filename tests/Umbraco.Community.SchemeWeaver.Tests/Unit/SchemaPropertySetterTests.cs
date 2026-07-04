@@ -445,4 +445,43 @@ public class SchemaPropertySetterTests
     }
 
     #endregion
+
+    #region Reference shells (cross-piece @id links)
+
+    [Fact]
+    public void CreateReferenceShell_Publisher_ReturnsTypedOrganizationCarryingId()
+    {
+        // Article.publisher accepts an Organization, not a bare Thing. A generic
+        // Thing shell would fail to bind and the publisher would silently vanish —
+        // the reference must be typed as Organization.
+        var article = new Article();
+        var id = new Uri("https://example.com/#organization");
+
+        var shell = SchemaPropertySetter.CreateReferenceShell(article, "publisher", id);
+
+        shell.Should().BeOfType<Organization>();
+        shell.Id.Should().Be(id);
+
+        // …and it actually binds and serialises as a publisher @id reference.
+        SchemaPropertySetter.SetPropertyValue(article, "publisher", shell);
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("publisher");
+        jsonLd.Should().Contain("https://example.com/#organization");
+    }
+
+    [Fact]
+    public void CreateReferenceShell_ThingRangeProperty_ReturnsBareThing()
+    {
+        // mainEntity accepts IThing directly, so a bare Thing is correct and must
+        // NOT be narrowed to a concrete subtype.
+        var page = new WebPage();
+        var id = new Uri("https://example.com/#organization");
+
+        var shell = SchemaPropertySetter.CreateReferenceShell(page, "mainEntity", id);
+
+        shell.GetType().Should().Be(typeof(Thing));
+        shell.Id.Should().Be(id);
+    }
+
+    #endregion
 }

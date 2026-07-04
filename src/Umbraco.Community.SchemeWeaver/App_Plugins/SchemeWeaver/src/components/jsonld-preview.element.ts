@@ -131,6 +131,13 @@ export class JsonLdPreviewElement extends UmbLitElement {
       .json-code {
         margin: 0;
         padding: var(--uui-size-space-4);
+        /* Wrap long string values instead of letting them run off the right
+           edge (the enclosing uui-box clips before the pre's own scrollbar,
+           so a non-wrapping <pre> looked "half cut off"). */
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        max-width: 100%;
         overflow-x: auto;
         overflow-y: auto;
         background-color: transparent;

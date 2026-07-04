@@ -14,6 +14,7 @@ using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Services.Navigation;
+using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
@@ -205,6 +206,59 @@ public class JsonLdGeneratorTests
         var result = _sut.GenerateJsonLd(content);
 
         result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void GenerateJsonLd_PublisherReference_BindsTypedOrganizationIdWithinGraph()
+    {
+        // Regression (17.10.3): a `reference` source type emitted a bare Thing,
+        // which cannot bind to Article.publisher (range Organization) and was
+        // silently dropped. The reference must resolve the org piece's @id from
+        // the graph context AND be typed as Organization so it survives onto the
+        // Article node.
+        var content = CreateContent("article");
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "publisher", SourceType = "reference", TargetPieceKey = "organization" }
+        });
+
+        var graphContext = new GraphPieceContext
+        {
+            Content = content,
+            Ids = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["organization"] = "https://example.com/#organization"
+            }
+        };
+
+        var result = _sut.GenerateJsonLd(content, culture: null, graphContext);
+
+        result.Should().BeOfType<Schema.NET.Article>();
+        ((Schema.NET.Article)result!).Publisher.Count.Should().Be(1);
+        var json = result.ToString();
+        json.Should().Contain("publisher");
+        json.Should().Contain("https://example.com/#organization");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_PublisherReference_WithoutGraphContext_SkipsProperty()
+    {
+        // Outside the graph pipeline there is nothing to point at — the reference
+        // must be skipped cleanly, never throw or emit a dangling publisher.
+        var content = CreateContent("article");
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "publisher", SourceType = "reference", TargetPieceKey = "organization" }
+        });
+
+        var result = _sut.GenerateJsonLd(content); // no graph context
+
+        result.Should().BeOfType<Schema.NET.Article>();
+        ((Schema.NET.Article)result!).Publisher.Count.Should().Be(0);
     }
 
     [Fact]
