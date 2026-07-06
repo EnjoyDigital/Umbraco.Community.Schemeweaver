@@ -43,73 +43,92 @@ public sealed class MappingAdvisor : IMappingAdvisor
 
     public IReadOnlyList<MappingAdvice> AdviseEntry(MappingEntryInput entry)
     {
-        var advices = new List<MappingAdvice>();
         if (entry is null
             || string.IsNullOrWhiteSpace(entry.SchemaTypeName)
             || string.IsNullOrWhiteSpace(entry.SchemaPropertyName))
-            return advices;
+            return [];
 
         var schemaProps = _registry.GetProperties(entry.SchemaTypeName).ToList();
         if (schemaProps.Count == 0)
-            return advices;
+            return [];
 
         var targetProp = schemaProps.FirstOrDefault(p =>
             string.Equals(p.Name, entry.SchemaPropertyName, StringComparison.OrdinalIgnoreCase));
 
         var config = ParseConfig(entry.ResolverConfig);
 
-        // Check 1 — an HTML-producing source feeds a plain-text target with no transform.
-        if (targetProp is not null
-            && string.Equals(entry.SourceType, "property", StringComparison.OrdinalIgnoreCase)
-            && entry.ContentEditorAlias is { } editor
-            && SchemeWeaverConstants.PropertyEditors.HtmlProducingEditorAliases.Contains(editor)
-            && SchemaPrimitiveTypes.IsPlainTextRange(targetProp.AcceptedTypes)
-            && !string.Equals(entry.TransformType, "stripHtml", StringComparison.OrdinalIgnoreCase)
-            && !HtmlAllowedProperties.Contains(entry.SchemaPropertyName))
+        // Three independent checks, always all evaluated; emission order is fixed
+        // (StripHtml, then WrapInListItem, then MissingRequired).
+        var advices = new List<MappingAdvice>();
+        advices.AddRange(AdviseStripHtml(entry, targetProp));
+        advices.AddRange(AdviseWrapInListItem(entry, targetProp, config));
+        advices.AddRange(AdviseMissingRequired(entry, config));
+        return advices;
+    }
+
+    // Check 1 — an HTML-producing source feeds a plain-text target with no transform.
+    private static IEnumerable<MappingAdvice> AdviseStripHtml(MappingEntryInput entry, SchemaPropertyInfo? targetProp)
+    {
+        if (targetProp is null
+            || !string.Equals(entry.SourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase)
+            || !SchemaPrimitiveTypes.IsPlainTextRange(targetProp.AcceptedTypes)
+            || string.Equals(entry.TransformType, "stripHtml", StringComparison.OrdinalIgnoreCase)
+            || HtmlAllowedProperties.Contains(entry.SchemaPropertyName))
+            yield break;
+
+        if (entry.ContentEditorAlias is { } editor
+            && SchemeWeaverConstants.PropertyEditors.HtmlProducingEditorAliases.Contains(editor))
         {
-            advices.Add(new MappingAdvice(
+            yield return new MappingAdvice(
                 MappingAdviceKind.StripHtml, entry.SchemaTypeName, entry.SchemaPropertyName,
                 $"'{entry.SchemaPropertyName}' is fed by a rich-text editor ({editor}) but accepts plain text — " +
                 "it will emit raw HTML. Set transformType:'stripHtml' to emit clean text.",
-                new MappingAdviceFix(TransformType: "stripHtml")));
+                new MappingAdviceFix(TransformType: "stripHtml"));
         }
+    }
 
-        // Check 2 — a block list feeds an ordered-list property without ListItem wrapping.
-        if (targetProp is not null
-            && string.Equals(entry.SourceType, "blockContent", StringComparison.OrdinalIgnoreCase)
-            && IsOrderedListProperty(entry.SchemaPropertyName, targetProp.AcceptedTypes)
-            && config is not null
-            && !string.Equals(config.ExtractAs, "stringList", StringComparison.OrdinalIgnoreCase)
-            && HasRoutes(config)
-            && !config.WrapInListItem)
+    // Check 2 — a block list feeds an ordered-list property without ListItem wrapping.
+    private static IEnumerable<MappingAdvice> AdviseWrapInListItem(
+        MappingEntryInput entry, SchemaPropertyInfo? targetProp, ResolverConfigModel? config)
+    {
+        if (targetProp is null
+            || config is null
+            || !string.Equals(entry.SourceType, SchemeWeaverConstants.SourceTypes.BlockContent, StringComparison.OrdinalIgnoreCase)
+            || !IsOrderedListProperty(entry.SchemaPropertyName, targetProp.AcceptedTypes)
+            || string.Equals(config.ExtractAs, "stringList", StringComparison.OrdinalIgnoreCase)
+            || !HasRoutes(config)
+            || config.WrapInListItem)
+            yield break;
+
+        yield return new MappingAdvice(
+            MappingAdviceKind.WrapInListItem, entry.SchemaTypeName, entry.SchemaPropertyName,
+            $"'{entry.SchemaPropertyName}' is an ordered list but its blocks are not wrapped as ListItems — " +
+            "they emit without positions. Set wrapInListItem:true (optionally positionProperty) for an ordered ItemList.",
+            new MappingAdviceFix(WrapInListItem: true));
+    }
+
+    // Check 3 — a known rich-result nested type is missing a required property.
+    private static IEnumerable<MappingAdvice> AdviseMissingRequired(MappingEntryInput entry, ResolverConfigModel? config)
+    {
+        if (config is null)
+            yield break;
+
+        if (config.Routes is { Count: > 0 } routes)
         {
-            advices.Add(new MappingAdvice(
-                MappingAdviceKind.WrapInListItem, entry.SchemaTypeName, entry.SchemaPropertyName,
-                $"'{entry.SchemaPropertyName}' is an ordered list but its blocks are not wrapped as ListItems — " +
-                "they emit without positions. Set wrapInListItem:true (optionally positionProperty) for an ordered ItemList.",
-                new MappingAdviceFix(WrapInListItem: true)));
+            foreach (var route in routes.Where(r => !string.IsNullOrWhiteSpace(r.NestedSchemaType)))
+            {
+                foreach (var advice in MissingRequiredForRoute(entry, route.NestedSchemaType!, route.BlockAlias,
+                             route.PropertyMappings?.Select(m => m.SchemaProperty)))
+                    yield return advice;
+            }
         }
-
-        // Check 3 — a known rich-result nested type is missing a required property.
-        if (config is not null)
+        else if (config.NestedMappings is { Count: > 0 } legacy
+                 && !string.IsNullOrWhiteSpace(entry.NestedSchemaTypeName))
         {
-            if (config.Routes is { Count: > 0 } routes)
-            {
-                foreach (var route in routes.Where(r => !string.IsNullOrWhiteSpace(r.NestedSchemaType)))
-                {
-                    AddMissingRequiredForRoute(entry, route.NestedSchemaType!, route.BlockAlias,
-                        route.PropertyMappings?.Select(m => m.SchemaProperty), advices);
-                }
-            }
-            else if (config.NestedMappings is { Count: > 0 } legacy
-                     && !string.IsNullOrWhiteSpace(entry.NestedSchemaTypeName))
-            {
-                AddMissingRequiredForRoute(entry, entry.NestedSchemaTypeName!, blockAlias: null,
-                    legacy.Select(m => m.SchemaProperty), advices);
-            }
+            foreach (var advice in MissingRequiredForRoute(entry, entry.NestedSchemaTypeName!, blockAlias: null,
+                         legacy.Select(m => m.SchemaProperty)))
+                yield return advice;
         }
-
-        return advices;
     }
 
     public MappingAdvice? AdvisePersistence(string schemaTypeName, PersistenceFacts facts)
@@ -138,15 +157,14 @@ public sealed class MappingAdvisor : IMappingAdvisor
     /// mappings do not cover. Advisory-only (no fix) — the author must choose which block property
     /// supplies the value.
     /// </summary>
-    private static void AddMissingRequiredForRoute(
+    private static IEnumerable<MappingAdvice> MissingRequiredForRoute(
         MappingEntryInput entry,
         string nestedType,
         string? blockAlias,
-        IEnumerable<string?>? mappedProperties,
-        List<MappingAdvice> advices)
+        IEnumerable<string?>? mappedProperties)
     {
         if (!RequiredNestedProperties.TryGetValue(nestedType, out var required))
-            return;
+            yield break;
 
         var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (mappedProperties is not null)
@@ -159,10 +177,10 @@ public sealed class MappingAdvisor : IMappingAdvisor
 
         foreach (var requiredProp in required.Where(p => !covered.Contains(p)))
         {
-            advices.Add(new MappingAdvice(
+            yield return new MappingAdvice(
                 MappingAdviceKind.MissingRequiredNestedProperty, entry.SchemaTypeName, entry.SchemaPropertyName,
                 $"{prefix}{nestedType} does not map '{requiredProp}', which Google's rich result requires — " +
-                $"map it on the route (e.g. the block property holding the {requiredProp})."));
+                $"map it on the route (e.g. the block property holding the {requiredProp}).");
         }
     }
 
