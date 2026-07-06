@@ -85,4 +85,66 @@ public static class SchemeWeaverConstants
             "Umbraco.MarkdownEditor"
         };
     }
+
+    /// <summary>
+    /// Source-type discriminators for a <see cref="Models.Entities.PropertyMapping"/> — they say
+    /// where a Schema.org property's value comes from. Persisted verbatim (author-controlled, always
+    /// lowercase). These constants are the single source of truth for the string literals that were
+    /// previously duplicated across the resolver, auto-mapper, validation, advisory, enrichment,
+    /// serialization and AI layers.
+    /// </summary>
+    /// <remarks>
+    /// The render path (<see cref="Services.JsonLdGenerator"/>, auto-mapper defaults) compares these
+    /// with case-sensitive <c>==</c>/<c>switch</c>; the advisory/validation/enrichment paths use
+    /// <c>OrdinalIgnoreCase</c>. Swapping a literal for the matching constant preserves the value, so
+    /// each call site keeps its existing comparison policy unchanged.
+    /// </remarks>
+    public static class SourceTypes
+    {
+        /// <summary>A scalar or media value read from a property on the current node (the default).</summary>
+        public const string Property = "property";
+
+        /// <summary>A fixed literal value stored on the mapping (<c>StaticValue</c>).</summary>
+        public const string Static = "static";
+
+        /// <summary>A nested Schema.org entity resolved from a complex-type configuration.</summary>
+        public const string ComplexType = "complexType";
+
+        /// <summary>A nested Schema.org entity (or entities) resolved from a Block List / Block Grid.</summary>
+        public const string BlockContent = "blockContent";
+
+        /// <summary>A shared graph piece referenced by key (emits a range-typed <c>@id</c> shell).</summary>
+        public const string Reference = "reference";
+
+        /// <summary>A value read from the parent node.</summary>
+        public const string Parent = "parent";
+
+        /// <summary>A value read from an ancestor node.</summary>
+        public const string Ancestor = "ancestor";
+
+        /// <summary>A value read from a sibling node.</summary>
+        public const string Sibling = "sibling";
+
+        private static readonly HashSet<string> CrossNode =
+            new(StringComparer.OrdinalIgnoreCase) { Parent, Ancestor, Sibling, Reference };
+
+        private static readonly HashSet<string> NestedThing =
+            new(StringComparer.OrdinalIgnoreCase) { ComplexType, BlockContent };
+
+        /// <summary>
+        /// Source types whose value is resolved from a node other than the current one
+        /// (<see cref="Parent"/>, <see cref="Ancestor"/>, <see cref="Sibling"/>, <see cref="Reference"/>).
+        /// A change to such a source can invalidate JSON-LD cached against a different node, so the
+        /// cache invalidator fans out across relationships for these. Compared case-insensitively.
+        /// </summary>
+        public static bool IsCrossNode(string? sourceType) =>
+            sourceType is not null && CrossNode.Contains(sourceType);
+
+        /// <summary>
+        /// Source types that resolve to a nested Schema.org <c>Thing</c> rather than a scalar
+        /// (<see cref="ComplexType"/>, <see cref="BlockContent"/>). Compared case-insensitively.
+        /// </summary>
+        public static bool ResolvesToNestedThing(string? sourceType) =>
+            sourceType is not null && NestedThing.Contains(sourceType);
+    }
 }

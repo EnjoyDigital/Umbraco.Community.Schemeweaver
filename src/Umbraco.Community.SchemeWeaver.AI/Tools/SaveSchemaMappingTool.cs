@@ -30,7 +30,7 @@ public record SaveSchemaMappingPropertyArg(
         "How to resolve the value. Use 'property' to read from a property on the current content node " +
         "(including built-ins __name, __url, __createDate, __updateDate). " +
         "Use 'static' to store a hardcoded literal value — set staticValue instead of contentTypePropertyAlias.")]
-    string SourceType = "property",
+    string SourceType = SchemeWeaverConstants.SourceTypes.Property,
     [property: Description("The hardcoded literal value to store when sourceType is 'static' (e.g., 'en-GB', 'https://schema.org/InStock').")]
     string? StaticValue = null);
 
@@ -77,7 +77,7 @@ public class SaveSchemaMappingTool : AIToolBase<SaveSchemaMappingArgs>
                 IsEnabled = true,
                 IsInherited = false,
                 PropertyMappings = args.PropertyMappings
-                    .Where(p => !string.IsNullOrEmpty(p.ContentTypePropertyAlias) || p.SourceType == "static")
+                    .Where(p => !string.IsNullOrEmpty(p.ContentTypePropertyAlias) || p.SourceType == SchemeWeaverConstants.SourceTypes.Static)
                     .Select(p => new PropertyMappingDto
                     {
                         SchemaPropertyName = p.SchemaPropertyName,
