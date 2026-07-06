@@ -35,93 +35,13 @@ public static class SchemaPropertySetter
 
         var targetType = property.PropertyType;
 
-        // If the value is already the correct type, set directly
-        if (targetType.IsInstanceOfType(value))
+        // Try each conversion strategy in declared order; the first that handles the value wins.
+        // The order is load-bearing (identity first, image→Uri range guard before any coercion,
+        // whole-collection before first-string fallback) — see the SetStrategies table.
+        foreach (var strategy in SetStrategies)
         {
-            property.SetValue(instance, value);
-            return;
-        }
-
-        // Media values now arrive as Schema.NET ImageObject(s). When the target accepts
-        // IImageObject (e.g. Article.Image, Organization.Logo) we fall through to the normal
-        // OneOrMany/Values/collection handling below, which sets the ImageObject(s) directly.
-        // But some targets accept only a Uri leaf (e.g. Thing.Url, contentUrl, sameAs) and NOT
-        // IImageObject — an ImageObject would otherwise be dropped. Downgrade it to its URL.
-        if (IsImageObjectValue(value)
-            && !TargetAcceptsLeaf(targetType, typeof(IImageObject))
-            && TargetAcceptsLeaf(targetType, typeof(Uri)))
-        {
-            var downgraded = DowngradeImageToUri(value);
-            if (downgraded is not null)
-            {
-                SetPropertyValue(instance, propertyName, downgraded, logger);
+            if (strategy(property, instance, propertyName, targetType, value, logger))
                 return;
-            }
-        }
-
-        // Try to find an implicit conversion operator that accepts our value type
-        var converted = TryConvertViaImplicit(targetType, value);
-        if (converted is not null)
-        {
-            property.SetValue(instance, converted);
-            return;
-        }
-
-        // Handle IEnumerable<Thing> for collection properties (e.g., block content results)
-        if (value is IEnumerable<Thing> things
-            && TrySetCollectionValue(property, instance, targetType, things))
-            return;
-
-        // Handle IEnumerable<string> for string array properties (e.g., recipeIngredient)
-        if (value is IEnumerable<string> strings)
-        {
-            if (TrySetStringCollectionValue(property, instance, targetType, strings))
-                return;
-
-            // The collection could not be set as a whole (e.g. a bare Values<...> target).
-            // Fall back to the FIRST string so a multi-value resolver result (e.g. a
-            // MultiUrlPicker with several links) never regresses a target that previously
-            // accepted a single string value.
-            var firstString = strings.FirstOrDefault(s => !string.IsNullOrEmpty(s));
-            if (firstString is not null)
-            {
-                SetPropertyValue(instance, propertyName, firstString, logger);
-                return;
-            }
-        }
-
-        // Handle OneOrMany<T> types from Schema.NET by building from inside out
-        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany")
-            && TrySetOneOrManyValue(property, instance, targetType, value))
-            return;
-
-        // Handle Values<T1, T2, ...> types directly (e.g., Image is Values<IImageObject, Uri>)
-        if (targetType is { IsGenericType: true } && targetType.GetGenericTypeDefinition().Name.StartsWith("Values")
-            && TrySetValuesValue(property, instance, targetType, value))
-            return;
-
-        // Simple string assignment
-        if (targetType == typeof(string) && value is string strVal)
-        {
-            property.SetValue(instance, strVal);
-            return;
-        }
-
-        // Auto-wrap scalar strings into a concrete Thing for object-typed properties.
-        // e.g. `Brand` mapped from a Textbox → { "@type": "Brand", "name": "AudioTech" }.
-        // Users very commonly map Schema.org object properties (Brand, Author, Publisher)
-        // from a plain string field; without this fallback Schema.NET silently drops the
-        // value because no implicit conversion from string to IBrand/IPerson exists.
-        if (value is string scalarString && !string.IsNullOrWhiteSpace(scalarString))
-        {
-            var wrapped = TryWrapScalarAsThing(targetType, propertyName, scalarString);
-            if (wrapped is not null)
-            {
-                // Re-enter the main setter with the wrapped Thing — it will match the
-                // normal Thing-handling paths (implicit conversion / OneOrMany / Values).
-                SetPropertyValue(instance, propertyName, wrapped, logger);
-                return;
-            }
         }
 
         // Nothing matched: the value's type can't be converted to the target
@@ -133,6 +53,147 @@ public static class SchemaPropertySetter
             "Could not set Schema property '{PropertyName}' on {SchemaType}: value of type {ValueType} " +
             "is not convertible to the property's type {TargetType} and was dropped",
             propertyName, instance.GetType().Name, value.GetType().Name, targetType.Name);
+    }
+
+    /// <summary>
+    /// One conversion strategy in the <see cref="SetPropertyValue"/> chain. Returns <c>true</c>
+    /// when it has set the property (the chain then stops), <c>false</c> to defer to the next
+    /// strategy. Strategies never throw on a bad match — they simply return <c>false</c>.
+    /// </summary>
+    private delegate bool SetStrategy(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger);
+
+    /// <summary>
+    /// The ordered conversion chain for <see cref="SetPropertyValue"/>. ORDER IS BEHAVIOURAL:
+    /// the fast identity path runs first; the ImageObject→Uri range guard runs before any
+    /// coercion; the whole-string-collection set runs before the first-string fallback.
+    /// </summary>
+    private static readonly SetStrategy[] SetStrategies =
+    [
+        TrySetAssignableIdentity,   // 1. value already the correct type — set directly
+        TryDowngradeImageToUriLeaf, // 2. image→Uri range guard (REV-1)
+        TrySetImplicit,             // 3. implicit conversion operator
+        TrySetThingEnumerable,      // 4. IEnumerable<Thing> collection
+        TrySetStringEnumerable,     // 5. IEnumerable<string> collection (+ first-string fallback)
+        TrySetOneOrMany,            // 6. OneOrMany<T>
+        TrySetValues,               // 7. Values<T1, T2, ...>
+        TrySetStringAssignment,     // 8. plain string assignment
+        TryWrapScalarThing,         // 9. scalar string → concrete Thing auto-wrap
+    ];
+
+    // If the value is already the correct type, set directly.
+    private static bool TrySetAssignableIdentity(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+    {
+        if (!targetType.IsInstanceOfType(value))
+            return false;
+
+        property.SetValue(instance, value);
+        return true;
+    }
+
+    // Media values now arrive as Schema.NET ImageObject(s). When the target accepts
+    // IImageObject (e.g. Article.Image, Organization.Logo) we fall through to the normal
+    // OneOrMany/Values/collection handling below, which sets the ImageObject(s) directly.
+    // But some targets accept only a Uri leaf (e.g. Thing.Url, contentUrl, sameAs) and NOT
+    // IImageObject — an ImageObject would otherwise be dropped. Downgrade it to its URL.
+    private static bool TryDowngradeImageToUriLeaf(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+    {
+        if (IsImageObjectValue(value)
+            && !TargetAcceptsLeaf(targetType, typeof(IImageObject))
+            && TargetAcceptsLeaf(targetType, typeof(Uri)))
+        {
+            var downgraded = DowngradeImageToUri(value);
+            if (downgraded is not null)
+            {
+                SetPropertyValue(instance, propertyName, downgraded, logger);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Try to find an implicit conversion operator that accepts our value type.
+    private static bool TrySetImplicit(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+        => TrySetViaImplicit(property, instance, targetType, value);
+
+    // Handle IEnumerable<Thing> for collection properties (e.g., block content results).
+    private static bool TrySetThingEnumerable(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+        => value is IEnumerable<Thing> things
+           && TrySetCollectionValue(property, instance, targetType, things);
+
+    // Handle IEnumerable<string> for string array properties (e.g., recipeIngredient).
+    private static bool TrySetStringEnumerable(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+    {
+        if (value is not IEnumerable<string> strings)
+            return false;
+
+        if (TrySetStringCollectionValue(property, instance, targetType, strings))
+            return true;
+
+        // The collection could not be set as a whole (e.g. a bare Values<...> target).
+        // Fall back to the FIRST string so a multi-value resolver result (e.g. a
+        // MultiUrlPicker with several links) never regresses a target that previously
+        // accepted a single string value.
+        var firstString = strings.FirstOrDefault(s => !string.IsNullOrEmpty(s));
+        if (firstString is not null)
+        {
+            SetPropertyValue(instance, propertyName, firstString, logger);
+            return true;
+        }
+
+        return false;
+    }
+
+    // Handle OneOrMany<T> types from Schema.NET by building from inside out.
+    private static bool TrySetOneOrMany(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+        => targetType is { IsGenericType: true }
+           && targetType.GetGenericTypeDefinition().Name.StartsWith("OneOrMany")
+           && TrySetOneOrManyValue(property, instance, targetType, value);
+
+    // Handle Values<T1, T2, ...> types directly (e.g., Image is Values<IImageObject, Uri>).
+    private static bool TrySetValues(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+        => targetType is { IsGenericType: true }
+           && targetType.GetGenericTypeDefinition().Name.StartsWith("Values")
+           && TrySetValuesValue(property, instance, targetType, value);
+
+    // Simple string assignment.
+    private static bool TrySetStringAssignment(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+    {
+        if (targetType != typeof(string) || value is not string strVal)
+            return false;
+
+        property.SetValue(instance, strVal);
+        return true;
+    }
+
+    // Auto-wrap scalar strings into a concrete Thing for object-typed properties.
+    // e.g. `Brand` mapped from a Textbox → { "@type": "Brand", "name": "AudioTech" }.
+    // Users very commonly map Schema.org object properties (Brand, Author, Publisher)
+    // from a plain string field; without this fallback Schema.NET silently drops the
+    // value because no implicit conversion from string to IBrand/IPerson exists.
+    private static bool TryWrapScalarThing(
+        PropertyInfo property, Thing instance, string propertyName, Type targetType, object value, ILogger? logger)
+    {
+        if (value is not string scalarString || string.IsNullOrWhiteSpace(scalarString))
+            return false;
+
+        var wrapped = TryWrapScalarAsThing(targetType, propertyName, scalarString);
+        if (wrapped is null)
+            return false;
+
+        // Re-enter the main setter with the wrapped Thing — it will match the
+        // normal Thing-handling paths (implicit conversion / OneOrMany / Values).
+        SetPropertyValue(instance, propertyName, wrapped, logger);
+        return true;
     }
 
     /// <summary>
@@ -476,20 +537,7 @@ public static class SchemaPropertySetter
         }
 
         // Fallback: try Activator
-        try
-        {
-            var oneOrMany = Activator.CreateInstance(targetType, typedList);
-            property.SetValue(instance, oneOrMany);
-            return true;
-        }
-        catch (MissingMethodException)
-        {
-            return false;
-        }
-        catch (TargetInvocationException)
-        {
-            return false;
-        }
+        return TryConstructAndSet(property, instance, targetType, typedList);
     }
 
     /// <summary>
@@ -534,20 +582,7 @@ public static class SchemaPropertySetter
                 list.Add(itemConverted);
         }
 
-        try
-        {
-            var oneOrManyInstance = Activator.CreateInstance(targetType, list);
-            property.SetValue(instance, oneOrManyInstance);
-            return true;
-        }
-        catch (MissingMethodException)
-        {
-            return false;
-        }
-        catch (TargetInvocationException)
-        {
-            return false;
-        }
+        return TryConstructAndSet(property, instance, targetType, list);
     }
 
     /// <summary>
@@ -558,90 +593,113 @@ public static class SchemaPropertySetter
     {
         var innerType = targetType.GetGenericArguments()[0];
 
-        // Handle OneOrMany<Values<T1,T2,...>> — the most common Schema.NET pattern
+        // Handle OneOrMany<Values<T1,T2,...>> — the most common Schema.NET pattern.
+        // Build the inner Values<> (implicit + string coercions), then wrap it in OneOrMany<>
+        // via implicit-operator-then-constructor. When both wrapping paths fail we fall through
+        // to the simpler OneOrMany<T> / general handling below.
         if (innerType is { IsGenericType: true } && innerType.GetGenericTypeDefinition().Name.StartsWith("Values"))
         {
             var valuesArgs = innerType.GetGenericArguments();
-
-            // Build Values<> via implicit operator
-            object? valuesInstance = TryConvertViaImplicit(innerType, value);
-
-            // If value is a string, try string-specific conversions
-            if (valuesInstance is null && value is string stringValue)
-            {
-                if (valuesArgs.Any(t => t == typeof(string)))
-                {
-                    valuesInstance = TryConvertViaImplicit(innerType, stringValue);
-                }
-
-                if (valuesInstance is null && valuesArgs.Any(t => t == typeof(Uri))
-                    && Uri.TryCreate(stringValue, UriKind.RelativeOrAbsolute, out var uri))
-                {
-                    valuesInstance = TryConvertViaImplicit(innerType, uri);
-                }
-
-                // Date/number-typed Values inside OneOrMany (mirrors the bare-Values path)
-                if (valuesInstance is null
-                    && TryParseDateOrNumber(valuesArgs, stringValue, out var parsed)
-                    && parsed is not null)
-                {
-                    valuesInstance = TryConvertViaImplicit(innerType, parsed);
-                }
-            }
-
-            if (valuesInstance is not null)
-            {
-                // Build OneOrMany<> from Values<>
-                var oneOrMany = TryConvertViaImplicit(targetType, valuesInstance);
-                if (oneOrMany is not null)
-                {
-                    property.SetValue(instance, oneOrMany);
-                    return true;
-                }
-
-                // Try constructor
-                try
-                {
-                    var oneOrManyInstance = Activator.CreateInstance(targetType, valuesInstance);
-                    property.SetValue(instance, oneOrManyInstance);
-                    return true;
-                }
-                catch (MissingMethodException)
-                {
-                    // Fall through
-                }
-                catch (TargetInvocationException)
-                {
-                    // Fall through
-                }
-            }
+            var valuesInstance = TryBuildValues(innerType, valuesArgs, value);
+            if (valuesInstance is not null && TryWrapAndSet(property, instance, targetType, valuesInstance))
+                return true;
         }
 
         // Handle simple OneOrMany<T> where T is not Values<> (e.g., OneOrMany<Uri>)
         if (value is string strValue && innerType == typeof(Uri)
-            && Uri.TryCreate(strValue, UriKind.RelativeOrAbsolute, out var directUri))
-        {
-            var oneOrMany = TryConvertViaImplicit(targetType, directUri);
-            if (oneOrMany is not null)
-            {
-                property.SetValue(instance, oneOrMany);
-                return true;
-            }
-        }
+            && Uri.TryCreate(strValue, UriKind.RelativeOrAbsolute, out var directUri)
+            && TrySetViaImplicit(property, instance, targetType, directUri))
+            return true;
 
         // General fallback: try converting value directly to OneOrMany<T> via T
         var directConverted = TryConvertViaImplicit(innerType, value);
-        if (directConverted is not null)
+        return directConverted is not null
+               && TrySetViaImplicit(property, instance, targetType, directConverted);
+    }
+
+    /// <summary>
+    /// Builds a Schema.NET <c>Values&lt;…&gt;</c> instance (the inner type of a
+    /// <c>OneOrMany&lt;Values&lt;…&gt;&gt;</c>) from a resolved value. First tries a direct
+    /// implicit conversion; then, for a string value, the string-specific coercions IN ORDER:
+    /// string-typed arg → Uri (RelativeOrAbsolute) → date/number. Returns <c>null</c> when none apply.
+    /// </summary>
+    private static object? TryBuildValues(Type innerType, Type[] valuesArgs, object value)
+    {
+        // Build Values<> via implicit operator
+        var valuesInstance = TryConvertViaImplicit(innerType, value);
+
+        // If value is a string, try string-specific conversions
+        if (valuesInstance is null && value is string stringValue)
         {
-            var oneOrMany = TryConvertViaImplicit(targetType, directConverted);
-            if (oneOrMany is not null)
+            if (valuesArgs.Any(t => t == typeof(string)))
             {
-                property.SetValue(instance, oneOrMany);
-                return true;
+                valuesInstance = TryConvertViaImplicit(innerType, stringValue);
+            }
+
+            if (valuesInstance is null && valuesArgs.Any(t => t == typeof(Uri))
+                && Uri.TryCreate(stringValue, UriKind.RelativeOrAbsolute, out var uri))
+            {
+                valuesInstance = TryConvertViaImplicit(innerType, uri);
+            }
+
+            // Date/number-typed Values inside OneOrMany (mirrors the bare-Values path)
+            if (valuesInstance is null
+                && TryParseDateOrNumber(valuesArgs, stringValue, out var parsed)
+                && parsed is not null)
+            {
+                valuesInstance = TryConvertViaImplicit(innerType, parsed);
             }
         }
 
-        return false;
+        return valuesInstance;
+    }
+
+    /// <summary>
+    /// Converts <paramref name="value"/> to <paramref name="targetType"/> via an implicit
+    /// operator and, on success, assigns it to <paramref name="property"/>. Returns <c>false</c>
+    /// (leaving the property untouched) when no implicit conversion applies.
+    /// </summary>
+    private static bool TrySetViaImplicit(PropertyInfo property, Thing instance, Type targetType, object value)
+    {
+        var converted = TryConvertViaImplicit(targetType, value);
+        if (converted is null)
+            return false;
+
+        property.SetValue(instance, converted);
+        return true;
+    }
+
+    /// <summary>
+    /// Wraps <paramref name="value"/> into <paramref name="targetType"/> and assigns it, trying
+    /// the implicit operator first and then the Activator constructor (the
+    /// implicit-operator-then-Activator-constructor pattern). Returns <c>false</c> when both fail.
+    /// </summary>
+    private static bool TryWrapAndSet(PropertyInfo property, Thing instance, Type targetType, object value)
+        => TrySetViaImplicit(property, instance, targetType, value)
+           || TryConstructAndSet(property, instance, targetType, value);
+
+    /// <summary>
+    /// Constructs <paramref name="targetType"/> from a single argument via
+    /// <see cref="Activator.CreateInstance(Type, object[])"/> and assigns it. Returns <c>false</c>
+    /// on <see cref="MissingMethodException"/> / <see cref="TargetInvocationException"/> (no
+    /// matching constructor) so callers can fall through. Shared by the OneOrMany/collection builders.
+    /// </summary>
+    private static bool TryConstructAndSet(PropertyInfo property, Thing instance, Type targetType, object arg)
+    {
+        try
+        {
+            var created = Activator.CreateInstance(targetType, arg);
+            property.SetValue(instance, created);
+            return true;
+        }
+        catch (MissingMethodException)
+        {
+            return false;
+        }
+        catch (TargetInvocationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
