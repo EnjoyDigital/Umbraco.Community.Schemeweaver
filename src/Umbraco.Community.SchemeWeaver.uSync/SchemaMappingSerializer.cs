@@ -108,53 +108,85 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
             return Task.FromResult(SyncAttempt<SchemaMapping>.Fail(
                 node.Name.LocalName, ChangeType.Fail, "Missing Info element"));
 
-        var alias = info.Element("ContentTypeAlias")?.Value ?? string.Empty;
-        var key = Guid.Parse(info.Element("ContentTypeKey")?.Value ?? Guid.Empty.ToString());
-        var schemaTypeName = info.Element("SchemaTypeName")?.Value ?? string.Empty;
-        var isEnabled = bool.Parse(info.Element("IsEnabled")?.Value ?? "false");
-        var isInherited = bool.Parse(info.Element("IsInherited")?.Value ?? "false");
+        var alias = ElemOr(info, "ContentTypeAlias", string.Empty);
 
-        // Find existing or create new
+        // Idempotent upsert: find the existing mapping by alias so a re-import
+        // updates in place (preserving its DB Id) rather than duplicating.
         var existing = repository.GetByContentTypeAlias(alias);
-        var mapping = existing ?? new SchemaMapping();
+        var mapping = ReadMapping(info, existing ?? new SchemaMapping());
 
-        mapping.ContentTypeAlias = alias;
-        mapping.ContentTypeKey = key;
-        mapping.SchemaTypeName = schemaTypeName;
-        mapping.IsEnabled = isEnabled;
-        mapping.IsInherited = isInherited;
-        mapping.IdOverride = info.Element("IdOverride")?.Value;
-
+        // Save first: the returned Id is the FK (SchemaMappingId) the child
+        // PropertyMappings need, so it MUST run before they are built.
         var saved = repository.Save(mapping);
 
-        // Deserialize property mappings
-        var propertyMappingsNode = node.Element("PropertyMappings");
-        var propertyMappings = new List<PropertyMapping>();
-
-        if (propertyMappingsNode is not null)
-        {
-            propertyMappings.AddRange(propertyMappingsNode.Elements("PropertyMapping").Select(pmNode => new PropertyMapping
-            {
-                SchemaMappingId = saved.Id,
-                SchemaPropertyName = pmNode.Element("SchemaPropertyName")?.Value ?? string.Empty,
-                SourceType = pmNode.Element("SourceType")?.Value ?? "property",
-                ContentTypePropertyAlias = pmNode.Element("ContentTypePropertyAlias")?.Value,
-                SourceContentTypeAlias = pmNode.Element("SourceContentTypeAlias")?.Value,
-                TransformType = pmNode.Element("TransformType")?.Value,
-                IsAutoMapped = bool.Parse(pmNode.Element("IsAutoMapped")?.Value ?? "false"),
-                StaticValue = pmNode.Element("StaticValue")?.Value,
-                NestedSchemaTypeName = pmNode.Element("NestedSchemaTypeName")?.Value,
-                ResolverConfig = pmNode.Element("ResolverConfig")?.Value,
-                DynamicRootConfig = pmNode.Element("DynamicRootConfig")?.Value,
-                TargetPieceKey = pmNode.Element("TargetPieceKey")?.Value,
-            }));
-        }
+        // Full-replace: build the (possibly empty) child set and hand it over
+        // unconditionally, so an entry with no <PropertyMappings> clears the
+        // existing rows.
+        var propertyMappings = node.Element("PropertyMappings")
+            ?.Elements("PropertyMapping")
+            .Select(pmNode => ReadPropertyMapping(pmNode, saved.Id))
+            .ToList()
+            ?? new List<PropertyMapping>();
 
         repository.SavePropertyMappings(saved.Id, propertyMappings);
 
         return Task.FromResult(SyncAttempt<SchemaMapping>.Succeed(
             alias, saved, ChangeType.Import, new List<uSyncChange>()));
     }
+
+    /// <summary>
+    /// Reads the header (<c>&lt;Info&gt;</c>) fields onto <paramref name="target"/>.
+    /// Load-bearing defaults: empty string for alias/schema type, <see cref="Guid.Empty"/>
+    /// for the key, and <c>false</c> for the booleans (see <see cref="ElemBool"/>).
+    /// </summary>
+    private static SchemaMapping ReadMapping(XElement info, SchemaMapping target)
+    {
+        target.ContentTypeAlias = ElemOr(info, "ContentTypeAlias", string.Empty);
+        target.ContentTypeKey = ElemGuid(info, "ContentTypeKey");
+        target.SchemaTypeName = ElemOr(info, "SchemaTypeName", string.Empty);
+        target.IsEnabled = ElemBool(info, "IsEnabled");
+        target.IsInherited = ElemBool(info, "IsInherited");
+        target.IdOverride = Elem(info, "IdOverride");
+        return target;
+    }
+
+    /// <summary>
+    /// Projects a single <c>&lt;PropertyMapping&gt;</c> node onto a
+    /// <see cref="PropertyMapping"/>, wiring <paramref name="mappingId"/> as the FK.
+    /// A missing <c>&lt;SourceType&gt;</c> defaults to
+    /// <see cref="SchemeWeaverConstants.SourceTypes.Property"/> ("property"), not empty.
+    /// </summary>
+    private static PropertyMapping ReadPropertyMapping(XElement pmNode, int mappingId) => new()
+    {
+        SchemaMappingId = mappingId,
+        SchemaPropertyName = ElemOr(pmNode, "SchemaPropertyName", string.Empty),
+        SourceType = ElemOr(pmNode, "SourceType", SchemeWeaverConstants.SourceTypes.Property),
+        ContentTypePropertyAlias = Elem(pmNode, "ContentTypePropertyAlias"),
+        SourceContentTypeAlias = Elem(pmNode, "SourceContentTypeAlias"),
+        TransformType = Elem(pmNode, "TransformType"),
+        IsAutoMapped = ElemBool(pmNode, "IsAutoMapped"),
+        StaticValue = Elem(pmNode, "StaticValue"),
+        NestedSchemaTypeName = Elem(pmNode, "NestedSchemaTypeName"),
+        ResolverConfig = Elem(pmNode, "ResolverConfig"),
+        DynamicRootConfig = Elem(pmNode, "DynamicRootConfig"),
+        TargetPieceKey = Elem(pmNode, "TargetPieceKey"),
+    };
+
+    /// <summary>Child element text, or <paramref name="fallback"/> when the element is absent.</summary>
+    private static string ElemOr(XElement node, string name, string fallback) =>
+        node.Element(name)?.Value ?? fallback;
+
+    /// <summary>Child element text, or <c>null</c> when the element is absent (nullable columns).</summary>
+    private static string? Elem(XElement node, string name) =>
+        node.Element(name)?.Value;
+
+    /// <summary>Child element parsed as a bool, defaulting to <c>false</c> when absent.</summary>
+    private static bool ElemBool(XElement node, string name) =>
+        bool.Parse(node.Element(name)?.Value ?? "false");
+
+    /// <summary>Child element parsed as a <see cref="Guid"/>, defaulting to <see cref="Guid.Empty"/> when absent.</summary>
+    private static Guid ElemGuid(XElement node, string name) =>
+        Guid.Parse(node.Element(name)?.Value ?? Guid.Empty.ToString());
 
     public override Task<SchemaMapping?> FindItemAsync(Guid key)
     {
