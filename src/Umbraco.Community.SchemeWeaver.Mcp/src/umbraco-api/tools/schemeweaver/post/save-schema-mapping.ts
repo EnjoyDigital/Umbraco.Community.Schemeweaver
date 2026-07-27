@@ -33,6 +33,11 @@ const propertyMappingSchema = z.object({
         "Schema.org permits a wrapper object (do NOT wrap a lone 'brand' scalar in a Brand object). Values: " +
         "'property' = a property on the content node itself (set contentTypePropertyAlias); the default for scalars and media. " +
         "Built-ins __name/__url/__createDate/__updateDate are always available here. " +
+        "A content-picker property (Umbraco.ContentPicker or Umbraco.MultiNodeTreePicker) under 'property' renders the picked " +
+        "node(s): by default the node name; with nestedSchemaTypeName set, the whole picked node via its own content type's " +
+        "mapping; or DRILL INTO one property of the picked node via resolverConfig " +
+        '{"pickedPropertyAlias":"...","pickedContentTypeAlias":"...?"} (drill-down wins over nestedSchemaTypeName; ' +
+        "pickedContentTypeAlias is only a backoffice UI hint). MNTP emits a list when several nodes are picked. " +
         "'static' = a fixed value for all content of this type (set staticValue, contentTypePropertyAlias=null); " +
         "'complexType' = the schema property denotes a named ENTITY (Person, Organization, Place, PostalAddress, Offer…); " +
         "nest it even from a single field (e.g. author -> Person from one authorName text prop). Set nestedSchemaTypeName " +
@@ -106,7 +111,13 @@ const propertyMappingSchema = z.object({
         '{"extractAs":"stringList","contentProperty":"..."}. ' +
         "The legacy flat shape {\"nestedMappings\":[{\"blockAlias\":\"...\",\"schemaProperty\":\"...\",\"contentProperty\":\"...\",\"wrapInType\":\"...\",\"wrapInProperty\":\"...\"}]} " +
         "is still accepted for single-level blocks but `routes` is preferred and required for nesting. " +
-        "For complex types: {\"selectedSubType\":\"...\",\"complexTypeMappings\":[{\"schemaProperty\":\"...\",\"sourceType\":\"property|static\",\"contentTypePropertyAlias\":\"...\",\"staticValue\":\"...\"}]}"
+        "For complex types: {\"selectedSubType\":\"...\",\"complexTypeMappings\":[{\"schemaProperty\":\"...\"," +
+        "\"sourceType\":\"property|static|parent|ancestor|sibling|complexType\",\"contentTypePropertyAlias\":\"...\"," +
+        "\"staticValue\":\"...\",\"sourceContentTypeAlias\":\"...?\",\"transformType\":\"...?\"}]} — a parent/ancestor/sibling " +
+        "sub-row reads the property off the related node (relative to the PAGE, at any nesting depth; ancestor/sibling need " +
+        "sourceContentTypeAlias), e.g. an inline Organization whose name/logo read the site root. " +
+        "For a content-picker/MNTP 'property' row, drill into one property of the picked node with: " +
+        "{\"pickedPropertyAlias\":\"...\",\"pickedContentTypeAlias\":\"...?\"} (wins over nestedSchemaTypeName)."
     ),
   dynamicRootConfig: z
     .string()

@@ -5,6 +5,11 @@ import { playwrightLauncher } from '@web/test-runner-playwright';
 export default {
   files: 'src/**/*.test.ts',
   nodeResolve: true,
+  // The modal test files load most of the component graph and sat at ~113s of the
+  // default 120s budget on a mid-range machine — any module growth tipped whole
+  // files into "did not finish" timeouts with zero real failures. Give file runs
+  // headroom; genuinely hung tests still fail, just later.
+  testsFinishTimeout: 300000,
   browsers: [playwrightLauncher({ product: 'chromium' })],
   plugins: [
     importMapsPlugin({

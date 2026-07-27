@@ -4,7 +4,9 @@ import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
 import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
 import { summariseResolverConfig } from './block-route-model.js';
+import { drillConfigToResolverConfig } from '../utils/mapping-converters.js';
 import './property-combobox.element.js';
+import './schema-type-input.element.js';
 
 /** Local shape for uui-combobox events — search/value are exposed by the web component. */
 interface UUIComboboxEventTarget extends HTMLElement {
@@ -99,6 +101,23 @@ export interface PropertyMappingRow {
    * field instead.
    */
   targetPieceKey?: string | null;
+  /**
+   * Picker drill-down: the alias of the property to read OFF THE PICKED NODE
+   * (content picker / MNTP rows only). Persisted inside `resolverConfig` as
+   * `pickedPropertyAlias`; mirrored here for rendering/editing. Mutually
+   * exclusive with {@link nestedSchemaTypeName} (drill-down wins at render).
+   */
+  pickedPropertyAlias?: string;
+  /**
+   * Picker drill-down UI hint: which document type's properties populate the
+   * picked-property dropdown. Persisted inside `resolverConfig` as
+   * `pickedContentTypeAlias`; the backend never reads it.
+   */
+  pickedContentTypeAlias?: string;
+  /** Property aliases of {@link pickedContentTypeAlias}, fetched for the dropdown. */
+  pickedContentTypeProperties?: string[];
+  /** GUID of the browsed document type backing the drill-down doc-type picker (UI-only). */
+  pickedContentTypeUnique?: string;
 }
 
 /** Map of complex editor aliases to their display badge labels */
@@ -107,8 +126,15 @@ const EDITOR_BADGE_MAP: Record<string, string> = {
   'Umbraco.BlockList': 'schemeWeaver_blockList',
   'Umbraco.BlockGrid': 'schemeWeaver_blockGrid',
   'Umbraco.ContentPicker': 'schemeWeaver_contentPicker',
+  'Umbraco.MultiNodeTreePicker': 'schemeWeaver_multiNodePicker',
   'Umbraco.RichText': 'schemeWeaver_richText',
 };
+
+/** Editors whose value is picked content — these rows offer the picked-item mode block. */
+const PICKER_EDITOR_ALIASES = ['Umbraco.ContentPicker', 'Umbraco.MultiNodeTreePicker'];
+
+/** How a picked-content row renders its value(s). Derived from row state, never persisted. */
+type PickerMode = 'name' | 'wholeItem' | 'property';
 
 @customElement('schemeweaver-property-mapping-table')
 export class PropertyMappingTableElement extends UmbLitElement {
@@ -203,7 +229,133 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   private _handlePropertyChange(index: number, value: string) {
     const updated = [...this.mappings];
-    updated[index] = { ...updated[index], contentTypePropertyAlias: value };
+    const row = updated[index];
+    updated[index] = { ...row, contentTypePropertyAlias: value };
+    // A different content property means any picked-item state (drilled alias
+    // OR whole-item nested type) belongs to the OLD property — none of it may
+    // survive the change, or the save persists config the UI no longer shows.
+    if (row.pickedPropertyAlias || row.pickedContentTypeAlias || row.nestedSchemaTypeName) {
+      updated[index] = {
+        ...updated[index],
+        nestedSchemaTypeName: '',
+        pickedPropertyAlias: undefined,
+        pickedContentTypeAlias: undefined,
+        pickedContentTypeProperties: undefined,
+        pickedContentTypeUnique: undefined,
+        resolverConfig: null,
+      };
+      const draft = new Map(this._pickerModeDraft);
+      draft.delete(row.schemaPropertyName);
+      this._pickerModeDraft = draft;
+    }
+    this.mappings = updated;
+    this._dispatchChange();
+  }
+
+  // --- Picked-item mode (content picker / MNTP rows) ---
+
+  /**
+   * Transient mode selection per row (keyed by schema property name, which is
+   * stable across re-sorts), so an empty just-switched mode (e.g. Single
+   * property before an alias is chosen) doesn't snap back to the derived mode
+   * on re-render. Cleared when the row's main property changes.
+   */
+  @state()
+  private _pickerModeDraft = new Map<string, PickerMode>();
+
+  private _pickerMode(mapping: PropertyMappingRow): PickerMode {
+    const draft = this._pickerModeDraft.get(mapping.schemaPropertyName);
+    if (draft) return draft;
+    if (mapping.pickedPropertyAlias) return 'property';
+    if (mapping.nestedSchemaTypeName) return 'wholeItem';
+    return 'name';
+  }
+
+  private _handlePickerModeChange(index: number, mode: PickerMode) {
+    const draft = new Map(this._pickerModeDraft);
+    draft.set(this.mappings[index].schemaPropertyName, mode);
+    this._pickerModeDraft = draft;
+
+    const updated = [...this.mappings];
+    const row = updated[index];
+    if (mode === 'name') {
+      updated[index] = {
+        ...row,
+        nestedSchemaTypeName: '',
+        pickedPropertyAlias: undefined,
+        pickedContentTypeAlias: undefined,
+        pickedContentTypeProperties: undefined,
+        pickedContentTypeUnique: undefined,
+        resolverConfig: null,
+      };
+    } else if (mode === 'wholeItem') {
+      updated[index] = {
+        ...row,
+        // Sensible starting type: the schema property's first accepted type.
+        nestedSchemaTypeName: row.nestedSchemaTypeName || row.acceptedTypes?.[0] || 'Thing',
+        pickedPropertyAlias: undefined,
+        pickedContentTypeAlias: undefined,
+        pickedContentTypeProperties: undefined,
+        pickedContentTypeUnique: undefined,
+        resolverConfig: null,
+      };
+    } else {
+      // Single property: drill config wins at render, so the nested type must go.
+      updated[index] = { ...row, nestedSchemaTypeName: '' };
+    }
+    this.mappings = updated;
+    this._dispatchChange();
+  }
+
+  private _handleWholeItemTypeChange(index: number, value: string) {
+    const updated = [...this.mappings];
+    updated[index] = { ...updated[index], nestedSchemaTypeName: value };
+    this.mappings = updated;
+    this._dispatchChange();
+  }
+
+  private _handlePickedDocumentTypeChange(index: number, e: Event) {
+    const target = e.target as HTMLElement & { selection: string[] };
+    const selection = target.selection;
+    if (selection.length === 0) {
+      const updated = [...this.mappings];
+      updated[index] = {
+        ...updated[index],
+        pickedPropertyAlias: undefined,
+        pickedContentTypeAlias: undefined,
+        pickedContentTypeProperties: undefined,
+        pickedContentTypeUnique: undefined,
+        resolverConfig: null,
+      };
+      this.mappings = updated;
+      this._dispatchChange();
+      return;
+    }
+
+    // Pin the mode: the host's resolve handler clears pickedPropertyAlias (the
+    // old alias belongs to the previous type), which would otherwise snap the
+    // derived mode back to 'name' mid-edit.
+    const draft = new Map(this._pickerModeDraft);
+    draft.set(this.mappings[index].schemaPropertyName, 'property');
+    this._pickerModeDraft = draft;
+
+    this.dispatchEvent(
+      new CustomEvent('resolve-picked-document-type', {
+        detail: { index, documentTypeUnique: selection[0] },
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
+
+  private _handlePickedPropertyChange(index: number, value: string) {
+    const updated = [...this.mappings];
+    const row = updated[index];
+    updated[index] = {
+      ...row,
+      pickedPropertyAlias: value || undefined,
+      resolverConfig: drillConfigToResolverConfig(value || undefined, row.pickedContentTypeAlias),
+    };
     this.mappings = updated;
     this._dispatchChange();
   }
@@ -339,8 +491,15 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   private _handleRemoveRow(index: number) {
     const updated = [...this.mappings];
-    updated.splice(index, 1);
+    const [removed] = updated.splice(index, 1);
     this.mappings = updated;
+    // Prune the picked-item mode draft so a re-added row of the same schema
+    // property starts from its own derived mode, not the removed row's.
+    if (removed && this._pickerModeDraft.has(removed.schemaPropertyName)) {
+      const draft = new Map(this._pickerModeDraft);
+      draft.delete(removed.schemaPropertyName);
+      this._pickerModeDraft = draft;
+    }
     this._dispatchChange();
   }
 
@@ -591,6 +750,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
     }
 
     const isMediaPicker = mapping.editorAlias === 'Umbraco.MediaPicker3';
+    const isPicker = PICKER_EDITOR_ALIASES.includes(mapping.editorAlias);
 
     return html`
       <div class="value-inputs">
@@ -605,6 +765,63 @@ export class PropertyMappingTableElement extends UmbLitElement {
           ${this._renderEditorBadge(mapping.editorAlias)}
           ${isMediaPicker ? html`<small class="auto-url-indicator">[${this.localize.term('schemeWeaver_autoUrl')}]</small>` : nothing}
         </div>
+        ${isPicker && mapping.contentTypePropertyAlias
+          ? this._renderPickerModeBlock(mapping, index)
+          : nothing}
+      </div>
+    `;
+  }
+
+  /**
+   * Picked-item value mode for content picker / MNTP rows: emit the node name
+   * (default), render the whole item via its own mapping as a chosen type, or
+   * drill into a single property of the picked item.
+   */
+  private _renderPickerModeBlock(mapping: PropertyMappingRow, index: number) {
+    const mode = this._pickerMode(mapping);
+    return html`
+      <div class="picker-mode-block" data-mark="schemeweaver:picker-mode">
+        <uui-select
+          label=${this.localize.term('schemeWeaver_pickerModeLabel')}
+          .options=${[
+            { name: this.localize.term('schemeWeaver_pickerModeName'), value: 'name', selected: mode === 'name' },
+            { name: this.localize.term('schemeWeaver_pickerModeWholeItem'), value: 'wholeItem', selected: mode === 'wholeItem' },
+            { name: this.localize.term('schemeWeaver_pickerModeSingleProperty'), value: 'property', selected: mode === 'property' },
+          ]}
+          @change=${(e: Event) =>
+            this._handlePickerModeChange(index, (e.target as HTMLSelectElement).value as PickerMode)}
+        ></uui-select>
+        ${mode === 'wholeItem'
+          ? html`
+              <schemeweaver-schema-type-input
+                .value=${mapping.nestedSchemaTypeName}
+                @change=${(e: Event) =>
+                  this._handleWholeItemTypeChange(index, (e.target as HTMLElement & { value: string }).value)}
+              ></schemeweaver-schema-type-input>
+              <small class="picker-mode-hint">${this.localize.term('schemeWeaver_pickerWholeItemHint')}</small>
+            `
+          : nothing}
+        ${mode === 'property'
+          ? html`
+              <umb-input-document-type
+                .documentTypesOnly=${true}
+                .max=${1}
+                .selection=${mapping.pickedContentTypeUnique ? [mapping.pickedContentTypeUnique] : []}
+                @change=${(e: Event) => this._handlePickedDocumentTypeChange(index, e)}
+              ></umb-input-document-type>
+              ${mapping.pickedContentTypeProperties?.length
+                ? html`
+                    <schemeweaver-property-combobox
+                      .properties=${mapping.pickedContentTypeProperties}
+                      .value=${mapping.pickedPropertyAlias ?? ''}
+                      label=${this.localize.term('schemeWeaver_pickedPropertyLabel')}
+                      placeholder=${this.localize.term('schemeWeaver_selectProperty')}
+                      @change=${(e: CustomEvent) => this._handlePickedPropertyChange(index, e.detail.value)}
+                    ></schemeweaver-property-combobox>
+                  `
+                : html`<small class="picker-mode-hint">${this.localize.term('schemeWeaver_pickedPropertyDocTypeHint')}</small>`}
+            `
+          : nothing}
       </div>
     `;
   }
