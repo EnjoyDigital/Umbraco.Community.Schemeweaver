@@ -87,6 +87,9 @@ public class SchemeWeaverComposer : IComposer
         builder.AddNotificationHandler<ContentMovedNotification, InvalidateJsonLdCacheOnMove>();
         builder.AddNotificationHandler<ContentMovedToRecycleBinNotification, InvalidateJsonLdCacheOnMove>();
         builder.AddNotificationHandler<ContentDeletedNotification, InvalidateJsonLdCacheOnDelete>();
+        // Mapping edits change the JSON-LD of every affected page without any content event firing.
+        builder.AddNotificationHandler<SchemaMappingSavedNotification, InvalidateJsonLdCacheOnMappingChange>();
+        builder.AddNotificationHandler<SchemaMappingDeletedNotification, InvalidateJsonLdCacheOnMappingChange>();
 
         // Property value resolvers — extensible via DI
         builder.Services.AddScoped<IPropertyValueResolver, DefaultPropertyValueResolver>();
