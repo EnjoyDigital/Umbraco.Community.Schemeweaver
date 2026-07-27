@@ -2,6 +2,8 @@
 
 SchemeWeaver provides an optional uSync addon package that serializes schema mappings to XML files for deployment between environments. This means you can configure mappings in your development environment and deploy them to staging and production via source control, without manually recreating them.
 
+> Using **Umbraco Deploy or Umbraco Cloud** instead of uSync? See the equivalent [Umbraco Deploy Integration](deploy.md) addon.
+
 ---
 
 ## Requirements

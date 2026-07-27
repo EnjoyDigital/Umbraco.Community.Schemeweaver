@@ -88,10 +88,11 @@ jobs:
           name: dotnet-test-results-umbraco${{ matrix.umbraco }}
           path: '**/TestResults/*.trx'
 
-      - name: Pack (SchemeWeaver + uSync addon)
+      - name: Pack (SchemeWeaver + uSync + Deploy addons)
         run: |
           dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
+          dotnet pack src/Umbraco.Community.SchemeWeaver.Deploy/Umbraco.Community.SchemeWeaver.Deploy.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v5

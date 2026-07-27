@@ -56,6 +56,8 @@ The command is identical for both: each build's `Umbraco.Cms` dependency range i
 
 To sync mappings between environments, add the optional [uSync](https://jumoo.co.uk/usync/) addon — `dotnet add package Umbraco.Community.SchemeWeaver.uSync` — which follows the same major-aligned scheme. See [uSync Integration](docs/usync.md).
 
+Using [Umbraco Deploy](https://umbraco.com/products/add-ons/deploy/) or Umbraco Cloud instead? Add the optional Deploy addon — `dotnet add package Umbraco.Community.SchemeWeaver.Deploy` — and mappings deploy as `.uda` artifacts alongside your document types. See [Umbraco Deploy Integration](docs/deploy.md).
+
 ## Quick start
 
 **1. Add the tag helper** to your master layout (e.g. `_Layout.cshtml`):
@@ -140,6 +142,7 @@ See [Mapping Content Types](docs/mapping-content-types.md) and [Property Mapping
 - [Delivery API](docs/delivery-api.md) — headless integration
 - [Extending](docs/extending.md) — custom property resolvers, replacing core services
 - [uSync Integration](docs/usync.md) — sync mappings between environments
+- [Umbraco Deploy Integration](docs/deploy.md) — deploy mappings between environments with Umbraco Deploy / Cloud
 - [AI Integration](docs/ai-integration.md) — optional AI-powered mapping (Umbraco 17)
 - [MCP Server](docs/mcp-server.md) — drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin with the bundled `schemeweaver-map` skill
 - [Advanced](docs/advanced.md) — inherited schemas, BreadcrumbList, validation, configuration, troubleshooting
