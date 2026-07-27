@@ -256,7 +256,11 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
           editorAlias: '',
           isComplexType: mapping.isComplexType,
           currentSourceType: mapping.sourceType,
-          restrictToSimpleSources: true,
+          // Nested sub-rows may source from related nodes (parent/ancestor/sibling —
+          // e.g. an inline Organization's name reading the site root), but block
+          // content has no meaning inside a nested config.
+          restrictToSimpleSources: false,
+          hideBlockContent: true,
         },
       })
       .onSubmit()

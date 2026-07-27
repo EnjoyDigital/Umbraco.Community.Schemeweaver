@@ -47,7 +47,8 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
       });
     }
 
-    if (!restrictToSimple && (BLOCK_EDITOR_ALIASES.includes(editorAlias) || isComplexType)) {
+    if (!restrictToSimple && !this.data?.hideBlockContent
+      && (BLOCK_EDITOR_ALIASES.includes(editorAlias) || isComplexType)) {
       options.push({
         sourceType: SourceType.BlockContent,
         icon: 'icon-grid',

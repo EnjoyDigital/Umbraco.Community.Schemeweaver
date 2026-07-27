@@ -309,6 +309,182 @@ public class ContentPickerResolverTests
         result.Should().Be("Deep Content");
     }
 
+    // --- Drill-down (pickedPropertyAlias in ResolverConfig) ---
+
+    [Fact]
+    public void Resolve_DrillDownConfig_ResolvesPickedNodesProperty()
+    {
+        var pickedContent = CreatePickedContent("Jane Doe", "jobTitle", "Principal Developer",
+            editorAlias: "Umbraco.TextBox");
+        var context = CreateDrillContext(pickedContent, """{"pickedPropertyAlias":"jobTitle"}""");
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Principal Developer");
+    }
+
+    [Fact]
+    public void Resolve_DrillDownConfig_WinsOverNestedSchemaType()
+    {
+        var pickedContent = CreatePickedContent("Jane Doe", "jobTitle", "Principal Developer",
+            editorAlias: "Umbraco.TextBox");
+        var context = CreateDrillContext(pickedContent, """{"pickedPropertyAlias":"jobTitle"}""",
+            nestedSchemaTypeName: "Person");
+
+        var result = _sut.Resolve(context);
+
+        // Not a nested Person, not the name — the drilled scalar.
+        result.Should().Be("Principal Developer");
+    }
+
+    [Fact]
+    public void Resolve_DrillDownConfig_BuiltInName_ResolvesViaBuiltInResolver()
+    {
+        var pickedContent = CreatePickedContent("Jane Doe", "unused", "x", editorAlias: "Umbraco.TextBox");
+        var context = CreateDrillContext(pickedContent, """{"pickedPropertyAlias":"__name"}""");
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Jane Doe");
+    }
+
+    [Fact]
+    public void Resolve_DrillDownConfig_MissingProperty_ReturnsNull_NotName()
+    {
+        var pickedContent = Substitute.For<IPublishedContent>();
+        pickedContent.Name.Returns("Jane Doe");
+        pickedContent.GetProperty("nonExistent").Returns((IPublishedProperty?)null);
+
+        var context = CreateDrillContext(pickedContent, """{"pickedPropertyAlias":"nonExistent"}""");
+
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Resolve_DrillDownConfig_AtMaxDepth_ReturnsNull_NotName()
+    {
+        var pickedContent = CreatePickedContent("Jane Doe", "jobTitle", "Principal Developer",
+            editorAlias: "Umbraco.TextBox");
+        var context = CreateDrillContext(pickedContent, """{"pickedPropertyAlias":"jobTitle"}""",
+            recursionDepth: 3);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Resolve_DrillDownConfig_CaseInsensitiveKeys()
+    {
+        var pickedContent = CreatePickedContent("Jane Doe", "jobTitle", "Principal Developer",
+            editorAlias: "Umbraco.TextBox");
+        var context = CreateDrillContext(pickedContent, """{"PickedPropertyAlias":"jobTitle"}""");
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Principal Developer");
+    }
+
+    [Fact]
+    public void Resolve_MalformedResolverConfig_FallsBackToName()
+    {
+        var pickedContent = Substitute.For<IPublishedContent>();
+        pickedContent.Name.Returns("Jane Doe");
+
+        var context = CreateDrillContext(pickedContent, "{not json");
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Jane Doe");
+    }
+
+    [Fact]
+    public void Resolve_DrillIntoContentPickerProperty_DoesNotLeakOuterMapping()
+    {
+        // The drilled property is itself a ContentPicker. The outer row's
+        // NestedSchemaTypeName/ResolverConfig must NOT leak into the child
+        // resolution — the inner picker should fall to its picked node's name,
+        // not re-drill or build a nested Thing from the outer config.
+        var innerPicked = Substitute.For<IPublishedContent>();
+        innerPicked.Name.Returns("Inner Node");
+
+        var innerPickerProperty = Substitute.For<IPublishedProperty>();
+        innerPickerProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(innerPicked);
+        var innerPropertyType = Substitute.For<IPublishedPropertyType>();
+        innerPropertyType.EditorAlias.Returns("Umbraco.ContentPicker");
+        innerPickerProperty.PropertyType.Returns(innerPropertyType);
+
+        var pickedContent = Substitute.For<IPublishedContent>();
+        pickedContent.Name.Returns("Outer Node");
+        pickedContent.GetProperty("related").Returns(innerPickerProperty);
+
+        var context = CreateDrillContext(pickedContent,
+            """{"pickedPropertyAlias":"related"}""", nestedSchemaTypeName: "Person");
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Inner Node");
+    }
+
+    private static IPublishedContent CreatePickedContent(
+        string name, string propertyAlias, object propertyValue, string editorAlias)
+    {
+        var propertyType = Substitute.For<IPublishedPropertyType>();
+        propertyType.EditorAlias.Returns(editorAlias);
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(propertyValue);
+        property.PropertyType.Returns(propertyType);
+
+        var content = Substitute.For<IPublishedContent>();
+        content.Name.Returns(name);
+        content.GetProperty(propertyAlias).Returns(property);
+
+        return content;
+    }
+
+    private PropertyResolverContext CreateDrillContext(
+        IPublishedContent pickedContent,
+        string? resolverConfig,
+        string? nestedSchemaTypeName = null,
+        int recursionDepth = 0)
+    {
+        var pickerProperty = Substitute.For<IPublishedProperty>();
+        pickerProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(pickedContent);
+
+        return new PropertyResolverContext
+        {
+            Content = Substitute.For<IPublishedContent>(),
+            Mapping = new PropertyMapping
+            {
+                SchemaPropertyName = "Author",
+                ResolverConfig = resolverConfig,
+                NestedSchemaTypeName = nestedSchemaTypeName
+            },
+            PropertyAlias = "authorNode",
+            SchemaTypeRegistry = _registry,
+            MappingRepository = _repository,
+            HttpContextAccessor = _httpContextAccessor,
+            ResolverFactory = CreateResolverFactory(),
+            Property = pickerProperty,
+            RecursionDepth = recursionDepth,
+            MaxRecursionDepth = 3
+        };
+    }
+
+    private IPropertyValueResolverFactory CreateResolverFactory()
+    {
+        var urlProvider = Substitute.For<Umbraco.Cms.Core.Routing.IPublishedUrlProvider>();
+        return new PropertyValueResolverFactory(new IPropertyValueResolver[]
+        {
+            new DefaultPropertyValueResolver(),
+            new BuiltInPropertyResolver(urlProvider),
+            new ContentPickerResolver()
+        });
+    }
+
     private PropertyResolverContext CreateContext(IPublishedProperty? property)
     {
         return new PropertyResolverContext
