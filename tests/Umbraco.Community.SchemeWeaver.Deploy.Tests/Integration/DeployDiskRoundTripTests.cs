@@ -123,19 +123,52 @@ public class DeployDiskRoundTripTests : UmbracoIntegrationTestBase
             $"Expected schemeweaver-mapping .uda for {contentTypeKey} to {(expectExists ? "appear" : "disappear")} in {ArtifactDirectory} within {timeoutMs}ms.");
     }
 
+    /// <summary>
+    /// Simulates a fresh target environment. Wiping the mapping tables alone is not
+    /// enough: the save-time refresher also stored Deploy signatures, and the disk
+    /// read's manifest review skips any artifact whose checksum matches its stored
+    /// signature ("up to date"). A real fresh target has no signatures either.
+    /// </summary>
+    private void ResetTargetState()
+    {
+        ResetSchemeWeaverTables();
+        Factory.Services.GetRequiredService<Umbraco.Deploy.Core.ISignatureService>().ClearSignatures();
+    }
+
     private async Task RunDiskReadAsync()
     {
         var diskEntityService = DiskEntityService;
         var statePath = diskEntityService.GetStateDirectory();
-        await diskEntityService.ProcessDiskReadAsync(
-            Guid.NewGuid(), statePath, diskEntityService.GetDiskReadEventTrigger());
-
+        var completeMarker = Path.Combine(statePath, "deploy-complete");
         var failedMarker = Path.Combine(statePath, "deploy-failed");
-        if (File.Exists(failedMarker))
+
+        // Deploy's work runner silently skips when another work item holds the
+        // environment worker (it logs "another deploy is in flight" and returns
+        // without writing any marker) — on a fast CI runner the previous test's
+        // work can still be draining. Treat silence as "not run" and retry;
+        // only a written deploy-complete marker counts as success.
+        for (var attempt = 1; attempt <= 20; attempt++)
         {
-            throw new InvalidOperationException(
-                $"Deploy disk read failed: {await File.ReadAllTextAsync(failedMarker)}");
+            File.Delete(completeMarker);
+            await diskEntityService.ProcessDiskReadAsync(
+                Guid.NewGuid(), statePath, diskEntityService.GetDiskReadEventTrigger());
+
+            if (File.Exists(failedMarker))
+            {
+                throw new InvalidOperationException(
+                    $"Deploy disk read failed: {await File.ReadAllTextAsync(failedMarker)}");
+            }
+
+            if (File.Exists(completeMarker))
+            {
+                return;
+            }
+
+            await Task.Delay(500);
         }
+
+        throw new TimeoutException(
+            "Deploy disk read never ran to completion (no deploy-complete marker written after 20 attempts).");
     }
 
     // ----- tests (serialised: same class + shared collection fixture) -----
@@ -209,9 +242,10 @@ public class DeployDiskRoundTripTests : UmbracoIntegrationTestBase
         var udaPath = await WaitForUdaAsync(key);
         var udaBytesBefore = await File.ReadAllBytesAsync(udaPath);
 
-        // Wipe the SchemeWeaver tables — the .uda in the revision folder is now the
-        // only place the mapping exists, exactly like a fresh target environment.
-        ResetSchemeWeaverTables();
+        // Wipe the SchemeWeaver tables and Deploy signatures — the .uda in the
+        // revision folder is now the only place the mapping exists, exactly like a
+        // fresh target environment.
+        ResetTargetState();
 
         await RunDiskReadAsync();
 
@@ -244,7 +278,7 @@ public class DeployDiskRoundTripTests : UmbracoIntegrationTestBase
         await SaveMappingAsync(alias, key);
         await WaitForUdaAsync(key);
 
-        ResetSchemeWeaverTables();
+        ResetTargetState();
         await RunDiskReadAsync();
         await RunDiskReadAsync();
 
