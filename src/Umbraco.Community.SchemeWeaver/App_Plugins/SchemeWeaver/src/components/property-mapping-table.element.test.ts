@@ -56,7 +56,7 @@ describe('PropertyMappingTableElement', () => {
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
     const removeBtn = (rows[1] as HTMLElement).querySelector('.actions-cell .remove-row-btn') as HTMLElement;
     expect(removeBtn).to.exist;
-    removeBtn.click();
+    removeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
 
     expect(eventDetail).to.exist;
     expect(eventDetail.mappings).to.have.lengthOf(3);
@@ -160,7 +160,7 @@ describe('PropertyMappingTableElement', () => {
     });
 
     const sourceChip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
-    sourceChip?.click();
+    sourceChip?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     expect(eventFired).to.be.true;
     expect(eventDetail.index).to.equal(0);
     expect(eventDetail.currentSourceType).to.equal(SourceType.Property);
@@ -217,7 +217,7 @@ describe('PropertyMappingTableElement', () => {
     });
 
     const configButton = el.shadowRoot!.querySelector('.block-actions uui-button') as HTMLElement;
-    configButton?.click();
+    configButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
 
     expect(eventFired).to.be.true;
     expect(eventDetail.nestedSchemaTypeName).to.equal('Question');
@@ -269,7 +269,7 @@ describe('PropertyMappingTableElement', () => {
     });
 
     const chip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
-    chip?.click();
+    chip?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     expect(eventDetail).to.exist;
     expect(eventDetail.isComplexType).to.be.true;
     expect(eventDetail.editorAlias).to.equal('Umbraco.BlockList');
@@ -298,7 +298,7 @@ describe('PropertyMappingTableElement', () => {
     });
 
     const configButton = el.shadowRoot!.querySelector('.block-actions uui-button') as HTMLElement;
-    configButton?.click();
+    configButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     expect(eventFired).to.be.true;
     expect(eventDetail.schemaPropertyName).to.equal('author');
     expect(eventDetail.acceptedTypes).to.deep.equal(['Organization', 'Person']);
