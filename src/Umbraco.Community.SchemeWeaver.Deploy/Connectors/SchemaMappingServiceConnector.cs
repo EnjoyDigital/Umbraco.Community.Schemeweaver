@@ -49,7 +49,6 @@ public class SchemaMappingServiceConnector
 
     protected override string[] ValidOpenSelectors => new[]
     {
-        Constants.DeploySelector.This,
         Constants.DeploySelector.ThisAndDescendants,
         Constants.DeploySelector.DescendantsOfThis,
     };
@@ -65,7 +64,7 @@ public class SchemaMappingServiceConnector
 
         using var scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
-        var mapping = repository.GetAll().FirstOrDefault(m => m.ContentTypeKey == udi.Guid);
+        var mapping = FindByKey(repository, udi.Guid);
         if (mapping is null)
         {
             return Task.FromResult<SchemaMappingArtifact?>(null);
@@ -103,7 +102,7 @@ public class SchemaMappingServiceConnector
         return Task.FromResult(BuildArtifact(entity, repository));
     }
 
-    public override async Task<ArtifactDeployState<SchemaMappingArtifact, SchemaMapping>> ProcessInitAsync(
+    public override Task<ArtifactDeployState<SchemaMappingArtifact, SchemaMapping>> ProcessInitAsync(
         SchemaMappingArtifact artifact, IDeployContext context, CancellationToken cancellationToken = default)
     {
         EnsureType(artifact.Udi);
@@ -113,11 +112,10 @@ public class SchemaMappingServiceConnector
 
         // Key-first; alias fallback adopts (and re-keys) the row when the doc type
         // was recreated at source with a new GUID but the alias survived.
-        var entity = repository.GetAll().FirstOrDefault(m => m.ContentTypeKey == artifact.Udi.Guid)
+        var entity = FindByKey(repository, artifact.Udi.Guid)
             ?? repository.GetByContentTypeAlias(artifact.ContentTypeAlias);
 
-        await Task.CompletedTask;
-        return CreateInitState(artifact, entity);
+        return Task.FromResult(CreateInitState(artifact, entity));
     }
 
     public override Task ProcessAsync(
@@ -144,7 +142,12 @@ public class SchemaMappingServiceConnector
         // alias (recreated/renamed at source). Without the sweep the unique alias
         // index would fail the whole deployment; deleting converges on the source
         // state, inside Deploy's ambient scope so it commits atomically with the save.
-        var clash = repository.GetByContentTypeAlias(artifact.ContentTypeAlias);
+        // Case-insensitive: the unique index is case-insensitive on default-collation
+        // SQL Server, so a clash differing only in alias case would still violate it.
+        var clash = repository.GetAll()
+            .OrderBy(m => m.Id)
+            .FirstOrDefault(m => string.Equals(
+                m.ContentTypeAlias, artifact.ContentTypeAlias, StringComparison.OrdinalIgnoreCase));
         if (clash is not null && clash.Id != mapping.Id)
         {
             _logger.LogWarning(
@@ -184,16 +187,29 @@ public class SchemaMappingServiceConnector
         {
             using var scope = _scopeFactory.CreateScope();
             var repository = scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
-            foreach (var mapping in repository.GetAll().Where(m => m.ContentTypeKey != Guid.Empty))
+
+            // Group by key: the unique index is on alias, not key, so an orphaned
+            // old-alias row can share a key with its recreated mapping. One UDI must
+            // never be yielded twice; the lowest-Id row wins (matching FindByKey).
+            foreach (var group in repository.GetAll()
+                .Where(m => m.ContentTypeKey != Guid.Empty)
+                .GroupBy(m => m.ContentTypeKey))
             {
-                yield return mapping.GetUdi();
+                if (group.Count() > 1)
+                {
+                    _logger.LogWarning(
+                        "Multiple schema mappings share content type key {ContentTypeKey} (aliases: {Aliases}); only the oldest row is deployed.",
+                        group.Key, string.Join(", ", group.Select(m => m.ContentTypeAlias)));
+                }
+
+                yield return group.OrderBy(m => m.Id).First().GetUdi();
             }
         }
         else if (range.Selector == Constants.DeploySelector.This && range.Udi is GuidUdi guidUdi)
         {
             using var scope = _scopeFactory.CreateScope();
             var repository = scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
-            var mapping = repository.GetAll().FirstOrDefault(m => m.ContentTypeKey == guidUdi.Guid);
+            var mapping = FindByKey(repository, guidUdi.Guid);
             if (mapping is not null)
             {
                 yield return mapping.GetUdi();
@@ -217,7 +233,7 @@ public class SchemaMappingServiceConnector
 
         using var scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
-        var mapping = repository.GetAll().FirstOrDefault(m => m.ContentTypeKey == udi.Guid)
+        var mapping = FindByKey(repository, udi.Guid)
             ?? throw new ArgumentException($"Could not find a schema mapping with key \"{udi.Guid}\".", nameof(udi));
 
         return Task.FromResult(new NamedUdiRange(mapping.GetUdi(), mapping.ContentTypeAlias, selector));
@@ -295,6 +311,17 @@ public class SchemaMappingServiceConnector
 
         return artifact;
     }
+
+    /// <summary>
+    /// Key lookups order by Id: the unique index is on alias, so two rows can share a
+    /// ContentTypeKey (orphaned old-alias row + recreated mapping) and an unordered
+    /// FirstOrDefault would be DB-order-dependent — nondeterministic artifacts.
+    /// </summary>
+    private static SchemaMapping? FindByKey(ISchemaMappingRepository repository, Guid contentTypeKey)
+        => repository.GetAll()
+            .Where(m => m.ContentTypeKey == contentTypeKey)
+            .OrderBy(m => m.Id)
+            .FirstOrDefault();
 
     /// <summary>Empty and null must serialise identically or checksums flap between environments.</summary>
     private static string? Normalize(string? value) => string.IsNullOrEmpty(value) ? null : value;

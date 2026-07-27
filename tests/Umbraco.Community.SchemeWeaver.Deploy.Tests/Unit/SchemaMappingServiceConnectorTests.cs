@@ -266,7 +266,7 @@ public class SchemaMappingServiceConnectorTests
         // the unique alias index and fail the whole deployment.
         var (connector, repository, _) = ConnectorTestHarness.Build();
         var stale = ConnectorTestHarness.Mapping(id: 9, alias: "blogPost", key: Guid.NewGuid());
-        repository.GetByContentTypeAlias("blogPost").Returns(stale);
+        repository.GetAll().Returns(new[] { stale });
         repository.Save(Arg.Any<SchemaMapping>()).Returns(ci => { var m = ci.Arg<SchemaMapping>(); if (m.Id == 0) { m.Id = 42; } return m; });
 
         var state = ArtifactDeployState.Create<SchemaMappingArtifact, SchemaMapping>(Artifact(), null, connector, 3);
@@ -274,6 +274,48 @@ public class SchemaMappingServiceConnectorTests
 
         repository.Received(1).Delete(9);
         repository.Received(1).Save(Arg.Is<SchemaMapping>(m => m.ContentTypeKey == Key));
+    }
+
+    [Fact]
+    public async Task Process_CollisionSweep_IsCaseInsensitive()
+    {
+        // The unique alias index is case-insensitive on default-collation SQL Server,
+        // so a stale row differing only in case must be swept too.
+        var (connector, repository, _) = ConnectorTestHarness.Build();
+        var stale = ConnectorTestHarness.Mapping(id: 9, alias: "BLOGPOST", key: Guid.NewGuid());
+        repository.GetAll().Returns(new[] { stale });
+        repository.Save(Arg.Any<SchemaMapping>()).Returns(ci => { var m = ci.Arg<SchemaMapping>(); if (m.Id == 0) { m.Id = 42; } return m; });
+
+        var state = ArtifactDeployState.Create<SchemaMappingArtifact, SchemaMapping>(Artifact(), null, connector, 3);
+        await connector.ProcessAsync(state, Substitute.For<IDeployContext>(), 3);
+
+        repository.Received(1).Delete(9);
+    }
+
+    [Fact]
+    public async Task KeyLookups_PreferLowestId_WhenRowsShareContentTypeKey()
+    {
+        // The unique index is on alias, not key: an orphaned old-alias row can share
+        // a key with its recreated mapping. Lookups must be deterministic (lowest Id)
+        // and ExpandRange must never yield the same UDI twice.
+        var (connector, repository, _) = ConnectorTestHarness.Build();
+        var older = ConnectorTestHarness.Mapping(id: 3, alias: "oldAlias", key: Key);
+        var newer = ConnectorTestHarness.Mapping(id: 8, alias: "newAlias", key: Key);
+        repository.GetAll().Returns(new[] { newer, older });
+        repository.GetPropertyMappings(Arg.Any<int>()).Returns(Array.Empty<PropertyMapping>());
+
+        var artifact = await connector.GetArtifactAsync(MappingUdi(), new DictionaryCache());
+        artifact!.ContentTypeAlias.Should().Be("oldAlias");
+
+        var range = new UdiRange(Udi.Create(SchemeWeaverDeployConstants.MappingUdiEntityType),
+            Constants.DeploySelector.ThisAndDescendants);
+        var udis = new List<GuidUdi>();
+        await foreach (var udi in connector.ExpandRangeAsync(range))
+        {
+            udis.Add(udi);
+        }
+
+        udis.Should().ContainSingle().Which.Guid.Should().Be(Key);
     }
 
     // ----- Ranges -----

@@ -78,11 +78,13 @@ Run once before a release that touches the Deploy addon (an [Umbraco Cloud trial
 | No `.uda` written on save | Check the warning above; also confirm the mapping's content type still exists and has a real key (mappings whose content type vanished are skipped deliberately). |
 | Schema deployment fails with a missing `document-type` dependency | A mapping `.uda` references a doc type deleted outside this addon's cleanup (e.g. removed while the addon wasn't installed). Delete the stale `schemeweaver-mapping__*.uda` from the revision folder and redeploy. |
 | Mapping differs between environments after deploy | By design — source overwrites target (see above). |
+| A deleted mapping shows as a permanent difference in the Deploy schema comparison dashboard | Expected: deletions don't propagate, and the dashboard offers no delete button for mapping artifacts. Delete the mapping in the target's backoffice to clear it. |
 
 ## Roadmap
 
 - Backoffice **queue for transfer / partial restore** (`RegisterTransferEntityType`) — deliberate v1 omission; mappings are doc-type-keyed settings and travel with the schema.
 - Participation in Deploy's zip **Import/Export** (`SupportsImportExport`).
+- `IDeletableServiceConnector` support, so the Deploy schema comparison dashboard can offer a delete affordance for orphaned mapping artifacts.
 
 ## Using Deploy and uSync together
 

@@ -57,6 +57,12 @@ public class SchemeWeaverDeployComposerTests
         services.Should().Contain(d =>
             d.ServiceType == typeof(INotificationAsyncHandler<ContentTypeDeletedNotification>) &&
             d.ImplementationType == typeof(ContentTypeDeletedCleanupHandler));
+        services.Should().Contain(d =>
+            d.ServiceType == typeof(INotificationAsyncHandler<Umbraco.Deploy.Core.Events.TaskCompletedNotification>) &&
+            d.ImplementationType == typeof(DeployTaskCompletedCacheClearHandler));
+        services.Should().Contain(d =>
+            d.ServiceType == typeof(INotificationAsyncHandler<Umbraco.Deploy.Core.Events.TaskFailedNotification>) &&
+            d.ImplementationType == typeof(DeployTaskCompletedCacheClearHandler));
     }
 
     [Fact]

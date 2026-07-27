@@ -32,5 +32,7 @@ public class SchemeWeaverDeployComposer : IComposer
         builder.AddNotificationAsyncHandler<SchemaMappingSavedNotification, SchemaMappingDeployRefresherHandler>();
         builder.AddNotificationAsyncHandler<SchemaMappingDeletedNotification, SchemaMappingDeployRefresherHandler>();
         builder.AddNotificationAsyncHandler<ContentTypeDeletedNotification, ContentTypeDeletedCleanupHandler>();
+        builder.AddNotificationAsyncHandler<Umbraco.Deploy.Core.Events.TaskCompletedNotification, DeployTaskCompletedCacheClearHandler>();
+        builder.AddNotificationAsyncHandler<Umbraco.Deploy.Core.Events.TaskFailedNotification, DeployTaskCompletedCacheClearHandler>();
     }
 }

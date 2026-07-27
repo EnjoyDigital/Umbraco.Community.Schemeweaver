@@ -32,19 +32,28 @@ public class SchemeWeaverDeployStartupHandler : INotificationAsyncHandler<Umbrac
 
     public Task HandleAsync(UmbracoApplicationStartingNotification notification, CancellationToken cancellationToken)
     {
-        var diskEntityService = _serviceProvider.GetService<IDiskEntityService>();
-        if (diskEntityService is null)
+        try
         {
-            if (DeployRuntimeStatus.TryMarkWarned())
+            var diskEntityService = _serviceProvider.GetService<IDiskEntityService>();
+            if (diskEntityService is null)
             {
-                _logger.LogWarning(
-                    "Umbraco.Community.SchemeWeaver.Deploy is installed but Umbraco Deploy (OnPrem/Cloud) is not — the SchemeWeaver Deploy connector is inactive.");
+                if (DeployRuntimeStatus.TryMarkWarned())
+                {
+                    _logger.LogWarning(
+                        "Umbraco.Community.SchemeWeaver.Deploy is installed but Umbraco Deploy (OnPrem/Cloud) is not — the SchemeWeaver Deploy connector is inactive.");
+                }
+
+                return Task.CompletedTask;
             }
 
-            return Task.CompletedTask;
+            diskEntityService.RegisterDiskEntityType(SchemeWeaverDeployConstants.MappingUdiEntityType);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to register the SchemeWeaver mapping disk entity type with Umbraco Deploy — the connector is inactive.");
         }
 
-        diskEntityService.RegisterDiskEntityType(SchemeWeaverDeployConstants.MappingUdiEntityType);
         return Task.CompletedTask;
     }
 }
