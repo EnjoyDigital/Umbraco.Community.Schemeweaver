@@ -37,6 +37,7 @@ export function dtoToRow(dto: PropertyMappingDto, loadOrder?: number): PropertyM
     loadOrder,
     isAutoMapped: dto.isAutoMapped,
     transformType: dto.transformType ?? null,
+    targetPieceKey: dto.targetPieceKey ?? null,
   };
 }
 
@@ -72,12 +73,13 @@ export function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRo
     sourceContentTypeProperties: [],
     dynamicRootConfig: undefined,
     sourceDocumentTypeUnique: undefined,
+    targetPieceKey: s.suggestedTargetPieceKey ?? null,
   };
 }
 
 /** Check whether a row has user-provided data */
 function rowHasUserData(row: PropertyMappingRow): boolean {
-  return !!(row.contentTypePropertyAlias || row.staticValue || row.resolverConfig);
+  return !!(row.contentTypePropertyAlias || row.staticValue || row.resolverConfig || row.targetPieceKey);
 }
 
 /**
@@ -110,11 +112,13 @@ export function mergeAutoMapSuggestions(
       rowMap.set(key, { ...existing, confidence: suggestion.confidence });
     } else if (
       suggestion.suggestedContentTypePropertyAlias ||
+      (suggestion.suggestedSourceType === SourceType.Reference && suggestion.suggestedTargetPieceKey) ||
       (suggestion.isComplexType && suggestion.suggestedNestedSchemaTypeName && suggestion.confidence > 0)
     ) {
-      // Only add suggestions that have an actual property match or are complex
-      // types the auto-mapper actually matched (confidence > 0). Zero-confidence
-      // unmatched properties can be added on-demand via the "Add property" combobox.
+      // Only add suggestions that have an actual property match, reference a
+      // graph piece, or are complex types the auto-mapper actually matched
+      // (confidence > 0). Zero-confidence unmatched properties can be added
+      // on-demand via the "Add property" combobox.
       rowMap.set(key, suggestionToRow(suggestion));
     }
   }
@@ -154,6 +158,7 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
     expanded: newSourceType === SourceType.ComplexType ? row.expanded : false,
     subMappings: newSourceType === SourceType.ComplexType ? row.subMappings : [],
     selectedSubType: newSourceType === SourceType.ComplexType ? row.selectedSubType : '',
+    targetPieceKey: newSourceType === SourceType.Reference ? row.targetPieceKey : null,
   };
 }
 

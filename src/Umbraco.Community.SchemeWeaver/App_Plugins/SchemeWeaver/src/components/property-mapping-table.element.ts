@@ -92,6 +92,13 @@ export interface PropertyMappingRow {
    * transform editor, so persistence must never null it out.
    */
   transformType?: string | null;
+  /**
+   * For `reference` rows: the graph piece key the row points at (e.g.
+   * `organization`, `website`). Carried through the UI so a save round-trips
+   * it — reference rows have no property alias, so persistence keys off this
+   * field instead.
+   */
+  targetPieceKey?: string | null;
 }
 
 /** Map of complex editor aliases to their display badge labels */
@@ -148,6 +155,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
       case SourceType.Sibling: return 'icon-split-alt';
       case SourceType.BlockContent: return 'icon-grid';
       case SourceType.ComplexType: return 'icon-brackets';
+      case SourceType.Reference: return 'icon-link';
       default: return 'icon-document';
     }
   }
@@ -162,6 +170,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
       case SourceType.Sibling: return 'schemeWeaver_sourceSiblingNode';
       case SourceType.BlockContent: return 'schemeWeaver_sourceBlockContent';
       case SourceType.ComplexType: return 'schemeWeaver_sourceComplexType';
+      case SourceType.Reference: return 'schemeWeaver_sourceReference';
       default: return 'schemeWeaver_sourceCurrentNode';
     }
   }
@@ -262,7 +271,10 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   /** Confidence is an integer 0-100 from C# auto-mapper */
   private _renderConfidenceTag(mapping: PropertyMappingRow) {
-    if (!mapping.contentTypePropertyAlias && mapping.sourceType !== SourceType.Static) return nothing;
+    const configuredWithoutAlias =
+      mapping.sourceType === SourceType.Static ||
+      (mapping.sourceType === SourceType.Reference && !!mapping.targetPieceKey);
+    if (!mapping.contentTypePropertyAlias && !configuredWithoutAlias) return nothing;
     const confidence = mapping.confidence;
     if (confidence === null) return nothing;
     if (confidence >= 80) return html`<uui-tag look="secondary" color="positive" class="confidence-tag">${this.localize.term('schemeWeaver_confidenceHigh')}</uui-tag>`;
@@ -561,6 +573,17 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
     if (mapping.sourceType === SourceType.BlockContent) {
       return this._renderBlockContentInput(mapping, index);
+    }
+
+    if (mapping.sourceType === SourceType.Reference) {
+      return html`
+        <div class="value-inputs">
+          <uui-tag look="secondary">
+            <uui-icon name="icon-link"></uui-icon>
+            ${mapping.targetPieceKey || this.localize.term('schemeWeaver_referenceNoTarget')}
+          </uui-tag>
+        </div>
+      `;
     }
 
     if (this._needsSourceContentType(mapping.sourceType)) {

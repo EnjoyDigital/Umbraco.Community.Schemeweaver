@@ -72,6 +72,50 @@ describe('SchemaMappingViewElement', () => {
     expect(button!.getAttribute('slot')).to.equal('header-actions');
   });
 
+  // Regression guard — a `reference` row (publisher → organization graph
+  // piece) has no property alias, so the save filter must key off
+  // targetPieceKey. Before the fix, saving the doc type silently dropped
+  // every reference row created by auto-map/MCP/uSync.
+  it('a reference row survives save and refetch', async () => {
+    const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`) as any;
+
+    el._contentTypeAlias = 'blogArticle';
+    await el._fetchMapping();
+    await el.updateComplete;
+
+    el._rows = [
+      ...el._rows,
+      {
+        schemaPropertyName: 'publisher',
+        schemaPropertyType: '',
+        sourceType: 'reference',
+        contentTypePropertyAlias: '',
+        sourceContentTypeAlias: '',
+        staticValue: '',
+        confidence: null,
+        editorAlias: '',
+        nestedSchemaTypeName: '',
+        resolverConfig: null,
+        acceptedTypes: [],
+        isComplexType: false,
+        expanded: false,
+        subMappings: [],
+        selectedSubType: '',
+        sourceContentTypeProperties: [],
+        targetPieceKey: 'organization',
+      },
+    ];
+
+    await el._handleSave();
+    await el.updateComplete;
+
+    const publisher = el._rows.find(
+      (r: any) => r.schemaPropertyName.toLowerCase() === 'publisher' && r.sourceType === 'reference',
+    );
+    expect(publisher, 'reference row should survive the save round-trip').to.exist;
+    expect(publisher.targetPieceKey).to.equal('organization');
+  });
+
   // Regression guards — two side-by-side workspace views for different
   // doc types must render fully independent state. If the SchemeWeaverContext
   // is ever shared as a singleton again, these should catch the leak.
