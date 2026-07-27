@@ -86,17 +86,15 @@ public class JsonLdGeneratorTests
         };
 
     // Production resolves Parent()/Ancestors() through Umbraco's non-deprecated
-    // Parent<T>(navService, filterService) / Ancestors(...) extension methods. On Umbraco 18
-    // those extensions resolve keys internally via IPublishedStatusFilteringService.Unfiltered()
-    // (17 used FilterAvailable()). To make the extension return our test nodes we have to stub
-    // whatever it calls internally — there is no other seam. Unfiltered carries Umbraco's own
-    // [Obsolete] "intermediate solution" note (it will change the extension's internals in v19),
-    // so we suppress CS0618 here only: this is a test mock mirroring Umbraco's internal call,
-    // not the package using a deprecated API. On 17 this is a no-op (those tests stub the
-    // non-obsolete FilterAvailable, which 17 calls).
+    // Parent<T>(navService, filterService) / Ancestors(...) extension methods. Those extensions
+    // resolve keys internally via IPublishedStatusFilteringService.Unfiltered() on Umbraco 18
+    // and, since 17.5 backported it, on 17 as well (17.0–17.4 used FilterAvailable()). To make
+    // the extension return our test nodes we have to stub whatever it calls internally — there
+    // is no other seam. Unfiltered carries Umbraco's own [Obsolete] "intermediate solution" note
+    // (it will change the extension's internals in v19), so we suppress CS0618 here only: this
+    // is a test mock mirroring Umbraco's internal call, not the package using a deprecated API.
     private void StubUnfilteredResolution(params IPublishedContent[] nodes)
     {
-#if UMBRACO18
 #pragma warning disable CS0618 // Unfiltered is Umbraco-internal-deprecated; mocked, not used for functionality
         _publishedStatusFilteringService
             .Unfiltered(Arg.Any<IEnumerable<Guid>>())
@@ -106,7 +104,6 @@ public class JsonLdGeneratorTests
                 return nodes.Where(n => keys.Contains(n.Key)).ToArray();
             });
 #pragma warning restore CS0618
-#endif
     }
 
     [Fact]

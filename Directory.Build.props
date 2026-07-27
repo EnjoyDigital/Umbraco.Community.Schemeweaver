@@ -38,8 +38,9 @@
          Umbraco 17.4.0, so the type must exist in the referenced/runtime assembly. 17.0-17.3 sites
          should stay on SchemeWeaver 17.8.x. -->
     <SchemeWeaverUmbracoCmsRange>[17.4.0, 18.0.0)</SchemeWeaverUmbracoCmsRange>
-    <!-- Pinned version the runnable TestHost installs -->
-    <SchemeWeaverUmbracoCmsHost>17.4.2</SchemeWeaverUmbracoCmsHost>
+    <!-- Pinned version the runnable TestHost installs. 17.5.3 carries the fix for
+         the July 2026 Delivery API security advisory. -->
+    <SchemeWeaverUmbracoCmsHost>17.5.3</SchemeWeaverUmbracoCmsHost>
     <!-- uSync line for this major (stable) -->
     <SchemeWeaverUSyncVersion>17.3.0</SchemeWeaverUSyncVersion>
     <!-- Major-aligned stable package version for the Umbraco 17 line -->
@@ -49,7 +50,9 @@
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
     <!-- Umbraco 18 is GA (18.0.0): consumer range for the shipped package -->
     <SchemeWeaverUmbracoCmsRange>[18.0.0, 19.0.0)</SchemeWeaverUmbracoCmsRange>
-    <SchemeWeaverUmbracoCmsHost>18.0.0</SchemeWeaverUmbracoCmsHost>
+    <!-- Pinned version the runnable TestHost installs. 18.0.2 carries the fix for
+         the July 2026 Delivery API security advisory. -->
+    <SchemeWeaverUmbracoCmsHost>18.0.2</SchemeWeaverUmbracoCmsHost>
     <!-- uSync 18.0.0 is stable -->
     <SchemeWeaverUSyncVersion>18.0.0</SchemeWeaverUSyncVersion>
     <!-- Major-aligned stable package version for the Umbraco 18 line. Its
