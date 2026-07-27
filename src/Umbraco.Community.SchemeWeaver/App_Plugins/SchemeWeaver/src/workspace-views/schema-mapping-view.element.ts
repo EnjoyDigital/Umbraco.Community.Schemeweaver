@@ -297,6 +297,8 @@ export class SchemaMappingViewElement extends UmbLitElement {
             if (row.sourceType === SourceType.Static) return !!row.staticValue;
             if (row.sourceType === SourceType.ComplexType) return !!row.resolverConfig;
             if (row.sourceType === SourceType.BlockContent) return !!row.contentTypePropertyAlias;
+            // reference rows have no property alias — they key off the graph piece
+            if (row.sourceType === SourceType.Reference) return !!row.targetPieceKey;
             return !!row.contentTypePropertyAlias;
           })
           .map((row) => ({
@@ -310,6 +312,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
             nestedSchemaTypeName: row.nestedSchemaTypeName || null,
             resolverConfig: row.resolverConfig,
             dynamicRootConfig: row.dynamicRootConfig ? JSON.stringify(row.dynamicRootConfig) : null,
+            targetPieceKey: row.targetPieceKey || null,
           })),
       };
       await this.#context?.saveMapping(dto);
