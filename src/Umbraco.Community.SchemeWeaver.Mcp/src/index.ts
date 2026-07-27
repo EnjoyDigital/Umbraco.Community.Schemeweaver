@@ -81,8 +81,11 @@ const server = new McpServer(
       "'blockContent' (a Block List/Grid: extractAs stringList for one-field label blocks like recipeIngredient, " +
       "nestedMappings for multi-field blocks, or the nestable `routes` for blocks-nested-in-blocks and Block Grid areas — " +
       "always map a body-sections container like contentGrid/blocks/sections to mainEntity or hasPart as WebPageElement, never leave it unmapped); " +
-      "'parent'/'ancestor'/'sibling' (a related node up/around the tree — e.g. a 'category' grouping from the parent's title); " +
+      "'parent'/'ancestor'/'sibling' (a related node up/around the tree — e.g. a 'category' grouping from the parent's title; " +
+      "ALSO valid on complexTypeMappings sub-rows, so an inline Organization's name/logo can read the site root); " +
       "'reference' (a shared graph piece by key, e.g. organization). " +
+      "Content pickers (ContentPicker/MNTP) under 'property' render the picked node(s): name by default, the whole node via " +
+      "nestedSchemaTypeName + the picked type's own mapping, or one property via resolverConfig {\"pickedPropertyAlias\":\"...\"}. " +
       "Built-ins always available as 'property': __name, __url, __createDate, __updateDate. " +
       "Inspect blocks with get-block-element-types — its propertyInfos[].nestedBlockElementTypes surfaces blocks-within-blocks. " +
       "The schemeweaver-map skill carries the full source-type catalogue and worked examples.",

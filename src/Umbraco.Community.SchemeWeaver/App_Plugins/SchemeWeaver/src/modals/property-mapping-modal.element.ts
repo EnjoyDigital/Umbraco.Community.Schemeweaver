@@ -219,6 +219,29 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     this._mappings = updated;
   }
 
+  /** Picker drill-down: browse a document type to list the picked item's properties. */
+  private async _handleResolvePickedDocumentType(e: CustomEvent) {
+    const { index, documentTypeUnique } = e.detail;
+    if (!documentTypeUnique) return;
+
+    const contentTypes = await this.#repository.requestContentTypes();
+    const match = contentTypes?.find((ct) => ct.key === documentTypeUnique);
+    if (!match) return;
+
+    const props = await this.#repository.requestContentTypeProperties(match.alias);
+    const propertyAliases = props?.map((p) => p.alias) || [];
+
+    const updated = [...this._mappings];
+    updated[index] = {
+      ...updated[index],
+      pickedContentTypeAlias: match.alias,
+      pickedContentTypeUnique: match.key,
+      pickedContentTypeProperties: propertyAliases,
+      pickedPropertyAlias: undefined,
+    };
+    this._mappings = updated;
+  }
+
   private async _handleConfigureNestedMapping(e: CustomEvent) {
     const detail = e.detail;
     const index = detail.index as number;
@@ -491,6 +514,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
           @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
           @pick-source-origin=${this._handlePickSourceOrigin}
           @resolve-document-type=${this._handleResolveDocumentType}
+          @resolve-picked-document-type=${this._handleResolvePickedDocumentType}
         ></schemeweaver-property-mapping-table>
       </uui-box>
     `;

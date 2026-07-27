@@ -91,6 +91,14 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             if (string.IsNullOrWhiteSpace(pm.NestedSchemaTypeName))
                 continue;
 
+            // Picker drill-down: a configured pickedPropertyAlias means the render
+            // emits that single property's value and IGNORES NestedSchemaTypeName —
+            // range-checking the ignored type would warn about output that never
+            // happens.
+            if (!string.IsNullOrWhiteSpace(
+                    Resolvers.PickedContentResolver.ParseConfig(pm.ResolverConfig)?.PickedPropertyAlias))
+                continue;
+
             var chosenClr = _registry.GetClrType(pm.NestedSchemaTypeName);
             if (chosenClr is null)
                 continue; // typo / unknown chosen type — skip gracefully
@@ -162,6 +170,15 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             {
                 ValidateMediaOntoSubProperty(pm, mapping, entry, subProp, issues);
             }
+            else if (string.Equals(entry.SourceType, "ancestor", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.SourceType, "sibling", StringComparison.OrdinalIgnoreCase))
+            {
+                // Related-node sub-rows: the property lives on the SOURCE content type,
+                // not the page's — resolve the editor alias there. parent has no declared
+                // type to resolve against, so it is skipped rather than guessed.
+                if (!string.IsNullOrWhiteSpace(entry.SourceContentTypeAlias))
+                    ValidateMediaOntoSubProperty(pm, mapping, entry, subProp, issues, entry.SourceContentTypeAlias);
+            }
             else if (string.Equals(entry.SourceType, "complexType", StringComparison.OrdinalIgnoreCase))
             {
                 ValidateNestedSubType(pm, mapping, entry, subProp, issues);
@@ -184,9 +201,10 @@ public class SchemaRangeValidator : ISchemaRangeValidator
         SchemaMappingDto mapping,
         ComplexTypeMappingEntry entry,
         SchemaPropertyInfo subProp,
-        List<ValidationIssue> issues)
+        List<ValidationIssue> issues,
+        string? sourceContentTypeAlias = null)
     {
-        var editorAlias = GetEditorAlias(mapping.ContentTypeAlias, entry.ContentTypePropertyAlias);
+        var editorAlias = GetEditorAlias(sourceContentTypeAlias ?? mapping.ContentTypeAlias, entry.ContentTypePropertyAlias);
         if (editorAlias is null || !MediaPickerAliases.Contains(editorAlias))
             return;
 

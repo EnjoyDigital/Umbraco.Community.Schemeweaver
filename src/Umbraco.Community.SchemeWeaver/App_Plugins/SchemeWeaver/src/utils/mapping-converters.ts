@@ -15,6 +15,7 @@ export const POPULAR_PROPERTIES = [
  * stays presentation-only.
  */
 export function dtoToRow(dto: PropertyMappingDto, loadOrder?: number): PropertyMappingRow {
+  const drill = parseDrillConfig(dto.sourceType, dto.resolverConfig);
   return {
     schemaPropertyName: dto.schemaPropertyName || '',
     schemaPropertyType: '',
@@ -38,7 +39,54 @@ export function dtoToRow(dto: PropertyMappingDto, loadOrder?: number): PropertyM
     isAutoMapped: dto.isAutoMapped,
     transformType: dto.transformType ?? null,
     targetPieceKey: dto.targetPieceKey ?? null,
+    pickedPropertyAlias: drill?.pickedPropertyAlias,
+    pickedContentTypeAlias: drill?.pickedContentTypeAlias,
   };
+}
+
+/**
+ * Parses picker drill-down fields out of a row's resolverConfig. Deliberately
+ * strict: only `property`-sourced rows can drill (the config key namespace is
+ * shared with complexType/blockContent shapes, which must pass through
+ * untouched), and only a truthy `pickedPropertyAlias` counts as drill config.
+ */
+export function parseDrillConfig(
+  sourceType: string | undefined,
+  resolverConfig: string | null | undefined,
+): { pickedPropertyAlias: string; pickedContentTypeAlias?: string } | null {
+  if (sourceType !== SourceType.Property || !resolverConfig) return null;
+  try {
+    const parsed = JSON.parse(resolverConfig);
+    if (typeof parsed?.pickedPropertyAlias === 'string' && parsed.pickedPropertyAlias) {
+      return {
+        pickedPropertyAlias: parsed.pickedPropertyAlias,
+        pickedContentTypeAlias:
+          typeof parsed.pickedContentTypeAlias === 'string' && parsed.pickedContentTypeAlias
+            ? parsed.pickedContentTypeAlias
+            : undefined,
+      };
+    }
+  } catch {
+    // Malformed config — treat as no drill config, mirroring the backend.
+  }
+  return null;
+}
+
+/**
+ * Serialises a row's drill-down state into its resolverConfig (or clears it).
+ * Used by the table's edit handlers so the save mappers can keep passing
+ * `resolverConfig` through verbatim.
+ */
+export function drillConfigToResolverConfig(
+  pickedPropertyAlias: string | undefined,
+  pickedContentTypeAlias: string | undefined,
+): string | null {
+  if (!pickedPropertyAlias) return null;
+  return JSON.stringify(
+    pickedContentTypeAlias
+      ? { pickedPropertyAlias, pickedContentTypeAlias }
+      : { pickedPropertyAlias },
+  );
 }
 
 /**
@@ -159,6 +207,10 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
     subMappings: newSourceType === SourceType.ComplexType ? row.subMappings : [],
     selectedSubType: newSourceType === SourceType.ComplexType ? row.selectedSubType : '',
     targetPieceKey: newSourceType === SourceType.Reference ? row.targetPieceKey : null,
+    pickedPropertyAlias: undefined,
+    pickedContentTypeAlias: undefined,
+    pickedContentTypeProperties: undefined,
+        pickedContentTypeUnique: undefined,
   };
 }
 

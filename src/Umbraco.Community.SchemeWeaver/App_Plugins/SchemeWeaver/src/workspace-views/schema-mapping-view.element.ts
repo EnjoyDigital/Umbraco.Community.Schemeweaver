@@ -186,6 +186,45 @@ export class SchemaMappingViewElement extends UmbLitElement {
       const props = await this.#context?.requestContentTypeProperties(this._contentTypeAlias);
       if (props) {
         this._availableProperties = props.map((p: ContentTypeProperty) => p.alias);
+        // Enrich rows with each property's editor alias — dtoToRow can't know it,
+        // and the picked-item mode block only renders for picker editors.
+        const editorByAlias = new Map(props.map((p: ContentTypeProperty) => [p.alias, p.editorAlias ?? '']));
+        this._rows = this._rows.map((row) =>
+          !row.editorAlias && row.contentTypePropertyAlias && editorByAlias.has(row.contentTypePropertyAlias)
+            ? { ...row, editorAlias: editorByAlias.get(row.contentTypePropertyAlias)! }
+            : row,
+        );
+      }
+
+      // Hydrate the drill-down dropdown for stored picker rows that carry a
+      // pickedContentTypeAlias hint (mirrors the ancestor hydration below).
+      const pickedAliases = [...new Set(
+        this._rows
+          .filter((r) => r.pickedContentTypeAlias)
+          .map((r) => r.pickedContentTypeAlias!)
+      )];
+      if (pickedAliases.length > 0) {
+        const pickedPropsMap = new Map<string, string[]>();
+        await Promise.all(
+          pickedAliases.map(async (alias) => {
+            const pickedProps = await this.#context?.requestContentTypeProperties(alias);
+            if (pickedProps) {
+              pickedPropsMap.set(alias, pickedProps.map((p) => p.alias));
+            }
+          })
+        );
+        const contentTypesForPicked = await this.#context?.requestContentTypes();
+        this._rows = this._rows.map((row) => {
+          if (row.pickedContentTypeAlias && pickedPropsMap.has(row.pickedContentTypeAlias)) {
+            const ctMatch = contentTypesForPicked?.find((ct) => ct.alias === row.pickedContentTypeAlias);
+            return {
+              ...row,
+              pickedContentTypeProperties: pickedPropsMap.get(row.pickedContentTypeAlias)!,
+              pickedContentTypeUnique: ctMatch?.key,
+            };
+          }
+          return row;
+        });
       }
 
       // Fetch properties for any existing parent/ancestor/sibling source content types
@@ -368,6 +407,33 @@ export class SchemaMappingViewElement extends UmbLitElement {
       sourceContentTypeAlias: match.alias,
       sourceContentTypeProperties: propertyAliases,
       contentTypePropertyAlias: '',
+    };
+    this._rows = updated;
+  }
+
+  /**
+   * Picker drill-down: the user browsed a document type to list the picked
+   * item's properties. Stores the alias hint into the row (and via the next
+   * picked-property selection, into resolverConfig).
+   */
+  private async _handleResolvePickedDocumentType(e: CustomEvent) {
+    const { index, documentTypeUnique } = e.detail;
+    if (!documentTypeUnique) return;
+
+    const contentTypes = await this.#context?.requestContentTypes();
+    const match = contentTypes?.find((ct) => ct.key === documentTypeUnique);
+    if (!match) return;
+
+    const props = await this.#context?.requestContentTypeProperties(match.alias);
+    const propertyAliases = props?.map((p) => p.alias) || [];
+
+    const updated = [...this._rows];
+    updated[index] = {
+      ...updated[index],
+      pickedContentTypeAlias: match.alias,
+      pickedContentTypeUnique: match.key,
+      pickedContentTypeProperties: propertyAliases,
+      pickedPropertyAlias: undefined,
     };
     this._rows = updated;
   }
@@ -645,6 +711,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
           @mappings-changed=${this._handleMappingsChanged}
           @pick-source-origin=${this._handlePickSourceOrigin}
           @resolve-document-type=${this._handleResolveDocumentType}
+          @resolve-picked-document-type=${this._handleResolvePickedDocumentType}
           @configure-nested-mapping=${this._handleConfigureNestedMapping}
           @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
         ></schemeweaver-property-mapping-table>

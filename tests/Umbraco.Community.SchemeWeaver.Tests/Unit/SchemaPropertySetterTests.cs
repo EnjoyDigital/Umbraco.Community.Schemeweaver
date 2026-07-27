@@ -409,6 +409,41 @@ public class SchemaPropertySetterTests
     }
 
     [Fact]
+    public void SetPropertyValue_StringList_OnKeywords_SetsAllValues()
+    {
+        // The MNTP resolver emits List<string> for multiple picked-node names —
+        // the string-collection path must carry every value.
+        var article = new Article();
+        var names = new List<string> { "Alpha", "Beta", "Gamma" };
+
+        SchemaPropertySetter.SetPropertyValue(article, "Keywords", names);
+
+        var jsonLd = article.ToString();
+        jsonLd.Should().Contain("Alpha").And.Contain("Beta").And.Contain("Gamma");
+    }
+
+    [Fact]
+    public void SetPropertyValue_HeterogeneousObjectList_Behaviour_Pin()
+    {
+        // Behaviour pin for WHY MultiNodeTreePickerResolver homogenises its output:
+        // a List<object> bypasses the typed IEnumerable<Thing>/IEnumerable<string>
+        // fast paths (no generic variance from object) and only lands — partially,
+        // and shape-dependently — via the late Values<> reflection path. The typed
+        // homogenised lists are the only DETERMINISTIC contract; if this pin's
+        // observed behaviour changes, revisit the resolver's homogenisation.
+        var article = new Article();
+        var mixed = new List<object> { new Person { Name = "Jane" }, "loose string" };
+
+        var act = () => SchemaPropertySetter.SetPropertyValue(article, "Author", mixed);
+
+        act.Should().NotThrow();
+        // The typed path is the guaranteed one:
+        var typed = new Article();
+        SchemaPropertySetter.SetPropertyValue(typed, "Author", new List<Thing> { new Person { Name = "Jane" } });
+        typed.ToString().Should().Contain("Jane");
+    }
+
+    [Fact]
     public void SetPropertyValue_MultipleUrlStrings_OnLogo_FallsBackToFirstUrl()
     {
         // Organization.Logo is OneOrMany<Values<IImageObject, Uri>> — plain strings cannot

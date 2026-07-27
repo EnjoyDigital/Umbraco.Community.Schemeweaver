@@ -5,6 +5,12 @@ export interface SourceOriginPickerModalData {
   isComplexType: boolean;
   currentSourceType: string;
   restrictToSimpleSources?: boolean;
+  /**
+   * Hide only the Block Content option. Used by the complex-type modal: nested
+   * sub-rows may source from related nodes, but block content has no meaning
+   * inside a nested config.
+   */
+  hideBlockContent?: boolean;
 }
 
 export interface SourceOriginPickerModalValue {

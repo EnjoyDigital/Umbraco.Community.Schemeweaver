@@ -377,4 +377,111 @@ public class SchemaRangeValidatorTests
             ContentTypePropertyAlias = "title"
         })).Should().BeEmpty();
     }
+
+    [Fact]
+    public void DrillDownConfig_SuppressesNestedTypeRangeCheck()
+    {
+        // A picker row can carry BOTH nestedSchemaTypeName and a drill-down config
+        // (authored via MCP/uSync). The render ignores the nested type when drilling,
+        // so an out-of-range nested type must NOT warn — the warned-about output
+        // never happens.
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "HasPart",
+            SourceType = "property",
+            ContentTypePropertyAlias = "relatedNode",
+            NestedSchemaTypeName = "Person", // out of range for HasPart (CreativeWork)
+            ResolverConfig = """{"pickedPropertyAlias":"title"}"""
+        });
+
+        _sut.Validate(dto).Should().BeEmpty(
+            "drill-down emits the picked property's value, not the nested type the range check would flag");
+    }
+
+    [Fact]
+    public void AncestorSubRow_MediaOntoStringOnlySubProperty_WarnsUsingAncestorType()
+    {
+        // The media property lives on the ANCESTOR's content type (homePage.logo), not the
+        // page's. The check must resolve the editor alias against the sub-row's
+        // sourceContentTypeAlias — resolving against the page would silently skip.
+        var contentTypeService = ContentTypeServiceWith(
+            "homePage", ("logo", "Umbraco.MediaPicker3"));
+        var sut = CreateValidator(contentTypeService);
+
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings =
+            [
+                new PropertyMappingDto
+                {
+                    SchemaPropertyName = "Author",
+                    SourceType = "complexType",
+                    NestedSchemaTypeName = "Person",
+                    ResolverConfig =
+                        """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"ancestor","sourceContentTypeAlias":"homePage","contentTypePropertyAlias":"logo"}]}"""
+                }
+            ]
+        };
+
+        var issues = sut.Validate(dto);
+
+        issues.Should().ContainSingle(
+            "an ancestor-sourced media picker dropped onto string-only Person.Name is the same empty-shell trap as the page-local case");
+        issues[0].Path.Should().Be("Author");
+    }
+
+    [Fact]
+    public void ParentSubRow_MediaAlias_NoWarning_NoDeclaredTypeToResolveAgainst()
+    {
+        // parent sub-rows carry no content type alias — the check cannot know the
+        // parent's type, so it must skip rather than guess (or false-positive off
+        // the page's own same-named property).
+        var contentTypeService = ContentTypeServiceWith(
+            "article", ("logo", "Umbraco.MediaPicker3"));
+        var sut = CreateValidator(contentTypeService);
+
+        var dto = new SchemaMappingDto
+        {
+            ContentTypeAlias = "article",
+            SchemaTypeName = "Article",
+            IsEnabled = true,
+            PropertyMappings =
+            [
+                new PropertyMappingDto
+                {
+                    SchemaPropertyName = "Author",
+                    SourceType = "complexType",
+                    NestedSchemaTypeName = "Person",
+                    ResolverConfig =
+                        """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"parent","contentTypePropertyAlias":"logo"}]}"""
+                }
+            ]
+        };
+
+        sut.Validate(dto).Should().BeEmpty(
+            "a parent sub-row has no declared source type, so the media check must not fire off the page's same-named property");
+    }
+
+    [Fact]
+    public void AncestorSubRow_UnknownSubProperty_StillWarns()
+    {
+        // The existing unknown-sub-property warning must keep firing for related-node
+        // sub-rows too (the dispatch change must not skip the shared checks).
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Author",
+            SourceType = "complexType",
+            NestedSchemaTypeName = "Person",
+            ResolverConfig =
+                """{"complexTypeMappings":[{"schemaProperty":"NoSuchProperty","sourceType":"ancestor","sourceContentTypeAlias":"homePage","contentTypePropertyAlias":"organisationName"}]}"""
+        });
+
+        var issues = _sut.Validate(dto);
+
+        issues.Should().ContainSingle();
+        issues[0].Message.Should().Contain("NoSuchProperty");
+    }
 }
