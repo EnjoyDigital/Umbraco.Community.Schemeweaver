@@ -379,6 +379,23 @@ public class SchemaRangeValidatorTests
     }
 
     [Fact]
+    public void DrillDownConfig_OnNonPropertyRow_DoesNotSuppressRangeCheck()
+    {
+        // Drill config is only meaningful on property-sourced rows. A complexType
+        // row that somehow carries drill-shaped JSON (e.g. a bad source switch)
+        // renders via its nested type, so the range check must still fire.
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "HasPart",
+            SourceType = "complexType",
+            NestedSchemaTypeName = "Person", // out of range for HasPart
+            ResolverConfig = """{"pickedPropertyAlias":"title"}"""
+        });
+
+        _sut.Validate(dto).Should().ContainSingle();
+    }
+
+    [Fact]
     public void DrillDownConfig_SuppressesNestedTypeRangeCheck()
     {
         // A picker row can carry BOTH nestedSchemaTypeName and a drill-down config

@@ -82,7 +82,7 @@ public class MultiNodeTreePickerResolver : IPropertyValueResolver
         if (things.Count > 0)
             return things;
 
-        return resolved.Select(v => v.ToString())
+        return resolved.Select(v => Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture))
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Cast<string>()
             .ToList();

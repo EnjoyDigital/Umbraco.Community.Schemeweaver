@@ -231,11 +231,13 @@ export class PropertyMappingTableElement extends UmbLitElement {
     const updated = [...this.mappings];
     const row = updated[index];
     updated[index] = { ...row, contentTypePropertyAlias: value };
-    // A different picker property means any drilled alias belongs to the OLD
-    // picked type — stale drill state must not survive the change.
-    if (row.pickedPropertyAlias || row.pickedContentTypeAlias) {
+    // A different content property means any picked-item state (drilled alias
+    // OR whole-item nested type) belongs to the OLD property — none of it may
+    // survive the change, or the save persists config the UI no longer shows.
+    if (row.pickedPropertyAlias || row.pickedContentTypeAlias || row.nestedSchemaTypeName) {
       updated[index] = {
         ...updated[index],
+        nestedSchemaTypeName: '',
         pickedPropertyAlias: undefined,
         pickedContentTypeAlias: undefined,
         pickedContentTypeProperties: undefined,
@@ -329,6 +331,13 @@ export class PropertyMappingTableElement extends UmbLitElement {
       this._dispatchChange();
       return;
     }
+
+    // Pin the mode: the host's resolve handler clears pickedPropertyAlias (the
+    // old alias belongs to the previous type), which would otherwise snap the
+    // derived mode back to 'name' mid-edit.
+    const draft = new Map(this._pickerModeDraft);
+    draft.set(this.mappings[index].schemaPropertyName, 'property');
+    this._pickerModeDraft = draft;
 
     this.dispatchEvent(
       new CustomEvent('resolve-picked-document-type', {
@@ -482,8 +491,15 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   private _handleRemoveRow(index: number) {
     const updated = [...this.mappings];
-    updated.splice(index, 1);
+    const [removed] = updated.splice(index, 1);
     this.mappings = updated;
+    // Prune the picked-item mode draft so a re-added row of the same schema
+    // property starts from its own derived mode, not the removed row's.
+    if (removed && this._pickerModeDraft.has(removed.schemaPropertyName)) {
+      const draft = new Map(this._pickerModeDraft);
+      draft.delete(removed.schemaPropertyName);
+      this._pickerModeDraft = draft;
+    }
     this._dispatchChange();
   }
 

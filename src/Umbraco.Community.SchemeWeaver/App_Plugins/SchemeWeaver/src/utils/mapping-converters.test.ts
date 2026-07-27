@@ -436,6 +436,33 @@ describe('picker drill-down config', () => {
     expect(result.pickedContentTypeProperties).to.equal(undefined);
     expect(result.resolverConfig).to.equal(null);
   });
+
+  it('switching a drill row to complexType does NOT carry the drill config across', () => {
+    // Regression: resolverConfig used to be preserved for complexType targets
+    // unconditionally, so a drilled picker row switched to Complex Type kept
+    // {"pickedPropertyAlias":…} masquerading as its complex config — passing
+    // the save filter while rendering nothing.
+    const row = makeRow({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: '{"pickedPropertyAlias":"fullName"}',
+      pickedPropertyAlias: 'fullName',
+    });
+    const result = applySourceTypeChange(row, SourceType.ComplexType);
+    expect(result.resolverConfig).to.equal(null);
+  });
+
+  it('switching between complexType and blockContent still preserves genuine config', () => {
+    const row = makeRow({
+      schemaPropertyName: 'mainEntity',
+      sourceType: SourceType.ComplexType,
+      nestedSchemaTypeName: 'WebPageElement',
+      resolverConfig: '{"selectedSubType":"WebPageElement","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"title"}]}',
+    });
+    const result = applySourceTypeChange(row, SourceType.BlockContent);
+    expect(result.resolverConfig).to.contain('complexTypeMappings');
+  });
 });
 
 describe('applySourceTypeChange', () => {

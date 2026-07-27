@@ -238,6 +238,9 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       pickedContentTypeUnique: match.key,
       pickedContentTypeProperties: propertyAliases,
       pickedPropertyAlias: undefined,
+      // The old drilled alias belongs to the previous type — clearing only the
+      // row field would leave the stale drill config to be saved verbatim.
+      resolverConfig: null,
     };
     this._mappings = updated;
   }

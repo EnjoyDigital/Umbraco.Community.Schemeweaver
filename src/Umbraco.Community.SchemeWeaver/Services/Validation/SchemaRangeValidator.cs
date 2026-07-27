@@ -91,11 +91,13 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             if (string.IsNullOrWhiteSpace(pm.NestedSchemaTypeName))
                 continue;
 
-            // Picker drill-down: a configured pickedPropertyAlias means the render
-            // emits that single property's value and IGNORES NestedSchemaTypeName —
-            // range-checking the ignored type would warn about output that never
-            // happens.
-            if (!string.IsNullOrWhiteSpace(
+            // Picker drill-down (property-sourced rows only): a configured
+            // pickedPropertyAlias means the render emits that single property's
+            // value and IGNORES NestedSchemaTypeName — range-checking the ignored
+            // type would warn about output that never happens. Other source types
+            // never drill, so their configs must not suppress the check.
+            if (string.Equals(pm.SourceType, "property", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(
                     Resolvers.PickedContentResolver.ParseConfig(pm.ResolverConfig)?.PickedPropertyAlias))
                 continue;
 

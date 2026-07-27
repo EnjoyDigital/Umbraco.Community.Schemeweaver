@@ -190,6 +190,13 @@ export function mergeAutoMapSuggestions(
  */
 export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: SourceTypeValue): PropertyMappingRow {
   const needsRelated = newSourceType === SourceType.Parent || newSourceType === SourceType.Ancestor || newSourceType === SourceType.Sibling;
+  // resolverConfig is only meaningful across a source change when it is a
+  // complexType/blockContent shape moving between those two types. A picker
+  // drill config (property-sourced) must NOT masquerade as complex config —
+  // it would pass the complexType save filter while rendering nothing.
+  const keepsConfigShape =
+    (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
+    && !parseDrillConfig(row.sourceType, row.resolverConfig);
   return {
     ...row,
     sourceType: newSourceType,
@@ -201,8 +208,7 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
     sourceDocumentTypeUnique: needsRelated ? row.sourceDocumentTypeUnique : undefined,
     nestedSchemaTypeName: (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
       ? row.nestedSchemaTypeName : '',
-    resolverConfig: (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
-      ? row.resolverConfig : null,
+    resolverConfig: keepsConfigShape ? row.resolverConfig : null,
     expanded: newSourceType === SourceType.ComplexType ? row.expanded : false,
     subMappings: newSourceType === SourceType.ComplexType ? row.subMappings : [],
     selectedSubType: newSourceType === SourceType.ComplexType ? row.selectedSubType : '',
@@ -210,7 +216,7 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
     pickedPropertyAlias: undefined,
     pickedContentTypeAlias: undefined,
     pickedContentTypeProperties: undefined,
-        pickedContentTypeUnique: undefined,
+    pickedContentTypeUnique: undefined,
   };
 }
 
