@@ -52,7 +52,7 @@
          introduces the Deploy satellite, shipping as a beta until the licensed
          Deploy pipeline has been verified on a real Cloud/OnPrem environment
          (see docs/deploy.md pre-release checklist). -->
-    <SchemeWeaverPackageVersion>17.12.0-beta.1</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>17.12.0-beta.2</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -70,7 +70,7 @@
          [18.0.0, 19.0.0) Umbraco.Cms range is mutually exclusive with the 17 leg's
          [17.4.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->
     <!-- Prerelease — see the 17 leg's comment -->
-    <SchemeWeaverPackageVersion>18.7.0-beta.1</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>18.7.0-beta.2</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>
