@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Community.SchemeWeaver.Persistence;
+using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Deploy.Core.Events;
 
 namespace Umbraco.Community.SchemeWeaver.Deploy.NotificationHandlers;
@@ -46,6 +47,12 @@ public class DeployTaskCompletedCacheClearHandler :
         {
             using var scope = _scopeFactory.CreateScope();
             scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>().ClearCache();
+
+            // Deploy extraction writes via the repository, so the service-layer
+            // notifications that normally evict the JSON-LD output cache
+            // (InvalidateJsonLdCacheOnMappingChange) never fire — flush it here or
+            // pages keep serving pre-deployment JSON-LD until entries expire.
+            scope.ServiceProvider.GetService<IJsonLdBlocksProvider>()?.InvalidateAll();
         }
         catch (Exception ex)
         {
