@@ -33,6 +33,22 @@
     <PackageReference Include="Umbraco.AI" Version="[1.14.0, 2.0.0)" />
   </ItemGroup>
 
+  <!--
+    Umbraco Deploy is licensed and OPT-IN for manual/E2E testing only:
+      dotnet run -p:SchemeWeaverIncludeDeploy=true
+    Keep it off for the default dev loop (no licence banners, no umbraco/Deploy
+    folder churn) and NEVER turn it on for test projects — the Deploy.Tests
+    project gets Deploy through its own dependency context instead. The flag
+    changes the compiled output, so run `dotnet clean` when toggling it (MSBuild
+    can silently keep the other variant's DLLs in bin).
+    OnPrem boots without a licence: extraction is disabled with a warning, but
+    save-time .uda writes and the Settings > Deploy dashboard still work.
+  -->
+  <ItemGroup Condition="'$(SchemeWeaverIncludeDeploy)' == 'true'">
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver.Deploy\Umbraco.Community.SchemeWeaver.Deploy.csproj" />
+    <PackageReference Include="Umbraco.Deploy.OnPrem" Version="$(SchemeWeaverUmbracoDeployHost)" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Opt-in to app-local ICU to ensure consistent globalization APIs across different platforms -->
     <PackageReference Include="Microsoft.ICU.ICU4C.Runtime" Version="72.1.0.3" />

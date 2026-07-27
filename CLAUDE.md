@@ -54,6 +54,18 @@ It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugi
 
 ### Backend (C#)
 - **Controllers/** — `SchemeWeaverApiController` at `/umbraco/management/api/v1/schemeweaver`
+- **Deploy satellite** (`src/Umbraco.Community.SchemeWeaver.Deploy/`) — Umbraco Deploy addon:
+  `SchemaMappingServiceConnector` (+ `SchemaMappingArtifact`, UDI type `schemeweaver-mapping`
+  seeded from `ContentTypeKey`) registers mappings as a disk entity type so they ship as
+  `.uda` artifacts with the doc types. References only `Umbraco.Deploy.Infrastructure`;
+  all licensed Deploy services are soft-resolved (satellite-without-OnPrem warns once and
+  no-ops). The artifact class's namespace/assembly is a serialized wire contract — never
+  rename it. It must NOT register the uSync seams (`IMappingDriftReporter`/`IMappingExporter`).
+  Its tests live in `tests/Umbraco.Community.SchemeWeaver.Deploy.Tests` — the ONLY test
+  project allowed to reference `Umbraco.Deploy.OnPrem` (dependency-context isolation keeps
+  Deploy out of every other integration boot); its integration tests drive the real Deploy
+  disk pipeline licence-free via Deploy's public `NullLicensing`. TestHost gets Deploy only
+  via `dotnet run -p:SchemeWeaverIncludeDeploy=true` (run `dotnet clean` when toggling).
 - **Services/** — `SchemaTypeRegistry` (singleton, scans Schema.NET assembly), `JsonLdGenerator`, `SchemaAutoMapper`, `ContentTypeGenerator`
 - **Persistence/** — `SchemaMappingRepository` using NPoco (two tables: `SchemeWeaverSchemaMapping`, `SchemeWeaverPropertyMapping`)
 - **Models/Api/** — DTOs serialised as camelCase JSON: `SchemaMappingDto`, `PropertyMappingDto`, `SchemaTypeInfo`, `PropertyMappingSuggestion`, `JsonLdPreviewResponse`, `ContentTypeGenerationRequest`
