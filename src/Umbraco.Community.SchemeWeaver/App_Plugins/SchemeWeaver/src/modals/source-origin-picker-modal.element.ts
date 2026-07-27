@@ -21,6 +21,7 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
     const editorAlias = this.data?.editorAlias ?? '';
     const isComplexType = this.data?.isComplexType ?? false;
     const restrictToSimple = this.data?.restrictToSimpleSources ?? false;
+    const currentSourceType = this.data?.currentSourceType ?? '';
 
     const options: OriginOption[] = [
       {
@@ -61,6 +62,20 @@ export class SourceOriginPickerModalElement extends UmbModalBaseElement<SourceOr
         icon: 'icon-brackets',
         labelKey: 'schemeWeaver_sourceComplexType',
         descriptionKey: 'schemeWeaver_originComplexTypeDescription',
+      });
+    }
+
+    // The picker cannot CONFIGURE a reference (the target piece comes from
+    // auto-map/uSync/MCP), but a row that already IS one must be able to keep
+    // it — without this option, any re-pick permanently destroys the
+    // targetPieceKey. Re-choosing it is lossless (applySourceTypeChange keeps
+    // the key when the source type stays reference).
+    if (currentSourceType === SourceType.Reference) {
+      options.unshift({
+        sourceType: SourceType.Reference,
+        icon: 'icon-link',
+        labelKey: 'schemeWeaver_sourceReference',
+        descriptionKey: 'schemeWeaver_originReferenceDescription',
       });
     }
 

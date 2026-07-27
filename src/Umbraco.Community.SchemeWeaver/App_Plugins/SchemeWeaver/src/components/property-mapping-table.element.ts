@@ -271,7 +271,10 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   /** Confidence is an integer 0-100 from C# auto-mapper */
   private _renderConfidenceTag(mapping: PropertyMappingRow) {
-    if (!mapping.contentTypePropertyAlias && mapping.sourceType !== SourceType.Static) return nothing;
+    const configuredWithoutAlias =
+      mapping.sourceType === SourceType.Static ||
+      (mapping.sourceType === SourceType.Reference && !!mapping.targetPieceKey);
+    if (!mapping.contentTypePropertyAlias && !configuredWithoutAlias) return nothing;
     const confidence = mapping.confidence;
     if (confidence === null) return nothing;
     if (confidence >= 80) return html`<uui-tag look="secondary" color="positive" class="confidence-tag">${this.localize.term('schemeWeaver_confidenceHigh')}</uui-tag>`;
