@@ -261,6 +261,42 @@ describe('mergeAutoMapSuggestions', () => {
     expect(result[0].schemaPropertyName).to.equal('offers');
   });
 
+  it('preserves an existing reference row through an auto-map merge', () => {
+    // Regression: reference rows have no property alias/static value/resolver
+    // config, so rowHasUserData must count targetPieceKey or the merge treats
+    // them as empty placeholders and deletes them (publisher is not in
+    // POPULAR_PROPERTIES).
+    const existing = [makeRow({
+      schemaPropertyName: 'publisher',
+      sourceType: SourceType.Reference,
+      targetPieceKey: 'organization',
+    })];
+    const suggestions = [makeSuggestion({
+      schemaPropertyName: 'headline',
+      suggestedContentTypePropertyAlias: 'title',
+      confidence: 90,
+    })];
+    const result = mergeAutoMapSuggestions(existing, suggestions);
+    const publisher = result.find((r) => r.schemaPropertyName === 'publisher');
+    expect(publisher).to.exist;
+    expect(publisher!.sourceType).to.equal(SourceType.Reference);
+    expect(publisher!.targetPieceKey).to.equal('organization');
+  });
+
+  it('adds a reference suggestion carrying its target piece key', () => {
+    const suggestions = [makeSuggestion({
+      schemaPropertyName: 'publisher',
+      suggestedSourceType: SourceType.Reference,
+      suggestedTargetPieceKey: 'organization',
+      confidence: 80,
+    })];
+    const result = mergeAutoMapSuggestions([], suggestions);
+    const publisher = result.find((r) => r.schemaPropertyName === 'publisher');
+    expect(publisher).to.exist;
+    expect(publisher!.sourceType).to.equal(SourceType.Reference);
+    expect(publisher!.targetPieceKey).to.equal('organization');
+  });
+
   it('excludes suggestions with no property match and zero confidence', () => {
     const existing: PropertyMappingRow[] = [];
     const suggestions = [
@@ -291,6 +327,16 @@ describe('dtoToRow', () => {
     });
     const row = dtoToRow(dto);
     expect(row.dynamicRootConfig).to.equal(undefined);
+  });
+
+  it('carries targetPieceKey for reference rows', () => {
+    const dto = makeDto({
+      schemaPropertyName: 'publisher',
+      sourceType: SourceType.Reference,
+      targetPieceKey: 'organization',
+    });
+    const row = dtoToRow(dto);
+    expect(row.targetPieceKey).to.equal('organization');
   });
 });
 
@@ -341,6 +387,16 @@ describe('applySourceTypeChange', () => {
     };
     const result = applySourceTypeChange(row, SourceType.Ancestor);
     expect(result.dynamicRootConfig).to.deep.equal({ originAlias: 'Root' });
+  });
+
+  it('clears targetPieceKey when switching a reference row to another source type', () => {
+    const row = makeRow({
+      schemaPropertyName: 'publisher',
+      sourceType: SourceType.Reference,
+      targetPieceKey: 'organization',
+    });
+    const result = applySourceTypeChange(row, SourceType.Property);
+    expect(result.targetPieceKey).to.equal(null);
   });
 });
 

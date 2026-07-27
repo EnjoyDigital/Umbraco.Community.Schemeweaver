@@ -74,6 +74,11 @@ export default {
     sourceParentNode: 'Parent Node',
     sourceAncestorNode: 'Ancestor Node',
     sourceSiblingNode: 'Sibling Node',
+    sourceReference: 'Graph Reference',
+    // Shown in the value cell of a reference row that has no target piece key
+    // (a misconfigured row the backend would skip at render time).
+    referenceNoTarget: 'No target piece',
+    originReferenceDescription: 'Keep referencing a shared graph piece (e.g. the site Organisation) by @id',
     enterStaticValue: 'Enter static value...',
     staticValueFor: 'Static value for',
     contentTypeAliasPlaceholder: 'Content type alias...',
