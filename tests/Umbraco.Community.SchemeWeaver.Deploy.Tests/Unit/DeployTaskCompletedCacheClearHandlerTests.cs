@@ -11,8 +11,9 @@ using Xunit;
 
 namespace Umbraco.Community.SchemeWeaver.Deploy.Tests.Unit;
 
-public class DeployTaskCompletedCacheClearHandlerTests
+public class DeployTaskCompletedCacheClearHandlerTests : IDisposable
 {
+    private readonly List<EventMessages> _eventMessages = [];
     private readonly ISchemaMappingRepository _repository = Substitute.For<ISchemaMappingRepository>();
     private readonly Umbraco.Community.SchemeWeaver.Services.IJsonLdBlocksProvider _jsonLdProvider =
         Substitute.For<Umbraco.Community.SchemeWeaver.Services.IJsonLdBlocksProvider>();
@@ -32,11 +33,29 @@ public class DeployTaskCompletedCacheClearHandlerTests
             scopeFactory, Substitute.For<ILogger<DeployTaskCompletedCacheClearHandler>>());
     }
 
-    private static TaskCompletedNotification Completed()
-        => new(Substitute.For<Umbraco.Deploy.Core.Work.IWorkItem>(), new EventMessages());
+    private TaskCompletedNotification Completed()
+        => new(Substitute.For<Umbraco.Deploy.Core.Work.IWorkItem>(), TrackedMessages());
 
-    private static TaskFailedNotification Failed()
-        => new(Substitute.For<Umbraco.Deploy.Core.Work.IWorkItem>(), new EventMessages());
+    private TaskFailedNotification Failed()
+        => new(Substitute.For<Umbraco.Deploy.Core.Work.IWorkItem>(), TrackedMessages());
+
+    /// <summary>
+    /// <see cref="EventMessages"/> is disposable (it derives from <c>DisposableObjectSlim</c>),
+    /// so each instance handed to a notification is tracked here and disposed on teardown —
+    /// after the notification holding it has been consumed.
+    /// </summary>
+    private EventMessages TrackedMessages()
+    {
+        var messages = new EventMessages();
+        _eventMessages.Add(messages);
+        return messages;
+    }
+
+    public void Dispose()
+    {
+        foreach (var messages in _eventMessages)
+            messages.Dispose();
+    }
 
     [Fact]
     public async Task TaskCompleted_ClearsMappingCache_AndJsonLdOutputCache()

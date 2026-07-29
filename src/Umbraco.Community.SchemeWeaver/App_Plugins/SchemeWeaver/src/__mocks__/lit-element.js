@@ -78,7 +78,6 @@ const translations = {
   'schemeWeaver_blockFanOutCreated': 'Added mapping rows for: {0}',
   'schemeWeaver_stringListNotice': 'This mapping extracts a text list from {0} — there are no block routes to edit. Saving keeps the string-list configuration unchanged.',
   'schemeWeaver_mapThisBlock': 'Map this block',
-  'schemeWeaver_notMapped': 'Not mapped',
 };
 
 /**

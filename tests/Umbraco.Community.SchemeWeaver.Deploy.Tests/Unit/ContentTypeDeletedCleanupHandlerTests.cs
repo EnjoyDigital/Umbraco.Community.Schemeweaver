@@ -14,10 +14,11 @@ using Xunit;
 
 namespace Umbraco.Community.SchemeWeaver.Deploy.Tests.Unit;
 
-public class ContentTypeDeletedCleanupHandlerTests
+public class ContentTypeDeletedCleanupHandlerTests : IDisposable
 {
     private static readonly Guid Key = new("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
+    private readonly List<EventMessages> _eventMessages = [];
     private readonly IDiskEntityService _diskEntityService = Substitute.For<IDiskEntityService>();
     private readonly ISignatureService _signatureService = Substitute.For<ISignatureService>();
 
@@ -35,7 +36,7 @@ public class ContentTypeDeletedCleanupHandlerTests
             Substitute.For<ILogger<ContentTypeDeletedCleanupHandler>>());
     }
 
-    private static ContentTypeDeletedNotification Notification(params Guid[] keys)
+    private ContentTypeDeletedNotification Notification(params Guid[] keys)
     {
         var contentTypes = keys.Select(k =>
         {
@@ -44,10 +45,30 @@ public class ContentTypeDeletedCleanupHandlerTests
             return contentType;
         }).ToArray();
 
-        var notification = new ContentTypeDeletedNotification(contentTypes[0], new EventMessages());
+        // Build only the notification actually returned — the single-item overload was
+        // previously constructed unconditionally and then thrown away in the multi-item case.
+        var messages = TrackedMessages();
         return contentTypes.Length == 1
-            ? notification
-            : new ContentTypeDeletedNotification(contentTypes, new EventMessages());
+            ? new ContentTypeDeletedNotification(contentTypes[0], messages)
+            : new ContentTypeDeletedNotification(contentTypes, messages);
+    }
+
+    /// <summary>
+    /// <see cref="EventMessages"/> is disposable (it derives from <c>DisposableObjectSlim</c>),
+    /// so each instance handed to a notification is tracked here and disposed on teardown —
+    /// after the notification holding it has been consumed.
+    /// </summary>
+    private EventMessages TrackedMessages()
+    {
+        var messages = new EventMessages();
+        _eventMessages.Add(messages);
+        return messages;
+    }
+
+    public void Dispose()
+    {
+        foreach (var messages in _eventMessages)
+            messages.Dispose();
     }
 
     [Fact]

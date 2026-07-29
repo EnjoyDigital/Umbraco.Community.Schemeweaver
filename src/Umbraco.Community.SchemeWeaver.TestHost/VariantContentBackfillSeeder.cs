@@ -45,7 +45,7 @@ public sealed class VariantContentBackfillSeeder
         UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
     {
-        var contentFolder = Path.Combine(
+        var contentFolder = Path.Join(
             _hostEnvironment.ContentRootPath, "uSync", "v18", "Content");
         if (!Directory.Exists(contentFolder))
         {

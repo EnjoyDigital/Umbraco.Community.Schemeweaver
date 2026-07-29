@@ -93,7 +93,7 @@ public class DeployDiskRoundTripTests : UmbracoIntegrationTestBase
     }
 
     private string UdaPath(Guid contentTypeKey)
-        => Path.Combine(ArtifactDirectory, $"schemeweaver-mapping__{contentTypeKey:N}.uda");
+        => Path.Join(ArtifactDirectory, $"schemeweaver-mapping__{contentTypeKey:N}.uda");
 
     /// <summary>
     /// The .uda write happens on the saved-notification path of the request we just
@@ -139,8 +139,8 @@ public class DeployDiskRoundTripTests : UmbracoIntegrationTestBase
     {
         var diskEntityService = DiskEntityService;
         var statePath = diskEntityService.GetStateDirectory();
-        var completeMarker = Path.Combine(statePath, "deploy-complete");
-        var failedMarker = Path.Combine(statePath, "deploy-failed");
+        var completeMarker = Path.Join(statePath, "deploy-complete");
+        var failedMarker = Path.Join(statePath, "deploy-failed");
 
         // Deploy's work runner silently skips when another work item holds the
         // environment worker (it logs "another deploy is in flight" and returns
