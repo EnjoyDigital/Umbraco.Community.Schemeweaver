@@ -84,3 +84,10 @@ src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/mockServiceWorker.js
 eval/cache/
 eval/reports/
 eval/.key
+
+# Auto-generated on every build by Umbraco packages (Deploy/Licenses/uSync JSON schemas,
+# Deploy's bundled trigger script) — pure churn, never hand-edited
+appsettings-schema.Umbraco.Deploy.json
+appsettings-schema.Umbraco.Licenses.json
+appsettings-schema.usync.json
+TriggerDeploy.ps1

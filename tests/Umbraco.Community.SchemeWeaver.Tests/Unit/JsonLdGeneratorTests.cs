@@ -86,17 +86,15 @@ public class JsonLdGeneratorTests
         };
 
     // Production resolves Parent()/Ancestors() through Umbraco's non-deprecated
-    // Parent<T>(navService, filterService) / Ancestors(...) extension methods. On Umbraco 18
-    // those extensions resolve keys internally via IPublishedStatusFilteringService.Unfiltered()
-    // (17 used FilterAvailable()). To make the extension return our test nodes we have to stub
-    // whatever it calls internally — there is no other seam. Unfiltered carries Umbraco's own
-    // [Obsolete] "intermediate solution" note (it will change the extension's internals in v19),
-    // so we suppress CS0618 here only: this is a test mock mirroring Umbraco's internal call,
-    // not the package using a deprecated API. On 17 this is a no-op (those tests stub the
-    // non-obsolete FilterAvailable, which 17 calls).
+    // Parent<T>(navService, filterService) / Ancestors(...) extension methods. Those extensions
+    // resolve keys internally via IPublishedStatusFilteringService.Unfiltered() on Umbraco 18
+    // and, since 17.5 backported it, on 17 as well (17.0–17.4 used FilterAvailable()). To make
+    // the extension return our test nodes we have to stub whatever it calls internally — there
+    // is no other seam. Unfiltered carries Umbraco's own [Obsolete] "intermediate solution" note
+    // (it will change the extension's internals in v19), so we suppress CS0618 here only: this
+    // is a test mock mirroring Umbraco's internal call, not the package using a deprecated API.
     private void StubUnfilteredResolution(params IPublishedContent[] nodes)
     {
-#if UMBRACO18
 #pragma warning disable CS0618 // Unfiltered is Umbraco-internal-deprecated; mocked, not used for functionality
         _publishedStatusFilteringService
             .Unfiltered(Arg.Any<IEnumerable<Guid>>())
@@ -106,7 +104,6 @@ public class JsonLdGeneratorTests
                 return nodes.Where(n => keys.Contains(n.Key)).ToArray();
             });
 #pragma warning restore CS0618
-#endif
     }
 
     [Fact]
@@ -2264,6 +2261,373 @@ public class JsonLdGeneratorTests
         doc.RootElement.TryGetProperty("author", out _).Should().BeFalse(
             "a complexType whose sub-values all resolve null must be omitted, " +
             "not emitted as an empty {\"@type\":\"Person\"} shell");
+    }
+
+    #endregion
+
+    #region Related-node complexType sub-rows (issue #32's literal shape)
+
+    private JsonLdGenerator CreateSutWithFullResolverFactory()
+    {
+        var factory = new PropertyValueResolverFactory(new IPropertyValueResolver[]
+        {
+            new DefaultPropertyValueResolver(),
+            new BuiltInPropertyResolver(_urlProvider),
+            new ContentPickerResolver(),
+            new MultiNodeTreePickerResolver()
+        });
+        return new JsonLdGenerator(
+            _repository, _registry, _httpContextAccessor, _navigationQueryService,
+            _publishedStatusFilteringService, factory, _urlProvider,
+            _variationContextAccessor, _logger, Options.Create(new SchemeWeaverOptions()));
+    }
+
+    /// <summary>
+    /// Mocks the ancestor chain child → parent → grandparent for Ancestors() resolution.
+    /// </summary>
+    private void StubAncestors(IPublishedContent child, params IPublishedContent[] ancestorsNearestFirst)
+    {
+        var keys = ancestorsNearestFirst.Select(a => a.Key).ToArray();
+        _navigationQueryService.TryGetAncestorsKeys(child.Key, out Arg.Any<IEnumerable<Guid>>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = keys;
+                return true;
+            });
+        _publishedStatusFilteringService
+            .FilterAvailable(Arg.Any<IEnumerable<Guid>>(), Arg.Any<string?>())
+            .Returns(callInfo =>
+            {
+                var requested = ((IEnumerable<Guid>)callInfo[0]).ToHashSet();
+                return ancestorsNearestFirst.Where(n => requested.Contains(n.Key)).ToArray();
+            });
+        StubUnfilteredResolution(ancestorsNearestFirst);
+    }
+
+    [Fact]
+    public void ComplexType_AncestorSubRow_ResolvesFromAncestor()
+    {
+        // The literal #32 ask: article author → Organization whose nested name reads the site root.
+        var root = CreateContent("homePage", new Dictionary<string, object?>
+        {
+            ["organisationName"] = "Enjoy Digital"
+        });
+        var article = CreateContent("article");
+        StubAncestors(article, root);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"ancestor","sourceContentTypeAlias":"homePage","contentTypePropertyAlias":"organisationName"}]}"""
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(article);
+
+        result.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var author = doc.RootElement.GetProperty("author");
+        author.GetProperty("@type").GetString().Should().Be("Organization");
+        author.GetProperty("name").GetString().Should().Be("Enjoy Digital");
+    }
+
+    [Fact]
+    public void ComplexType_MixedAncestorAndPropertySubRows_BothResolve()
+    {
+        var root = CreateContent("homePage", new Dictionary<string, object?>
+        {
+            ["organisationName"] = "Enjoy Digital"
+        });
+        var article = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["authorRole"] = "Publisher"
+        });
+        StubAncestors(article, root);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"ancestor","sourceContentTypeAlias":"homePage","contentTypePropertyAlias":"organisationName"},{"schemaProperty":"Description","sourceType":"property","contentTypePropertyAlias":"authorRole"}]}"""
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var author = doc.RootElement.GetProperty("author");
+        author.GetProperty("name").GetString().Should().Be("Enjoy Digital");
+        author.GetProperty("description").GetString().Should().Be("Publisher");
+    }
+
+    [Fact]
+    public void ComplexType_AncestorSubRow_NoMatchingAncestor_OmitsNestedThing()
+    {
+        var unrelatedAncestor = CreateContent("sectionPage");
+        var article = CreateContent("article");
+        StubAncestors(article, unrelatedAncestor);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"ancestor","sourceContentTypeAlias":"homePage","contentTypePropertyAlias":"organisationName"}]}"""
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(article);
+
+        result.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.TryGetProperty("author", out _).Should().BeFalse(
+            "when the ancestor filter matches nothing the sub-row resolves null and " +
+            "the empty-shell guard must omit the nested Thing entirely");
+    }
+
+    [Fact]
+    public void ComplexType_ParentSubRow_ResolvesFromParent()
+    {
+        var parent = CreateContent("blogListing", new Dictionary<string, object?>
+        {
+            ["sectionTitle"] = "Engineering Blog"
+        });
+        var article = CreateContent("article");
+
+        _navigationQueryService.TryGetParentKey(article.Key, out Arg.Any<Guid?>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = (Guid?)parent.Key;
+                return true;
+            });
+        _publishedStatusFilteringService
+            .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(parent.Key)), Arg.Any<string?>())
+            .Returns(new[] { parent });
+        StubUnfilteredResolution(parent);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Publisher",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"parent","contentTypePropertyAlias":"sectionTitle"}]}"""
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.GetProperty("publisher").GetProperty("name").GetString()
+            .Should().Be("Engineering Blog");
+    }
+
+    [Fact]
+    public void ComplexType_AncestorSubRow_BuiltInName_ResolvesAgainstAncestor()
+    {
+        var root = CreateContent("homePage", new Dictionary<string, object?>
+        {
+            // has to HAVE the probe property? Built-ins short-circuit the probe, so no.
+        });
+        root.Name.Returns("Enjoy Digital Site");
+        var article = CreateContent("article");
+        StubAncestors(article, root);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"ancestor","sourceContentTypeAlias":"homePage","contentTypePropertyAlias":"__name"}]}"""
+            }
+        });
+
+        var sut = CreateSutWithFullResolverFactory();
+        var result = sut.GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.GetProperty("author").GetProperty("name").GetString()
+            .Should().Be("Enjoy Digital Site");
+    }
+
+    [Fact]
+    public void ComplexType_PropertySubRow_BuiltInName_ResolvesAgainstPage()
+    {
+        // Regression: __name in a plain property sub-row used to silently resolve null.
+        var article = CreateContent("article");
+        article.Name.Returns("The Article Title");
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"__name"}]}"""
+            }
+        });
+
+        var sut = CreateSutWithFullResolverFactory();
+        var result = sut.GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.GetProperty("author").GetProperty("name").GetString()
+            .Should().Be("The Article Title");
+    }
+
+    [Fact]
+    public void ComplexType_AncestorSubRow_StripHtmlTransform_Applies()
+    {
+        var root = CreateContent("homePage", new Dictionary<string, object?>
+        {
+            ["strapline"] = "<p>Weaving <strong>schemas</strong></p>"
+        });
+        var article = CreateContent("article");
+        StubAncestors(article, root);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"ancestor","sourceContentTypeAlias":"homePage","contentTypePropertyAlias":"strapline","transformType":"stripHtml"}]}"""
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.GetProperty("author").GetProperty("name").GetString()
+            .Should().Be("Weaving schemas");
+    }
+
+    [Fact]
+    public void ComplexType_NestedComplexType_AncestorSubRow_StillResolvesRelativeToPage()
+    {
+        // Related-node sub-rows one nesting level down must still walk from the PAGE.
+        var root = CreateContent("homePage", new Dictionary<string, object?>
+        {
+            ["organisationName"] = "Enjoy Digital"
+        });
+        var article = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["authorName"] = "Jane Doe"
+        });
+        StubAncestors(article, root);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"authorName"},{"schemaProperty":"WorksFor","sourceType":"complexType","resolverConfig":"{\"selectedSubType\":\"Organization\",\"complexTypeMappings\":[{\"schemaProperty\":\"Name\",\"sourceType\":\"ancestor\",\"sourceContentTypeAlias\":\"homePage\",\"contentTypePropertyAlias\":\"organisationName\"}]}"}]}"""
+            }
+        });
+
+        var result = _sut.GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var author = doc.RootElement.GetProperty("author");
+        author.GetProperty("name").GetString().Should().Be("Jane Doe");
+        author.GetProperty("worksFor").GetProperty("name").GetString().Should().Be("Enjoy Digital");
+    }
+
+    [Fact]
+    public void GenerateJsonLd_PickerDrillDown_EmitsDrilledScalar()
+    {
+        // Feature A end-to-end through the generator: author ← picked node's jobTitle.
+        var pickedType = Substitute.For<IPublishedContentType>();
+        pickedType.Alias.Returns("author");
+
+        var jobTitleType = Substitute.For<IPublishedPropertyType>();
+        jobTitleType.EditorAlias.Returns("Umbraco.TextBox");
+        var jobTitle = Substitute.For<IPublishedProperty>();
+        jobTitle.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("Principal Developer");
+        jobTitle.PropertyType.Returns(jobTitleType);
+
+        var picked = Substitute.For<IPublishedContent>();
+        picked.Name.Returns("Jane Doe");
+        picked.Key.Returns(Guid.NewGuid());
+        picked.ContentType.Returns(pickedType);
+        picked.GetProperty("jobTitle").Returns(jobTitle);
+
+        var pickerType = Substitute.For<IPublishedPropertyType>();
+        pickerType.EditorAlias.Returns("Umbraco.ContentPicker");
+        var pickerProperty = Substitute.For<IPublishedProperty>();
+        pickerProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(picked);
+        pickerProperty.PropertyType.Returns(pickerType);
+
+        var article = CreateContent("article");
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "property",
+                ContentTypePropertyAlias = "authorNode",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig = """{"pickedPropertyAlias":"jobTitle","pickedContentTypeAlias":"author"}"""
+            }
+        });
+
+        var sut = CreateSutWithFullResolverFactory();
+        var result = sut.GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var author = doc.RootElement.GetProperty("author");
+        // The drilled scalar may be emitted verbatim or range-adopted into a typed
+        // object ({"@type":"Person","name":…}) by the setter — both carry the value.
+        var emitted = author.ValueKind == JsonValueKind.String
+            ? author.GetString()
+            : author.GetProperty("name").GetString();
+        emitted.Should().Be("Principal Developer");
+        result.ToString().Should().NotContain("Jane Doe",
+            "drill-down must emit the drilled property, not the picked node's name");
     }
 
     #endregion
