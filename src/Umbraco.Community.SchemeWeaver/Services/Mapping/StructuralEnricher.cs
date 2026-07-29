@@ -120,7 +120,7 @@ public sealed class StructuralEnricher
                 var innerAlias = DetectSingleTextField(elements);
                 if (innerAlias is not null)
                 {
-                    suggestion.SuggestedSourceType = "blockContent";
+                    suggestion.SuggestedSourceType = SchemeWeaverConstants.SourceTypes.BlockContent;
                     suggestion.SuggestedNestedSchemaTypeName = null;
                     suggestion.SuggestedResolverConfig = SerialiseStringList(innerAlias);
                     suggestion.Confidence = Math.Max(suggestion.Confidence, _showThreshold);
@@ -130,7 +130,7 @@ public sealed class StructuralEnricher
 
             // Branch 2: block-backed nested object → supplement its nestedMappings with any extra
             // bindings discoverable by name on the block element type's own properties.
-            if (string.Equals(suggestion.SuggestedSourceType, "blockContent", StringComparison.OrdinalIgnoreCase)
+            if (string.Equals(suggestion.SuggestedSourceType, SchemeWeaverConstants.SourceTypes.BlockContent, StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrEmpty(suggestion.SuggestedNestedSchemaTypeName))
             {
                 SupplementNestedMappings(suggestion, elements);
@@ -143,13 +143,13 @@ public sealed class StructuralEnricher
         // yields fully-populated ImageObject(s) at render time, whereas any inner bindings
         // Branch 1 could author here (ImageObject.Name <- the media alias) would drop the
         // resolved media on a string-only sub-property and emit an empty shell.
-        if (string.Equals(suggestion.SuggestedSourceType, "complexType", StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(suggestion.SuggestedSourceType, SchemeWeaverConstants.SourceTypes.ComplexType, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrEmpty(suggestion.EditorAlias)
             && MediaPickerAliases.Contains(suggestion.EditorAlias!)
             && (string.Equals(suggestion.SuggestedNestedSchemaTypeName, "ImageObject", StringComparison.OrdinalIgnoreCase)
                 || AcceptsImage(suggestion.AcceptedTypes)))
         {
-            suggestion.SuggestedSourceType = "property";
+            suggestion.SuggestedSourceType = SchemeWeaverConstants.SourceTypes.Property;
             suggestion.SuggestedNestedSchemaTypeName = null;
             suggestion.SuggestedResolverConfig = null;
             return;
@@ -158,7 +158,7 @@ public sealed class StructuralEnricher
         // Branch 1: complexType-from-scalar. A complex schema property that name-matched a scalar
         // content property but carries no inner config is dead at runtime — fill its
         // complexTypeMappings by prefix-grouping sibling content properties.
-        if (string.Equals(suggestion.SuggestedSourceType, "complexType", StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(suggestion.SuggestedSourceType, SchemeWeaverConstants.SourceTypes.ComplexType, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrEmpty(suggestion.SuggestedNestedSchemaTypeName)
             && !string.IsNullOrEmpty(matchedAlias)
             && !isBlockMatch
@@ -341,8 +341,7 @@ public sealed class StructuralEnricher
     }
 
     private static bool IsRichSourceType(string? sourceType) =>
-        string.Equals(sourceType, "complexType", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(sourceType, "blockContent", StringComparison.OrdinalIgnoreCase);
+        SchemeWeaverConstants.SourceTypes.ResolvesToNestedThing(sourceType);
 
     // ---- Detection helpers -----------------------------------------------------------------
 
@@ -488,7 +487,7 @@ public sealed class StructuralEnricher
             complexTypeMappings = bindings.Select(b => new
             {
                 schemaProperty = b.SchemaProperty,
-                sourceType = "property",
+                sourceType = SchemeWeaverConstants.SourceTypes.Property,
                 contentTypePropertyAlias = b.ContentProperty,
             }),
         }, JsonOptions);

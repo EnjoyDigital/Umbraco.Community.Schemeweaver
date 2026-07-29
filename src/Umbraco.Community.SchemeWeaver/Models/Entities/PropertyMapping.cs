@@ -22,7 +22,7 @@ public class PropertyMapping
     public string SchemaPropertyName { get; set; } = string.Empty;
 
     [Column("SourceType")]
-    public string SourceType { get; set; } = "property";
+    public string SourceType { get; set; } = SchemeWeaverConstants.SourceTypes.Property;
 
     [Column("ContentTypePropertyAlias")]
     [NullSetting(NullSetting = NullSettings.Null)]

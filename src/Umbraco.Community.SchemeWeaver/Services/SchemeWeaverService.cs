@@ -376,9 +376,9 @@ public class SchemeWeaverService : ISchemeWeaverService
         {
             object? value = pm.SourceType switch
             {
-                "static" => pm.StaticValue,
-                "blockContent" => $"[BlockList: {pm.ContentTypePropertyAlias} → {pm.NestedSchemaTypeName}]",
-                "complexType" => $"[{pm.NestedSchemaTypeName}]",
+                SchemeWeaverConstants.SourceTypes.Static => pm.StaticValue,
+                SchemeWeaverConstants.SourceTypes.BlockContent => $"[BlockList: {pm.ContentTypePropertyAlias} → {pm.NestedSchemaTypeName}]",
+                SchemeWeaverConstants.SourceTypes.ComplexType => $"[{pm.NestedSchemaTypeName}]",
                 _ when SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(pm.ContentTypePropertyAlias) =>
                     GetBuiltInMockValue(pm.ContentTypePropertyAlias),
                 _ when !string.IsNullOrEmpty(pm.ContentTypePropertyAlias) => $"[{pm.ContentTypePropertyAlias}]",

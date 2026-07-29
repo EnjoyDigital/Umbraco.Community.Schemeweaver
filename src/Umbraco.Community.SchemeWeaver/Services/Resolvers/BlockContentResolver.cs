@@ -50,75 +50,115 @@ public class BlockContentResolver : IPropertyValueResolver
 
         var resolverConfig = ParseResolverConfig(context.Mapping.ResolverConfig);
 
-        // String extraction mode: return List<string> from block items (e.g., recipeIngredient)
+        // MODE PRECEDENCE: stringList → routes → legacy. A config carrying both ExtractAs
+        // and Routes must still take the stringList path (this branch is evaluated first).
         if (resolverConfig?.ExtractAs == "stringList" && !string.IsNullOrEmpty(resolverConfig.ContentProperty))
-        {
-            var strings = new List<string>();
-            foreach (var blockContent in blockItems)
-            {
-                // Route through the per-editor resolver pipeline (when a factory is wired) so
-                // e.g. a MultiUrlPicker block property yields its URL string(s) rather than the
-                // raw model's ToString() garbage. A multi-value resolver result (List<string>)
-                // is flattened into the extracted list. Non-string resolver results are reduced
-                // to the string form the legacy ResolveElementPropertyValue path emitted: media
-                // ImageObject(s) contribute their URL(s), and scalars (Umbraco.Integer/Decimal →
-                // int/decimal, Umbraco.TrueFalse → bool, …) their invariant ToString(). Only
-                // non-image Things are dropped — they have no faithful scalar form.
-                var rawValue = ResolveBlockElementProperty(blockContent, resolverConfig.ContentProperty, context);
-                IEnumerable<string> extracted = rawValue switch
-                {
-                    string single => [single],
-                    IEnumerable<string> many => many,
-                    IImageObject image => ImageUrls([image]),
-                    IEnumerable<IImageObject> images => ImageUrls(images),
-                    Thing or IEnumerable<Thing> => [],
-                    IFormattable formattable => [formattable.ToString(null, CultureInfo.InvariantCulture)],
-                    not null => rawValue.ToString() is { Length: > 0 } stringified ? [stringified] : [],
-                    _ => []
-                };
+            return ResolveStringList(blockItems, resolverConfig, context);
 
-                foreach (var extractedValue in extracted)
-                {
-                    var s = extractedValue;
-                    if (string.IsNullOrEmpty(s))
-                        continue;
-
-                    // Honour a transform on the string-list path too (e.g. stripHtml a RichText
-                    // value pulled via extractAs:stringList). Re-check for emptiness after the
-                    // transform so a value that collapses to whitespace is dropped, not emitted blank.
-                    if (!string.IsNullOrEmpty(resolverConfig.TransformType))
-                        s = SchemaValueTransformer.Apply(s, resolverConfig.TransformType, context.HttpContextAccessor, _logger) ?? string.Empty;
-
-                    if (!string.IsNullOrEmpty(s))
-                        strings.Add(s);
-                }
-            }
-            return strings.Count > 0 ? strings : null;
-        }
-
-        // New routed form: each block ELEMENT TYPE has its own route (its own
-        // nested schema type + property mappings). A single block list referenced
-        // by several property mappings carries, on each mapping, only the routes
-        // (block element types) that feed that mapping's own target schema property.
-        // Block items whose alias has no route are skipped (debug, not warn-spammed),
-        // so a heterogeneous list emits a differently-typed Thing per element type.
-        // When routes are present the mapping-level NestedSchemaTypeName is irrelevant
-        // and its absence must NOT abort resolution.
         if (resolverConfig?.Routes is { Count: > 0 } routes)
-        {
-            // Keep each block paired with its mapped Thing so empty Things are dropped
-            // (P2.1) BEFORE ListItem position numbering (P2.3), keeping positions sequential.
-            var routed = blockItems
-                .Select(blockContent => (Block: blockContent, Thing: MapBlockViaRoute(blockContent, routes, context)))
-                .Where(x => x.Thing is not null)
-                .Select(x => (x.Block, Thing: x.Thing!))
-                .ToList();
+            return ResolveRouted(blockItems, routes, resolverConfig, context);
 
-            return BuildBlockResult(routed, resolverConfig, context);
+        return ResolveLegacy(blockItems, resolverConfig, context);
+    }
+
+    /// <summary>
+    /// String extraction mode: returns a <c>List&lt;string&gt;</c> pulled from each block item's
+    /// configured content property (e.g. recipeIngredient), or null when nothing survives.
+    /// </summary>
+    private List<string>? ResolveStringList(
+        IEnumerable<IPublishedElement> blockItems,
+        ResolverConfigModel resolverConfig,
+        PropertyResolverContext context)
+    {
+        var strings = new List<string>();
+        foreach (var blockContent in blockItems)
+        {
+            // Route through the per-editor resolver pipeline (when a factory is wired) so
+            // e.g. a MultiUrlPicker block property yields its URL string(s) rather than the
+            // raw model's ToString() garbage. A multi-value resolver result (List<string>)
+            // is flattened into the extracted list. Non-string resolver results are reduced
+            // to the string form the legacy ResolveElementPropertyValue path emitted: media
+            // ImageObject(s) contribute their URL(s), and scalars (Umbraco.Integer/Decimal →
+            // int/decimal, Umbraco.TrueFalse → bool, …) their invariant ToString(). Only
+            // non-image Things are dropped — they have no faithful scalar form.
+            var rawValue = ResolveBlockElementProperty(blockContent, resolverConfig.ContentProperty!, context);
+
+            foreach (var extractedValue in ExtractStrings(rawValue))
+                AppendTransformed(strings, extractedValue, resolverConfig.TransformType, context);
         }
 
-        // Legacy single-route form: one NestedSchemaTypeName + a flat NestedMappings
-        // list applies to every block in the list. Treated as one implicit route.
+        return strings.Count > 0 ? strings : null;
+    }
+
+    /// <summary>
+    /// Reduces a resolved block-element property value to the string(s) the legacy
+    /// <c>ResolveElementPropertyValue</c> path emitted. SWITCH-ARM ORDER IS LOAD-BEARING:
+    /// <c>Thing or IEnumerable&lt;Thing&gt; =&gt; []</c> must precede <c>IFormattable</c>, which must
+    /// precede <c>not null</c>. <see cref="IFormattable"/> formats with
+    /// <see cref="CultureInfo.InvariantCulture"/>.
+    /// </summary>
+    private static IEnumerable<string> ExtractStrings(object? rawValue) =>
+        rawValue switch
+        {
+            string single => [single],
+            IEnumerable<string> many => many,
+            IImageObject image => ImageUrls([image]),
+            IEnumerable<IImageObject> images => ImageUrls(images),
+            Thing or IEnumerable<Thing> => [],
+            IFormattable formattable => [formattable.ToString(null, CultureInfo.InvariantCulture)],
+            not null => rawValue.ToString() is { Length: > 0 } stringified ? [stringified] : [],
+            _ => []
+        };
+
+    /// <summary>
+    /// Appends one extracted string to <paramref name="target"/>, honouring an optional transform
+    /// (e.g. stripHtml a RichText value pulled via extractAs:stringList). DOUBLE emptiness check:
+    /// empty values are skipped BEFORE the transform, and a value that collapses to whitespace
+    /// AFTER the transform is dropped rather than emitted blank.
+    /// </summary>
+    private void AppendTransformed(
+        List<string> target,
+        string extractedValue,
+        string? transformType,
+        PropertyResolverContext context)
+    {
+        var s = extractedValue;
+        if (string.IsNullOrEmpty(s))
+            return;
+
+        if (!string.IsNullOrEmpty(transformType))
+            s = SchemaValueTransformer.Apply(s, transformType, context.HttpContextAccessor, _logger) ?? string.Empty;
+
+        if (!string.IsNullOrEmpty(s))
+            target.Add(s);
+    }
+
+    /// <summary>
+    /// New routed form: each block ELEMENT TYPE has its own route (its own nested schema type +
+    /// property mappings). A single block list referenced by several property mappings carries, on
+    /// each mapping, only the routes (block element types) that feed that mapping's own target
+    /// schema property. Block items whose alias has no route are skipped (debug, not warn-spammed),
+    /// so a heterogeneous list emits a differently-typed Thing per element type. When routes are
+    /// present the mapping-level NestedSchemaTypeName is irrelevant and its absence must NOT abort
+    /// resolution.
+    /// </summary>
+    private object? ResolveRouted(
+        IEnumerable<IPublishedElement> blockItems,
+        List<BlockRoute> routes,
+        ResolverConfigModel resolverConfig,
+        PropertyResolverContext context) =>
+        MapBlocks(blockItems, block => MapBlockViaRoute(block, routes, context), resolverConfig, context);
+
+    /// <summary>
+    /// Legacy single-route form: one NestedSchemaTypeName + a flat NestedMappings list applies to
+    /// every block in the list. Treated as one implicit route. Unlike the routed form, a missing
+    /// NestedSchemaTypeName warns and aborts (there is no per-block schema type to fall back to).
+    /// </summary>
+    private object? ResolveLegacy(
+        IEnumerable<IPublishedElement> blockItems,
+        ResolverConfigModel? resolverConfig,
+        PropertyResolverContext context)
+    {
         var nestedSchemaTypeName = context.Mapping.NestedSchemaTypeName;
         if (string.IsNullOrEmpty(nestedSchemaTypeName))
         {
@@ -128,14 +168,31 @@ public class BlockContentResolver : IPropertyValueResolver
             return null;
         }
 
-        var things = blockItems
-            .Select(blockContent => (Block: blockContent,
-                Thing: MapBlockToThing(blockContent, nestedSchemaTypeName, resolverConfig?.NestedMappings, context, resolverConfig?.RequiredProperties)))
+        return MapBlocks(
+            blockItems,
+            block => MapBlockToThing(block, nestedSchemaTypeName, resolverConfig?.NestedMappings, context, resolverConfig?.RequiredProperties),
+            resolverConfig,
+            context);
+    }
+
+    /// <summary>
+    /// Unified routed/legacy tail: maps each block via <paramref name="mapper"/>, keeping every block
+    /// paired with its mapped Thing so empty Things are dropped (P2.1) BEFORE ListItem position
+    /// numbering (P2.3), keeping positions sequential. Delegates to <see cref="BuildBlockResult"/>.
+    /// </summary>
+    private static object? MapBlocks(
+        IEnumerable<IPublishedElement> blockItems,
+        Func<IPublishedElement, Thing?> mapper,
+        ResolverConfigModel? config,
+        PropertyResolverContext context)
+    {
+        var mapped = blockItems
+            .Select(blockContent => (Block: blockContent, Thing: mapper(blockContent)))
             .Where(x => x.Thing is not null)
             .Select(x => (x.Block, Thing: x.Thing!))
             .ToList();
 
-        return BuildBlockResult(things, resolverConfig, context);
+        return BuildBlockResult(mapped, config, context);
     }
 
     /// <summary>
@@ -578,7 +635,7 @@ public class BlockContentResolver : IPropertyValueResolver
         var childMapping = new PropertyMapping
         {
             SchemaPropertyName = mapping.SchemaProperty!,
-            SourceType = "blockContent",
+            SourceType = SchemeWeaverConstants.SourceTypes.BlockContent,
             ContentTypePropertyAlias = nestedProperty.Alias,
             ResolverConfig = JsonSerializer.Serialize(nestedConfig)
         };
@@ -864,7 +921,7 @@ public class ComplexTypeConfigModel
 public class ComplexTypeMappingEntry
 {
     public string SchemaProperty { get; set; } = string.Empty;
-    public string SourceType { get; set; } = "property";   // "property", "static", or "complexType"
+    public string SourceType { get; set; } = SchemeWeaverConstants.SourceTypes.Property;   // "property", "static", or "complexType"
     public string? ContentTypePropertyAlias { get; set; }
     public string? StaticValue { get; set; }
     public string? SourceContentTypeAlias { get; set; }

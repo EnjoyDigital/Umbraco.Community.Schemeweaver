@@ -22,9 +22,6 @@ namespace Umbraco.Community.SchemeWeaver.Notifications;
 /// </summary>
 internal static class JsonLdCacheInvalidator
 {
-    private static readonly HashSet<string> CrossNodeSourceTypes =
-        new(StringComparer.OrdinalIgnoreCase) { "ancestor", "parent", "sibling", "reference" };
-
     public static void InvalidateTree(
         IJsonLdBlocksProvider provider,
         ISchemaMappingRepository mappingRepository,
@@ -104,7 +101,7 @@ internal static class JsonLdCacheInvalidator
 
             return repo.GetAllPropertyMappingsByMappingId().Values
                 .SelectMany(list => list)
-                .Any(p => CrossNodeSourceTypes.Contains(p.SourceType));
+                .Any(p => SchemeWeaverConstants.SourceTypes.IsCrossNode(p.SourceType));
         }
         catch (Exception ex)
         {

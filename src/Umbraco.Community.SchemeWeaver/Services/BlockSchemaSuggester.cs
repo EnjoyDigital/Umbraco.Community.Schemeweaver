@@ -233,7 +233,7 @@ public class BlockSchemaSuggester : IBlockSchemaSuggester
         // schema properties it already mapped.
         foreach (var s in suggestions.Where(s =>
                      !string.IsNullOrEmpty(s.SuggestedContentTypePropertyAlias)
-                     && string.Equals(s.SuggestedSourceType, "property", StringComparison.OrdinalIgnoreCase)
+                     && string.Equals(s.SuggestedSourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase)
                      && !s.SuggestedContentTypePropertyAlias.StartsWith(SchemeWeaverConstants.BuiltInProperties.Prefix, StringComparison.Ordinal)
                      && !covered.Contains(s.SchemaPropertyName)))
         {

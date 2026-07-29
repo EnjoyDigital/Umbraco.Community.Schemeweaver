@@ -105,73 +105,25 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (Activator.CreateInstance(clrType) is not Thing instance)
             return null;
 
-        var propertyMappings = _repository.GetPropertyMappings(mapping.Id);
-        var hasExplicitInLanguage = false;
+        // Materialise once so the InLanguage precompute and the mapping loop share one snapshot.
+        var propertyMappings = _repository.GetPropertyMappings(mapping.Id).ToList();
+
+        // An explicit InLanguage mapping (of any source type) suppresses the post-loop auto-fill.
+        // The original signalled this from inside the loop before resolving the mapping, so its
+        // presence — not its resolved value — is what matters; precompute it up front.
+        var hasExplicitInLanguage = propertyMappings.Any(pm =>
+            string.Equals(pm.SchemaPropertyName, "InLanguage", StringComparison.OrdinalIgnoreCase));
         var hasExplicitId = false;
 
         foreach (var propMapping in propertyMappings)
         {
+            // Per-property try/catch is the degrade boundary: one bad property logs a
+            // warning and the rest of the Thing is still built. Keep it INSIDE the loop.
             try
             {
-                if (string.Equals(propMapping.SchemaPropertyName, "InLanguage", StringComparison.OrdinalIgnoreCase))
-                    hasExplicitInLanguage = true;
-
-                // `reference` source type: cross-piece @id ref. Only resolvable
-                // when called inside the graph pipeline (graphContext != null).
-                // Outside that pipeline (legacy single-Thing callers) we can't
-                // know what to point at, so the mapping is skipped.
-                if (string.Equals(propMapping.SourceType, "reference", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (graphContext is null || string.IsNullOrWhiteSpace(propMapping.TargetPieceKey))
-                        continue;
-
-                    var refId = graphContext.IdFor(propMapping.TargetPieceKey);
-                    if (string.IsNullOrWhiteSpace(refId)
-                        || !Uri.TryCreate(refId, UriKind.Absolute, out var refUri))
-                        continue;
-
-                    // @id-only shell typed to the target property's range so it
-                    // binds even to narrowly-typed properties (e.g. publisher
-                    // needs an Organization, not a bare Thing). GraphGenerator's
-                    // ref-collapse then reduces the serialised form to {"@id": …}.
-                    SchemaPropertySetter.SetPropertyValue(
-                        instance,
-                        propMapping.SchemaPropertyName,
-                        SchemaPropertySetter.CreateReferenceShell(
-                            instance, propMapping.SchemaPropertyName, refUri));
-                    continue;
-                }
-
-                var value = ResolveValue(propMapping, content, culture);
-                if (value is null)
-                    continue;
-
-                // Apply transforms only to string values; skip empty/whitespace
-                if (value is string stringValue)
-                {
-                    if (string.IsNullOrWhiteSpace(stringValue))
-                        continue;
-                    value = ApplyTransform(stringValue, propMapping.TransformType);
-                }
-
-                // Guard against null after transform (ApplyTransform can return null)
-                if (value is null or string { Length: 0 })
-                    continue;
-
-                // @id is Uri-typed on Schema.NET Thing; SchemaPropertySetter can't convert a
-                // string to Uri generically, so we handle it here. Setting via mapping
-                // suppresses the default {url}#{type} convention below.
-                if (string.Equals(propMapping.SchemaPropertyName, "Id", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (TryCoerceToUri(value, out var idUri))
-                    {
-                        instance.Id = idUri;
-                        hasExplicitId = true;
-                    }
-                    continue;
-                }
-
-                SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
+                if (ApplyPropertyMapping(instance, propMapping, content, culture, graphContext)
+                    == PropertyMappingOutcome.SetExplicitId)
+                    hasExplicitId = true;
             }
             catch (Exception ex)
             {
@@ -202,6 +154,111 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         }
 
         return instance;
+    }
+
+    /// <summary>
+    /// Outcome of applying a single <see cref="PropertyMapping"/> to the top-level Thing. Lets the
+    /// caller learn whether an explicit <c>@id</c> was set WITHOUT a <c>ref</c> flag, while keeping the
+    /// per-property try/catch (the degrade boundary) in the parent loop.
+    /// </summary>
+    private enum PropertyMappingOutcome
+    {
+        /// <summary>Nothing was applied (null/empty resolution, unresolvable reference, or an Id that would not coerce).</summary>
+        Skipped,
+
+        /// <summary>A normal schema property (or reference shell) was set on the instance.</summary>
+        Set,
+
+        /// <summary>An explicit <c>Id</c> mapping coerced to a Uri and was set — suppresses the default <c>@id</c> convention.</summary>
+        SetExplicitId
+    }
+
+    /// <summary>
+    /// Applies a single property mapping to <paramref name="instance"/>. Mirrors the original loop
+    /// body exactly (reference short-circuit before ResolveValue; transform only on strings; the
+    /// explicit-Id branch); the caller wraps this in the per-property try/catch.
+    /// </summary>
+    private PropertyMappingOutcome ApplyPropertyMapping(
+        Thing instance,
+        PropertyMapping propMapping,
+        IPublishedContent content,
+        string? culture,
+        GraphPieceContext? graphContext)
+    {
+        // `reference` source type: cross-piece @id ref. Only resolvable when called inside the
+        // graph pipeline (graphContext != null). Outside that pipeline (legacy single-Thing
+        // callers) we can't know what to point at, so the mapping is skipped. This must
+        // short-circuit BEFORE ResolveValue — references are resolved from the graph context.
+        if (string.Equals(propMapping.SourceType, SchemeWeaverConstants.SourceTypes.Reference, StringComparison.OrdinalIgnoreCase))
+            return TryApplyReference(instance, propMapping, graphContext);
+
+        var value = ResolveValue(propMapping, content, culture);
+        if (value is null)
+            return PropertyMappingOutcome.Skipped;
+
+        // Apply transforms only to string values; skip empty/whitespace
+        if (value is string stringValue)
+        {
+            if (string.IsNullOrWhiteSpace(stringValue))
+                return PropertyMappingOutcome.Skipped;
+            value = ApplyTransform(stringValue, propMapping.TransformType);
+        }
+
+        // Guard against null after transform (ApplyTransform can return null)
+        if (value is null or string { Length: 0 })
+            return PropertyMappingOutcome.Skipped;
+
+        // @id is Uri-typed on Schema.NET Thing; SchemaPropertySetter can't convert a
+        // string to Uri generically, so we handle it here. Setting via mapping
+        // suppresses the default {url}#{type} convention.
+        if (string.Equals(propMapping.SchemaPropertyName, "Id", StringComparison.OrdinalIgnoreCase))
+            return TryApplyExplicitId(instance, value);
+
+        SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
+        return PropertyMappingOutcome.Set;
+    }
+
+    /// <summary>
+    /// Handles a <c>reference</c> source-type mapping: resolves the target piece's absolute @id from
+    /// the graph context and binds a range-typed @id-only shell. Returns <see cref="PropertyMappingOutcome.Skipped"/>
+    /// when there is no graph context, no target key, or an unresolvable/relative id.
+    /// </summary>
+    private static PropertyMappingOutcome TryApplyReference(
+        Thing instance, PropertyMapping propMapping, GraphPieceContext? graphContext)
+    {
+        if (graphContext is null || string.IsNullOrWhiteSpace(propMapping.TargetPieceKey))
+            return PropertyMappingOutcome.Skipped;
+
+        var refId = graphContext.IdFor(propMapping.TargetPieceKey);
+        if (string.IsNullOrWhiteSpace(refId)
+            || !Uri.TryCreate(refId, UriKind.Absolute, out var refUri))
+            return PropertyMappingOutcome.Skipped;
+
+        // @id-only shell typed to the target property's range so it binds even to narrowly-typed
+        // properties (e.g. publisher needs an Organization, not a bare Thing). GraphGenerator's
+        // ref-collapse then reduces the serialised form to {"@id": …}.
+        SchemaPropertySetter.SetPropertyValue(
+            instance,
+            propMapping.SchemaPropertyName,
+            SchemaPropertySetter.CreateReferenceShell(
+                instance, propMapping.SchemaPropertyName, refUri));
+        return PropertyMappingOutcome.Set;
+    }
+
+    /// <summary>
+    /// Handles an explicit <c>Id</c> mapping: coerces the resolved value to a Uri (relative-or-absolute,
+    /// preserving fragment ids) and sets <see cref="Thing.Id"/>. Returns <see cref="PropertyMappingOutcome.SetExplicitId"/>
+    /// only when the value coerces — otherwise the default @id convention still applies.
+    /// </summary>
+    private static PropertyMappingOutcome TryApplyExplicitId(Thing instance, object value)
+    {
+        if (TryCoerceToUri(value, out var idUri))
+        {
+            instance.Id = idUri;
+            return PropertyMappingOutcome.SetExplicitId;
+        }
+
+        return PropertyMappingOutcome.Skipped;
     }
 
     public string? GenerateJsonLdString(IPublishedContent content, string? culture = null)
@@ -646,63 +703,19 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (config?.ComplexTypeMappings is null or { Count: 0 })
             return null; // No sub-mappings configured — skip rather than emit empty object
 
-        // Resolve every sub-mapping up front so a resolved media ImageObject can be ADOPTED
-        // as the nested instance (see below) before any sub-value is applied to it.
+        // Two-phase (mandatory): resolve EVERY sub-mapping up front so a resolved media ImageObject
+        // can be ADOPTED as the nested instance (see TryAdoptImageObject) before any sub-value is
+        // applied to it. Adoption must inspect the full resolved list, so nothing is set until phase 2.
         var resolved = new List<(ComplexTypeMappingEntry SubMapping, object Value)>();
         foreach (var subMapping in config.ComplexTypeMappings.Where(m => !string.IsNullOrEmpty(m.SchemaProperty)))
         {
-            object? value = subMapping.SourceType switch
-            {
-                "static" => subMapping.StaticValue,
-                "property" when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
-                    ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias, culture),
-                "parent" or "ancestor" or "sibling" when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
-                    ResolveRelatedNodeSubValue(subMapping, content, culture),
-                "complexType" when !string.IsNullOrEmpty(subMapping.ResolverConfig) =>
-                    ResolveNestedComplexType(subMapping, content, culture),
-                _ => null
-            };
-
-            // Apply an optional transform to a node-sourced string sub-value (e.g. stripHtml a
-            // RichText sub-property, whether on this node or a related one). static stays
-            // untransformed, mirroring the top-level static behaviour; complexType yields a Thing,
-            // not a string, so the guard skips it. A transform that collapses to whitespace drops
-            // the sub-value rather than emitting it blank.
-            if (value is string sv
-                && subMapping.SourceType is "property" or "parent" or "ancestor" or "sibling"
-                && !string.IsNullOrEmpty(subMapping.TransformType))
-            {
-                var transformed = ApplyTransform(sv, subMapping.TransformType);
-                value = string.IsNullOrWhiteSpace(transformed) ? null : transformed;
-            }
-
+            var value = ResolveSubValue(subMapping, content, culture);
             if (value is not null)
                 resolved.Add((subMapping, value));
         }
 
-        // Render-time repair for persisted MediaPicker→ImageObject shapes: the auto-mapper +
-        // enricher historically persisted complexType/ImageObject configs binding e.g.
-        // ImageObject.Name <- the media alias. At render time the media resolves (via the
-        // resolver factory) to a FULL ImageObject that can never be assigned into a string-only
-        // sub-property — it would be silently dropped, leaving an empty {"@type":"ImageObject"}
-        // shell. Instead, adopt the first such resolved ImageObject AS the nested instance, then
-        // apply the remaining sub-mappings (e.g. static captions) on top of it.
-        // The adoption is strictly limited to that broken-shape case: a sub-property whose range
-        // DOES accept an ImageObject or URL (e.g. ImageObject.Thumbnail, contentUrl) is a valid
-        // config the setter handles — adopting it would hijack the intended structure (the
-        // thumbnail would masquerade as the whole image), so it is left to bind normally.
-        if (nestedInstance is ImageObject)
-        {
-            var adoptIndex = resolved.FindIndex(r =>
-                string.Equals(r.SubMapping.SourceType, "property", StringComparison.OrdinalIgnoreCase)
-                && FirstImageObject(r.Value) is not null
-                && !SchemaPropertySetter.PropertyAcceptsImageValue(nestedInstance, r.SubMapping.SchemaProperty));
-            if (adoptIndex >= 0)
-            {
-                nestedInstance = FirstImageObject(resolved[adoptIndex].Value)!;
-                resolved.RemoveAt(adoptIndex);
-            }
-        }
+        // Render-time repair for persisted MediaPicker→ImageObject shapes (see TryAdoptImageObject).
+        nestedInstance = TryAdoptImageObject(nestedInstance, resolved);
 
         foreach (var (subMapping, value) in resolved)
             SchemaPropertySetter.SetPropertyValue(nestedInstance, subMapping.SchemaProperty, value);
@@ -711,6 +724,88 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         // instance (all resolved null, or every set was dropped by type conversion), omit
         // the nested Thing entirely — {"@type":"Person"} shells are invalid structured data.
         return SchemaPropertySetter.HasResolvedProperty(nestedInstance) ? nestedInstance : null;
+    }
+
+    /// <summary>
+    /// Resolves a single complex-type sub-mapping to its value: the 5-arm SourceType switch
+    /// (<c>static</c> / <c>property</c> / <c>parent</c>-<c>ancestor</c>-<c>sibling</c> /
+    /// <c>complexType</c> / default) plus the transform post-processing. The switch keeps this
+    /// file's case-sensitive render-path comparison policy.
+    /// A transform applies ONLY to a node-sourced string — on this node or a related one (static
+    /// stays untransformed, mirroring the top-level static behaviour; complexType yields a Thing,
+    /// not a string) — and, when it collapses to whitespace, drops the sub-value.
+    /// </summary>
+    private object? ResolveSubValue(ComplexTypeMappingEntry subMapping, IPublishedContent content, string? culture)
+    {
+        object? value = subMapping.SourceType switch
+        {
+            SchemeWeaverConstants.SourceTypes.Static => subMapping.StaticValue,
+            SchemeWeaverConstants.SourceTypes.Property when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
+                ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias, culture),
+            SchemeWeaverConstants.SourceTypes.Parent
+                or SchemeWeaverConstants.SourceTypes.Ancestor
+                or SchemeWeaverConstants.SourceTypes.Sibling
+                when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
+                ResolveRelatedNodeSubValue(subMapping, content, culture),
+            SchemeWeaverConstants.SourceTypes.ComplexType when !string.IsNullOrEmpty(subMapping.ResolverConfig) =>
+                ResolveNestedComplexType(subMapping, content, culture),
+            _ => null
+        };
+
+        if (value is string sv
+            && IsNodeSourced(subMapping.SourceType)
+            && !string.IsNullOrEmpty(subMapping.TransformType))
+        {
+            var transformed = ApplyTransform(sv, subMapping.TransformType);
+            value = string.IsNullOrWhiteSpace(transformed) ? null : transformed;
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// True for the source types whose sub-value is read from a content node — this node
+    /// (<c>property</c>) or a related one (<c>parent</c>/<c>ancestor</c>/<c>sibling</c>) — and which
+    /// are therefore eligible for transform post-processing in <see cref="ResolveSubValue"/>.
+    /// </summary>
+    private static bool IsNodeSourced(string? sourceType) =>
+        string.Equals(sourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(sourceType, SchemeWeaverConstants.SourceTypes.Parent, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(sourceType, SchemeWeaverConstants.SourceTypes.Ancestor, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(sourceType, SchemeWeaverConstants.SourceTypes.Sibling, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Render-time repair for persisted MediaPicker→ImageObject shapes: the auto-mapper + enricher
+    /// historically persisted complexType/ImageObject configs binding e.g. ImageObject.Name &lt;- the
+    /// media alias. At render time the media resolves (via the resolver factory) to a FULL ImageObject
+    /// that can never be assigned into a string-only sub-property — it would be silently dropped,
+    /// leaving an empty {"@type":"ImageObject"} shell. Instead, adopt the first such resolved
+    /// ImageObject AS the nested instance (removing it from <paramref name="resolved"/> so it is not
+    /// re-applied), then let the caller apply the remaining sub-mappings (e.g. static captions) on top.
+    /// The adoption is strictly limited to that broken-shape case — the 3-clause guard requires a
+    /// <c>property</c>-sourced sub-mapping that resolves to an ImageObject AND whose target sub-property
+    /// does NOT accept an image. A sub-property whose range DOES accept an ImageObject or URL (e.g.
+    /// ImageObject.Thumbnail, contentUrl) is a valid config the setter handles — adopting it would
+    /// hijack the intended structure (the thumbnail would masquerade as the whole image), so it is
+    /// left to bind normally. Returns the (possibly adopted) instance.
+    /// </summary>
+    private static Thing TryAdoptImageObject(
+        Thing nestedInstance,
+        List<(ComplexTypeMappingEntry SubMapping, object Value)> resolved)
+    {
+        if (nestedInstance is not ImageObject)
+            return nestedInstance;
+
+        var adoptIndex = resolved.FindIndex(r =>
+            string.Equals(r.SubMapping.SourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase)
+            && FirstImageObject(r.Value) is not null
+            && !SchemaPropertySetter.PropertyAcceptsImageValue(nestedInstance, r.SubMapping.SchemaProperty));
+        if (adoptIndex < 0)
+            return nestedInstance;
+
+        var adopted = FirstImageObject(resolved[adoptIndex].Value)!;
+        resolved.RemoveAt(adoptIndex);
+        return adopted;
     }
 
     /// <summary>

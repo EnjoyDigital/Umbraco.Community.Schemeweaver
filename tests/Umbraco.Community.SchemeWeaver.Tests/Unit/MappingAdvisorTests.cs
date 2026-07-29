@@ -174,6 +174,22 @@ public class MappingAdvisorTests
         advice.Should().NotContain(a => a.Kind == MappingAdviceKind.MissingRequiredNestedProperty);
     }
 
+    // --- Multiple checks fire on one entry: all checks run (no short-circuit) and the
+    // emission order is fixed (WrapInListItem before MissingRequired). ---
+
+    [Fact]
+    public void AdviseEntry_UnwrappedQuestionListMissingAnswer_EmitsWrapThenMissingInOrder()
+    {
+        // itemListElement is an ordered list (Check 2 fires: not wrapped) AND the Question route
+        // omits acceptedAnswer (Check 3 fires) — a single entry yields both, in check order.
+        var advice = _sut.AdviseEntry(new MappingEntryInput(
+            "ItemList", "itemListElement", "blockContent", ResolverConfig: Routes("Question", "name")));
+
+        advice.Select(a => a.Kind).Should().Equal(
+            MappingAdviceKind.WrapInListItem,
+            MappingAdviceKind.MissingRequiredNestedProperty);
+    }
+
     // --- Check 4: persistence ---
 
     [Fact]

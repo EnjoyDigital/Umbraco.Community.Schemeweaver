@@ -405,190 +405,37 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             {
                 SchemaPropertyName = schemaProp.Name,
                 SchemaPropertyType = schemaProp.PropertyType,
-                SuggestedSourceType = "property",
+                SuggestedSourceType = SchemeWeaverConstants.SourceTypes.Property,
                 AcceptedTypes = schemaProp.AcceptedTypes,
                 IsComplexType = schemaProp.IsComplexType,
             };
 
-            // Check for popular schema defaults first
+            // Popular schema defaults are consulted both by the matched tiers (via
+            // ApplyComplexTypeInference) and by the no-match ladder in ResolveUnmatched.
             var defaultKey = $"{schemaTypeName}.{schemaProp.Name}";
             var hasPopularDefault = PopularSchemaDefaults.TryGetValue(defaultKey, out var popularDefault);
+            Synonyms.TryGetValue(schemaProp.Name, out var synonyms);
 
-            // Exact match (case-insensitive)
-            var exactMatch = contentProperties.FirstOrDefault(
-                p => string.Equals(p.Alias, schemaProp.Name, StringComparison.OrdinalIgnoreCase));
+            // Tier precedence: exact → synonym → partial → built-in, FIRST match wins.
+            // Exact/synonym/partial share one populate-and-return helper, differing only in
+            // their base confidence and candidate matcher; `||` short-circuits so the first
+            // tier that matches-and-populates stops the ladder (as the old `continue`s did).
+            var matched =
+                TryMatchTier(suggestion, schemaProp, contentProperties, 100,
+                    p => string.Equals(p.Alias, schemaProp.Name, StringComparison.OrdinalIgnoreCase),
+                    hasPopularDefault, popularDefault)
+                || TryMatchTier(suggestion, schemaProp, contentProperties, 80,
+                    p => synonyms is not null
+                        && synonyms.Any(s => string.Equals(p.Alias, s, StringComparison.OrdinalIgnoreCase)),
+                    hasPopularDefault, popularDefault)
+                || TryMatchTier(suggestion, schemaProp, contentProperties, 50,
+                    p => p.Alias.Contains(schemaProp.Name, StringComparison.OrdinalIgnoreCase)
+                        || schemaProp.Name.Contains(p.Alias, StringComparison.OrdinalIgnoreCase),
+                    hasPopularDefault, popularDefault)
+                || TryBuiltIn(suggestion, schemaProp);
 
-            if (exactMatch is not null)
-            {
-                suggestion.SuggestedContentTypePropertyAlias = exactMatch.Alias;
-                suggestion.EditorAlias = exactMatch.PropertyEditorAlias;
-                suggestion.Confidence = BoostForEditorMatch(100, exactMatch.PropertyEditorAlias, schemaProp);
-                suggestion.IsAutoMapped = true;
-
-                ApplyComplexTypeInference(suggestion, exactMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
-                suggestions.Add(suggestion);
-                continue;
-            }
-
-            // Synonym match
-            if (Synonyms.TryGetValue(schemaProp.Name, out var synonyms))
-            {
-                var synonymMatch = contentProperties.FirstOrDefault(
-                    p => synonyms.Any(s => string.Equals(p.Alias, s, StringComparison.OrdinalIgnoreCase)));
-
-                if (synonymMatch is not null)
-                {
-                    suggestion.SuggestedContentTypePropertyAlias = synonymMatch.Alias;
-                    suggestion.EditorAlias = synonymMatch.PropertyEditorAlias;
-                    suggestion.Confidence = BoostForEditorMatch(80, synonymMatch.PropertyEditorAlias, schemaProp);
-                    suggestion.IsAutoMapped = true;
-
-                    ApplyComplexTypeInference(suggestion, synonymMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
-                    suggestions.Add(suggestion);
-                    continue;
-                }
-            }
-
-            // Partial match (schema property name contained in content property alias or vice versa)
-            var partialMatch = contentProperties.FirstOrDefault(
-                p => p.Alias.Contains(schemaProp.Name, StringComparison.OrdinalIgnoreCase)
-                  || schemaProp.Name.Contains(p.Alias, StringComparison.OrdinalIgnoreCase));
-
-            if (partialMatch is not null)
-            {
-                suggestion.SuggestedContentTypePropertyAlias = partialMatch.Alias;
-                suggestion.EditorAlias = partialMatch.PropertyEditorAlias;
-                suggestion.Confidence = BoostForEditorMatch(50, partialMatch.PropertyEditorAlias, schemaProp);
-                suggestion.IsAutoMapped = true;
-
-                ApplyComplexTypeInference(suggestion, partialMatch.PropertyEditorAlias, hasPopularDefault, popularDefault);
-                suggestions.Add(suggestion);
-                continue;
-            }
-
-            // Built-in property auto-mapping (URL, Name, dates) as fallback when no custom property matched
-            if (!schemaProp.IsComplexType)
-            {
-                var builtInAlias = TryMatchBuiltInProperty(schemaProp);
-                if (builtInAlias is not null)
-                {
-                    suggestion.SuggestedContentTypePropertyAlias = builtInAlias;
-                    suggestion.EditorAlias = SchemeWeaverConstants.BuiltInProperties.EditorAlias;
-                    // Canonical built-in mappings (schema url → node url, name → node Name,
-                    // datePublished → CreateDate, dateModified → UpdateDate). Scored at the
-                    // auto-apply bar so they stay pre-ticked after the confidence filter.
-                    suggestion.Confidence = 80;
-                    suggestion.IsAutoMapped = true;
-                    suggestions.Add(suggestion);
-                    continue;
-                }
-            }
-
-            // No content property match — check for complex type defaults. A "property"-
-            // sourced popular default (e.g. *.logo) needs a real content property to bind;
-            // with no match it would author a dead alias-less row, so fall through to the
-            // generic complexType handling instead.
-            if (schemaProp.IsComplexType && hasPopularDefault
-                && !string.Equals(popularDefault!.SourceType, "property", StringComparison.OrdinalIgnoreCase))
-            {
-                suggestion.SuggestedSourceType = popularDefault!.SourceType;
-                suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
-                suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
-                suggestion.SuggestedTargetPieceKey = popularDefault.TargetPieceKey;
-
-                // Reference-typed popular defaults (e.g. AboutPage.about → org
-                // piece) don't need a block property on the content type — they
-                // resolve at graph-generation time from registered pieces.
-                if (popularDefault.SourceType == "reference")
-                {
-                    suggestion.Confidence = 90;
-                    suggestion.IsAutoMapped = true;
-                }
-                // For blockContent defaults, only auto-map if a matching block property exists
-                else if (popularDefault.SourceType == "blockContent")
-                {
-                    var blockProperty = contentProperties
-                        .FirstOrDefault(p => BlockEditorAliases.Contains(p.PropertyEditorAlias));
-                    if (blockProperty is not null)
-                    {
-                        suggestion.SuggestedContentTypePropertyAlias = blockProperty.Alias;
-                        suggestion.EditorAlias = blockProperty.PropertyEditorAlias;
-                        suggestion.Confidence = 60;
-                        suggestion.IsAutoMapped = true;
-                    }
-                    else
-                    {
-                        suggestion.Confidence = 0;
-                        suggestion.IsAutoMapped = false;
-                    }
-                }
-                else
-                {
-                    suggestion.Confidence = 60;
-                    suggestion.IsAutoMapped = true;
-                }
-            }
-            else if (schemaProp.IsComplexType)
-            {
-                var nestedType = GetFirstNonPrimitiveAcceptedType(schemaProp.AcceptedTypes);
-                if (nestedType is not null)
-                {
-                    // Has a real complex type — if it's a known cross-piece ref
-                    // candidate (about, publisher, worksFor, isPartOf, …), suggest
-                    // `reference` so the user gets a one-click Yoast-style @id ref.
-                    if (ReferenceCandidates.TryGetValue(schemaProp.Name, out var targetPieceKey))
-                    {
-                        suggestion.SuggestedSourceType = "reference";
-                        suggestion.SuggestedTargetPieceKey = targetPieceKey;
-                        suggestion.Confidence = 70;
-                        suggestion.IsAutoMapped = true;
-                    }
-                    // Else: generic target-type fallback. If the content type has
-                    // a BlockList/BlockGrid property we can plausibly map to a
-                    // collection of the nested type, suggest that at low confidence
-                    // so the user sees an actionable starting point instead of
-                    // an empty slot.
-                    else if (IsArrayProperty(schemaProp)
-                        && contentProperties.FirstOrDefault(p => BlockEditorAliases.Contains(p.PropertyEditorAlias)) is { } blockProp)
-                    {
-                        suggestion.SuggestedSourceType = "blockContent";
-                        suggestion.SuggestedNestedSchemaTypeName = nestedType;
-                        suggestion.SuggestedContentTypePropertyAlias = blockProp.Alias;
-                        suggestion.EditorAlias = blockProp.PropertyEditorAlias;
-                        suggestion.Confidence = 40;
-                        suggestion.IsAutoMapped = true;
-                    }
-                    else
-                    {
-                        suggestion.SuggestedSourceType = "complexType";
-                        suggestion.SuggestedNestedSchemaTypeName = nestedType;
-                        suggestion.Confidence = 0;
-                        suggestion.IsAutoMapped = false;
-                    }
-                }
-                else
-                {
-                    // All accepted types are primitive (e.g. String) — treat as simple unmatched
-                    suggestion.IsComplexType = false;
-                    suggestion.Confidence = 0;
-                    suggestion.IsAutoMapped = false;
-                }
-            }
-            else if (ReferenceCandidates.TryGetValue(schemaProp.Name, out var targetPieceKey2))
-            {
-                // Non-complex property with a known cross-piece ref name — rare
-                // but handles e.g. future primitive refs. Low confidence because
-                // we're guessing from name alone.
-                suggestion.SuggestedSourceType = "reference";
-                suggestion.SuggestedTargetPieceKey = targetPieceKey2;
-                suggestion.Confidence = 50;
-                suggestion.IsAutoMapped = true;
-            }
-            else
-            {
-                suggestion.Confidence = 0;
-                suggestion.IsAutoMapped = false;
-            }
+            if (!matched)
+                ResolveUnmatched(suggestion, schemaProp, contentProperties, hasPopularDefault, popularDefault);
 
             suggestions.Add(suggestion);
         }
@@ -625,6 +472,197 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         return suggestions
             .Where(s => s.Confidence >= _showThreshold)
             .ToList();
+    }
+
+    /// <summary>
+    /// Populate-and-return for the exact / synonym / partial name-match tiers, which are identical
+    /// apart from their base confidence and candidate matcher. On a match it fills the suggestion
+    /// (alias, editor, editor-boosted confidence, auto-mapped) and runs <see cref="ApplyComplexTypeInference"/>
+    /// exactly as the flat tiers did, then returns true; returns false (leaving the suggestion untouched)
+    /// when no candidate matches so the caller can try the next tier.
+    /// </summary>
+    private static bool TryMatchTier(
+        PropertyMappingSuggestion suggestion,
+        SchemaPropertyInfo schemaProp,
+        List<IPropertyType> contentProperties,
+        int baseConfidence,
+        Func<IPropertyType, bool> matcher,
+        bool hasPopularDefault,
+        PopularSchemaDefault? popularDefault)
+    {
+        var match = contentProperties.FirstOrDefault(matcher);
+        if (match is null)
+            return false;
+
+        suggestion.SuggestedContentTypePropertyAlias = match.Alias;
+        suggestion.EditorAlias = match.PropertyEditorAlias;
+        suggestion.Confidence = BoostForEditorMatch(baseConfidence, match.PropertyEditorAlias, schemaProp);
+        suggestion.IsAutoMapped = true;
+
+        ApplyComplexTypeInference(suggestion, match.PropertyEditorAlias, hasPopularDefault, popularDefault);
+        return true;
+    }
+
+    /// <summary>
+    /// Built-in property auto-mapping (URL, Name, dates) used as a fallback when no custom property
+    /// matched. Only applies to non-complex schema properties. Canonical built-in mappings
+    /// (schema url → node url, name → node Name, datePublished → CreateDate, dateModified → UpdateDate)
+    /// are scored at the auto-apply bar so they stay pre-ticked after the confidence filter.
+    /// </summary>
+    private static bool TryBuiltIn(PropertyMappingSuggestion suggestion, SchemaPropertyInfo schemaProp)
+    {
+        if (schemaProp.IsComplexType)
+            return false;
+
+        var builtInAlias = TryMatchBuiltInProperty(schemaProp);
+        if (builtInAlias is null)
+            return false;
+
+        suggestion.SuggestedContentTypePropertyAlias = builtInAlias;
+        suggestion.EditorAlias = SchemeWeaverConstants.BuiltInProperties.EditorAlias;
+        suggestion.Confidence = 80;
+        suggestion.IsAutoMapped = true;
+        return true;
+    }
+
+    /// <summary>
+    /// No content property matched: resolves the suggestion from popular defaults, reference
+    /// candidates and complex-type fallbacks. A <c>property</c>-sourced popular default (e.g. *.logo)
+    /// is EXCLUDED here — it needs a real content property to bind, so with no match it falls through
+    /// to the generic complex handling instead of authoring a dead alias-less row (mirrors
+    /// <see cref="ApplyComplexTypeInference"/>).
+    /// </summary>
+    private static void ResolveUnmatched(
+        PropertyMappingSuggestion suggestion,
+        SchemaPropertyInfo schemaProp,
+        List<IPropertyType> contentProperties,
+        bool hasPopularDefault,
+        PopularSchemaDefault? popularDefault)
+    {
+        if (schemaProp.IsComplexType && hasPopularDefault
+            && !string.Equals(popularDefault!.SourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyPopularDefaultForUnmatched(suggestion, contentProperties, popularDefault!);
+            return;
+        }
+
+        if (schemaProp.IsComplexType)
+        {
+            ResolveUnmatchedComplex(suggestion, schemaProp, contentProperties);
+            return;
+        }
+
+        if (ReferenceCandidates.TryGetValue(schemaProp.Name, out var targetPieceKey))
+        {
+            // Non-complex property with a known cross-piece ref name — rare but handles e.g. future
+            // primitive refs. Low confidence because we're guessing from name alone.
+            suggestion.SuggestedSourceType = SchemeWeaverConstants.SourceTypes.Reference;
+            suggestion.SuggestedTargetPieceKey = targetPieceKey;
+            suggestion.Confidence = 50;
+            suggestion.IsAutoMapped = true;
+            return;
+        }
+
+        suggestion.Confidence = 0;
+        suggestion.IsAutoMapped = false;
+    }
+
+    /// <summary>
+    /// Applies a non-<c>property</c> popular default to an unmatched complex suggestion. Reference
+    /// defaults (e.g. AboutPage.about → org piece) resolve at graph-generation time and need no block
+    /// property; blockContent defaults only auto-map when a matching block property exists; everything
+    /// else is a shown-but-not-auto-applied complexType default.
+    /// </summary>
+    private static void ApplyPopularDefaultForUnmatched(
+        PropertyMappingSuggestion suggestion,
+        List<IPropertyType> contentProperties,
+        PopularSchemaDefault popularDefault)
+    {
+        suggestion.SuggestedSourceType = popularDefault.SourceType;
+        suggestion.SuggestedNestedSchemaTypeName = popularDefault.NestedSchemaTypeName;
+        suggestion.SuggestedResolverConfig = popularDefault.ResolverConfig;
+        suggestion.SuggestedTargetPieceKey = popularDefault.TargetPieceKey;
+
+        // Case-sensitive switch (matches the render path's `==` comparison policy for source types).
+        switch (popularDefault.SourceType)
+        {
+            case SchemeWeaverConstants.SourceTypes.Reference:
+                suggestion.Confidence = 90;
+                suggestion.IsAutoMapped = true;
+                break;
+
+            case SchemeWeaverConstants.SourceTypes.BlockContent:
+            {
+                var blockProperty = contentProperties
+                    .FirstOrDefault(p => BlockEditorAliases.Contains(p.PropertyEditorAlias));
+                if (blockProperty is not null)
+                {
+                    suggestion.SuggestedContentTypePropertyAlias = blockProperty.Alias;
+                    suggestion.EditorAlias = blockProperty.PropertyEditorAlias;
+                    suggestion.Confidence = 60;
+                    suggestion.IsAutoMapped = true;
+                }
+                else
+                {
+                    suggestion.Confidence = 0;
+                    suggestion.IsAutoMapped = false;
+                }
+                break;
+            }
+
+            default:
+                suggestion.Confidence = 60;
+                suggestion.IsAutoMapped = true;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Unmatched complex property with no usable popular default. A known cross-piece ref name
+    /// (about, publisher, worksFor, isPartOf, …) becomes a one-click <c>reference</c> @id ref; an
+    /// array property with a Block List/Grid present becomes a low-confidence blockContent guess; a
+    /// primitive-only accepted-types set collapses to a simple unmatched row; otherwise it is a
+    /// shown-but-not-applied complexType placeholder.
+    /// </summary>
+    private static void ResolveUnmatchedComplex(
+        PropertyMappingSuggestion suggestion,
+        SchemaPropertyInfo schemaProp,
+        List<IPropertyType> contentProperties)
+    {
+        var nestedType = GetFirstNonPrimitiveAcceptedType(schemaProp.AcceptedTypes);
+        if (nestedType is null)
+        {
+            // All accepted types are primitive (e.g. String) — treat as simple unmatched.
+            suggestion.IsComplexType = false;
+            suggestion.Confidence = 0;
+            suggestion.IsAutoMapped = false;
+            return;
+        }
+
+        if (ReferenceCandidates.TryGetValue(schemaProp.Name, out var targetPieceKey))
+        {
+            suggestion.SuggestedSourceType = SchemeWeaverConstants.SourceTypes.Reference;
+            suggestion.SuggestedTargetPieceKey = targetPieceKey;
+            suggestion.Confidence = 70;
+            suggestion.IsAutoMapped = true;
+        }
+        else if (IsArrayProperty(schemaProp)
+            && contentProperties.FirstOrDefault(p => BlockEditorAliases.Contains(p.PropertyEditorAlias)) is { } blockProp)
+        {
+            suggestion.SuggestedSourceType = SchemeWeaverConstants.SourceTypes.BlockContent;
+            suggestion.SuggestedNestedSchemaTypeName = nestedType;
+            suggestion.SuggestedContentTypePropertyAlias = blockProp.Alias;
+            suggestion.EditorAlias = blockProp.PropertyEditorAlias;
+            suggestion.Confidence = 40;
+            suggestion.IsAutoMapped = true;
+        }
+        else
+        {
+            suggestion.SuggestedSourceType = SchemeWeaverConstants.SourceTypes.ComplexType;
+            suggestion.SuggestedNestedSchemaTypeName = nestedType;
+            suggestion.Confidence = 0;
+            suggestion.IsAutoMapped = false;
+        }
     }
 
     public IEnumerable<RankedSchemaPropertyInfo> RankSchemaProperties(string schemaTypeName)
@@ -749,50 +787,60 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         if (baseConfidence >= 100 || string.IsNullOrEmpty(editorAlias))
             return baseConfidence;
 
-        var editor = editorAlias;
         var accepted = schemaProp.AcceptedTypes ?? [];
         var propertyType = schemaProp.PropertyType ?? string.Empty;
 
-        var boosted = false;
-
-        // MediaPicker → image-shaped schema properties (ImageObject, MediaObject,
-        // ImageObject-accepting Thing fields like logo / image / photo).
-        if (editor.Contains("MediaPicker", StringComparison.OrdinalIgnoreCase)
-            && (AcceptsAny(accepted, "ImageObject", "MediaObject")
-                || propertyType.Contains("ImageObject", StringComparison.OrdinalIgnoreCase)))
-        {
-            boosted = true;
-        }
-
-        // DateTime picker → Date-family schema properties (DateTime, Date, Time).
-        else if (editor.Equals("Umbraco.DateTime", StringComparison.OrdinalIgnoreCase)
-            && (propertyType.Contains("DateTime", StringComparison.OrdinalIgnoreCase)
-                || propertyType.Contains("Date", StringComparison.OrdinalIgnoreCase)
-                || propertyType.Contains("Time", StringComparison.OrdinalIgnoreCase)
-                || AcceptsAny(accepted, "DateTime", "Date", "Time")))
-        {
-            boosted = true;
-        }
-
-        // MultiUrlPicker → URL-shaped properties (SameAs arrays, primary URL fields).
-        else if (editor.Equals("Umbraco.MultiUrlPicker", StringComparison.OrdinalIgnoreCase)
-            && (propertyType.Contains("URL", StringComparison.OrdinalIgnoreCase)
-                || AcceptsAny(accepted, "URL")))
-        {
-            boosted = true;
-        }
-
-        // Tags / MultipleTextstring → text-array properties (keywords, sameAs).
-        else if ((editor.Equals("Umbraco.Tags", StringComparison.OrdinalIgnoreCase)
-                || editor.Equals("Umbraco.MultipleTextstring", StringComparison.OrdinalIgnoreCase))
-            && (propertyType.Contains("Text", StringComparison.OrdinalIgnoreCase)
-                || AcceptsAny(accepted, "Text")))
-        {
-            boosted = true;
-        }
+        // The rules are mutually exclusive by editor family, and the boost is a flat +15 (never
+        // cumulative), so evaluating them as `Any` is equivalent to the old if/else-if chain.
+        var boosted = EditorBoostRules.Any(r => r.EditorMatches(editorAlias) && r.TargetMatches(accepted, propertyType));
 
         return boosted ? Math.Min(100, baseConfidence + 15) : baseConfidence;
     }
+
+    /// <summary>
+    /// A single editor↔target-shape alignment rule for <see cref="BoostForEditorMatch"/>.
+    /// <paramref name="EditorMatches"/> tests the Umbraco editor alias; <paramref name="TargetMatches"/>
+    /// tests the Schema.org target (accepted types + property type). Both are OrdinalIgnoreCase.
+    /// </summary>
+    private sealed record EditorBoostRule(
+        Func<string, bool> EditorMatches,
+        Func<List<string>, string, bool> TargetMatches);
+
+    /// <summary>
+    /// Editor-alias → target-shape boost rules. Each matched rule adds a flat +15 (capped at 100 by
+    /// the caller). MediaPicker uses substring <c>Contains</c>; the others match the editor alias
+    /// exactly with <c>Equals</c>. Order is irrelevant — the caller uses <c>Any</c>.
+    /// </summary>
+    private static readonly EditorBoostRule[] EditorBoostRules =
+    [
+        // MediaPicker → image-shaped schema properties (ImageObject, MediaObject,
+        // ImageObject-accepting Thing fields like logo / image / photo).
+        new(
+            editor => editor.Contains("MediaPicker", StringComparison.OrdinalIgnoreCase),
+            (accepted, propertyType) => AcceptsAny(accepted, "ImageObject", "MediaObject")
+                || propertyType.Contains("ImageObject", StringComparison.OrdinalIgnoreCase)),
+
+        // DateTime picker → Date-family schema properties (DateTime, Date, Time).
+        new(
+            editor => editor.Equals("Umbraco.DateTime", StringComparison.OrdinalIgnoreCase),
+            (accepted, propertyType) => propertyType.Contains("DateTime", StringComparison.OrdinalIgnoreCase)
+                || propertyType.Contains("Date", StringComparison.OrdinalIgnoreCase)
+                || propertyType.Contains("Time", StringComparison.OrdinalIgnoreCase)
+                || AcceptsAny(accepted, "DateTime", "Date", "Time")),
+
+        // MultiUrlPicker → URL-shaped properties (SameAs arrays, primary URL fields).
+        new(
+            editor => editor.Equals("Umbraco.MultiUrlPicker", StringComparison.OrdinalIgnoreCase),
+            (accepted, propertyType) => propertyType.Contains("URL", StringComparison.OrdinalIgnoreCase)
+                || AcceptsAny(accepted, "URL")),
+
+        // Tags / MultipleTextstring → text-array properties (keywords, sameAs).
+        new(
+            editor => editor.Equals("Umbraco.Tags", StringComparison.OrdinalIgnoreCase)
+                || editor.Equals("Umbraco.MultipleTextstring", StringComparison.OrdinalIgnoreCase),
+            (accepted, propertyType) => propertyType.Contains("Text", StringComparison.OrdinalIgnoreCase)
+                || AcceptsAny(accepted, "Text")),
+    ];
 
     /// <summary>
     /// Heuristic: does the Schema.org property type look like it holds an array
