@@ -157,12 +157,9 @@ internal static class RuleHelpers
     public static IEnumerable<ValidationIssue> CheckFields(
         JsonElement node, string path, string schemaType, IEnumerable<FieldRule> rules)
     {
-        foreach (var rule in rules)
-        {
-            if (!IsPresent(node, rule.Field, rule.Presence))
-                yield return new ValidationIssue(
-                    rule.Severity, schemaType, $"{path}.{ToCamelCase(rule.Field)}", rule.Message);
-        }
+        foreach (var rule in rules.Where(rule => !IsPresent(node, rule.Field, rule.Presence)))
+            yield return new ValidationIssue(
+                rule.Severity, schemaType, $"{path}.{ToCamelCase(rule.Field)}", rule.Message);
     }
 
     /// <summary>
