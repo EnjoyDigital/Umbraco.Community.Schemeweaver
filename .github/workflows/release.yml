@@ -75,14 +75,22 @@ jobs:
         id: ver
         run: echo "version=$(dotnet msbuild src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj -getProperty:SchemeWeaverPackageVersion -p:UmbracoMajor=${{ matrix.umbraco }})" >> "$GITHUB_OUTPUT"
 
+      # Sequential per-project test runs — see build.yml's Test step for why a
+      # solution-level `dotnet test` (parallel projects, shared content root)
+      # flakes the Deploy suite.
       - name: Test
-        run: dotnet test --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal
+        run: |
+          dotnet test tests/Umbraco.Community.SchemeWeaver.Tests/Umbraco.Community.SchemeWeaver.Tests.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal
+          dotnet test tests/Umbraco.Community.SchemeWeaver.Deploy.Tests/Umbraco.Community.SchemeWeaver.Deploy.Tests.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal
 
       - name: Pack
         run: dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
       - name: Pack uSync satellite
         run: dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
+
+      - name: Pack Deploy satellite
+        run: dotnet pack src/Umbraco.Community.SchemeWeaver.Deploy/Umbraco.Community.SchemeWeaver.Deploy.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
       # AI satellite is Umbraco 17-only (Umbraco.AI 1.14 has no Umbraco 18 build), so it
       # is packed on the 17 leg only. It is versioned independently of the release tag —

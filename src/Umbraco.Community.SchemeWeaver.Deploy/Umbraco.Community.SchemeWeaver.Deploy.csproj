@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>Umbraco.Community.SchemeWeaver.Deploy</PackageId>
+    <Title>Umbraco Deploy addon for SchemeWeaver</Title>
+    <Description>Umbraco Deploy addon for SchemeWeaver — deploys Schema.org mappings between environments as disk-based Deploy artifacts, alongside the document types they belong to. Requires Umbraco Deploy (OnPrem or Cloud) on the host site.</Description>
+    <PackageTags>umbraco plugin package umbraco-marketplace umbraco-deploy umbraco-cloud schema.org json-ld</PackageTags>
+    <!-- Per-major build matrix (see Directory.Build.props): the package version's major
+         tracks the Umbraco major (17.x depends on Umbraco.Deploy 17.x, 18.x on 18.x),
+         both stable. The ProjectReference below pins the matching SchemeWeaver build.
+         Only Umbraco.Deploy.Infrastructure is referenced (the package-developer surface);
+         the licensed OnPrem/Cloud runtime is the host site's own install. -->
+    <Version>$(SchemeWeaverPackageVersion)</Version>
+    <Authors>Oliver Picton</Authors>
+    <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Oliver Picton</Copyright>
+    <PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <RootNamespace>Umbraco.Community.SchemeWeaver.Deploy</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="NUGET_README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Umbraco.Deploy.Infrastructure" Version="$(SchemeWeaverUmbracoDeployRange)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Umbraco.Community.SchemeWeaver.Deploy.Tests" />
+  </ItemGroup>
+
+</Project>

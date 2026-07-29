@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
+using Umbraco.Community.SchemeWeaver.Services;
 using uSync.Core;
 using uSync.Core.Models;
 using uSync.Core.Serialization;
@@ -33,6 +34,27 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
     {
         var scope = _scopeFactory.CreateScope();
         return scope.ServiceProvider.GetRequiredService<ISchemaMappingRepository>();
+    }
+
+    /// <summary>
+    /// Evicts the rendered JSON-LD cache after an import-side mapping write.
+    /// Imports write through the repository directly and deliberately do NOT
+    /// publish <c>SchemaMappingSavedNotification</c> (that would re-trigger the
+    /// export handler and loop import → save → export), so the notification-based
+    /// eviction never fires for them. Failure to evict must never fail an import.
+    /// </summary>
+    private void InvalidateJsonLdCache()
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            scope.ServiceProvider.GetRequiredService<IJsonLdBlocksProvider>().InvalidateAll();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to evict the JSON-LD cache after a uSync mapping import; " +
+                "rendered output may be stale until content is republished.");
+        }
     }
 
     public override string ItemAlias(SchemaMapping item) => item.ContentTypeAlias;
@@ -129,6 +151,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
             ?? new List<PropertyMapping>();
 
         repository.SavePropertyMappings(saved.Id, propertyMappings);
+        InvalidateJsonLdCache();
 
         return Task.FromResult(SyncAttempt<SchemaMapping>.Succeed(
             alias, saved, ChangeType.Import, new List<uSyncChange>()));
@@ -207,6 +230,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
     {
         var repository = CreateRepository();
         repository.Save(item);
+        InvalidateJsonLdCache();
         return Task.CompletedTask;
     }
 
@@ -214,6 +238,7 @@ public class SchemaMappingSerializer : SyncSerializerRoot<SchemaMapping>, ISyncS
     {
         var repository = CreateRepository();
         repository.Delete(item.Id);
+        InvalidateJsonLdCache();
         return Task.CompletedTask;
     }
 }

@@ -727,11 +727,13 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     }
 
     /// <summary>
-    /// Resolves a single complex-type sub-mapping to its value: the 4-arm SourceType switch
-    /// (<c>static</c> / <c>property</c> / <c>complexType</c> / default) plus the transform
-    /// post-processing. The switch keeps this file's case-sensitive render-path comparison policy.
-    /// A transform applies ONLY to a property-sourced string (static stays untransformed; complexType
-    /// yields a Thing, not a string) and, when it collapses to whitespace, drops the sub-value.
+    /// Resolves a single complex-type sub-mapping to its value: the 5-arm SourceType switch
+    /// (<c>static</c> / <c>property</c> / <c>parent</c>-<c>ancestor</c>-<c>sibling</c> /
+    /// <c>complexType</c> / default) plus the transform post-processing. The switch keeps this
+    /// file's case-sensitive render-path comparison policy.
+    /// A transform applies ONLY to a node-sourced string — on this node or a related one (static
+    /// stays untransformed, mirroring the top-level static behaviour; complexType yields a Thing,
+    /// not a string) — and, when it collapses to whitespace, drops the sub-value.
     /// </summary>
     private object? ResolveSubValue(ComplexTypeMappingEntry subMapping, IPublishedContent content, string? culture)
     {
@@ -740,13 +742,18 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             SchemeWeaverConstants.SourceTypes.Static => subMapping.StaticValue,
             SchemeWeaverConstants.SourceTypes.Property when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
                 ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias, culture),
+            SchemeWeaverConstants.SourceTypes.Parent
+                or SchemeWeaverConstants.SourceTypes.Ancestor
+                or SchemeWeaverConstants.SourceTypes.Sibling
+                when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
+                ResolveRelatedNodeSubValue(subMapping, content, culture),
             SchemeWeaverConstants.SourceTypes.ComplexType when !string.IsNullOrEmpty(subMapping.ResolverConfig) =>
                 ResolveNestedComplexType(subMapping, content, culture),
             _ => null
         };
 
         if (value is string sv
-            && string.Equals(subMapping.SourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase)
+            && IsNodeSourced(subMapping.SourceType)
             && !string.IsNullOrEmpty(subMapping.TransformType))
         {
             var transformed = ApplyTransform(sv, subMapping.TransformType);
@@ -755,6 +762,17 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         return value;
     }
+
+    /// <summary>
+    /// True for the source types whose sub-value is read from a content node — this node
+    /// (<c>property</c>) or a related one (<c>parent</c>/<c>ancestor</c>/<c>sibling</c>) — and which
+    /// are therefore eligible for transform post-processing in <see cref="ResolveSubValue"/>.
+    /// </summary>
+    private static bool IsNodeSourced(string? sourceType) =>
+        string.Equals(sourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(sourceType, SchemeWeaverConstants.SourceTypes.Parent, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(sourceType, SchemeWeaverConstants.SourceTypes.Ancestor, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(sourceType, SchemeWeaverConstants.SourceTypes.Sibling, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Render-time repair for persisted MediaPicker→ImageObject shapes: the auto-mapper + enricher
@@ -817,16 +835,54 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     }
 
     /// <summary>
+    /// Resolves a related-node (parent/ancestor/sibling) complex type sub-mapping:
+    /// locates the target node exactly as a top-level related mapping would, then
+    /// resolves the sub-property off that node through the resolver pipeline. This
+    /// is what lets e.g. an inline Organization's name/logo read the site root.
+    /// Sub-mappings always resolve relative to the page being generated, at every
+    /// nesting depth.
+    /// </summary>
+    private object? ResolveRelatedNodeSubValue(ComplexTypeMappingEntry subMapping, IPublishedContent content, string? culture)
+    {
+        var syntheticMapping = new PropertyMapping
+        {
+            SchemaPropertyName = subMapping.SchemaProperty,
+            SourceType = subMapping.SourceType,
+            SourceContentTypeAlias = subMapping.SourceContentTypeAlias,
+            ContentTypePropertyAlias = subMapping.ContentTypePropertyAlias
+        };
+
+        var targetNode = ResolveTargetNode(syntheticMapping, content);
+        if (targetNode is null)
+            return null;
+
+        return ResolveComplexTypePropertyValue(targetNode, subMapping.ContentTypePropertyAlias!, culture);
+    }
+
+    /// <summary>
     /// Resolves a property value for complex type sub-mappings using the resolver factory.
-    /// This ensures media pickers, content pickers, etc. are handled correctly.
+    /// This ensures media pickers, content pickers, built-ins etc. are handled correctly.
     /// </summary>
     private object? ResolveComplexTypePropertyValue(IPublishedContent content, string propertyAlias, string? culture)
     {
-        var publishedProperty = content.GetProperty(propertyAlias);
-        if (publishedProperty is null)
-            return null;
+        IPublishedProperty? publishedProperty = null;
+        string? editorAlias;
 
-        var editorAlias = publishedProperty.PropertyType?.EditorAlias;
+        // Built-in properties (__name, __url, dates) bypass GetProperty() — route to the
+        // built-in resolver, which reads them straight off the node.
+        if (SchemeWeaverConstants.BuiltInProperties.IsBuiltIn(propertyAlias))
+        {
+            editorAlias = SchemeWeaverConstants.BuiltInProperties.EditorAlias;
+        }
+        else
+        {
+            publishedProperty = content.GetProperty(propertyAlias);
+            if (publishedProperty is null)
+                return null;
+
+            editorAlias = publishedProperty.PropertyType?.EditorAlias;
+        }
+
         var resolver = _resolverFactory.GetResolver(editorAlias);
 
         var context = new PropertyResolverContext

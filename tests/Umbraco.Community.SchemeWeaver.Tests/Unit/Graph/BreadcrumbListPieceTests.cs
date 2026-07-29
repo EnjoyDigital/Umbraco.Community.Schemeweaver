@@ -39,7 +39,8 @@ public class BreadcrumbListPieceTests
     // Wire `child.Parent<IPublishedContent>(nav, filtering)` to resolve to `parent`.
     // The Umbraco Parent<T> extension resolves the parent KEY via the navigation
     // service, then materialises it through the status-filtering service
-    // (FilterAvailable on 17, Unfiltered on 18) — there is no other seam.
+    // (Unfiltered on 18 and 17.5+, FilterAvailable on 17.0–17.4) — there is no
+    // other seam, so both are stubbed.
     private void WireParent(IPublishedContent child, IPublishedContent parent)
     {
         _navigationQueryService.TryGetParentKey(child.Key, out Arg.Any<Guid?>())
@@ -54,13 +55,11 @@ public class BreadcrumbListPieceTests
         _publishedStatusFilteringService
             .FilterAvailable(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(parent.Key)), Arg.Any<string?>())
             .Returns(new[] { parent });
-#if UMBRACO18
 #pragma warning disable CS0618 // Unfiltered is Umbraco-internal-deprecated; mocked, not used for functionality
         _publishedStatusFilteringService
             .Unfiltered(Arg.Is<IEnumerable<Guid>>(keys => keys.Contains(parent.Key)))
             .Returns(new[] { parent });
 #pragma warning restore CS0618
-#endif
     }
 
     private GraphPieceContext Context(IPublishedContent content, Uri? pageUrl) =>

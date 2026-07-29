@@ -16,5 +16,8 @@ public sealed class TestHostComposer : IComposer
         builder.AddNotificationAsyncHandler<
             UmbracoApplicationStartedNotification,
             VariantArticlePublishSeeder>();
+        builder.AddNotificationAsyncHandler<
+            UmbracoApplicationStartedNotification,
+            VariantContentBackfillSeeder>();
     }
 }

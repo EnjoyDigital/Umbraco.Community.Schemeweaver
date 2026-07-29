@@ -28,7 +28,8 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
     private static readonly HashSet<string> ContentPickerAliases = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Umbraco.ContentPicker"
+        "Umbraco.ContentPicker",
+        "Umbraco.MultiNodeTreePicker"
     };
 
     /// <summary>
