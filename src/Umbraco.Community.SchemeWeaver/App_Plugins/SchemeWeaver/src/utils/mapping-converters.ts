@@ -15,6 +15,7 @@ export const POPULAR_PROPERTIES = [
  * stays presentation-only.
  */
 export function dtoToRow(dto: PropertyMappingDto, loadOrder?: number): PropertyMappingRow {
+  const drill = parseDrillConfig(dto.sourceType, dto.resolverConfig);
   return {
     schemaPropertyName: dto.schemaPropertyName || '',
     schemaPropertyType: '',
@@ -37,7 +38,55 @@ export function dtoToRow(dto: PropertyMappingDto, loadOrder?: number): PropertyM
     loadOrder,
     isAutoMapped: dto.isAutoMapped,
     transformType: dto.transformType ?? null,
+    targetPieceKey: dto.targetPieceKey ?? null,
+    pickedPropertyAlias: drill?.pickedPropertyAlias,
+    pickedContentTypeAlias: drill?.pickedContentTypeAlias,
   };
+}
+
+/**
+ * Parses picker drill-down fields out of a row's resolverConfig. Deliberately
+ * strict: only `property`-sourced rows can drill (the config key namespace is
+ * shared with complexType/blockContent shapes, which must pass through
+ * untouched), and only a truthy `pickedPropertyAlias` counts as drill config.
+ */
+export function parseDrillConfig(
+  sourceType: string | undefined,
+  resolverConfig: string | null | undefined,
+): { pickedPropertyAlias: string; pickedContentTypeAlias?: string } | null {
+  if (sourceType !== SourceType.Property || !resolverConfig) return null;
+  try {
+    const parsed = JSON.parse(resolverConfig);
+    if (typeof parsed?.pickedPropertyAlias === 'string' && parsed.pickedPropertyAlias) {
+      return {
+        pickedPropertyAlias: parsed.pickedPropertyAlias,
+        pickedContentTypeAlias:
+          typeof parsed.pickedContentTypeAlias === 'string' && parsed.pickedContentTypeAlias
+            ? parsed.pickedContentTypeAlias
+            : undefined,
+      };
+    }
+  } catch {
+    // Malformed config — treat as no drill config, mirroring the backend.
+  }
+  return null;
+}
+
+/**
+ * Serialises a row's drill-down state into its resolverConfig (or clears it).
+ * Used by the table's edit handlers so the save mappers can keep passing
+ * `resolverConfig` through verbatim.
+ */
+export function drillConfigToResolverConfig(
+  pickedPropertyAlias: string | undefined,
+  pickedContentTypeAlias: string | undefined,
+): string | null {
+  if (!pickedPropertyAlias) return null;
+  return JSON.stringify(
+    pickedContentTypeAlias
+      ? { pickedPropertyAlias, pickedContentTypeAlias }
+      : { pickedPropertyAlias },
+  );
 }
 
 /**
@@ -72,12 +121,13 @@ export function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRo
     sourceContentTypeProperties: [],
     dynamicRootConfig: undefined,
     sourceDocumentTypeUnique: undefined,
+    targetPieceKey: s.suggestedTargetPieceKey ?? null,
   };
 }
 
 /** Check whether a row has user-provided data */
 function rowHasUserData(row: PropertyMappingRow): boolean {
-  return !!(row.contentTypePropertyAlias || row.staticValue || row.resolverConfig);
+  return !!(row.contentTypePropertyAlias || row.staticValue || row.resolverConfig || row.targetPieceKey);
 }
 
 /**
@@ -110,11 +160,13 @@ export function mergeAutoMapSuggestions(
       rowMap.set(key, { ...existing, confidence: suggestion.confidence });
     } else if (
       suggestion.suggestedContentTypePropertyAlias ||
+      (suggestion.suggestedSourceType === SourceType.Reference && suggestion.suggestedTargetPieceKey) ||
       (suggestion.isComplexType && suggestion.suggestedNestedSchemaTypeName && suggestion.confidence > 0)
     ) {
-      // Only add suggestions that have an actual property match or are complex
-      // types the auto-mapper actually matched (confidence > 0). Zero-confidence
-      // unmatched properties can be added on-demand via the "Add property" combobox.
+      // Only add suggestions that have an actual property match, reference a
+      // graph piece, or are complex types the auto-mapper actually matched
+      // (confidence > 0). Zero-confidence unmatched properties can be added
+      // on-demand via the "Add property" combobox.
       rowMap.set(key, suggestionToRow(suggestion));
     }
   }
@@ -138,6 +190,13 @@ export function mergeAutoMapSuggestions(
  */
 export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: SourceTypeValue): PropertyMappingRow {
   const needsRelated = newSourceType === SourceType.Parent || newSourceType === SourceType.Ancestor || newSourceType === SourceType.Sibling;
+  // resolverConfig is only meaningful across a source change when it is a
+  // complexType/blockContent shape moving between those two types. A picker
+  // drill config (property-sourced) must NOT masquerade as complex config —
+  // it would pass the complexType save filter while rendering nothing.
+  const keepsConfigShape =
+    (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
+    && !parseDrillConfig(row.sourceType, row.resolverConfig);
   return {
     ...row,
     sourceType: newSourceType,
@@ -149,11 +208,15 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
     sourceDocumentTypeUnique: needsRelated ? row.sourceDocumentTypeUnique : undefined,
     nestedSchemaTypeName: (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
       ? row.nestedSchemaTypeName : '',
-    resolverConfig: (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
-      ? row.resolverConfig : null,
+    resolverConfig: keepsConfigShape ? row.resolverConfig : null,
     expanded: newSourceType === SourceType.ComplexType ? row.expanded : false,
     subMappings: newSourceType === SourceType.ComplexType ? row.subMappings : [],
     selectedSubType: newSourceType === SourceType.ComplexType ? row.selectedSubType : '',
+    targetPieceKey: newSourceType === SourceType.Reference ? row.targetPieceKey : null,
+    pickedPropertyAlias: undefined,
+    pickedContentTypeAlias: undefined,
+    pickedContentTypeProperties: undefined,
+    pickedContentTypeUnique: undefined,
   };
 }
 

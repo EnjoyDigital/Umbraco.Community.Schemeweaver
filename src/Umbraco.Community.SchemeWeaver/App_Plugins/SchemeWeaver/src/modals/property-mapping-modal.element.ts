@@ -219,6 +219,32 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     this._mappings = updated;
   }
 
+  /** Picker drill-down: browse a document type to list the picked item's properties. */
+  private async _handleResolvePickedDocumentType(e: CustomEvent) {
+    const { index, documentTypeUnique } = e.detail;
+    if (!documentTypeUnique) return;
+
+    const contentTypes = await this.#repository.requestContentTypes();
+    const match = contentTypes?.find((ct) => ct.key === documentTypeUnique);
+    if (!match) return;
+
+    const props = await this.#repository.requestContentTypeProperties(match.alias);
+    const propertyAliases = props?.map((p) => p.alias) || [];
+
+    const updated = [...this._mappings];
+    updated[index] = {
+      ...updated[index],
+      pickedContentTypeAlias: match.alias,
+      pickedContentTypeUnique: match.key,
+      pickedContentTypeProperties: propertyAliases,
+      pickedPropertyAlias: undefined,
+      // The old drilled alias belongs to the previous type — clearing only the
+      // row field would leave the stale drill config to be saved verbatim.
+      resolverConfig: null,
+    };
+    this._mappings = updated;
+  }
+
   private async _handleConfigureNestedMapping(e: CustomEvent) {
     const detail = e.detail;
     const index = detail.index as number;
@@ -383,6 +409,8 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
             if (row.sourceType === SourceType.Static) return !!row.staticValue;
             if (row.sourceType === SourceType.ComplexType) return !!row.resolverConfig;
             if (row.sourceType === SourceType.BlockContent) return !!row.contentTypePropertyAlias;
+            // reference rows have no property alias — they key off the graph piece
+            if (row.sourceType === SourceType.Reference) return !!row.targetPieceKey;
             // property/parent/ancestor/sibling: need a content property alias
             return !!row.contentTypePropertyAlias;
           })
@@ -391,12 +419,13 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
             sourceType: row.sourceType,
             contentTypePropertyAlias: row.contentTypePropertyAlias || null,
             sourceContentTypeAlias: row.sourceContentTypeAlias || null,
-            transformType: null,
+            transformType: row.transformType ?? null,
             isAutoMapped: row.confidence !== null,
             staticValue: row.staticValue || null,
             nestedSchemaTypeName: row.nestedSchemaTypeName || null,
             resolverConfig: row.resolverConfig,
             dynamicRootConfig: row.dynamicRootConfig ? JSON.stringify(row.dynamicRootConfig) : null,
+            targetPieceKey: row.targetPieceKey || null,
           })),
       });
 
@@ -488,6 +517,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
           @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
           @pick-source-origin=${this._handlePickSourceOrigin}
           @resolve-document-type=${this._handleResolveDocumentType}
+          @resolve-picked-document-type=${this._handleResolvePickedDocumentType}
         ></schemeweaver-property-mapping-table>
       </uui-box>
     `;

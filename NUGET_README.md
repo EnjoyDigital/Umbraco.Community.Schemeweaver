@@ -70,6 +70,7 @@ const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 ## Optional companions
 
 - **uSync** — sync schema mappings between environments: `Umbraco.Community.SchemeWeaver.uSync`
+- **Umbraco Deploy / Cloud** — deploy schema mappings as `.uda` artifacts: `Umbraco.Community.SchemeWeaver.Deploy`
 - **AI** (Umbraco 17) — AI-powered mapping suggestions via Umbraco.AI: `Umbraco.Community.SchemeWeaver.AI`
 
 ## Use it with an AI assistant (MCP)

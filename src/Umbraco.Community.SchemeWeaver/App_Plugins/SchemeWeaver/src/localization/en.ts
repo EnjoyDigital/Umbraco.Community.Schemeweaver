@@ -74,6 +74,11 @@ export default {
     sourceParentNode: 'Parent Node',
     sourceAncestorNode: 'Ancestor Node',
     sourceSiblingNode: 'Sibling Node',
+    sourceReference: 'Graph Reference',
+    // Shown in the value cell of a reference row that has no target piece key
+    // (a misconfigured row the backend would skip at render time).
+    referenceNoTarget: 'No target piece',
+    originReferenceDescription: 'Keep referencing a shared graph piece (e.g. the site Organisation) by @id',
     enterStaticValue: 'Enter static value...',
     staticValueFor: 'Static value for',
     contentTypeAliasPlaceholder: 'Content type alias...',
@@ -101,7 +106,16 @@ export default {
     blockGrid: 'Block Grid',
     mediaPicker: 'Media',
     contentPicker: 'Picker',
+    multiNodePicker: 'Multi Picker',
     richText: 'Rich Text',
+    // Picked-item value mode (content picker / multi node tree picker rows)
+    pickerModeLabel: 'Picked item value',
+    pickerModeName: 'Item name',
+    pickerModeWholeItem: 'Whole item as a Schema.org type',
+    pickerModeSingleProperty: 'A single property of the picked item',
+    pickerWholeItemHint: 'The picked item renders via its own document type’s Schema.org mapping.',
+    pickedPropertyLabel: 'Property of the picked item',
+    pickedPropertyDocTypeHint: 'Choose the picked item’s document type to list its properties.',
     autoUrl: 'auto URL',
     nestedMappingCount: 'mappings',
     wrapInType: 'Wrap in Type',

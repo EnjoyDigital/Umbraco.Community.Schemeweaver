@@ -597,6 +597,32 @@ public class SchemaAutoMapperTests
     }
 
     [Fact]
+    public void ComplexProperty_WithMultiNodeTreePicker_KeepsPropertySourceType()
+    {
+        // MNTP goes through the same picker branch as the single content picker —
+        // previously it missed it and could flip to a dead complexType config.
+        var contentType = CreateContentTypeWithEditors(
+            ("author", "Umbraco.MultiNodeTreePicker"));
+        _contentTypeService.Get("article").Returns(contentType);
+        _schemaTypeRegistry.GetProperties("Article").Returns(new[]
+        {
+            new SchemaPropertyInfo
+            {
+                Name = "author",
+                PropertyType = "Person",
+                IsComplexType = true,
+                AcceptedTypes = ["Person"]
+            }
+        });
+
+        var result = _sut.SuggestMappings("article", "Article").ToList();
+
+        result.Should().ContainSingle();
+        result[0].SuggestedSourceType.Should().Be("property");
+        result[0].SuggestedNestedSchemaTypeName.Should().Be("Person");
+    }
+
+    [Fact]
     public void Recipe_Instructions_SuggestsHowToStepWithConfig()
     {
         var contentType = CreateContentTypeWithEditors(

@@ -78,8 +78,15 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }}
 
+      # The two test projects run as SEPARATE sequential commands, never one
+      # solution-level `dotnet test`: solution-level runs execute the projects in
+      # parallel, and both boot Umbraco hosts against the same TestHost content
+      # root — the losing host's Deploy environment worker then silently refuses
+      # disk-read work (MainDom/worker contention), flaking the Deploy suite.
       - name: Test (unit + integration)
-        run: dotnet test --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        run: |
+          dotnet test tests/Umbraco.Community.SchemeWeaver.Tests/Umbraco.Community.SchemeWeaver.Tests.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal --logger "trx;LogFileName=test-results.trx"
+          dotnet test tests/Umbraco.Community.SchemeWeaver.Deploy.Tests/Umbraco.Community.SchemeWeaver.Deploy.Tests.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --verbosity normal --logger "trx;LogFileName=test-results-deploy.trx"
 
       - name: Upload test results
         if: always()
@@ -88,10 +95,11 @@ jobs:
           name: dotnet-test-results-umbraco${{ matrix.umbraco }}
           path: '**/TestResults/*.trx'
 
-      - name: Pack (SchemeWeaver + uSync addon)
+      - name: Pack (SchemeWeaver + uSync + Deploy addons)
         run: |
           dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
+          dotnet pack src/Umbraco.Community.SchemeWeaver.Deploy/Umbraco.Community.SchemeWeaver.Deploy.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v5
