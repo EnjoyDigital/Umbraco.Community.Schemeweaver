@@ -56,7 +56,7 @@ describe('PropertyMappingTableElement', () => {
     const rows = el.shadowRoot!.querySelectorAll('uui-table-row');
     const removeBtn = (rows[1] as HTMLElement).querySelector('.actions-cell .remove-row-btn') as HTMLElement;
     expect(removeBtn).to.exist;
-    removeBtn.click();
+    removeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
 
     expect(eventDetail).to.exist;
     expect(eventDetail.mappings).to.have.lengthOf(3);
@@ -160,7 +160,7 @@ describe('PropertyMappingTableElement', () => {
     });
 
     const sourceChip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
-    sourceChip?.click();
+    sourceChip?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     expect(eventFired).to.be.true;
     expect(eventDetail.index).to.equal(0);
     expect(eventDetail.currentSourceType).to.equal(SourceType.Property);
@@ -217,7 +217,7 @@ describe('PropertyMappingTableElement', () => {
     });
 
     const configButton = el.shadowRoot!.querySelector('.block-actions uui-button') as HTMLElement;
-    configButton?.click();
+    configButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
 
     expect(eventFired).to.be.true;
     expect(eventDetail.nestedSchemaTypeName).to.equal('Question');
@@ -269,7 +269,7 @@ describe('PropertyMappingTableElement', () => {
     });
 
     const chip = el.shadowRoot!.querySelector('.source-chip') as HTMLElement;
-    chip?.click();
+    chip?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     expect(eventDetail).to.exist;
     expect(eventDetail.isComplexType).to.be.true;
     expect(eventDetail.editorAlias).to.equal('Umbraco.BlockList');
@@ -298,7 +298,7 @@ describe('PropertyMappingTableElement', () => {
     });
 
     const configButton = el.shadowRoot!.querySelector('.block-actions uui-button') as HTMLElement;
-    configButton?.click();
+    configButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     expect(eventFired).to.be.true;
     expect(eventDetail.schemaPropertyName).to.equal('author');
     expect(eventDetail.acceptedTypes).to.deep.equal(['Organization', 'Person']);
@@ -532,6 +532,107 @@ describe('PropertyMappingTableElement', () => {
       expect(button).to.exist;
       expect(button!.hasAttribute('disabled')).to.be.true;
       expect(button!.hasAttribute('title')).to.be.true;
+    });
+  });
+
+  describe('picked-item mode block (drill-down)', () => {
+    const pickerRow = (overrides: Partial<PropertyMappingRow> = {}): PropertyMappingRow => ({
+      schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode', sourceContentTypeAlias: '', staticValue: '',
+      confidence: null, editorAlias: 'Umbraco.ContentPicker', nestedSchemaTypeName: '',
+      resolverConfig: null, acceptedTypes: ['Person'], isComplexType: true, expanded: false,
+      subMappings: [], selectedSubType: '', sourceContentTypeProperties: [], ...overrides,
+    });
+
+    it('renders the mode block for a content picker row with a chosen property', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow()]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      expect(el.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"]')).to.exist;
+    });
+
+    it('renders the mode block for an MNTP row, with its badge', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({ editorAlias: 'Umbraco.MultiNodeTreePicker', contentTypePropertyAlias: 'contributors' })]} .availableProperties=${['contributors']}></schemeweaver-property-mapping-table>`);
+      expect(el.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"]')).to.exist;
+      expect(el.shadowRoot!.querySelector('.editor-badge')).to.exist;
+    });
+
+    it('does not render the mode block for non-picker rows or property-less picker rows', async () => {
+      const plain = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({ editorAlias: 'Umbraco.TextBox' })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      expect(plain.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"]')).to.not.exist;
+
+      const noAlias = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({ contentTypePropertyAlias: '' })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      expect(noAlias.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"]')).to.not.exist;
+    });
+
+    it('shows the schema type input in whole-item mode and the doc-type hint in single-property mode', async () => {
+      const whole = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({ nestedSchemaTypeName: 'Person' })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      expect(whole.shadowRoot!.querySelector('schemeweaver-schema-type-input')).to.exist;
+
+      const drill = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({ pickedPropertyAlias: 'fullName', resolverConfig: '{"pickedPropertyAlias":"fullName"}' })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      expect(drill.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"] umb-input-document-type')).to.exist;
+    });
+
+    it('renders the picked-property combobox once picked-type properties are available', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({
+        pickedPropertyAlias: 'fullName',
+        pickedContentTypeAlias: 'authorProfile',
+        pickedContentTypeProperties: ['fullName', 'jobTitle', 'bio'],
+        resolverConfig: '{"pickedPropertyAlias":"fullName","pickedContentTypeAlias":"authorProfile"}',
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      const comboboxes = el.shadowRoot!.querySelectorAll('[data-mark="schemeweaver:picker-mode"] schemeweaver-property-combobox');
+      expect(comboboxes.length).to.equal(1);
+    });
+
+    it('choosing whole-item mode clears drill config and fires mappings-changed', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({
+        pickedPropertyAlias: 'fullName',
+        resolverConfig: '{"pickedPropertyAlias":"fullName"}',
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`) as any;
+      let detail: any = null;
+      el.addEventListener('mappings-changed', (e: Event) => { detail = (e as CustomEvent).detail; });
+
+      el._handlePickerModeChange(0, 'wholeItem');
+
+      expect(detail).to.exist;
+      const row = detail.mappings[0];
+      expect(row.pickedPropertyAlias).to.equal(undefined);
+      expect(row.resolverConfig).to.equal(null);
+      expect(row.nestedSchemaTypeName).to.equal('Person'); // first accepted type
+    });
+
+    it('choosing a picked property writes the drill config and clears the nested type', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({
+        nestedSchemaTypeName: '',
+        pickedContentTypeAlias: 'authorProfile',
+        pickedContentTypeProperties: ['fullName'],
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`) as any;
+      let detail: any = null;
+      el.addEventListener('mappings-changed', (e: Event) => { detail = (e as CustomEvent).detail; });
+
+      el._handlePickedPropertyChange(0, 'fullName');
+
+      const row = detail.mappings[0];
+      expect(row.pickedPropertyAlias).to.equal('fullName');
+      expect(JSON.parse(row.resolverConfig)).to.deep.equal({
+        pickedPropertyAlias: 'fullName',
+        pickedContentTypeAlias: 'authorProfile',
+      });
+    });
+
+    it('changing the main property clears stale drill state', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[pickerRow({
+        pickedPropertyAlias: 'fullName',
+        pickedContentTypeAlias: 'authorProfile',
+        resolverConfig: '{"pickedPropertyAlias":"fullName","pickedContentTypeAlias":"authorProfile"}',
+      })]} .availableProperties=${['authorNode', 'otherPicker']}></schemeweaver-property-mapping-table>`) as any;
+      let detail: any = null;
+      el.addEventListener('mappings-changed', (e: Event) => { detail = (e as CustomEvent).detail; });
+
+      el._handlePropertyChange(0, 'otherPicker');
+
+      const row = detail.mappings[0];
+      expect(row.contentTypePropertyAlias).to.equal('otherPicker');
+      expect(row.pickedPropertyAlias).to.equal(undefined);
+      expect(row.resolverConfig).to.equal(null);
     });
   });
 });

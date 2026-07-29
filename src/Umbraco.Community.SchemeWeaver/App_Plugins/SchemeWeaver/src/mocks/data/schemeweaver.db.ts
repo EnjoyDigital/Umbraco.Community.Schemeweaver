@@ -505,13 +505,26 @@ class SchemeWeaverMockDb {
       alias: 'blogArticle',
       name: 'Blog Article',
       key: '00000000-0000-0000-0000-000000000001',
-      propertyCount: 5,
+      propertyCount: 7,
       properties: [
         { alias: 'title', editorAlias: 'Umbraco.TextBox' },
         { alias: 'authorName', editorAlias: 'Umbraco.TextBox' },
         { alias: 'publishDate', editorAlias: 'Umbraco.DateTime' },
         { alias: 'bodyText', editorAlias: 'Umbraco.RichText' },
         { alias: 'summary', editorAlias: 'Umbraco.TextArea' },
+        { alias: 'authorNode', editorAlias: 'Umbraco.ContentPicker' },
+        { alias: 'contributors', editorAlias: 'Umbraco.MultiNodeTreePicker' },
+      ],
+    },
+    {
+      alias: 'authorProfile',
+      name: 'Author Profile',
+      key: '00000000-0000-0000-0000-000000000099',
+      propertyCount: 3,
+      properties: [
+        { alias: 'fullName', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'jobTitle', editorAlias: 'Umbraco.TextBox' },
+        { alias: 'bio', editorAlias: 'Umbraco.TextArea' },
       ],
     },
     {

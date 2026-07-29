@@ -72,6 +72,93 @@ describe('SchemaMappingViewElement', () => {
     expect(button!.getAttribute('slot')).to.equal('header-actions');
   });
 
+  // Regression guard — a `reference` row (publisher → organization graph
+  // piece) has no property alias, so the save filter must key off
+  // targetPieceKey. Before the fix, saving the doc type silently dropped
+  // every reference row created by auto-map/MCP/uSync.
+  it('a reference row survives save and refetch', async () => {
+    const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`) as any;
+
+    el._contentTypeAlias = 'blogArticle';
+    await el._fetchMapping();
+    await el.updateComplete;
+
+    el._rows = [
+      ...el._rows,
+      {
+        schemaPropertyName: 'publisher',
+        schemaPropertyType: '',
+        sourceType: 'reference',
+        contentTypePropertyAlias: '',
+        sourceContentTypeAlias: '',
+        staticValue: '',
+        confidence: null,
+        editorAlias: '',
+        nestedSchemaTypeName: '',
+        resolverConfig: null,
+        acceptedTypes: [],
+        isComplexType: false,
+        expanded: false,
+        subMappings: [],
+        selectedSubType: '',
+        sourceContentTypeProperties: [],
+        targetPieceKey: 'organization',
+      },
+    ];
+
+    await el._handleSave();
+    await el.updateComplete;
+
+    const publisher = el._rows.find(
+      (r: any) => r.schemaPropertyName.toLowerCase() === 'publisher' && r.sourceType === 'reference',
+    );
+    expect(publisher, 'reference row should survive the save round-trip').to.exist;
+    expect(publisher.targetPieceKey).to.equal('organization');
+  });
+
+  // Regression guard — browsing a DIFFERENT document type for a drill-down row
+  // must clear the old drill config: the old alias belongs to the old type, and
+  // save passes resolverConfig verbatim, so leaving it would persist a drill the
+  // UI no longer shows.
+  it('re-browsing the drill doc type clears the stale drill config', async () => {
+    const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`) as any;
+
+    el._contentTypeAlias = 'blogArticle';
+    await el._fetchMapping();
+    await el.updateComplete;
+
+    el._rows = [{
+      schemaPropertyName: 'author',
+      schemaPropertyType: '',
+      sourceType: 'property',
+      contentTypePropertyAlias: 'authorNode',
+      sourceContentTypeAlias: '',
+      staticValue: '',
+      confidence: null,
+      editorAlias: 'Umbraco.ContentPicker',
+      nestedSchemaTypeName: '',
+      resolverConfig: '{"pickedPropertyAlias":"someOldAlias","pickedContentTypeAlias":"someOldType"}',
+      acceptedTypes: [],
+      isComplexType: true,
+      expanded: false,
+      subMappings: [],
+      selectedSubType: '',
+      sourceContentTypeProperties: [],
+      pickedPropertyAlias: 'someOldAlias',
+      pickedContentTypeAlias: 'someOldType',
+    }];
+
+    await el._handleResolvePickedDocumentType(new CustomEvent('resolve-picked-document-type', {
+      detail: { index: 0, documentTypeUnique: '00000000-0000-0000-0000-000000000099' },
+    }));
+
+    const row = el._rows[0];
+    expect(row.pickedContentTypeAlias).to.equal('authorProfile');
+    expect(row.pickedContentTypeProperties).to.include('fullName');
+    expect(row.pickedPropertyAlias).to.equal(undefined);
+    expect(row.resolverConfig).to.equal(null);
+  });
+
   // Regression guards — two side-by-side workspace views for different
   // doc types must render fully independent state. If the SchemeWeaverContext
   // is ever shared as a singleton again, these should catch the leak.

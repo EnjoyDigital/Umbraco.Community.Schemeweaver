@@ -2,7 +2,7 @@ import { expect } from '@open-wc/testing';
 import type { PropertyMappingDto, PropertyMappingSuggestion, ValidationIssue } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import { SourceType } from '../constants/source-type.js';
-import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows } from './mapping-converters.js';
+import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows, drillConfigToResolverConfig } from './mapping-converters.js';
 
 /** Helper to create a minimal PropertyMappingDto */
 function makeDto(overrides: Partial<PropertyMappingDto> & { schemaPropertyName: string }): PropertyMappingDto {
@@ -261,6 +261,42 @@ describe('mergeAutoMapSuggestions', () => {
     expect(result[0].schemaPropertyName).to.equal('offers');
   });
 
+  it('preserves an existing reference row through an auto-map merge', () => {
+    // Regression: reference rows have no property alias/static value/resolver
+    // config, so rowHasUserData must count targetPieceKey or the merge treats
+    // them as empty placeholders and deletes them (publisher is not in
+    // POPULAR_PROPERTIES).
+    const existing = [makeRow({
+      schemaPropertyName: 'publisher',
+      sourceType: SourceType.Reference,
+      targetPieceKey: 'organization',
+    })];
+    const suggestions = [makeSuggestion({
+      schemaPropertyName: 'headline',
+      suggestedContentTypePropertyAlias: 'title',
+      confidence: 90,
+    })];
+    const result = mergeAutoMapSuggestions(existing, suggestions);
+    const publisher = result.find((r) => r.schemaPropertyName === 'publisher');
+    expect(publisher).to.exist;
+    expect(publisher!.sourceType).to.equal(SourceType.Reference);
+    expect(publisher!.targetPieceKey).to.equal('organization');
+  });
+
+  it('adds a reference suggestion carrying its target piece key', () => {
+    const suggestions = [makeSuggestion({
+      schemaPropertyName: 'publisher',
+      suggestedSourceType: SourceType.Reference,
+      suggestedTargetPieceKey: 'organization',
+      confidence: 80,
+    })];
+    const result = mergeAutoMapSuggestions([], suggestions);
+    const publisher = result.find((r) => r.schemaPropertyName === 'publisher');
+    expect(publisher).to.exist;
+    expect(publisher!.sourceType).to.equal(SourceType.Reference);
+    expect(publisher!.targetPieceKey).to.equal('organization');
+  });
+
   it('excludes suggestions with no property match and zero confidence', () => {
     const existing: PropertyMappingRow[] = [];
     const suggestions = [
@@ -291,6 +327,141 @@ describe('dtoToRow', () => {
     });
     const row = dtoToRow(dto);
     expect(row.dynamicRootConfig).to.equal(undefined);
+  });
+
+  it('carries targetPieceKey for reference rows', () => {
+    const dto = makeDto({
+      schemaPropertyName: 'publisher',
+      sourceType: SourceType.Reference,
+      targetPieceKey: 'organization',
+    });
+    const row = dtoToRow(dto);
+    expect(row.targetPieceKey).to.equal('organization');
+  });
+
+  it('parses picker drill-down fields for property rows', () => {
+    const dto = makeDto({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: '{"pickedPropertyAlias":"fullName","pickedContentTypeAlias":"authorProfile"}',
+    });
+    const row = dtoToRow(dto);
+    expect(row.pickedPropertyAlias).to.equal('fullName');
+    expect(row.pickedContentTypeAlias).to.equal('authorProfile');
+    // The raw config stays on the row untouched — save mappers pass it verbatim.
+    expect(row.resolverConfig).to.contain('pickedPropertyAlias');
+  });
+
+  it('does not treat complexType or blockContent configs as drill config', () => {
+    const complexRow = dtoToRow(makeDto({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.ComplexType,
+      nestedSchemaTypeName: 'Person',
+      resolverConfig: '{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"authorName"}]}',
+    }));
+    expect(complexRow.pickedPropertyAlias).to.equal(undefined);
+
+    const blockRow = dtoToRow(makeDto({
+      schemaPropertyName: 'mainEntity',
+      sourceType: SourceType.BlockContent,
+      contentTypePropertyAlias: 'contentGrid',
+      resolverConfig: '{"routes":[{"blockAlias":"hero","nestedSchemaType":"WebPageElement","propertyMappings":[]}]}',
+    }));
+    expect(blockRow.pickedPropertyAlias).to.equal(undefined);
+    expect(blockRow.resolverConfig).to.contain('routes');
+  });
+
+  it('ignores malformed drill config without throwing', () => {
+    const row = dtoToRow(makeDto({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: '{not json',
+    }));
+    expect(row.pickedPropertyAlias).to.equal(undefined);
+  });
+});
+
+describe('picker drill-down config', () => {
+  it('drillConfigToResolverConfig → dtoToRow round-trips both fields', () => {
+    const config = drillConfigToResolverConfig('fullName', 'authorProfile');
+    const row = dtoToRow(makeDto({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: config,
+    }));
+    expect(row.pickedPropertyAlias).to.equal('fullName');
+    expect(row.pickedContentTypeAlias).to.equal('authorProfile');
+  });
+
+  it('drillConfigToResolverConfig returns null when no alias is set', () => {
+    expect(drillConfigToResolverConfig(undefined, 'authorProfile')).to.equal(null);
+  });
+
+  it('a drill-configured row survives an auto-map merge (resolverConfig counts as user data)', () => {
+    const existing = [makeRow({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: '{"pickedPropertyAlias":"fullName"}',
+      pickedPropertyAlias: 'fullName',
+    })];
+    const suggestions = [makeSuggestion({
+      schemaPropertyName: 'author',
+      suggestedContentTypePropertyAlias: 'authorName',
+      confidence: 90,
+    })];
+    const result = mergeAutoMapSuggestions(existing, suggestions);
+    const author = result.find((r) => r.schemaPropertyName === 'author');
+    expect(author).to.exist;
+    expect(author!.contentTypePropertyAlias).to.equal('authorNode');
+    expect(author!.pickedPropertyAlias).to.equal('fullName');
+  });
+
+  it('applySourceTypeChange clears drill fields', () => {
+    const row = makeRow({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: '{"pickedPropertyAlias":"fullName"}',
+      pickedPropertyAlias: 'fullName',
+      pickedContentTypeAlias: 'authorProfile',
+      pickedContentTypeProperties: ['fullName', 'bio'],
+    });
+    const result = applySourceTypeChange(row, SourceType.Static);
+    expect(result.pickedPropertyAlias).to.equal(undefined);
+    expect(result.pickedContentTypeAlias).to.equal(undefined);
+    expect(result.pickedContentTypeProperties).to.equal(undefined);
+    expect(result.resolverConfig).to.equal(null);
+  });
+
+  it('switching a drill row to complexType does NOT carry the drill config across', () => {
+    // Regression: resolverConfig used to be preserved for complexType targets
+    // unconditionally, so a drilled picker row switched to Complex Type kept
+    // {"pickedPropertyAlias":…} masquerading as its complex config — passing
+    // the save filter while rendering nothing.
+    const row = makeRow({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: '{"pickedPropertyAlias":"fullName"}',
+      pickedPropertyAlias: 'fullName',
+    });
+    const result = applySourceTypeChange(row, SourceType.ComplexType);
+    expect(result.resolverConfig).to.equal(null);
+  });
+
+  it('switching between complexType and blockContent still preserves genuine config', () => {
+    const row = makeRow({
+      schemaPropertyName: 'mainEntity',
+      sourceType: SourceType.ComplexType,
+      nestedSchemaTypeName: 'WebPageElement',
+      resolverConfig: '{"selectedSubType":"WebPageElement","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"title"}]}',
+    });
+    const result = applySourceTypeChange(row, SourceType.BlockContent);
+    expect(result.resolverConfig).to.contain('complexTypeMappings');
   });
 });
 
@@ -341,6 +512,16 @@ describe('applySourceTypeChange', () => {
     };
     const result = applySourceTypeChange(row, SourceType.Ancestor);
     expect(result.dynamicRootConfig).to.deep.equal({ originAlias: 'Root' });
+  });
+
+  it('clears targetPieceKey when switching a reference row to another source type', () => {
+    const row = makeRow({
+      schemaPropertyName: 'publisher',
+      sourceType: SourceType.Reference,
+      targetPieceKey: 'organization',
+    });
+    const result = applySourceTypeChange(row, SourceType.Property);
+    expect(result.targetPieceKey).to.equal(null);
   });
 });
 
