@@ -79,11 +79,7 @@
 		<_FrontendSourceInputs Include="App_Plugins/SchemeWeaver/tsconfig.json" />
 		<_FrontendDistOutputs Include="wwwroot/dist/index.js" />
 	</ItemGroup>
-	<Target Name="EnsureFrontendBuiltBeforePack"
-	        BeforeTargets="Pack"
-	        Condition="'$(Configuration)' == 'Release' AND '$(SchemeWeaverSkipFrontendBuild)' != 'true'"
-	        Inputs="@(_FrontendSourceInputs)"
-	        Outputs="@(_FrontendDistOutputs)">
+	<Target Name="EnsureFrontendBuiltBeforePack" BeforeTargets="Pack" Condition="'$(Configuration)' == 'Release' AND '$(SchemeWeaverSkipFrontendBuild)' != 'true'" Inputs="@(_FrontendSourceInputs)" Outputs="@(_FrontendDistOutputs)">
 		<Message Text="Frontend source is newer than wwwroot/dist — running 'npm run build' in App_Plugins/SchemeWeaver." Importance="high" />
 		<Exec Command="npm run build" WorkingDirectory="App_Plugins/SchemeWeaver" />
 		<!-- Invalidate the SDK's static-web-assets cache so pack re-collects the
@@ -95,8 +91,7 @@
 			<_StaleStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/swae.build.ex.cache" />
 		</ItemGroup>
 		<Delete Files="@(_StaleStaticAssetsFiles)" />
-		<RemoveDir Directories="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets"
-		           Condition="Exists('$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets')" />
+		<RemoveDir Directories="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets" Condition="Exists('$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets')" />
 		<!-- Re-run Build so the SDK regenerates the manifests before Pack reads them. -->
 		<MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Build" Properties="Configuration=$(Configuration);SchemeWeaverSkipFrontendBuild=true" />
 	</Target>
