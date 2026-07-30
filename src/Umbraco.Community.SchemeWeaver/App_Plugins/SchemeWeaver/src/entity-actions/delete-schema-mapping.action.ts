@@ -1,9 +1,10 @@
-import { UmbEntityActionBase, UmbRequestReloadStructureForEntityEvent } from '@umbraco-cms/backoffice/entity-action';
+import { UmbEntityActionBase } from '@umbraco-cms/backoffice/entity-action';
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { UmbLocalizationController } from '@umbraco-cms/backoffice/localization-api';
 import { SCHEMEWEAVER_CONTEXT } from '../context/schemeweaver.context-token.js';
+import { SchemeWeaverMappingChangedEvent } from '../utils/mapping-changed-event.js';
 
 export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
   #localize = new UmbLocalizationController(this);
@@ -56,15 +57,14 @@ export class DeleteSchemaMappingAction extends UmbEntityActionBase<never> {
         data: { message: this.#localize.term('schemeWeaver_mappingDeleted') },
       });
 
-      // Dispatch reload event so workspace view refreshes
+      // Tell an open Schema.org tab to re-read, so it drops to its empty state.
+      //
+      // NOT UmbRequestReloadStructureForEntityEvent: the view answers that one by
+      // SAVING its rows (that is how a mapping auto-saves with its document type),
+      // so dispatching it here had the view immediately POST the mapping we just
+      // deleted straight back — the delete looked like it silently failed.
       const eventContext = await this.getContext(UMB_ACTION_EVENT_CONTEXT);
-      if (eventContext) {
-        const event = new UmbRequestReloadStructureForEntityEvent({
-          unique: this.args.unique ?? '',
-          entityType: this.args.entityType,
-        });
-        eventContext.dispatchEvent(event);
-      }
+      eventContext?.dispatchEvent(new SchemeWeaverMappingChangedEvent(this.args.unique ?? ''));
     } catch {
       notificationContext?.peek('danger', {
         data: { message: this.#localize.term('schemeWeaver_failedToDeleteMapping') },
