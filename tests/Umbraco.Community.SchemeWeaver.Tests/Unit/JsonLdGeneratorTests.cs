@@ -308,6 +308,53 @@ public class JsonLdGeneratorTests
     }
 
     [Fact]
+    public void GenerateJsonLdString_ValueContainingClosingScriptTag_EscapesAngleBrackets()
+    {
+        // The non-graph path writes this string raw into a <script type="application/ld+json">
+        // block, and the HTML parser ends the script on a literal "</script>" whatever the type
+        // attribute says. Schema.NET's own serialiser leaves < and > unescaped, so SafeSerialize
+        // re-encodes; without that this is a stored XSS vector. StripHtmlTags decodes entities,
+        // which is how editor-typed "&lt;/script&gt;" reaches here as a live closing tag.
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "</script><script>alert(1)</script>"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+
+        var result = _sut.GenerateJsonLdString(content);
+
+        result.Should().NotBeNullOrEmpty();
+        result.Should().NotContain("</script>", "an unescaped closing tag would break out of the ld+json block");
+        result.Should().Contain("u003C", "angle brackets must survive as escapes, not be silently dropped");
+    }
+
+    [Fact]
+    public void GenerateJsonLdString_NonAsciiValue_StaysLiteralRatherThanUnicodeEscaped()
+    {
+        // The HTML-safe re-encode must not regress the project's non-ASCII convention:
+        // "Textkörper", not "Textkörper" (matches GraphGenerator's writer options).
+        var content = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["headline"] = "Textkörper"
+        });
+        var mapping = CreateMapping("article", "Article");
+        _repository.GetByContentTypeAlias("article").Returns(mapping);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Headline", SourceType = "property", ContentTypePropertyAlias = "headline" }
+        });
+
+        var result = _sut.GenerateJsonLdString(content);
+
+        result.Should().Contain("Textkörper");
+    }
+
+    [Fact]
     public void GenerateJsonLdString_NoMapping_ReturnsNull()
     {
         var content = CreateContent("article");

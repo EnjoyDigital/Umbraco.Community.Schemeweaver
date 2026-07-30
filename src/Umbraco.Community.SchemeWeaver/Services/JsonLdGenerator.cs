@@ -46,6 +46,18 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         TypeInfoResolver = new DeduplicatingTypeInfoResolver()
     };
 
+    /// <summary>
+    /// Writer options for <see cref="ReEncodeWithHtmlSafeEncoder"/>. Deliberately identical to
+    /// <c>GraphGenerator</c>'s: Create(UnicodeRanges.All) writes non-ASCII literally but — unlike
+    /// UnsafeRelaxedJsonEscaping — still escapes &lt;, &gt;, &amp; and ', which is what keeps a
+    /// mapped value from breaking out of the &lt;script type="application/ld+json"&gt; block.
+    /// </summary>
+    private static readonly JsonWriterOptions _htmlSafeWriterOptions = new()
+    {
+        Indented = false,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
+    };
+
     public JsonLdGenerator(
         ISchemaMappingRepository repository,
         ISchemaTypeRegistry registry,
@@ -1004,6 +1016,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// in Schema.NET's interface hierarchy (e.g. IDrug.Funding, IArchiveOrganization.Address).
     /// Uses <see cref="Thing.ToString()"/> for the 697 types that serialise cleanly, and
     /// falls back to a <see cref="DeduplicatingTypeInfoResolver"/> for the ~83 that don't.
+    ///
+    /// The result is re-encoded through <see cref="ReEncodeWithHtmlSafeEncoder"/> first, because
+    /// this string is written raw into a <c>&lt;script type="application/ld+json"&gt;</c> block on
+    /// the non-graph path and Schema.NET's own serialiser leaves <c>&lt;</c>/<c>&gt;</c> unescaped.
     /// </summary>
     private string? SafeSerialize(Thing? thing, int? contentId = null)
     {
@@ -1012,7 +1028,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         try
         {
-            return thing.ToString();
+            return ReEncodeWithHtmlSafeEncoder(thing.ToString());
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("collides with another property"))
         {
@@ -1022,6 +1038,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
             try
             {
+                // _deduplicatingOptions carries no explicit Encoder, so it uses
+                // JavaScriptEncoder.Default, which already escapes < > & — no re-encode needed.
                 return JsonSerializer.Serialize<object>(thing, _deduplicatingOptions);
             }
             catch (JsonException inner)
@@ -1038,6 +1056,43 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 "Failed to serialise Schema.NET type {SchemaType} for content {ContentId}",
                 thing.GetType().Name, contentId);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Re-emits already-valid JSON through an encoder that escapes the HTML-sensitive characters
+    /// <c>&lt; &gt; &amp; '</c> while still writing non-ASCII literally, so "Textkörper" stays
+    /// readable rather than becoming "Textkörper".
+    ///
+    /// Schema.NET's <see cref="Thing.ToString()"/> emits <c>&lt;</c> and <c>&gt;</c> raw. On the
+    /// non-graph path that string is written straight into a
+    /// <c>&lt;script type="application/ld+json"&gt;</c> block, and the HTML parser ends a script
+    /// element on a literal <c>&lt;/script&gt;</c> regardless of its type attribute — so an
+    /// unescaped mapped value can break out of the block (stored XSS). This matters more since
+    /// <c>StripHtmlTags</c> began HTML-DECODING entities: text an editor typed as
+    /// <c>&lt;/script&gt;</c>, which Umbraco stores encoded, now reaches serialisation as a live
+    /// closing tag. The graph path already gets this protection from <c>GraphGenerator</c>'s
+    /// writer options; this gives the legacy path the identical guarantee.
+    ///
+    /// Input that is not parseable JSON is returned unchanged — this is a hardening step, not a
+    /// validator, and must never turn serialisable output into no output.
+    /// </summary>
+    private static string ReEncodeWithHtmlSafeEncoder(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            using var buffer = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(buffer, _htmlSafeWriterOptions))
+            {
+                document.WriteTo(writer);
+            }
+
+            return System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+        }
+        catch (JsonException)
+        {
+            return json;
         }
     }
 
