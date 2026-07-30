@@ -71,7 +71,7 @@ Using [Umbraco Deploy](https://umbraco.com/products/add-ons/deploy/) or Umbraco 
 </head>
 ```
 
-**2. Map a content type:** open a document type in **Settings → Document Types**, click the **Schema.org** tab, choose **Map to Schema.org** and pick a type (e.g. Product, Article, Event), review the auto-suggested mappings, and **Save**. Publish content and the JSON-LD appears in the page source.
+**2. Map a content type:** open a document type in **Settings → Document Types**, click the **Schema.org** tab, choose **Map to Schema.org** and pick a type (e.g. Product, Article, Event), review the auto-suggested mappings, and **Save**. Publish content and the JSON-LD appears in the page source. Changed your mind about the type later? **Change** next to the type tag switches it, keeping the property mappings the new type still accepts.
 
 **3. Headless?** Fetch the per-page JSON-LD from the Delivery API and inject it as `<script type="application/ld+json">` tags:
 

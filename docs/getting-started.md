@@ -101,6 +101,8 @@ Use the search field to find your target type. Types are grouped by their parent
 
 Select a type and click **Select** to proceed.
 
+Not a permanent decision: you can switch to a different Schema.org type later with the **Change** button next to the type tag, keeping the property mappings the new type still accepts. See [Changing the Schema.org type](mapping-content-types.md#changing-the-schemaorg-type).
+
 ### Step 3: Review auto-mapped properties
 
 After selecting a Schema.org type, a **property mapping modal** opens. SchemeWeaver's auto-mapper analyses your content type's properties and suggests mappings using three confidence tiers:

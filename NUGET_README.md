@@ -54,6 +54,8 @@ In your master layout (e.g. `_Layout.cshtml`):
 4. Review the auto-suggested property mappings and click **Save**
 5. Publish content -- JSON-LD appears in the page source
 
+To switch to a different Schema.org type later, use **Change** next to the type tag -- the property mappings the new type still accepts are kept.
+
 ### 3. Headless / Delivery API
 
 JSON-LD is served from a dedicated endpoint — fetch it and inject the strings as

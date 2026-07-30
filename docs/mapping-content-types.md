@@ -112,6 +112,21 @@ Only property rows that have data are saved -- rows where no content type proper
 
 To edit an existing mapping, navigate to the document type and switch to the **Schema.org** tab. If a mapping exists, the schema type name is shown as a tag and all property mappings are listed in the table. Edit the mappings inline and save the document type when you are done.
 
+### Changing the Schema.org type
+
+Picked `Article` and later decided `BlogPosting` fits better? Click **Change** next to the schema type tag. The picker opens on the type you are currently mapped to, and once you choose a different one SchemeWeaver works out what carries over:
+
+- Every property mapping the new type also has is **kept exactly as it was** -- source type, transform, related-node settings, block routes and nested type configuration included. Their Schema.org metadata (accepted types, whether the property takes an object) is refreshed to the new type.
+- Property mappings the new type does not have **cannot** carry over, because the value would silently never be emitted. These are listed by name in a confirmation dialog before anything is saved, so you can cancel and reconsider.
+
+The dialog tells you how many mappings will survive, e.g. *"14 of 16 property mappings will carry over."* Confirming saves the change immediately -- there is no need to save the document type afterwards. Nothing is written if you cancel at either step.
+
+Switching between related types usually loses nothing at all: `BlogPosting` derives from `Article`, so it inherits every one of Article's properties. Losses appear when you switch to an unrelated type, such as `Article` to `Recipe`.
+
+After changing the type, **Auto-map** is a good next step -- it fills in properties that are specific to the new type without touching the mappings you already made.
+
+Choosing **Map to Schema.org** from the document type's actions menu on an already-mapped document type does the same thing, rather than replacing your mappings with fresh auto-map suggestions.
+
 On the workspace view, you can also click **Auto-map** to re-run the auto-mapper. This merges new suggestions with your existing mappings: if a property already has user-provided data (a content type property alias, static value, or resolver config), the user's choices are preserved and only the confidence score is updated. New schema properties from the suggestions are added as new rows.
 
 ## Inherited schemas toggle

@@ -322,6 +322,8 @@ Returns a single schema mapping for the specified content type.
 
 Creates or updates a schema mapping. If a mapping already exists for the content type alias, it is overwritten.
 
+`schemaTypeName` is not fixed once set -- posting a different one re-points the existing mapping at that type in place. Nothing is reconciled server-side, so property mappings the new type does not have are stored but never emitted (they surface as `warnings` on read, and are logged when the page renders). The backoffice reconciles for you -- see [Changing the Schema.org type](mapping-content-types.md#changing-the-schemaorg-type).
+
 **Request Body**: `SchemaMappingDto`
 
 ```json

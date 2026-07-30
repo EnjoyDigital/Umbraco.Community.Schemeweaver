@@ -1076,3 +1076,91 @@ test.describe('Dynamic Root Config Round-Trip', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Change Schema Type (issue #41)
+// ---------------------------------------------------------------------------
+
+test.describe('Change Schema Type', () => {
+  const BASE = '/umbraco/management/api/v1/schemeweaver';
+  const ALIAS = 'productPage';
+
+  /**
+   * The regression the issue reports: switching an already-mapped document type
+   * to another Schema.org type used to mean losing every hand-made property
+   * mapping, because the only route through was the entity action's auto-map
+   * re-seed. Here the type changes and the mappings must still be there.
+   *
+   * IndividualProduct is deliberately chosen: it derives from Product, so it
+   * inherits every property the seed mapping uses and nothing should be dropped
+   * — the confirmation reports a clean carry-over and the drop list is absent.
+   *
+   * Selector policy as per the header: frozen data-mark hooks, stable
+   * schemeweaver-* element names and visible text only. The confirmation is
+   * Umbraco's own umb-confirm-modal, targeted by element name + button text.
+   *
+   * Environment safety: snapshot the mapping up front and restore it in
+   * `finally`, so the TestHost is left exactly as found either way.
+   */
+  test('changing the type keeps the existing property mappings (productPage → IndividualProduct)', async ({ umbracoUi }) => {
+    const page = umbracoUi.page;
+
+    await goToDocTypeSchemaTab(umbracoUi, 'Product Page');
+
+    // ── ARRANGE: productPage is a seeded, mapped doc type. Snapshot it.
+    const beforeRes = await page.request.get(`${BASE}/mappings/${ALIAS}`);
+    expect(beforeRes.ok(), `GET mappings/${ALIAS} failed: ${beforeRes.status()}`).toBeTruthy();
+    const snapshot = await beforeRes.json();
+    expect(snapshot.propertyMappings.length, 'this test needs a mapping with rows to preserve').toBeGreaterThan(0);
+    const namesBefore = snapshot.propertyMappings
+      .map((p: any) => p.schemaPropertyName)
+      .sort();
+
+    try {
+      // ── ACT: change the type from the badge row.
+      const changeBtn = page.getByTestId('schemeweaver:change-schema-type');
+      await expect(changeBtn).toBeVisible({ timeout: 15_000 });
+      await changeBtn.click();
+
+      const picker = page.locator('schemeweaver-schema-picker-modal');
+      await expect(picker).toBeVisible({ timeout: 15_000 });
+
+      // The picker opens on the type the mapping is already on.
+      await expect(picker.getByText('Current', { exact: true })).toBeVisible({ timeout: 10_000 });
+
+      await picker.getByTestId('schemeweaver:schema-search').locator('input').fill('IndividualProduct');
+      const option = picker.getByTestId('schemeweaver:schema-option:IndividualProduct');
+      await expect(option).toBeVisible({ timeout: 10_000 });
+      await option.click();
+      await picker.getByTestId('schemeweaver:schema-picker-submit').click();
+      await expect(picker).toBeHidden({ timeout: 15_000 });
+
+      // ── The confirmation reports a clean carry-over for a derived type.
+      const confirm = page.locator('umb-confirm-modal');
+      await expect(confirm).toBeVisible({ timeout: 15_000 });
+      await expect(confirm).toContainText('IndividualProduct');
+      await expect(confirm).not.toContainText('will be removed');
+      await confirm.getByText('Change', { exact: true }).click();
+      await expect(confirm).toBeHidden({ timeout: 15_000 });
+
+      // ── ASSERT: the badge names the new type…
+      await expect(page.getByTestId('schemeweaver:schema-type-badge')).toContainText('IndividualProduct', {
+        timeout: 15_000,
+      });
+
+      // …and the API — the source of truth — kept every mapping.
+      const afterRes = await page.request.get(`${BASE}/mappings/${ALIAS}`);
+      expect(afterRes.ok(), `GET mappings/${ALIAS} after change failed: ${afterRes.status()}`).toBeTruthy();
+      const after = await afterRes.json();
+      expect(after.schemaTypeName).toBe('IndividualProduct');
+      expect(
+        after.propertyMappings.map((p: any) => p.schemaPropertyName).sort(),
+        'every property mapping must survive a change to a derived type',
+      ).toEqual(namesBefore);
+    } finally {
+      // ── RESTORE: put the original mapping back, type included.
+      const restore = await umbracoUi.page.request.post(`${BASE}/mappings`, { data: snapshot });
+      expect(restore.ok(), `restore POST failed: ${restore.status()}`).toBeTruthy();
+    }
+  });
+});
