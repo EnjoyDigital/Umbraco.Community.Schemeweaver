@@ -1,4 +1,4 @@
-import type { PropertyMappingDto, PropertyMappingSuggestion, ValidationIssue } from '../api/types.js';
+import type { PropertyMappingDto, PropertyMappingSuggestion, SchemaPropertyInfo, ValidationIssue } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
 
@@ -98,6 +98,45 @@ export function rowsInPersistenceOrder(rows: PropertyMappingRow[]): PropertyMapp
   return [...rows].sort(
     (a, b) => (a.loadOrder ?? Number.MAX_SAFE_INTEGER) - (b.loadOrder ?? Number.MAX_SAFE_INTEGER),
   );
+}
+
+/**
+ * Whether a row carries enough configuration to be worth persisting. Each source
+ * type has its own notion of "filled in": static rows need a value, reference
+ * rows key off a graph piece and have no property alias at all, and everything
+ * else needs a content property.
+ */
+export function isRowConfigured(row: PropertyMappingRow): boolean {
+  if (row.sourceType === SourceType.Static) return !!row.staticValue;
+  if (row.sourceType === SourceType.ComplexType) return !!row.resolverConfig;
+  if (row.sourceType === SourceType.BlockContent) return !!row.contentTypePropertyAlias;
+  // reference rows have no property alias — they key off the graph piece
+  if (row.sourceType === SourceType.Reference) return !!row.targetPieceKey;
+  // property/parent/ancestor/sibling: need a content property alias
+  return !!row.contentTypePropertyAlias;
+}
+
+/**
+ * Rows as persistable DTOs — stored order, unconfigured rows dropped. Shared by
+ * every save path (workspace view, property mapping modal, entity action) so the
+ * wire shape is defined in exactly one place.
+ */
+export function rowsToPropertyMappingDtos(rows: PropertyMappingRow[]): PropertyMappingDto[] {
+  return rowsInPersistenceOrder(rows)
+    .filter(isRowConfigured)
+    .map((row) => ({
+      schemaPropertyName: row.schemaPropertyName,
+      sourceType: row.sourceType,
+      contentTypePropertyAlias: row.contentTypePropertyAlias || null,
+      sourceContentTypeAlias: row.sourceContentTypeAlias || null,
+      transformType: row.transformType ?? null,
+      isAutoMapped: row.confidence !== null || row.isAutoMapped === true,
+      staticValue: row.staticValue || null,
+      nestedSchemaTypeName: row.nestedSchemaTypeName || null,
+      resolverConfig: row.resolverConfig,
+      dynamicRootConfig: row.dynamicRootConfig ? JSON.stringify(row.dynamicRootConfig) : null,
+      targetPieceKey: row.targetPieceKey || null,
+    }));
 }
 
 /** Convert PropertyMappingSuggestion to UI row model */
@@ -294,4 +333,64 @@ export function sortMappingRows(rows: PropertyMappingRow[]): PropertyMappingRow[
 
     return a.schemaPropertyName.localeCompare(b.schemaPropertyName);
   });
+}
+
+/** Outcome of re-keying an existing mapping's rows onto a different Schema.org type. */
+export interface SchemaTypeReconciliation {
+  /** Rows whose schema property exists on the new type, with type metadata refreshed. */
+  kept: PropertyMappingRow[];
+  /**
+   * Rows that cannot carry over AND that the user had actually configured — i.e.
+   * the genuine losses worth confirming. Unconfigured placeholder rows are
+   * dropped silently and never appear here.
+   */
+  droppedConfigured: PropertyMappingRow[];
+}
+
+/**
+ * Re-keys an existing mapping's rows onto a different Schema.org type.
+ *
+ * A row survives when the new type has a property of the same name
+ * (case-insensitively, matching how the rest of this module and the view's
+ * enrichment pass compare property names). Survivors keep every user-authored
+ * field verbatim — source type, transform, resolverConfig, nested/complex config,
+ * graph piece — but have their *type-derived* metadata refreshed from the new
+ * type: the mapping table never re-derives `acceptedTypes`/`isComplexType` after
+ * a row is created, so leaving the old type's values in place would silently
+ * drive the wrong editor affordances. Server-issued badges are cleared because
+ * they describe the old type; the next fetch re-applies them.
+ *
+ * Nested `complexTypeMappings` sub-rows are deliberately NOT re-validated here:
+ * if the parent property survives, its config is kept as-is and any range or
+ * sub-property mismatch is left to the server-side validator, which reports it
+ * through the normal warning path after the save.
+ */
+export function reconcileRowsForSchemaType(
+  rows: PropertyMappingRow[],
+  newSchemaProperties: readonly (SchemaPropertyInfo & { confidence?: number })[],
+): SchemaTypeReconciliation {
+  const byName = new Map(newSchemaProperties.map((p) => [p.name.toLowerCase(), p]));
+
+  const kept: PropertyMappingRow[] = [];
+  const droppedConfigured: PropertyMappingRow[] = [];
+
+  for (const row of rows) {
+    const schemaProp = byName.get(row.schemaPropertyName.toLowerCase());
+    if (!schemaProp) {
+      if (isRowConfigured(row)) droppedConfigured.push(row);
+      continue;
+    }
+
+    kept.push({
+      ...row,
+      schemaPropertyType: schemaProp.propertyType || '',
+      acceptedTypes: schemaProp.acceptedTypes ?? [],
+      isComplexType: schemaProp.isComplexType ?? false,
+      schemaRank: schemaProp.confidence,
+      rangeWarning: undefined,
+      suggestion: undefined,
+    });
+  }
+
+  return { kept: sortMappingRows(kept), droppedConfigured };
 }

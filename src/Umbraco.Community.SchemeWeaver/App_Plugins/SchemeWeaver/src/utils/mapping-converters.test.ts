@@ -2,7 +2,23 @@ import { expect } from '@open-wc/testing';
 import type { PropertyMappingDto, PropertyMappingSuggestion, ValidationIssue } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import { SourceType } from '../constants/source-type.js';
-import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows, drillConfigToResolverConfig } from './mapping-converters.js';
+import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows, drillConfigToResolverConfig, isRowConfigured, rowsToPropertyMappingDtos, reconcileRowsForSchemaType } from './mapping-converters.js';
+import type { RankedSchemaPropertyInfo } from '../api/types.js';
+
+/** Helper to create a minimal RankedSchemaPropertyInfo as the ranked endpoint returns it */
+function makeSchemaProp(
+  overrides: Partial<RankedSchemaPropertyInfo> & { name: string },
+): RankedSchemaPropertyInfo {
+  return {
+    propertyType: 'Text',
+    isRequired: false,
+    acceptedTypes: [],
+    isComplexType: false,
+    confidence: 50,
+    isPopular: false,
+    ...overrides,
+  };
+}
 
 /** Helper to create a minimal PropertyMappingDto */
 function makeDto(overrides: Partial<PropertyMappingDto> & { schemaPropertyName: string }): PropertyMappingDto {
@@ -639,5 +655,173 @@ describe('persistence fidelity (loadOrder / isAutoMapped / transformType round-t
     const changed = applySourceTypeChange(merged, SourceType.Static);
     expect(changed.loadOrder).to.equal(3);
     expect(changed.isAutoMapped).to.equal(true);
+  });
+});
+
+describe('isRowConfigured', () => {
+  it('requires the field that matters for each source type', () => {
+    expect(isRowConfigured(makeRow({ schemaPropertyName: 'name', contentTypePropertyAlias: 'title' }))).to.be.true;
+    expect(isRowConfigured(makeRow({ schemaPropertyName: 'name' }))).to.be.false;
+
+    expect(isRowConfigured(makeRow({ schemaPropertyName: 'name', sourceType: SourceType.Static, staticValue: 'x' }))).to.be.true;
+    expect(isRowConfigured(makeRow({ schemaPropertyName: 'name', sourceType: SourceType.Static, contentTypePropertyAlias: 'title' }))).to.be.false;
+
+    expect(isRowConfigured(makeRow({ schemaPropertyName: 'author', sourceType: SourceType.ComplexType, resolverConfig: '{}' }))).to.be.true;
+    expect(isRowConfigured(makeRow({ schemaPropertyName: 'author', sourceType: SourceType.ComplexType }))).to.be.false;
+
+    // reference rows key off the graph piece and never carry a property alias
+    expect(isRowConfigured(makeRow({ schemaPropertyName: 'publisher', sourceType: SourceType.Reference, targetPieceKey: 'organization' }))).to.be.true;
+    expect(isRowConfigured(makeRow({ schemaPropertyName: 'publisher', sourceType: SourceType.Reference }))).to.be.false;
+  });
+});
+
+describe('rowsToPropertyMappingDtos', () => {
+  it('emits configured rows only, in stored order', () => {
+    const rows = [
+      makeRow({ schemaPropertyName: 'description', contentTypePropertyAlias: 'standfirst', loadOrder: 1 }),
+      makeRow({ schemaPropertyName: 'unconfigured' }),
+      makeRow({ schemaPropertyName: 'headline', contentTypePropertyAlias: 'title', loadOrder: 0 }),
+    ];
+    const dtos = rowsToPropertyMappingDtos(rows);
+    expect(dtos.map((d) => d.schemaPropertyName)).to.deep.equal(['headline', 'description']);
+  });
+
+  it('carries the wire fields through, normalising empties to null', () => {
+    const dto = rowsToPropertyMappingDtos([
+      makeRow({
+        schemaPropertyName: 'author',
+        sourceType: SourceType.ComplexType,
+        resolverConfig: '{"complexTypeMappings":[]}',
+        nestedSchemaTypeName: 'Person',
+        transformType: 'stripHtml',
+        dynamicRootConfig: { originAlias: 'Site' } as never,
+      }),
+    ])[0];
+    expect(dto.resolverConfig).to.equal('{"complexTypeMappings":[]}');
+    expect(dto.nestedSchemaTypeName).to.equal('Person');
+    expect(dto.transformType).to.equal('stripHtml');
+    expect(dto.dynamicRootConfig).to.equal('{"originAlias":"Site"}');
+    expect(dto.contentTypePropertyAlias).to.equal(null);
+    expect(dto.staticValue).to.equal(null);
+  });
+
+  it('marks a row auto-mapped from either the live confidence or the stored flag', () => {
+    const fromConfidence = rowsToPropertyMappingDtos([
+      makeRow({ schemaPropertyName: 'headline', contentTypePropertyAlias: 'title', confidence: 90 }),
+    ])[0];
+    const fromStoredFlag = rowsToPropertyMappingDtos([
+      makeRow({ schemaPropertyName: 'headline', contentTypePropertyAlias: 'title', isAutoMapped: true }),
+    ])[0];
+    const handMade = rowsToPropertyMappingDtos([
+      makeRow({ schemaPropertyName: 'headline', contentTypePropertyAlias: 'title' }),
+    ])[0];
+    expect(fromConfidence.isAutoMapped).to.be.true;
+    expect(fromStoredFlag.isAutoMapped).to.be.true;
+    expect(handMade.isAutoMapped).to.be.false;
+  });
+});
+
+describe('reconcileRowsForSchemaType', () => {
+  const blogPostingProps = [
+    makeSchemaProp({ name: 'headline', propertyType: 'string', confidence: 95 }),
+    makeSchemaProp({ name: 'author', propertyType: 'Person', acceptedTypes: ['Person', 'Organization'], isComplexType: true, confidence: 80 }),
+  ];
+
+  it('keeps rows whose property exists on the new type and drops the rest', () => {
+    const rows = [
+      makeRow({ schemaPropertyName: 'headline', contentTypePropertyAlias: 'title' }),
+      makeRow({ schemaPropertyName: 'printSection', contentTypePropertyAlias: 'sectionName' }),
+    ];
+    const { kept, droppedConfigured } = reconcileRowsForSchemaType(rows, blogPostingProps);
+    expect(kept.map((r) => r.schemaPropertyName)).to.deep.equal(['headline']);
+    expect(droppedConfigured.map((r) => r.schemaPropertyName)).to.deep.equal(['printSection']);
+  });
+
+  it('matches property names case-insensitively', () => {
+    const rows = [makeRow({ schemaPropertyName: 'HeadLine', contentTypePropertyAlias: 'title' })];
+    const { kept, droppedConfigured } = reconcileRowsForSchemaType(rows, blogPostingProps);
+    expect(kept).to.have.lengthOf(1);
+    expect(droppedConfigured).to.be.empty;
+    // the row keeps the casing it was stored with
+    expect(kept[0].schemaPropertyName).to.equal('HeadLine');
+  });
+
+  it('refreshes type-derived metadata from the new type', () => {
+    const rows = [
+      makeRow({
+        schemaPropertyName: 'author',
+        contentTypePropertyAlias: 'authorName',
+        schemaPropertyType: 'string',
+        acceptedTypes: ['Thing'],
+        isComplexType: false,
+        schemaRank: 10,
+      }),
+    ];
+    const { kept } = reconcileRowsForSchemaType(rows, blogPostingProps);
+    expect(kept[0].schemaPropertyType).to.equal('Person');
+    expect(kept[0].acceptedTypes).to.deep.equal(['Person', 'Organization']);
+    expect(kept[0].isComplexType).to.be.true;
+    expect(kept[0].schemaRank).to.equal(80);
+  });
+
+  it('preserves every user-authored field on a kept row', () => {
+    const rows = [
+      makeRow({
+        schemaPropertyName: 'author',
+        sourceType: SourceType.ComplexType,
+        resolverConfig: '{"complexTypeMappings":[{"schemaProperty":"name","contentTypePropertyAlias":"authorName"}]}',
+        nestedSchemaTypeName: 'Person',
+        transformType: 'stripHtml',
+        loadOrder: 4,
+        isAutoMapped: true,
+      }),
+    ];
+    const kept = reconcileRowsForSchemaType(rows, blogPostingProps).kept[0];
+    expect(kept.sourceType).to.equal(SourceType.ComplexType);
+    expect(kept.resolverConfig).to.contain('authorName');
+    expect(kept.nestedSchemaTypeName).to.equal('Person');
+    expect(kept.transformType).to.equal('stripHtml');
+    expect(kept.loadOrder).to.equal(4);
+    expect(kept.isAutoMapped).to.equal(true);
+  });
+
+  it('clears badges that described the old type', () => {
+    const rows = [
+      makeRow({
+        schemaPropertyName: 'headline',
+        contentTypePropertyAlias: 'title',
+        rangeWarning: 'stale warning',
+        suggestion: 'stale suggestion',
+      }),
+    ];
+    const kept = reconcileRowsForSchemaType(rows, blogPostingProps).kept[0];
+    expect(kept.rangeWarning).to.equal(undefined);
+    expect(kept.suggestion).to.equal(undefined);
+  });
+
+  it('drops unconfigured rows silently, without listing them as losses', () => {
+    const rows = [
+      makeRow({ schemaPropertyName: 'printSection' }), // placeholder never filled in
+      makeRow({ schemaPropertyName: 'printPage', contentTypePropertyAlias: 'pageNo' }),
+    ];
+    const { kept, droppedConfigured } = reconcileRowsForSchemaType(rows, blogPostingProps);
+    expect(kept).to.be.empty;
+    expect(droppedConfigured.map((r) => r.schemaPropertyName)).to.deep.equal(['printPage']);
+  });
+
+  it('drops everything when the new type shares no properties', () => {
+    const rows = [makeRow({ schemaPropertyName: 'headline', contentTypePropertyAlias: 'title' })];
+    const { kept, droppedConfigured } = reconcileRowsForSchemaType(rows, [makeSchemaProp({ name: 'cookTime' })]);
+    expect(kept).to.be.empty;
+    expect(droppedConfigured).to.have.lengthOf(1);
+  });
+
+  it('returns kept rows in display order', () => {
+    const rows = [
+      makeRow({ schemaPropertyName: 'author' }), // unmapped, rank 80
+      makeRow({ schemaPropertyName: 'headline', contentTypePropertyAlias: 'title' }), // mapped
+    ];
+    const { kept } = reconcileRowsForSchemaType(rows, blogPostingProps);
+    expect(kept.map((r) => r.schemaPropertyName)).to.deep.equal(['headline', 'author']);
   });
 });

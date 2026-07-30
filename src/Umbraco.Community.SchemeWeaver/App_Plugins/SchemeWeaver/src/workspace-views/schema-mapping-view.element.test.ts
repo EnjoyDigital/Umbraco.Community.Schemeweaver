@@ -1,6 +1,49 @@
 import { expect, fixture, html } from '@open-wc/testing';
+import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
+import { __mockContextRegistry } from '../__mocks__/context-api.js';
 import { startMockServiceWorker, stopMockServiceWorker } from '../mocks/setup.js';
+import type { SchemaMappingDto } from '../api/types.js';
 import './schema-mapping-view.element.js';
+
+const BASE = '/umbraco/management/api/v1/schemeweaver';
+
+/** Record of the modals a flow opened, in order, with the data each received. */
+interface OpenedModal {
+  alias?: string;
+  data?: Record<string, unknown>;
+}
+
+/**
+ * Stands in for the modal manager so a change-type flow can run headless:
+ * the picker resolves to `schemaType` (or rejects, i.e. the user cancelled) and
+ * the confirm dialog resolves or rejects per `confirm`.
+ */
+function stubModalManager(responses: { schemaType?: string; confirm?: boolean }): OpenedModal[] {
+  const opened: OpenedModal[] = [];
+  const manager = {
+    open(_host: unknown, token: { alias?: string }, options?: { data?: Record<string, unknown> }) {
+      opened.push({ alias: token?.alias, data: options?.data });
+      const cancelled = () => ({ onSubmit: () => Promise.reject(new Error('cancelled')) });
+      if (token?.alias === 'SchemeWeaver.Modal.SchemaPicker') {
+        return responses.schemaType
+          ? { onSubmit: () => Promise.resolve({ schemaType: responses.schemaType }) }
+          : cancelled();
+      }
+      return responses.confirm ? { onSubmit: () => Promise.resolve(undefined) } : cancelled();
+    },
+  };
+  __mockContextRegistry.provide(UMB_MODAL_MANAGER_CONTEXT, manager);
+  return opened;
+}
+
+/** The mock DB is module-global, so type changes have to be undone between tests. */
+async function restoreMapping(mapping: SchemaMappingDto) {
+  await fetch(`${BASE}/mappings`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(mapping),
+  });
+}
 
 describe('SchemaMappingViewElement', () => {
   before(async () => {
@@ -398,6 +441,168 @@ describe('SchemaMappingViewElement', () => {
       expect(claims).to.deep.equal([
         { schemaPropertyName: 'hasPart', blockAliases: ['teamBlock', 'promoBanner'] },
       ]);
+    });
+  });
+
+  // Issue #41 — the mapped type used to be a read-only badge, so the only way to
+  // switch was re-running the entity action, which discarded hand-made rows.
+  describe('changing the schema type', () => {
+    const BLOG_ARTICLE_KEY = '00000000-0000-0000-0000-000000000001';
+
+    /**
+     * A known Article mapping whose three properties all exist on BlogPosting as
+     * well. Seeded per test: the mock DB is module-global and earlier specs in
+     * this file save extra rows into `blogArticle`, so inheriting whatever they
+     * left behind would make these assertions order-dependent.
+     */
+    function articleFixture(): SchemaMappingDto {
+      const row = (schemaPropertyName: string, contentTypePropertyAlias: string) => ({
+        schemaPropertyName,
+        sourceType: 'property' as const,
+        contentTypePropertyAlias,
+        sourceContentTypeAlias: null,
+        transformType: null,
+        isAutoMapped: false,
+        staticValue: null,
+        nestedSchemaTypeName: null,
+        resolverConfig: null,
+        dynamicRootConfig: null,
+      });
+      return {
+        contentTypeAlias: 'blogArticle',
+        contentTypeKey: BLOG_ARTICLE_KEY,
+        schemaTypeName: 'Article',
+        isEnabled: true,
+        isInherited: false,
+        propertyMappings: [
+          row('headline', 'title'),
+          row('author', 'authorName'),
+          row('datePublished', 'publishDate'),
+        ],
+      };
+    }
+
+    /** Mounts the view against the seeded `blogArticle` mapping. */
+    async function mountMapped() {
+      const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`) as any;
+      el._contentTypeAlias = 'blogArticle';
+      el._contentTypeKey = BLOG_ARTICLE_KEY;
+      await el._fetchMapping();
+      await el.updateComplete;
+      return el;
+    }
+
+    /** Whatever the rest of the suite expects to find, put back when we are done. */
+    let preExisting: SchemaMappingDto | undefined;
+    let original: SchemaMappingDto;
+
+    before(async () => {
+      preExisting = (await (await fetch(`${BASE}/mappings/blogArticle`)).json()) as SchemaMappingDto;
+    });
+
+    after(async () => {
+      if (preExisting) await restoreMapping(preExisting);
+    });
+
+    beforeEach(async () => {
+      original = articleFixture();
+      await restoreMapping(original);
+    });
+
+    it('offers a change control next to the type badge', async () => {
+      stubModalManager({});
+      const el = await mountMapped();
+
+      const badge = el.shadowRoot!.querySelector('[data-mark="schemeweaver:schema-type-badge"]');
+      const change = badge!.querySelector('[data-mark="schemeweaver:change-schema-type"]');
+      expect(change, 'the badge row should offer a change affordance').to.exist;
+    });
+
+    it('tells the picker which type the mapping is already on', async () => {
+      const opened = stubModalManager({});
+      const el = await mountMapped();
+
+      await el._handleChangeSchemaType();
+
+      expect(opened[0].alias).to.equal('SchemeWeaver.Modal.SchemaPicker');
+      expect(opened[0].data!.currentSchemaType).to.equal('Article');
+    });
+
+    it('keeps every compatible mapping and persists the new type', async () => {
+      stubModalManager({ schemaType: 'BlogPosting', confirm: true });
+      const el = await mountMapped();
+      const before = el._rows.map((r: any) => r.schemaPropertyName).sort();
+
+      await el._handleChangeSchemaType();
+      await el.updateComplete;
+
+      // _handleSave re-fetches, so this state came back from the mock DB.
+      expect(el._mapping.schemaTypeName).to.equal('BlogPosting');
+      expect(el._rows.map((r: any) => r.schemaPropertyName).sort()).to.deep.equal(before);
+
+      const persisted = await (await fetch(`${BASE}/mappings/blogArticle`)).json();
+      expect(persisted.schemaTypeName).to.equal('BlogPosting');
+      expect(persisted.propertyMappings).to.have.lengthOf(original.propertyMappings.length);
+    });
+
+    it('refreshes the kept rows metadata to the new type', async () => {
+      stubModalManager({ schemaType: 'BlogPosting', confirm: true });
+      const el = await mountMapped();
+
+      await el._handleChangeSchemaType();
+      await el.updateComplete;
+
+      const author = el._rows.find((r: any) => r.schemaPropertyName === 'author');
+      expect(author.acceptedTypes).to.deep.equal(['Organization', 'Person']);
+      expect(author.isComplexType).to.be.true;
+    });
+
+    it('drops the rows an unrelated type cannot accept', async () => {
+      stubModalManager({ schemaType: 'FAQPage', confirm: true });
+      const el = await mountMapped();
+
+      await el._handleChangeSchemaType();
+      await el.updateComplete;
+
+      expect(el._mapping.schemaTypeName).to.equal('FAQPage');
+      // none of headline/author/datePublished exist on FAQPage
+      expect(el._rows.some((r: any) => r.schemaPropertyName === 'headline')).to.be.false;
+
+      const persisted = await (await fetch(`${BASE}/mappings/blogArticle`)).json();
+      expect(persisted.propertyMappings).to.be.empty;
+    });
+
+    it('writes nothing when the confirmation is declined', async () => {
+      stubModalManager({ schemaType: 'FAQPage', confirm: false });
+      const el = await mountMapped();
+
+      await el._handleChangeSchemaType();
+      await el.updateComplete;
+
+      expect(el._mapping.schemaTypeName).to.equal('Article');
+      const persisted = await (await fetch(`${BASE}/mappings/blogArticle`)).json();
+      expect(persisted.schemaTypeName).to.equal('Article');
+      expect(persisted.propertyMappings).to.have.lengthOf(original.propertyMappings.length);
+    });
+
+    it('does nothing when the picker is cancelled', async () => {
+      const opened = stubModalManager({});
+      const el = await mountMapped();
+
+      await el._handleChangeSchemaType();
+
+      expect(el._mapping.schemaTypeName).to.equal('Article');
+      expect(opened, 'no confirmation should follow a cancelled picker').to.have.lengthOf(1);
+    });
+
+    it('does not confirm or save when the current type is re-picked', async () => {
+      const opened = stubModalManager({ schemaType: 'Article', confirm: true });
+      const el = await mountMapped();
+
+      await el._handleChangeSchemaType();
+
+      expect(opened).to.have.lengthOf(1);
+      expect(el._mapping.schemaTypeName).to.equal('Article');
     });
   });
 });

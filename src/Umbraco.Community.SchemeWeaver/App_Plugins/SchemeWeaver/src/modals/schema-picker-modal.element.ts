@@ -72,6 +72,10 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
 
   async connectedCallback() {
     super.connectedCallback();
+    // Re-picking an existing mapping: start from what it is mapped to today.
+    if (this.data?.currentSchemaType) {
+      this._selectedType = this.data.currentSchemaType;
+    }
     await this._fetchSchemaTypes();
     this._checkAIStatus();
   }
@@ -152,6 +156,14 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
       const items = COMMON_SCHEMA_TYPES.map((name) => byName.get(name.toLowerCase())).filter(
         (t): t is SchemaTypeInfo => t !== undefined,
       );
+      // The current type leads the shortlist even when it isn't a common type —
+      // otherwise re-picking opens with a selection the user cannot see.
+      const current = this.data?.currentSchemaType
+        ? byName.get(this.data.currentSchemaType.toLowerCase())
+        : undefined;
+      if (current && !items.some((t) => t.name === current.name)) {
+        items.unshift(current);
+      }
       return { items, total: items.length };
     }
 
@@ -335,6 +347,9 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
                       @selected=${() => this._handleSelect(type.name)}
                       @deselected=${this._handleDeselect}
                     >
+                      ${type.name === this.data?.currentSchemaType
+                        ? html`<uui-tag slot="tag" look="secondary">${this.localize.term('schemeWeaver_currentType')}</uui-tag>`
+                        : nothing}
                     </umb-ref-item>
                   `,
                 )}

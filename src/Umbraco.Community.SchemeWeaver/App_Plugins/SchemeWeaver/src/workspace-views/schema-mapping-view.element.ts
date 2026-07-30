@@ -20,7 +20,8 @@ import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from '../modals/complex-type-
 import type { SchemaMappingDto, ContentTypeProperty, RankedSchemaPropertyInfo } from '../api/types.js';
 import { SourceType } from '../constants/source-type.js';
 
-import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows } from '../utils/mapping-converters.js';
+import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, rowsToPropertyMappingDtos, applySourceTypeChange, applyWarningsToRows } from '../utils/mapping-converters.js';
+import { changeSchemaType } from '../utils/change-schema-type.js';
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
@@ -299,6 +300,43 @@ export class SchemaMappingViewElement extends UmbLitElement {
     }
   }
 
+  /**
+   * Re-point this mapping at a different Schema.org type, keeping every property
+   * mapping the new type still accepts (issue #41). Persists on confirmation
+   * rather than waiting for the document type to be saved: the auto-save listener
+   * above only fires when rows remain, so a change that dropped them all would
+   * otherwise never reach the database.
+   */
+  private async _handleChangeSchemaType() {
+    if (!this.#modalManagerContext || !this._mapping) return;
+
+    try {
+      const result = await changeSchemaType({
+        host: this,
+        modalManager: this.#modalManagerContext,
+        localize: this.localize,
+        contentTypeAlias: this._contentTypeAlias,
+        currentSchemaType: this._mapping.schemaTypeName,
+        rows: this._rows,
+        requestSchemaTypeProperties: async (name) => this.#context?.requestSchemaTypeProperties(name, true),
+      });
+
+      if (!result) return;
+
+      this._mapping = { ...this._mapping, schemaTypeName: result.schemaTypeName };
+      this._allSchemaProperties = result.schemaProperties;
+      this._rows = result.rows;
+
+      await this._handleSave(this.localize.term('schemeWeaver_schemaTypeChanged', result.schemaTypeName));
+    } catch (error) {
+      this.#notificationContext?.peek('danger', {
+        data: {
+          message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToSave'),
+        },
+      });
+    }
+  }
+
   private async _handleAutoMap() {
     if (!this._contentTypeAlias || !this._mapping?.schemaTypeName) return;
 
@@ -323,7 +361,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
     }
   }
 
-  private async _handleSave() {
+  private async _handleSave(successMessage?: string) {
     if (!this._mapping) return;
 
     try {
@@ -331,32 +369,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
         ...this._mapping,
         contentTypeKey: this._contentTypeKey || this._mapping.contentTypeKey,
         idOverride: this._mapping.idOverride ?? null,
-        propertyMappings: rowsInPersistenceOrder(this._rows)
-          .filter((row) => {
-            if (row.sourceType === SourceType.Static) return !!row.staticValue;
-            if (row.sourceType === SourceType.ComplexType) return !!row.resolverConfig;
-            if (row.sourceType === SourceType.BlockContent) return !!row.contentTypePropertyAlias;
-            // reference rows have no property alias — they key off the graph piece
-            if (row.sourceType === SourceType.Reference) return !!row.targetPieceKey;
-            return !!row.contentTypePropertyAlias;
-          })
-          .map((row) => ({
-            schemaPropertyName: row.schemaPropertyName,
-            sourceType: row.sourceType,
-            contentTypePropertyAlias: row.contentTypePropertyAlias || null,
-            sourceContentTypeAlias: row.sourceContentTypeAlias || null,
-            transformType: row.transformType ?? null,
-            isAutoMapped: row.confidence !== null || row.isAutoMapped === true,
-            staticValue: row.staticValue || null,
-            nestedSchemaTypeName: row.nestedSchemaTypeName || null,
-            resolverConfig: row.resolverConfig,
-            dynamicRootConfig: row.dynamicRootConfig ? JSON.stringify(row.dynamicRootConfig) : null,
-            targetPieceKey: row.targetPieceKey || null,
-          })),
+        propertyMappings: rowsToPropertyMappingDtos(this._rows),
       };
       await this.#context?.saveMapping(dto);
       this.#notificationContext?.peek('positive', {
-        data: { message: this.localize.term('schemeWeaver_mappingSaved') },
+        data: { message: successMessage ?? this.localize.term('schemeWeaver_mappingSaved') },
       });
       await this._fetchMapping();
     } catch (error) {
@@ -670,6 +687,15 @@ export class SchemaMappingViewElement extends UmbLitElement {
           <div id="schema-type-badge" slot="editor" data-mark="schemeweaver:schema-type-badge">
             <uui-tag color="primary" look="primary">${this._mapping.schemaTypeName}</uui-tag>
             <code>${this._mapping.contentTypeAlias}</code>
+            <uui-button
+              look="outline"
+              compact
+              label=${this.localize.term('schemeWeaver_changeSchemaType')}
+              title=${this.localize.term('schemeWeaver_changeSchemaTypeHint')}
+              data-mark="schemeweaver:change-schema-type"
+              @click=${this._handleChangeSchemaType}>
+              ${this.localize.term('schemeWeaver_change')}
+            </uui-button>
           </div>
         </umb-property-layout>
 
@@ -783,6 +809,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
       #schema-type-badge code {
         font-family: monospace;
         color: var(--uui-color-text-alt);
+      }
+
+      /* Trailing edge of the row, away from the type it acts on. */
+      #schema-type-badge uui-button {
+        margin-left: auto;
       }
 
       uui-input {

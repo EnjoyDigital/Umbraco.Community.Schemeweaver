@@ -11,7 +11,7 @@ import type { NestedMappingModalValue, NestedMappingModalSiblingClaim } from './
 import { parseResolverConfig, legacyConfigToRoutes } from '../components/block-route-model.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
-import { mergeAutoMapSuggestions, applySourceTypeChange } from '../utils/mapping-converters.js';
+import { mergeAutoMapSuggestions, applySourceTypeChange, rowsToPropertyMappingDtos } from '../utils/mapping-converters.js';
 
 import type { SchemaPropertyInfo } from '../api/types.js';
 import { SourceType } from '../constants/source-type.js';
@@ -403,30 +403,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         schemaTypeName: this.data?.schemaType || '',
         isEnabled: true,
         isInherited: false,
-        propertyMappings: this._mappings
-          .filter((row) => {
-            // Only save rows that are actually configured
-            if (row.sourceType === SourceType.Static) return !!row.staticValue;
-            if (row.sourceType === SourceType.ComplexType) return !!row.resolverConfig;
-            if (row.sourceType === SourceType.BlockContent) return !!row.contentTypePropertyAlias;
-            // reference rows have no property alias — they key off the graph piece
-            if (row.sourceType === SourceType.Reference) return !!row.targetPieceKey;
-            // property/parent/ancestor/sibling: need a content property alias
-            return !!row.contentTypePropertyAlias;
-          })
-          .map((row) => ({
-            schemaPropertyName: row.schemaPropertyName,
-            sourceType: row.sourceType,
-            contentTypePropertyAlias: row.contentTypePropertyAlias || null,
-            sourceContentTypeAlias: row.sourceContentTypeAlias || null,
-            transformType: row.transformType ?? null,
-            isAutoMapped: row.confidence !== null,
-            staticValue: row.staticValue || null,
-            nestedSchemaTypeName: row.nestedSchemaTypeName || null,
-            resolverConfig: row.resolverConfig,
-            dynamicRootConfig: row.dynamicRootConfig ? JSON.stringify(row.dynamicRootConfig) : null,
-            targetPieceKey: row.targetPieceKey || null,
-          })),
+        propertyMappings: rowsToPropertyMappingDtos(this._mappings),
       });
 
       this.modalContext?.setValue({ saved: true });
