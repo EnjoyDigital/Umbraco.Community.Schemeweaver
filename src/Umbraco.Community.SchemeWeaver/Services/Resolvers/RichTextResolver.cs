@@ -1,4 +1,5 @@
 using Umbraco.Cms.Core.Strings;
+using Umbraco.Community.SchemeWeaver.Services.Transforms;
 
 namespace Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
@@ -19,13 +20,14 @@ public class RichTextResolver : IPropertyValueResolver
     public object? Resolve(PropertyResolverContext context)
     {
         var value = context.Property?.GetValue(culture: context.Culture);
-        if (value is null)
+
+        if (value == null)
             return null;
 
-        return value switch
+        if (value is IHtmlEncodedString text)
         {
-            IHtmlEncodedString htmlEncoded => htmlEncoded.ToHtmlString(),
-            _ => value.ToString()
-        };
+            return SchemaValueTransformer.StripHtmlTags(text.ToHtmlString()!) ?? string.Empty;
+        }
+        return value.ToString();
     }
 }

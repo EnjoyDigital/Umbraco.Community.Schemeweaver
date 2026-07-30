@@ -74,7 +74,7 @@ public class RichTextResolverTests
 
         var result = _sut.Resolve(context);
 
-        result.Should().Be("<p>Hello <strong>World</strong></p>");
+        result.Should().Be("Hello World");
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class RichTextResolverTests
 
         var result = _sut.Resolve(context);
 
-        result.Should().Be("<p>Substituted HTML</p>");
+        result.Should().Be("Substituted HTML");
     }
 
     [Fact]
