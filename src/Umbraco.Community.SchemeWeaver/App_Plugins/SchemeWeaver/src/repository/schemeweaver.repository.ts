@@ -78,10 +78,18 @@ export class SchemeWeaverRepository extends UmbControllerBase {
   }
 
   /** Resolve a document type GUID (unique) to its content type alias */
+  /**
+   * Document type key -> content type alias. Compared case-insensitively: the
+   * management API returns lower-case GUIDs while a `unique` can arrive in any
+   * casing (deep links, uSync-sourced keys, the entity action's args). An exact
+   * match silently returned undefined for those, and callers fall back to using
+   * the raw GUID as an alias — which reads as "this content type has no mapping".
+   */
   async resolveContentTypeAlias(unique: string): Promise<string | undefined> {
     const contentTypes = await this.#dataSource.getContentTypes();
     if (!contentTypes) return undefined;
-    const match = contentTypes.find((ct) => ct.key === unique);
+    const target = unique.toLowerCase();
+    const match = contentTypes.find((ct) => ct.key?.toLowerCase() === target);
     return match?.alias;
   }
 

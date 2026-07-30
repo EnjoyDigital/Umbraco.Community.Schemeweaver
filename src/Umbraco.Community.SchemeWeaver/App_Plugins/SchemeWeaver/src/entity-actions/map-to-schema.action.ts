@@ -42,7 +42,24 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
     // Already mapped? Changing the type must not silently discard the mapping the
     // user has built (issue #41) — route through the reconciling change flow
     // instead of re-running auto-map over the top of it.
-    const existing = await context.requestMapping(contentTypeAlias).catch(() => null);
+    //
+    // Only a definite "no mapping" (undefined, from an expected 404) may take the
+    // create path. A thrown error means we do not KNOW whether a mapping exists,
+    // and guessing "no" would offer to build a fresh one over the top of it, so
+    // stop and say so instead.
+    let existing: SchemaMappingDto | undefined;
+    try {
+      existing = await context.requestMapping(contentTypeAlias);
+    } catch (error) {
+      notificationContext?.peek('danger', {
+        data: {
+          headline: this.#localize.term('schemeWeaver_mapToSchema'),
+          message: error instanceof Error ? error.message : this.#localize.term('schemeWeaver_failedToLoadMapping'),
+        },
+      });
+      return;
+    }
+
     if (existing) {
       await this.#changeExistingMapping(modalManager, notificationContext, context, existing, contentTypeAlias);
       return;

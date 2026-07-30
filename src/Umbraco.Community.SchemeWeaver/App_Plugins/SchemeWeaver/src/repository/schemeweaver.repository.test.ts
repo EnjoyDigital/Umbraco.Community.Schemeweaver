@@ -201,5 +201,24 @@ describe('SchemeWeaverRepository', () => {
 
       expect(alias).to.be.undefined;
     });
+
+    // A `unique` reaches us in whatever casing its source used — a hand-built or
+    // shared deep link, a uSync-sourced key, an entity action's args — while the
+    // API answers in lower case. An exact match returned undefined for those, and
+    // callers fall back to the raw GUID as an alias, which then reads as "this
+    // content type has no mapping" and sent the entity action down its
+    // create-a-new-mapping path on an already-mapped document type.
+    it('matches the key case-insensitively', async () => {
+      const repo = new SchemeWeaverRepository(createHost());
+
+      const contentTypes = await repo.requestContentTypes();
+      const first = contentTypes![0];
+
+      const upper = await repo.resolveContentTypeAlias(first.key.toUpperCase());
+      const lower = await repo.resolveContentTypeAlias(first.key.toLowerCase());
+
+      expect(upper).to.equal(first.alias);
+      expect(lower).to.equal(first.alias);
+    });
   });
 });
