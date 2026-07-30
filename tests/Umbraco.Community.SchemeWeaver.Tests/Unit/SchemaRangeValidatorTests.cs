@@ -501,4 +501,69 @@ public class SchemaRangeValidatorTests
         issues.Should().ContainSingle();
         issues[0].Message.Should().Contain("NoSuchProperty");
     }
+
+    [Fact]
+    public void UnknownTopLevelProperty_Warns()
+    {
+        // A property that doesn't exist on the type is log-and-skipped by the setter,
+        // so it emits nothing at all. Previously this was passed over in silence —
+        // the state a schema-type change (or an API/uSync write) can leave behind.
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "CookTime",
+            SourceType = "property",
+            ContentTypePropertyAlias = "duration"
+        });
+
+        var issues = _sut.Validate(dto);
+
+        issues.Should().ContainSingle();
+        issues[0].Severity.Should().Be(ValidationSeverity.Warning);
+        issues[0].Path.Should().Be("CookTime");
+        issues[0].Message.Should().Contain("CookTime");
+        issues[0].Message.Should().Contain("Article");
+        issues[0].Message.Should().Contain("dropped");
+    }
+
+    [Fact]
+    public void KnownTopLevelProperty_DoesNotWarn()
+    {
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Headline",
+            SourceType = "property",
+            ContentTypePropertyAlias = "title"
+        });
+
+        _sut.Validate(dto).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void UnknownTopLevelProperty_MatchesCaseInsensitively()
+    {
+        // Stored mappings vary in casing; only a genuinely absent property warns.
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "headline",
+            SourceType = "property",
+            ContentTypePropertyAlias = "title"
+        });
+
+        _sut.Validate(dto).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void UnknownTopLevelProperty_OnAReferenceRow_DoesNotWarn()
+    {
+        // reference rows resolve through another graph piece and are deliberately
+        // skipped before any property lookup — that must not change.
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "NoSuchProperty",
+            SourceType = "reference",
+            TargetPieceKey = "organization"
+        });
+
+        _sut.Validate(dto).Should().BeEmpty();
+    }
 }

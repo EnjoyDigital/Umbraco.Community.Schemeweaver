@@ -76,7 +76,19 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             var targetProp = schemaProps.FirstOrDefault(
                 p => string.Equals(p.Name, pm.SchemaPropertyName, StringComparison.OrdinalIgnoreCase));
             if (targetProp is null)
-                continue; // unknown target property — nothing to reason about
+            {
+                // The property doesn't exist on this type at all, so the setter will
+                // log-and-skip it and the value never reaches the JSON-LD. Say so —
+                // this is how a mapping left behind by a schema-type change (or an
+                // API/MCP/uSync write that bypassed the backoffice) becomes visible
+                // instead of silently emitting nothing. Mirrors the equivalent
+                // warning on nested complexType sub-properties.
+                issues.Add(new ValidationIssue(
+                    ValidationSeverity.Warning, mapping.SchemaTypeName, pm.SchemaPropertyName,
+                    $"'{pm.SchemaPropertyName}' does not exist on '{mapping.SchemaTypeName}' — " +
+                    "the value will be dropped."));
+                continue;
+            }
 
             if (string.Equals(pm.SourceType, "blockContent", StringComparison.OrdinalIgnoreCase))
             {
