@@ -22,6 +22,7 @@ import { SourceType } from '../constants/source-type.js';
 
 import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, rowsToPropertyMappingDtos, applySourceTypeChange, applyWarningsToRows } from '../utils/mapping-converters.js';
 import { changeSchemaType } from '../utils/change-schema-type.js';
+import { SchemeWeaverMappingChangedEvent } from '../utils/mapping-changed-event.js';
 
 @customElement('schemeweaver-schema-mapping-view')
 export class SchemaMappingViewElement extends UmbLitElement {
@@ -78,6 +79,17 @@ export class SchemaMappingViewElement extends UmbLitElement {
           if (this._mapping && this._rows.length > 0) {
             this._handleSave();
           }
+        },
+      );
+
+      // A mapping changed elsewhere (the entity action) — re-read rather than
+      // save, or this view would write its stale rows over that change.
+      context?.addEventListener(
+        SchemeWeaverMappingChangedEvent.TYPE,
+        (event: Event) => {
+          const changedEvent = event as SchemeWeaverMappingChangedEvent;
+          if (!this._contentTypeKey || changedEvent.getUnique?.() !== this._contentTypeKey) return;
+          this._fetchMapping();
         },
       );
     });

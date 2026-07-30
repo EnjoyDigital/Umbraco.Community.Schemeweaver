@@ -84,12 +84,10 @@ describe('MapToSchemaAction', () => {
 
       await createAction().execute();
 
-      // The picker knows the current type, and a confirmation followed it —
-      // no property-mapping modal, which is what used to clobber the rows.
-      expect(opened.map((o) => o.alias)).to.deep.equal([
-        'SchemeWeaver.Modal.SchemaPicker',
-        'umb-confirm-modal',
-      ]);
+      // The picker knows the current type, and exactly one confirmation followed
+      // it — no property-mapping modal, which is what used to clobber the rows.
+      expect(opened).to.have.lengthOf(2);
+      expect(opened[0].alias).to.equal('SchemeWeaver.Modal.SchemaPicker');
       expect(opened[0].data!.currentSchemaType).to.equal('Article');
 
       const persisted = (await (await fetch(`${BASE}/mappings/blogArticle`)).json()) as SchemaMappingDto;

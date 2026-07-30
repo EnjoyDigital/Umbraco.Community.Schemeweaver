@@ -1,4 +1,4 @@
-import { UmbEntityActionBase, UmbRequestReloadStructureForEntityEvent } from '@umbraco-cms/backoffice/entity-action';
+import { UmbEntityActionBase } from '@umbraco-cms/backoffice/entity-action';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
@@ -10,6 +10,7 @@ import type { SchemeWeaverContext } from '../context/schemeweaver.context.js';
 import type { SchemaMappingDto } from '../api/types.js';
 import { changeSchemaType } from '../utils/change-schema-type.js';
 import { dtoToRow, rowsToPropertyMappingDtos } from '../utils/mapping-converters.js';
+import { SchemeWeaverMappingChangedEvent } from '../utils/mapping-changed-event.js';
 
 export class MapToSchemaAction extends UmbEntityActionBase<never> {
   #localize = new UmbLocalizationController(this);
@@ -108,14 +109,11 @@ export class MapToSchemaAction extends UmbEntityActionBase<never> {
         data: { message: this.#localize.term('schemeWeaver_schemaTypeChanged', result.schemaTypeName) },
       });
 
-      // Refresh any open workspace so the Schema.org tab shows the new type.
+      // Tell an open Schema.org tab to re-read. NOT the generic reload-structure
+      // event: the view answers that one by saving its own rows, which would put
+      // the mapping we just replaced straight back.
       const eventContext = await this.getContext(UMB_ACTION_EVENT_CONTEXT);
-      eventContext?.dispatchEvent(
-        new UmbRequestReloadStructureForEntityEvent({
-          unique: this.args.unique ?? '',
-          entityType: this.args.entityType,
-        }),
-      );
+      eventContext?.dispatchEvent(new SchemeWeaverMappingChangedEvent(this.args.unique ?? ''));
     } catch (error) {
       notificationContext?.peek('danger', {
         data: {

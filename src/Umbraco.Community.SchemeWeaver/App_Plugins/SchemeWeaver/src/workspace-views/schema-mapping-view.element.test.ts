@@ -1,8 +1,10 @@
-import { expect, fixture, html } from '@open-wc/testing';
+import { aTimeout, expect, fixture, html } from '@open-wc/testing';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
+import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { __mockContextRegistry } from '../__mocks__/context-api.js';
 import { startMockServiceWorker, stopMockServiceWorker } from '../mocks/setup.js';
 import type { SchemaMappingDto } from '../api/types.js';
+import { SchemeWeaverMappingChangedEvent } from '../utils/mapping-changed-event.js';
 import './schema-mapping-view.element.js';
 
 const BASE = '/umbraco/management/api/v1/schemeweaver';
@@ -603,6 +605,30 @@ describe('SchemaMappingViewElement', () => {
 
       expect(opened).to.have.lengthOf(1);
       expect(el._mapping.schemaTypeName).to.equal('Article');
+    });
+
+    // Regression guard — the view answers UmbRequestReloadStructureForEntityEvent
+    // by SAVING its rows (that is how it auto-saves with the document type). If
+    // the entity action announced its change with that same event, an open tab
+    // would immediately write its stale mapping back over it. The change is
+    // announced with a SchemeWeaver-specific event that means "re-read".
+    it('re-reads, and never re-saves, when a mapping changes elsewhere', async () => {
+      const actionEvents = new EventTarget();
+      __mockContextRegistry.provide(UMB_ACTION_EVENT_CONTEXT, actionEvents);
+      stubModalManager({});
+      const el = await mountMapped();
+      expect(el._mapping.schemaTypeName).to.equal('Article');
+
+      // Simulate the entity action having changed the type behind the view.
+      await restoreMapping({ ...articleFixture(), schemaTypeName: 'FAQPage', propertyMappings: [] });
+      actionEvents.dispatchEvent(new SchemeWeaverMappingChangedEvent(BLOG_ARTICLE_KEY));
+      await aTimeout(50);
+      await el.updateComplete;
+
+      expect(el._mapping.schemaTypeName, 'the view should have re-read the changed mapping').to.equal('FAQPage');
+      const persisted = await (await fetch(`${BASE}/mappings/blogArticle`)).json();
+      expect(persisted.schemaTypeName, 'the view must not write its stale state back').to.equal('FAQPage');
+      expect(persisted.propertyMappings).to.be.empty;
     });
   });
 });
