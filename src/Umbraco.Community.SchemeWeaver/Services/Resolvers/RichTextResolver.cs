@@ -1,5 +1,5 @@
 using Umbraco.Cms.Core.Strings;
-using Umbraco.Community.SchemeWeaver.Extensions;
+using Umbraco.Community.SchemeWeaver.Services.Transforms;
 
 namespace Umbraco.Community.SchemeWeaver.Services.Resolvers;
 
@@ -26,7 +26,7 @@ public class RichTextResolver : IPropertyValueResolver
 
         if (value is IHtmlEncodedString text)
         {
-            return text.RemoveOuterTags()?.ToString() ?? string.Empty;
+            return SchemaValueTransformer.StripHtmlTags(text.ToHtmlString()!) ?? string.Empty;
         }
         return value.ToString();
     }

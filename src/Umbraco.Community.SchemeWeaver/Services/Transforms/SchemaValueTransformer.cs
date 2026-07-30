@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -54,12 +55,56 @@ public static partial class SchemaValueTransformer
         return $"{request.Scheme}://{request.Host}{value}";
     }
 
-    /// <summary>Strips HTML tags and trims surrounding whitespace.</summary>
+    /// <summary>
+    /// Reduces HTML to the plain text Schema.org string properties expect.
+    ///
+    /// Block-level tags collapse to a space and inline tags vanish, so
+    /// <c>&lt;p&gt;One.&lt;/p&gt;&lt;p&gt;Two.&lt;/p&gt;</c> becomes "One. Two." rather than
+    /// "One.Two.", while <c>Because &lt;strong&gt;schema&lt;/strong&gt;.</c> keeps its full stop
+    /// tight against the word. <c>script</c>/<c>style</c> elements and comments are dropped
+    /// with their contents (stripping only their tags would leak CSS/JS into the output).
+    /// Entities are decoded — a mapped value must carry "Tom &amp; Jerry", not
+    /// "Tom &amp;amp; Jerry" — which is safe because <see cref="Graph.GraphGenerator"/>
+    /// serialises with an encoder that re-escapes &lt;, &gt;, &amp; and ' before the JSON
+    /// reaches the <c>&lt;script type="application/ld+json"&gt;</c> block.
+    /// Runs of whitespace (including the non-breaking spaces <c>&amp;nbsp;</c> decodes to)
+    /// collapse to a single space, and the result is trimmed.
+    /// </summary>
     public static string StripHtmlTags(string html)
     {
-        return StripHtmlRegex().Replace(html, string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(html))
+            return string.Empty;
+
+        var text = ScriptOrStyleElementRegex().Replace(html, " ");
+        text = CommentRegex().Replace(text, " ");
+        text = BlockLevelTagRegex().Replace(text, " ");
+        text = AnyTagRegex().Replace(text, string.Empty);
+        text = WebUtility.HtmlDecode(text);
+
+        return WhitespaceRegex().Replace(text, " ").Trim();
     }
 
+    [GeneratedRegex(@"<(script|style)\b[^>]*>.*?</\1\s*>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex ScriptOrStyleElementRegex();
+
+    [GeneratedRegex("<!--.*?-->", RegexOptions.Singleline)]
+    private static partial Regex CommentRegex();
+
+    /// <summary>
+    /// Tags that imply a text boundary. Matched before <see cref="AnyTagRegex"/> so they can be
+    /// replaced with a space while inline tags are replaced with nothing.
+    /// </summary>
+    [GeneratedRegex(
+        @"</?(?:p|div|br|hr|li|ul|ol|dl|dt|dd|table|thead|tbody|tfoot|tr|td|th|caption"
+        + @"|h[1-6]|section|article|aside|header|footer|nav|main|blockquote|pre"
+        + @"|figure|figcaption|address|form|fieldset|legend|option|iframe)\b[^>]*>",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex BlockLevelTagRegex();
+
     [GeneratedRegex("<[^>]+>")]
-    private static partial Regex StripHtmlRegex();
+    private static partial Regex AnyTagRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 }

@@ -74,7 +74,7 @@ public class RichTextResolverTests
 
         var result = _sut.Resolve(context);
 
-        result.Should().Be("Hello <strong>World</strong>");
+        result.Should().Be("Hello World");
     }
 
     [Fact]
