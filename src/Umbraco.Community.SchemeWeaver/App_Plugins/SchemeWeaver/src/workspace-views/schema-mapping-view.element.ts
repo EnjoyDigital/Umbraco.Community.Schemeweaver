@@ -32,6 +32,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
   #context?: SchemeWeaverContext;
   #notificationContext?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
   #modalManagerContext?: typeof UMB_MODAL_MANAGER_CONTEXT.TYPE;
+  #actionEventContext?: typeof UMB_ACTION_EVENT_CONTEXT.TYPE;
 
   @state()
   private _loading = true;
@@ -54,6 +55,10 @@ export class SchemaMappingViewElement extends UmbLitElement {
   @state()
   private _contentTypeKey = '';
 
+  /** Guards the change-type flow against a second click stacking a second picker. */
+  @state()
+  private _changingSchemaType = false;
+
   constructor() {
     super();
     this.consumeContext(SCHEMEWEAVER_CONTEXT, (context) => {
@@ -66,33 +71,64 @@ export class SchemaMappingViewElement extends UmbLitElement {
       this.#modalManagerContext = context;
     });
 
-    // Auto-save schema mapping when *this* document type is saved.
-    // The reload event is emitted for every entity in the backoffice, so we
-    // must scope to events whose `unique` matches this view's content type.
+    // The action event context is provided once at the backoffice root, so it
+    // outlives every workspace view. Listeners must therefore be removed before
+    // being re-added and torn down on destroy — otherwise each visit to a
+    // Schema.org tab leaves another detached view listening, and one document
+    // type save fires a POST from every one of them.
     this.consumeContext(UMB_ACTION_EVENT_CONTEXT, (context) => {
-      context?.addEventListener(
-        UmbRequestReloadStructureForEntityEvent.TYPE,
-        (event: Event) => {
-          const reloadEvent = event as UmbRequestReloadStructureForEntityEvent;
-          const eventUnique = reloadEvent.getUnique?.();
-          if (!this._contentTypeKey || eventUnique !== this._contentTypeKey) return;
-          if (this._mapping && this._rows.length > 0) {
-            this._handleSave();
-          }
-        },
-      );
+      this.#actionEventContext?.removeEventListener(
+        UmbRequestReloadStructureForEntityEvent.TYPE, this.#onReloadStructure);
+      this.#actionEventContext?.removeEventListener(
+        SchemeWeaverMappingChangedEvent.TYPE, this.#onMappingChanged);
 
-      // A mapping changed elsewhere (the entity action) — re-read rather than
-      // save, or this view would write its stale rows over that change.
-      context?.addEventListener(
-        SchemeWeaverMappingChangedEvent.TYPE,
-        (event: Event) => {
-          const changedEvent = event as SchemeWeaverMappingChangedEvent;
-          if (!this._contentTypeKey || changedEvent.getUnique?.() !== this._contentTypeKey) return;
-          this._fetchMapping();
-        },
-      );
+      this.#actionEventContext = context;
+
+      context?.addEventListener(UmbRequestReloadStructureForEntityEvent.TYPE, this.#onReloadStructure);
+      context?.addEventListener(SchemeWeaverMappingChangedEvent.TYPE, this.#onMappingChanged);
     });
+  }
+
+  /**
+   * Whether an event about entity `unique` concerns the document type this view
+   * is showing. Compared case-insensitively: a `unique` arrives in whatever
+   * casing its source used, and the workspace context and an entity action's
+   * args need not agree — a mismatch would silently stop the tab refreshing.
+   */
+  #isThisContentType(unique: string | undefined): boolean {
+    if (!this._contentTypeKey || !unique) return false;
+    return unique.toLowerCase() === this._contentTypeKey.toLowerCase();
+  }
+
+  /**
+   * Auto-save the mapping when *this* document type is saved. The reload event
+   * is emitted for every entity in the backoffice, hence the scoping.
+   */
+  #onReloadStructure = (event: Event) => {
+    const reloadEvent = event as UmbRequestReloadStructureForEntityEvent;
+    if (!this.#isThisContentType(reloadEvent.getUnique?.())) return;
+    if (this._mapping && this._rows.length > 0) {
+      this._handleSave();
+    }
+  };
+
+  /**
+   * A mapping changed elsewhere (an entity action) — re-read rather than save,
+   * or this view would write its stale rows over that change.
+   */
+  #onMappingChanged = (event: Event) => {
+    const changedEvent = event as SchemeWeaverMappingChangedEvent;
+    if (!this.#isThisContentType(changedEvent.getUnique?.())) return;
+    this._fetchMapping();
+  };
+
+  override destroy(): void {
+    this.#actionEventContext?.removeEventListener(
+      UmbRequestReloadStructureForEntityEvent.TYPE, this.#onReloadStructure);
+    this.#actionEventContext?.removeEventListener(
+      SchemeWeaverMappingChangedEvent.TYPE, this.#onMappingChanged);
+    this.#actionEventContext = undefined;
+    super.destroy();
   }
 
   async connectedCallback() {
@@ -320,7 +356,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
    * otherwise never reach the database.
    */
   private async _handleChangeSchemaType() {
-    if (!this.#modalManagerContext || !this._mapping) return;
+    // Without this, a second click stacks a second picker; both flows capture
+    // the same pre-change rows, and confirming both would have the second
+    // reconcile stale rows over the first result.
+    if (!this.#modalManagerContext || !this._mapping || this._changingSchemaType) return;
+    this._changingSchemaType = true;
 
     try {
       const result = await changeSchemaType({
@@ -346,6 +386,8 @@ export class SchemaMappingViewElement extends UmbLitElement {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToSave'),
         },
       });
+    } finally {
+      this._changingSchemaType = false;
     }
   }
 
@@ -394,6 +436,11 @@ export class SchemaMappingViewElement extends UmbLitElement {
           message: error instanceof Error ? error.message : this.localize.term('schemeWeaver_failedToSave'),
         },
       });
+      // Re-read so the view stops asserting state that was never persisted. The
+      // change-type flow mutates `_mapping`/`_rows` optimistically before saving,
+      // so leaving them in place would show a type the database does not hold —
+      // and the next document type save would quietly persist it.
+      await this._fetchMapping();
     }
   }
 
@@ -705,6 +752,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
               label=${this.localize.term('schemeWeaver_changeSchemaType')}
               title=${this.localize.term('schemeWeaver_changeSchemaTypeHint')}
               data-mark="schemeweaver:change-schema-type"
+              ?disabled=${this._changingSchemaType}
               @click=${this._handleChangeSchemaType}>
               ${this.localize.term('schemeWeaver_change')}
             </uui-button>

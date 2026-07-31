@@ -33,8 +33,9 @@ const translations = {
   'schemeWeaver_changeSchemaType': 'Change schema type',
   'schemeWeaver_changeSchemaTypeHint': 'Map this document type to a different Schema.org type, keeping the property mappings that still apply',
   'schemeWeaver_changeSchemaTypeIntro': 'Change the Schema.org type from "{0}" to "{1}".',
-  'schemeWeaver_changeSchemaTypeKept': '{0} of {1} property mappings will carry over.',
+  'schemeWeaver_changeSchemaTypeKept': 'Property mappings that carry over: {0} of {1}.',
   'schemeWeaver_changeSchemaTypeDropped': 'These property mappings do not exist on "{0}" and will be removed:',
+  'schemeWeaver_changeSchemaTypeDroppedMore': '...and {0} more.',
   'schemeWeaver_changeSchemaTypeLoadFailed': 'Could not load the properties of "{0}", so the mapping was left unchanged.',
   'schemeWeaver_schemaTypeChanged': 'Schema type changed to {0}',
   'schemeWeaver_currentType': 'Current',
@@ -110,6 +111,12 @@ export class UmbLitElement extends LitElement {
     super();
     this.localize = localize;
   }
+
+  /**
+   * Mirrors the controller-host teardown hook on the real base class, so
+   * elements that override `destroy()` to unsubscribe can be exercised here.
+   */
+  destroy() {}
 
   observe(observable, callback, alias) {
     if (observable && typeof observable.getValue === 'function') {

@@ -18,3 +18,22 @@ export const SourceType = {
 } as const;
 
 export type SourceTypeValue = (typeof SourceType)[keyof typeof SourceType];
+
+/**
+ * Localisation key for a source type's human-readable label. Shared by the
+ * mapping table and the change-schema-type confirmation so neither ever renders
+ * a raw wire value like `complexType` at the user.
+ */
+export function sourceTypeLabelKey(sourceType: string): string {
+  switch (sourceType) {
+    case SourceType.Property: return 'schemeWeaver_sourceCurrentNode';
+    case SourceType.Static: return 'schemeWeaver_sourceStaticValue';
+    case SourceType.Parent: return 'schemeWeaver_sourceParentNode';
+    case SourceType.Ancestor: return 'schemeWeaver_sourceAncestorNode';
+    case SourceType.Sibling: return 'schemeWeaver_sourceSiblingNode';
+    case SourceType.BlockContent: return 'schemeWeaver_sourceBlockContent';
+    case SourceType.ComplexType: return 'schemeWeaver_sourceComplexType';
+    case SourceType.Reference: return 'schemeWeaver_sourceReference';
+    default: return 'schemeWeaver_sourceCurrentNode';
+  }
+}

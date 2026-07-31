@@ -259,7 +259,7 @@ export class SchemaPickerModalElement extends UmbModalBaseElement<SchemaPickerMo
             color="positive"
             label=${this.localize.term('buttons_select')}
             data-mark="schemeweaver:schema-picker-submit"
-            ?disabled=${!this._selectedType}
+            ?disabled=${!this._selectedType || this._selectedType === this.data?.currentSchemaType}
             @click=${this._handleSubmit}
           ></uui-button>
         </div>

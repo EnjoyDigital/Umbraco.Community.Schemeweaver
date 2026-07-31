@@ -5,7 +5,10 @@ import type { PropertyMappingRow } from '../components/property-mapping-table.el
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
 import { SCHEMEWEAVER_SCHEMA_PICKER_MODAL } from '../modals/schema-picker-modal.token.js';
 import { isRowConfigured, reconcileRowsForSchemaType } from './mapping-converters.js';
-import { SourceType } from '../constants/source-type.js';
+import { SourceType, sourceTypeLabelKey } from '../constants/source-type.js';
+
+/** Beyond this many removals the dialog summarises the rest rather than growing off-screen. */
+const DROPPED_LIST_CAP = 10;
 
 /** Structural shape of the localisation controllers both call sites already own. */
 interface LocalizeLike {
@@ -86,10 +89,16 @@ export async function changeSchemaType(args: ChangeSchemaTypeArgs): Promise<Chan
             ? html`
                 <p>${localize.term('schemeWeaver_changeSchemaTypeDropped', schemaTypeName)}</p>
                 <ul>
-                  ${droppedConfigured.map(
-                    (row) => html`<li><strong>${row.schemaPropertyName}</strong> — ${describeRowSource(row)}</li>`,
+                  ${droppedConfigured.slice(0, DROPPED_LIST_CAP).map(
+                    (row) => html`<li><strong>${row.schemaPropertyName}</strong> — ${describeRowSource(row, localize)}</li>`,
                   )}
                 </ul>
+                ${droppedConfigured.length > DROPPED_LIST_CAP
+                  ? html`<p>${localize.term(
+                      'schemeWeaver_changeSchemaTypeDroppedMore',
+                      droppedConfigured.length - DROPPED_LIST_CAP,
+                    )}</p>`
+                  : nothing}
               `
             : nothing}
         `,
@@ -107,14 +116,17 @@ export async function changeSchemaType(args: ChangeSchemaTypeArgs): Promise<Chan
 /**
  * Short "what would be lost" description for a dropped row — the bound property
  * alias where there is one, otherwise whatever else identifies the row's source.
- * Long static values are clipped so one verbose row can't swamp the dialog.
+ * Long static values are clipped so one verbose row can't swamp the dialog, and
+ * the fallback is the source type's LABEL: a configured complexType row carries
+ * only a resolverConfig, and rendering its raw wire value ("complexType") at the
+ * user would be meaningless.
  */
-function describeRowSource(row: PropertyMappingRow): string {
+function describeRowSource(row: PropertyMappingRow, localize: LocalizeLike): string {
   if (row.contentTypePropertyAlias) return row.contentTypePropertyAlias;
   if (row.sourceType === SourceType.Static && row.staticValue) {
     const value = row.staticValue;
     return value.length > 40 ? `"${value.slice(0, 40)}…"` : `"${value}"`;
   }
   if (row.sourceType === SourceType.Reference && row.targetPieceKey) return row.targetPieceKey;
-  return row.sourceType;
+  return localize.term(sourceTypeLabelKey(row.sourceType));
 }

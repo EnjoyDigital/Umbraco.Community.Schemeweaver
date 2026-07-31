@@ -2,7 +2,7 @@ import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { css, html, customElement, property, state, nothing, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
-import { SourceType, type SourceTypeValue } from '../constants/source-type.js';
+import { SourceType, sourceTypeLabelKey, type SourceTypeValue } from '../constants/source-type.js';
 import { summariseResolverConfig } from './block-route-model.js';
 import { drillConfigToResolverConfig } from '../utils/mapping-converters.js';
 import './property-combobox.element.js';
@@ -186,19 +186,9 @@ export class PropertyMappingTableElement extends UmbLitElement {
     }
   }
 
-  /** Source type label key mapping */
+  /** Source type label key mapping — shared with the change-schema-type flow. */
   private _getSourceLabelKey(sourceType: string): string {
-    switch (sourceType) {
-      case SourceType.Property: return 'schemeWeaver_sourceCurrentNode';
-      case SourceType.Static: return 'schemeWeaver_sourceStaticValue';
-      case SourceType.Parent: return 'schemeWeaver_sourceParentNode';
-      case SourceType.Ancestor: return 'schemeWeaver_sourceAncestorNode';
-      case SourceType.Sibling: return 'schemeWeaver_sourceSiblingNode';
-      case SourceType.BlockContent: return 'schemeWeaver_sourceBlockContent';
-      case SourceType.ComplexType: return 'schemeWeaver_sourceComplexType';
-      case SourceType.Reference: return 'schemeWeaver_sourceReference';
-      default: return 'schemeWeaver_sourceCurrentNode';
-    }
+    return sourceTypeLabelKey(sourceType);
   }
 
   private _handlePickSourceOrigin(index: number) {

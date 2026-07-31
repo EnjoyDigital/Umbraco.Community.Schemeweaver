@@ -1,8 +1,9 @@
-import { aTimeout, expect, fixture, html } from '@open-wc/testing';
+import { aTimeout, expect, fixture, html, waitUntil } from '@open-wc/testing';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { __mockContextRegistry } from '../__mocks__/context-api.js';
-import { startMockServiceWorker, stopMockServiceWorker } from '../mocks/setup.js';
+import { startMockServiceWorker, stopMockServiceWorker, worker } from '../mocks/setup.js';
+import { serverErrorHandlers } from '../mocks/handlers.js';
 import type { SchemaMappingDto } from '../api/types.js';
 import { SchemeWeaverMappingChangedEvent } from '../utils/mapping-changed-event.js';
 import './schema-mapping-view.element.js';
@@ -622,13 +623,81 @@ describe('SchemaMappingViewElement', () => {
       // Simulate the entity action having changed the type behind the view.
       await restoreMapping({ ...articleFixture(), schemaTypeName: 'FAQPage', propertyMappings: [] });
       actionEvents.dispatchEvent(new SchemeWeaverMappingChangedEvent(BLOG_ARTICLE_KEY));
-      await aTimeout(50);
+      // Condition-based: the re-read is several awaited round-trips, and a fixed
+      // delay is too tight when the suite runs files in parallel.
+      await waitUntil(() => el._mapping?.schemaTypeName === 'FAQPage', 're-read should land');
       await el.updateComplete;
 
       expect(el._mapping.schemaTypeName, 'the view should have re-read the changed mapping').to.equal('FAQPage');
       const persisted = await (await fetch(`${BASE}/mappings/blogArticle`)).json();
       expect(persisted.schemaTypeName, 'the view must not write its stale state back').to.equal('FAQPage');
       expect(persisted.propertyMappings).to.be.empty;
+    });
+
+    // A `unique` arrives in whatever casing its source used, and the workspace
+    // context and an entity action's args need not agree. An exact comparison
+    // would silently stop the tab refreshing after a change made elsewhere.
+    it('matches the announced key case-insensitively', async () => {
+      const actionEvents = new EventTarget();
+      __mockContextRegistry.provide(UMB_ACTION_EVENT_CONTEXT, actionEvents);
+      stubModalManager({});
+      const el = await mountMapped();
+
+      await restoreMapping({ ...articleFixture(), schemaTypeName: 'FAQPage', propertyMappings: [] });
+      actionEvents.dispatchEvent(new SchemeWeaverMappingChangedEvent(BLOG_ARTICLE_KEY.toUpperCase()));
+      await waitUntil(() => el._mapping?.schemaTypeName === 'FAQPage', 're-read should land');
+      await el.updateComplete;
+
+      expect(el._mapping.schemaTypeName).to.equal('FAQPage');
+    });
+
+    // The action event context lives at the backoffice root and outlives every
+    // view, so a view that forgot to unsubscribe would keep reacting — and the
+    // sibling reload listener reacts by SAVING.
+    it('stops listening once destroyed', async () => {
+      const actionEvents = new EventTarget();
+      __mockContextRegistry.provide(UMB_ACTION_EVENT_CONTEXT, actionEvents);
+      stubModalManager({});
+      const el = await mountMapped();
+
+      el.destroy();
+
+      await restoreMapping({ ...articleFixture(), schemaTypeName: 'FAQPage', propertyMappings: [] });
+      actionEvents.dispatchEvent(new SchemeWeaverMappingChangedEvent(BLOG_ARTICLE_KEY));
+      // Negative assertion, so a fixed (generous) wait is the honest shape here.
+      await aTimeout(300);
+
+      expect(el._mapping.schemaTypeName, 'a destroyed view must not react').to.equal('Article');
+    });
+
+    it('ignores a second change request while one is already in flight', async () => {
+      const opened = stubModalManager({ schemaType: 'BlogPosting', confirm: true });
+      const el = await mountMapped();
+
+      await Promise.all([el._handleChangeSchemaType(), el._handleChangeSchemaType()]);
+      await el.updateComplete;
+
+      // One picker, one confirmation — the second click found the flow busy.
+      expect(opened).to.have.lengthOf(2);
+      expect(el._mapping.schemaTypeName).to.equal('BlogPosting');
+    });
+
+    // The flow mutates state optimistically before saving, and _handleSave
+    // swallows its own error — so without a re-read the badge would advertise a
+    // type the database never accepted, which the next document type save would
+    // then quietly persist.
+    it('re-reads when the save fails, instead of showing an unpersisted type', async () => {
+      stubModalManager({ schemaType: 'BlogPosting', confirm: true });
+      const el = await mountMapped();
+
+      worker.use(...serverErrorHandlers.filter((h) => (h as any).info?.method === 'POST'));
+      await el._handleChangeSchemaType();
+      await el.updateComplete;
+      worker.resetHandlers();
+
+      expect(el._mapping.schemaTypeName, 'the view must fall back to what is stored').to.equal('Article');
+      const persisted = await (await fetch(`${BASE}/mappings/blogArticle`)).json();
+      expect(persisted.schemaTypeName).to.equal('Article');
     });
   });
 });
