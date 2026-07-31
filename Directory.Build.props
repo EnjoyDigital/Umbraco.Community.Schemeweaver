@@ -48,9 +48,9 @@
          version installed for local/manual Deploy testing. -->
     <SchemeWeaverUmbracoDeployRange>[17.0.0, 18.0.0)</SchemeWeaverUmbracoDeployRange>
     <SchemeWeaverUmbracoDeployHost>17.2.1</SchemeWeaverUmbracoDeployHost>
-    <!-- Major-aligned stable package version for the Umbraco 17 line. 17.12.0 promotes
-         the Deploy satellite out of prerelease (beta.1/beta.2) alongside it. -->
-    <SchemeWeaverPackageVersion>17.12.0</SchemeWeaverPackageVersion>
+    <!-- Major-aligned stable package version for the Umbraco 17 line. 17.13.0 adds
+         changing an existing mapping's Schema.org type (issue #41). -->
+    <SchemeWeaverPackageVersion>17.13.0</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -67,7 +67,7 @@
     <!-- Major-aligned stable package version for the Umbraco 18 line. Its
          [18.0.0, 19.0.0) Umbraco.Cms range is mutually exclusive with the 17 leg's
          [17.4.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->
-    <SchemeWeaverPackageVersion>18.7.0</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>18.8.0</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>
