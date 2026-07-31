@@ -34,6 +34,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
   #modalManagerContext?: typeof UMB_MODAL_MANAGER_CONTEXT.TYPE;
   #actionEventContext?: typeof UMB_ACTION_EVENT_CONTEXT.TYPE;
 
+  /** Monotonic counter identifying the newest _fetchMapping run (see there). */
+  #fetchToken = 0;
+
   @state()
   private _loading = true;
 
@@ -172,15 +175,23 @@ export class SchemaMappingViewElement extends UmbLitElement {
   }
 
   private async _fetchMapping() {
+    // A fetch is several awaited round-trips, and the triggers are independent
+    // (the alias observer, a save, an announcement from an entity action). Only
+    // the newest run may touch state: otherwise a slow earlier response lands
+    // last and overwrites the newer one, and whichever finishes first clears the
+    // loading flag while another is still in flight.
+    const token = ++this.#fetchToken;
+    const superseded = () => token !== this.#fetchToken;
+
     this._loading = true;
 
     try {
       const mapping = await this.#context?.requestMapping(this._contentTypeAlias);
+      if (superseded()) return;
 
       if (!mapping) {
         this._mapping = null;
         this._rows = [];
-        this._loading = false;
         return;
       }
 
@@ -190,6 +201,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       // Enrich rows with schema property info (acceptedTypes, isComplexType, recommendation rank).
       // ranked=true gives confidence/isPopular so the table orders recommended properties first.
       const schemaProps = await this.#context?.requestSchemaTypeProperties(mapping.schemaTypeName, true);
+      if (superseded()) return;
       if (schemaProps) {
         this._allSchemaProperties = schemaProps;
         this._rows = this._rows.map(row => {
@@ -233,6 +245,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
       this._rows = applyWarningsToRows(this._rows, mapping.warnings);
 
       const props = await this.#context?.requestContentTypeProperties(this._contentTypeAlias);
+      if (superseded()) return;
       if (props) {
         this._availableProperties = props.map((p: ContentTypeProperty) => p.alias);
         // Enrich rows with each property's editor alias — dtoToRow can't know it,
@@ -263,6 +276,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
           })
         );
         const contentTypesForPicked = await this.#context?.requestContentTypes();
+        if (superseded()) return;
         this._rows = this._rows.map((row) => {
           if (row.pickedContentTypeAlias && pickedPropsMap.has(row.pickedContentTypeAlias)) {
             const ctMatch = contentTypesForPicked?.find((ct) => ct.alias === row.pickedContentTypeAlias);
@@ -296,6 +310,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
         // Fetch content types to reconstruct sourceDocumentTypeUnique from alias
         const contentTypes = await this.#context?.requestContentTypes();
+        if (superseded()) return;
 
         this._rows = this._rows.map((row) => {
           if (row.sourceContentTypeAlias && sourcePropsMap.has(row.sourceContentTypeAlias)) {
@@ -316,7 +331,8 @@ export class SchemaMappingViewElement extends UmbLitElement {
         },
       });
     } finally {
-      this._loading = false;
+      // A superseded run must not clear the flag out from under the newer one.
+      if (!superseded()) this._loading = false;
     }
   }
 
@@ -742,7 +758,9 @@ export class SchemaMappingViewElement extends UmbLitElement {
 
     return html`
       <uui-box headline=${this.localize.term('schemeWeaver_schemaType')}>
-        <umb-property-layout label=${this.localize.term('schemeWeaver_schemaType')}>
+        <umb-property-layout
+          label=${this.localize.term('schemeWeaver_schemaType')}
+          description=${this.localize.term('schemeWeaver_changeSchemaTypeHint')}>
           <div id="schema-type-badge" slot="editor" data-mark="schemeweaver:schema-type-badge">
             <uui-tag color="primary" look="primary">${this._mapping.schemaTypeName}</uui-tag>
             <code>${this._mapping.contentTypeAlias}</code>
@@ -750,7 +768,6 @@ export class SchemaMappingViewElement extends UmbLitElement {
               look="outline"
               compact
               label=${this.localize.term('schemeWeaver_changeSchemaType')}
-              title=${this.localize.term('schemeWeaver_changeSchemaTypeHint')}
               data-mark="schemeweaver:change-schema-type"
               ?disabled=${this._changingSchemaType}
               @click=${this._handleChangeSchemaType}>

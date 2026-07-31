@@ -5,6 +5,11 @@ import { playwrightLauncher } from '@web/test-runner-playwright';
 export default {
   rootDir: '.',
   files: ['./src/**/*.test.ts'],
+  // Same headroom as web-test-runner.config.mjs: the modal specs load most of the
+  // component graph and sit close to the default 120s budget, so any growth tips
+  // whole files into "did not finish" with zero real failures — which surfaces as
+  // "Error while running tests" and silently drops that file's tests from the count.
+  testsFinishTimeout: 300000,
   nodeResolve: { exportConditions: ['development'], preferBuiltins: false, browser: true },
   browsers: [playwrightLauncher({ product: 'chromium' })],
   plugins: [

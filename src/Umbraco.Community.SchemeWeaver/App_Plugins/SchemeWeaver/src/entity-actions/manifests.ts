@@ -1,6 +1,19 @@
-import type { ManifestEntityAction } from '@umbraco-cms/backoffice/entity-action';
+// Alias duplicated rather than imported from the condition module: manifests are
+// eagerly evaluated at registration, and importing it here would pull the
+// condition (and the whole context graph behind it) into the initial bundle.
+const HAS_MAPPING_CONDITION = 'SchemeWeaver.Condition.HasMapping';
 
-export const manifests: ManifestEntityAction[] = [
+export const manifests: Array<UmbExtensionManifest> = [
+  {
+    type: 'condition',
+    name: 'SchemeWeaver Has Mapping Condition',
+    alias: HAS_MAPPING_CONDITION,
+    api: () => import('./has-mapping.condition.js'),
+  },
+  // Two entries over one dual-purpose item: on an unmapped document type this
+  // starts a mapping, on a mapped one it changes the type — different enough
+  // jobs that they deserve their own labels, matching the wording of the dialog
+  // each one opens.
   {
     type: 'entityAction',
     kind: 'default',
@@ -13,6 +26,21 @@ export const manifests: ManifestEntityAction[] = [
       label: '#schemeWeaver_mapToSchema',
     },
     forEntityTypes: ['document-type'],
+    conditions: [{ alias: HAS_MAPPING_CONDITION, match: false }],
+  },
+  {
+    type: 'entityAction',
+    kind: 'default',
+    alias: 'SchemeWeaver.EntityAction.ChangeSchemaType',
+    name: 'Change Schema.org Type',
+    weight: 300,
+    api: () => import('./map-to-schema.action.js'),
+    meta: {
+      icon: 'icon-brackets',
+      label: '#schemeWeaver_changeSchemaType',
+    },
+    forEntityTypes: ['document-type'],
+    conditions: [{ alias: HAS_MAPPING_CONDITION, match: true }],
   },
   {
     type: 'entityAction',

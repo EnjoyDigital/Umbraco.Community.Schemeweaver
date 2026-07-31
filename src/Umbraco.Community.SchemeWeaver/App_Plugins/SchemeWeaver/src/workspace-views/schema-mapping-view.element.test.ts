@@ -699,5 +699,24 @@ describe('SchemaMappingViewElement', () => {
       const persisted = await (await fetch(`${BASE}/mappings/blogArticle`)).json();
       expect(persisted.schemaTypeName).to.equal('Article');
     });
+
+    // The triggers for a re-read are independent (alias observer, save, an
+    // announcement from an entity action), so two can overlap. Only the newest
+    // may touch state — otherwise a slow earlier response lands last and
+    // overwrites the newer one.
+    it('lets only the newest re-read touch state', async () => {
+      stubModalManager({});
+      const el = await mountMapped();
+
+      // Start a fetch, then supersede it before it can finish.
+      const stale = el._fetchMapping();
+      await restoreMapping({ ...articleFixture(), schemaTypeName: 'FAQPage', propertyMappings: [] });
+      const fresh = el._fetchMapping();
+      await Promise.all([stale, fresh]);
+      await el.updateComplete;
+
+      expect(el._mapping.schemaTypeName, 'the superseded run must not win').to.equal('FAQPage');
+      expect(el._loading, 'the superseded run must not clear loading either').to.be.false;
+    });
   });
 });
