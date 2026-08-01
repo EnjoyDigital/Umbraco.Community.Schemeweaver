@@ -35,19 +35,19 @@ jobs:
         # One source tree, packed per Umbraco major (see Directory.Build.props).
         umbraco: ['17', '18']
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # No version-from-tag step: each leg packs at $(SchemeWeaverPackageVersion)
       # from Directory.Build.props (17.x for the 17 leg, 18.x for the 18 leg). The
       # tag/dispatch input is only the trigger and the GitHub-release name.
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -103,7 +103,7 @@ jobs:
         run: dotnet pack src/Umbraco.Community.SchemeWeaver.AI/Umbraco.Community.SchemeWeaver.AI.csproj --configuration Release -p:UmbracoMajor=17 --output ./artifacts
 
       - name: Upload NuGet package
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-package-umbraco${{ matrix.umbraco }}
           path: ./artifacts/*.nupkg
@@ -139,7 +139,7 @@ jobs:
       # notes via `gh release edit` before considering the release shipped.
       - name: Create GitHub release (Umbraco ${{ matrix.umbraco }})
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.ver.outputs.version }}
           name: v${{ steps.ver.outputs.version }}
