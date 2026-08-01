@@ -71,9 +71,12 @@ jobs:
       # dist/index.js is committed and is what the Claude Code plugin runs, so a
       # PR that changes the bundle must ship the rebuilt file. Fail loudly rather
       # than let main drift from what `npm run build` actually produces.
+      # core.fileMode=false because tsup sets the executable bit on the bin entry,
+      # which git reports as a change even when the bytes are identical — the
+      # first run of this job failed on exactly that (0 insertions, 0 deletions).
       - name: Verify committed dist/index.js is up to date
         run: |
-          if ! git diff --quiet -- dist/index.js; then
+          if ! git -c core.fileMode=false diff --quiet -- dist/index.js; then
             echo "::error::dist/index.js is stale — run 'npm run build' in src/Umbraco.Community.SchemeWeaver.Mcp and commit the result."
             git diff --stat -- dist/index.js
             exit 1
