@@ -22,7 +22,7 @@
     "watch": "tsup --config tsup.config.ts --watch",
     "generate": "node scripts/extract-openapi.mjs && orval --config orval.config.ts",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=__tests__ --runInBand"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPatterns=__tests__ --runInBand"
   },
   "engines": {
     "node": ">=22.0.0"
