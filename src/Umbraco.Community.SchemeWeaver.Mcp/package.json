@@ -58,7 +58,7 @@
     "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
     "tsup": "^8.4.0",
-    "undici": "^7.28.0",
+    "undici": "^8.9.0",
     "typescript": "^5.8.3"
   },
   "overrides": {
