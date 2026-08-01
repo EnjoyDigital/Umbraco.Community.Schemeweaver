@@ -49,6 +49,13 @@ updates:
       # the workflows move to a newer node-version.
       - dependency-name: '@types/node'
         versions: ['>=23']
+      # TypeScript 7 is the Go-port native rewrite, tagged `latest` from 7.0.0.
+      # Adopting it is a deliberate migration, not a routine bump — this project
+      # leans on decorators and Lit, and CI would not even catch a break here
+      # (the frontend compiles via vite/esbuild, not tsc). Lift when the
+      # ecosystem has settled and we choose to move.
+      - dependency-name: 'typescript'
+        versions: ['>=6']
 
   # MCP server. Its dependencies are the only ones that reach a shipped runtime
   # artefact (dist/index.js is committed and run by the Claude Code plugin), so
@@ -74,6 +81,9 @@ updates:
       # engines.node is >=22.0.0 and CI runs 22 — see the frontend block.
       - dependency-name: '@types/node'
         versions: ['>=23']
+      # See the frontend block — TypeScript 7 is a deliberate migration.
+      - dependency-name: 'typescript'
+        versions: ['>=6']
 
   # AI satellite frontend (Umbraco 17-only, prerelease).
   - package-ecosystem: npm
@@ -96,6 +106,9 @@ updates:
       # See the frontend block — types track the Node major CI runs.
       - dependency-name: '@types/node'
         versions: ['>=23']
+      # See the frontend block — TypeScript 7 is a deliberate migration.
+      - dependency-name: 'typescript'
+        versions: ['>=6']
 
   # Workflow actions (actions/checkout, setup-node, setup-dotnet, ...).
   - package-ecosystem: github-actions
