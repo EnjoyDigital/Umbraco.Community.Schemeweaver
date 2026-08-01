@@ -19,7 +19,7 @@
   "license": "MIT",
   "devDependencies": {
     "@umbraco-cms/backoffice": "18.0.0",
-    "@types/node": "^20.10.6",
+    "@types/node": "^22.20.1",
     "typescript": "^5.3.3",
     "vite": "^8.1.5"
   },
