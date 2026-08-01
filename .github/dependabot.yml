@@ -1,0 +1,93 @@
+# Dependabot version updates.
+#
+# Security alerts fire regardless of this file — they come from the repo's
+# Dependabot alerts setting. What this file adds is SCHEDULED, GROUPED version
+# updates, so routine bumps arrive as one PR per manifest per week instead of
+# the one-PR-per-package churn this repo saw through #28-#37.
+#
+# `ignore` here suppresses VERSION updates only; Dependabot still opens security
+# PRs for an ignored package.
+#
+# There is deliberately no `nuget` ecosystem. Every Umbraco / uSync / Deploy
+# version is an MSBuild property in Directory.Build.props
+# ($(SchemeWeaverUmbracoCmsRange), $(SchemeWeaverUSyncVersion), ...) selected by
+# the $(UmbracoMajor) 17/18 build matrix. Dependabot cannot resolve those, so a
+# nuget entry would either no-op or open PRs that break one leg of the matrix.
+# The only literal Version= in the shipped csproj is Schema.NET.Pending.
+version: 2
+updates:
+  # Main backoffice frontend — the one with test coverage (npm test / test:msw).
+  - package-ecosystem: npm
+    directory: /src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build(deps)
+      prefix-development: build(deps-dev)
+    groups:
+      frontend:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Pinned to the Umbraco major this package targets — bumping these is a
+      # deliberate, coordinated change, not a routine dependency update.
+      - dependency-name: '@umbraco-cms/backoffice'
+      - dependency-name: '@umbraco/*'
+
+  # MCP server. Its dependencies are the only ones that reach a shipped runtime
+  # artefact (dist/index.js is committed and run by the Claude Code plugin), so
+  # any merged PR here needs `npm run build` and the bundle re-committed.
+  - package-ecosystem: npm
+    directory: /src/Umbraco.Community.SchemeWeaver.Mcp
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build(deps)
+      prefix-development: build(deps-dev)
+    groups:
+      mcp:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Pinned prerelease — the server is written against this exact beta.
+      - dependency-name: '@umbraco-cms/mcp-server-sdk'
+
+  # AI satellite frontend (Umbraco 17-only, prerelease).
+  - package-ecosystem: npm
+    directory: /src/Umbraco.Community.SchemeWeaver.AI/App_Plugins/SchemeWeaverAI
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: build(deps)
+      prefix-development: build(deps-dev)
+    groups:
+      ai-frontend:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: '@umbraco-cms/backoffice'
+
+  # Workflow actions (actions/checkout, setup-node, setup-dotnet, ...).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: build(deps)
+    groups:
+      actions:
+        patterns:
+          - '*'
