@@ -25,7 +25,8 @@
   },
   "overrides": {
     "monaco-editor": {
-      "dompurify": "^3.4.8"
-    }
+      "dompurify": "^3.4.12"
+    },
+    "js-yaml": "^4.3.0"
   }
 }
