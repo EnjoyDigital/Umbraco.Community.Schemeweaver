@@ -8,6 +8,13 @@
 # `ignore` here suppresses VERSION updates only; Dependabot still opens security
 # PRs for an ignored package.
 #
+# Groups are scoped to minor+patch ON PURPOSE. Majors deliberately fall outside
+# the groups and get one PR each, because each one needs an individual call —
+# the first run proved it: @web/dev-server-esbuild 2.0.0 and orval 8 each let us
+# delete an npm override, while @types/node 26 had to be rejected outright for
+# overshooting the Node 22 runtime. Do not "fix" this by adding `major` to the
+# group update-types; a red group PR would then block unrelated bumps.
+#
 # There is deliberately no `nuget` ecosystem. Every Umbraco / uSync / Deploy
 # version is an MSBuild property in Directory.Build.props
 # ($(SchemeWeaverUmbracoCmsRange), $(SchemeWeaverUSyncVersion), ...) selected by
@@ -37,6 +44,11 @@ updates:
       # deliberate, coordinated change, not a routine dependency update.
       - dependency-name: '@umbraco-cms/backoffice'
       - dependency-name: '@umbraco/*'
+      # Track the Node major CI actually runs (22). Types ahead of the runtime
+      # describe APIs that do not exist at execution time. Raise this cap when
+      # the workflows move to a newer node-version.
+      - dependency-name: '@types/node'
+        versions: ['>=23']
 
   # MCP server. Its dependencies are the only ones that reach a shipped runtime
   # artefact (dist/index.js is committed and run by the Claude Code plugin), so
@@ -59,6 +71,9 @@ updates:
     ignore:
       # Pinned prerelease — the server is written against this exact beta.
       - dependency-name: '@umbraco-cms/mcp-server-sdk'
+      # engines.node is >=22.0.0 and CI runs 22 — see the frontend block.
+      - dependency-name: '@types/node'
+        versions: ['>=23']
 
   # AI satellite frontend (Umbraco 17-only, prerelease).
   - package-ecosystem: npm
@@ -78,6 +93,9 @@ updates:
           - patch
     ignore:
       - dependency-name: '@umbraco-cms/backoffice'
+      # See the frontend block — types track the Node major CI runs.
+      - dependency-name: '@types/node'
+        versions: ['>=23']
 
   # Workflow actions (actions/checkout, setup-node, setup-dotnet, ...).
   - package-ecosystem: github-actions
