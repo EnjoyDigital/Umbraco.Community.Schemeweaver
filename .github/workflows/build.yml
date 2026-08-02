@@ -143,6 +143,19 @@ jobs:
           name: dotnet-test-results-umbraco${{ matrix.umbraco }}
           path: '**/TestResults/*.trx'
 
+      # The integration flake surfaces only as "expected OK but found 500" —
+      # HandlesServerErrorAttribute returns a frozen, information-free body by design, so
+      # the assertion alone cannot say what the server actually threw. The real exception
+      # goes to the test host's Serilog file, which was never leaving the runner. Without
+      # this, a CI-only occurrence is undiagnosable. CLEF format: filter on @l / @x.
+      - name: Upload Umbraco host logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: umbraco-host-logs-umbraco${{ matrix.umbraco }}
+          path: src/Umbraco.Community.SchemeWeaver.TestHost/umbraco/Logs/*.json
+          if-no-files-found: warn
+
       - name: Pack (SchemeWeaver + uSync + Deploy addons)
         run: |
           dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts

@@ -90,13 +90,22 @@ public class DeployDiskRoundTripTests : UmbracoIntegrationTestBase
 
         var response = await Client.PostAsJsonAsync($"{BaseRoute}/mappings", dto);
 
-        // Surface the response body on failure. A bare "expected OK but found 500" is
-        // unactionable on CI, where this assertion is the only artefact of the failure.
-        var body = await response.Content.ReadAsStringAsync();
-        response.StatusCode.Should().Be(
-            HttpStatusCode.OK,
-            "saving the mapping should succeed; server said: {0}",
-            body);
+        // Surface both the response body and the server-side exception on failure.
+        // HandlesServerErrorAttribute returns a frozen, information-free body, so on CI
+        // this assertion used to be the only artefact and carried nothing actionable —
+        // see UmbracoLogTail.
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            var serverErrors = UmbracoLogTail.RecentServerErrors(TimeSpan.FromMinutes(2));
+
+            response.StatusCode.Should().Be(
+                HttpStatusCode.OK,
+                "saving the mapping should succeed.{0}Response body: {1}{0}Server logged:{2}",
+                Environment.NewLine,
+                body,
+                serverErrors.Length > 0 ? serverErrors : " (nothing found in the host log)");
+        }
     }
 
     private string UdaPath(Guid contentTypeKey)
