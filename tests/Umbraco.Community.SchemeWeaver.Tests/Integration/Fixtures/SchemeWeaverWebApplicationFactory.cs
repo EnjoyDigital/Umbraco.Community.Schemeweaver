@@ -42,9 +42,9 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>,
 
     /// <summary>
     /// Holds the SQLite shared cache alive for the lifetime of the fixture. See
-    /// <see cref="InitializeAsync"/> for why this exists.
+    /// <see cref="SqliteSharedCacheAnchor"/> for why this is necessary.
     /// </summary>
-    private Microsoft.Data.Sqlite.SqliteConnection? _sharedCacheAnchor;
+    private SqliteSharedCacheAnchor? _sharedCacheAnchor;
 
     public SchemeWeaverWebApplicationFactory()
     {
@@ -155,7 +155,7 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>,
                 using var response = await client.GetAsync(WarmUpRoute);
                 if (response.IsSuccessStatusCode)
                 {
-                    AnchorSharedCache();
+                    _sharedCacheAnchor = SqliteSharedCacheAnchor.Open(_databasePath);
                     return;
                 }
 
@@ -176,44 +176,6 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>,
     }
 
     /// <summary>
-    /// Opens one connection and holds it for the fixture's lifetime, purely to pin the
-    /// SQLite shared cache.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// With <c>Cache=Shared</c> and <c>Pooling=False</c>, the shared cache exists only
-    /// while at least one connection to that path is open. Umbraco opens and closes
-    /// connections constantly (per NPoco scope, plus background jobs), so the count
-    /// repeatedly hits zero and the native shared-cache structure is torn down and
-    /// rebuilt underneath threads that are still working against it. That is what
-    /// produced the two intermittent failures — both surfacing as an unrelated test
-    /// getting a bare 500 out of a perfectly ordinary save:
-    /// </para>
-    /// <list type="bullet">
-    ///   <item><description><c>ArgumentOutOfRangeException</c> from
-    ///   <c>sqlite3_prepare_v2</c> — use-after-free on the destroyed shared handle.</description></item>
-    ///   <item><description><c>SQLite Error 8: 'attempt to write a readonly database'</c>
-    ///   — on a file that is perfectly writable; the rebuilt cache had lost its
-    ///   write lock state.</description></item>
-    /// </list>
-    /// <para>
-    /// Keeping one connection open means the count never reaches zero, so the shared
-    /// cache is created once and lives until the fixture is disposed. Anchoring AFTER
-    /// warm-up is deliberate: Umbraco's unattended install must create the database
-    /// first, and we must not hold a handle across that.
-    /// </para>
-    /// <para>
-    /// Removing <c>Cache=Shared</c> instead was measured and is much worse — see the
-    /// connection-string comment.
-    /// </para>
-    /// </remarks>
-    private void AnchorSharedCache()
-    {
-        _sharedCacheAnchor = new Microsoft.Data.Sqlite.SqliteConnection(
-            $"Data Source={_databasePath};Cache=Shared;Pooling=False");
-        _sharedCacheAnchor.Open();
-    }
-
     Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     protected override void Dispose(bool disposing)
@@ -229,7 +191,6 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>,
         // open handle keeps the database file locked on Windows.
         _sharedCacheAnchor?.Dispose();
         _sharedCacheAnchor = null;
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
         // Best-effort cleanup of the temp data directory. Umbraco may still hold
         // open handles for a moment after Dispose, so we swallow IO exceptions.

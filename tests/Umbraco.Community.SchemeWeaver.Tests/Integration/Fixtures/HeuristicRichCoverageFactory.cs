@@ -14,9 +14,19 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Integration.Fixtures;
 /// needs the real content-type schema to map against. Only the schema is needed (not the published
 /// content tree), so the gate polls <c>IContentTypeService</c> rather than the content cache.
 /// </summary>
-public class HeuristicRichCoverageFactory : WebApplicationFactory<Program>
+public class HeuristicRichCoverageFactory : WebApplicationFactory<Program>, Xunit.IAsyncLifetime
 {
     private readonly string _dataDirectory;
+    private readonly string _databasePath;
+
+    /// <summary>
+    /// Pins the SQLite shared cache for the fixture's lifetime — see
+    /// <see cref="SqliteSharedCacheAnchor"/>. This factory uses
+    /// <c>Cache=Shared;Pooling=False</c>, the same combination that made the Deploy
+    /// suite flake, and without the anchor this gate intermittently failed with
+    /// <c>SQLite Error 6: 'database table is locked'</c> and took 11-21 minutes.
+    /// </summary>
+    private SqliteSharedCacheAnchor? _sharedCacheAnchor;
 
     public HeuristicRichCoverageFactory()
     {
@@ -24,7 +34,24 @@ public class HeuristicRichCoverageFactory : WebApplicationFactory<Program>
             Path.GetTempPath(),
             $"schemeweaver-heuristic-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_dataDirectory);
+
+        _databasePath = Path.Join(_dataDirectory, "Umbraco.sqlite.db");
     }
+
+    /// <summary>
+    /// Boots the host, then anchors the shared cache. The anchor must come after boot:
+    /// Umbraco's unattended install has to create the database first.
+    /// </summary>
+    public Task InitializeAsync()
+    {
+        // Forces the host to build and the unattended install to run.
+        CreateClient().Dispose();
+
+        _sharedCacheAnchor = SqliteSharedCacheAnchor.Open(_databasePath);
+        return Task.CompletedTask;
+    }
+
+    Task Xunit.IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -32,12 +59,11 @@ public class HeuristicRichCoverageFactory : WebApplicationFactory<Program>
 
         builder.ConfigureAppConfiguration((context, config) =>
         {
-            var dbPath = Path.Join(_dataDirectory, "Umbraco.sqlite.db");
-
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
+                // Cache=Shared needs something holding it open — see the anchor field.
                 ["ConnectionStrings:umbracoDbDSN"] =
-                    $"Data Source={dbPath};Cache=Shared;Foreign Keys=True;Pooling=False",
+                    $"Data Source={_databasePath};Cache=Shared;Foreign Keys=True;Pooling=False",
                 ["ConnectionStrings:umbracoDbDSN_ProviderName"] = "Microsoft.Data.Sqlite",
                 ["Umbraco:CMS:Unattended:InstallUnattended"] = "true",
                 ["Umbraco:CMS:Unattended:UnattendedUserName"] = "Heuristic Runner",
@@ -63,6 +89,11 @@ public class HeuristicRichCoverageFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (!disposing) return;
+
+        // Release before deleting the data directory, or the open handle keeps the
+        // database file locked on Windows.
+        _sharedCacheAnchor?.Dispose();
+        _sharedCacheAnchor = null;
 
         try
         {
