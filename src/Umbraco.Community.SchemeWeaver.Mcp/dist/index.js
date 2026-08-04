@@ -31359,7 +31359,7 @@ var EMPTY_COMPLETION_RESULT = {
 
 // package.json
 var package_default = {
-  version: "1.5.0"};
+  version: "1.5.1"};
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var STDIO_DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
