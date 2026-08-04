@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
@@ -17,6 +17,28 @@ internal sealed class PickedItemConfig
 {
     public string? PickedPropertyAlias { get; set; }
     public string? PickedContentTypeAlias { get; set; }
+
+    /// <summary>
+    /// Whole-item nesting type for a picker used as a complexType SUB-ROW. A top-level row carries
+    /// this in the <c>PropertyMapping.NestedSchemaTypeName</c> column, but a
+    /// <c>ComplexTypeMappingEntry</c> has no such column — and a new sibling field on the entry would
+    /// be silently stripped by the backoffice complex-type modal on every re-save, which rebuilds
+    /// each entry from a fixed key whitelist. <c>ResolverConfig</c> is round-tripped verbatim, so the
+    /// type name travels inside it and is hoisted onto the synthetic mapping by
+    /// <c>JsonLdGenerator.ResolveComplexTypePropertyValue</c>.
+    /// </summary>
+    public string? NestedSchemaTypeName { get; set; }
+
+    /// <summary>
+    /// Per-usage inline object built FROM the picked node: the same config shape a
+    /// <c>complexType</c> row carries, but its sub-rows read the picked node's properties rather
+    /// than the page's. Deliberately nested under its own key instead of hoisting
+    /// <c>complexTypeMappings</c> to the top level — that key already means "resolve against THIS
+    /// node" for complexType/blockContent rows, and reusing it would let a source-type switch carry
+    /// the object onto a row that silently re-bases it to the page (the very confusion
+    /// <c>applySourceTypeChange</c>'s config guard exists to prevent). The key names the base node.
+    /// </summary>
+    public ComplexTypeConfigModel? PickedComplexType { get; set; }
 }
 
 /// <summary>
@@ -28,10 +50,13 @@ internal sealed class PickedItemConfig
 ///      resolves that single property off the picked node through the resolver
 ///      pipeline (returns null, never the node name, when it yields nothing:
 ///      an explicit drill-down should not silently emit unrelated data).
-///   2. Whole-item nesting — <c>Mapping.NestedSchemaTypeName</c> plus a saved
+///   2. Per-usage object — a configured <see cref="PickedItemConfig.PickedComplexType"/>
+///      builds a Thing from this row's own sub-mappings, resolved against the picked
+///      node (returns null, never the node name, when it yields nothing).
+///   3. Whole-item nesting — <c>Mapping.NestedSchemaTypeName</c> plus a saved
 ///      SchemaMapping on the picked node's own content type renders the node as
 ///      a nested Thing.
-///   3. Fallback — the picked node's Name.
+///   4. Fallback — the picked node's Name.
 /// </summary>
 internal static class PickedContentResolver
 {
@@ -64,6 +89,19 @@ internal static class PickedContentResolver
     {
         if (!string.IsNullOrWhiteSpace(config?.PickedPropertyAlias))
             return ResolvePickedProperty(pickedContent, config.PickedPropertyAlias, context);
+
+        if (config?.PickedComplexType?.ComplexTypeMappings is { Count: > 0 })
+        {
+            var customObject = BuildPickedComplexType(pickedContent, context, config.PickedComplexType);
+            if (customObject is not null)
+                return customObject;
+
+            // An explicitly configured per-usage object that resolved nothing must NOT degrade to
+            // the node's name: the editor chose an object shape for this property, and substituting
+            // a bare string would either be dropped by the setter or auto-wrapped into a fabricated
+            // Thing. Same reasoning as the drill rung above.
+            return null;
+        }
 
         if (!string.IsNullOrEmpty(context.Mapping.NestedSchemaTypeName)
             && context.RecursionDepth < context.MaxRecursionDepth
@@ -116,6 +154,35 @@ internal static class PickedContentResolver
         var childContext = CreateChildContext(pickedContent, propertyAlias, publishedProperty, context);
 
         return resolver.Resolve(childContext);
+    }
+
+    /// <summary>
+    /// Per-usage inline object: builds a Schema.org Thing from this row's own sub-mappings, resolved
+    /// against the PICKED node. Unlike whole-item nesting the picked type needs no saved mapping of
+    /// its own, so the same picked type can be shaped differently per usage.
+    ///
+    /// The visited chain is extended with the HOST node before handing off; the builder checks and
+    /// then adds the picked node itself. That is what makes A-picks-B-picks-A terminate: B's object
+    /// sees A already in the chain and degrades to A's name instead of recursing.
+    /// </summary>
+    private static Thing? BuildPickedComplexType(
+        IPublishedContent pickedContent, PropertyResolverContext context, ComplexTypeConfigModel config)
+    {
+        if (context.ComplexTypeBuilder is null)
+            return null; // legacy/test path without the builder — degrade, never throw
+
+        var typeName = !string.IsNullOrWhiteSpace(context.Mapping.NestedSchemaTypeName)
+            ? context.Mapping.NestedSchemaTypeName!
+            : config.SelectedSubType;
+
+        if (string.IsNullOrWhiteSpace(typeName))
+            return null;
+
+        var visited = new HashSet<Guid>(context.VisitedContentKeys) { context.Content.Key };
+
+        return context.ComplexTypeBuilder.BuildFromConfig(
+            typeName, config, pickedContent, context.Culture,
+            context.RecursionDepth + 1, visited);
     }
 
     /// <summary>
@@ -181,7 +248,13 @@ internal static class PickedContentResolver
             }
         }
 
-        return instance;
+        // Empty-shell guard, matching complexType (JsonLdGenerator.ResolveComplexTypeFromConfig) and
+        // blockContent (BlockContentResolver.MapBlockToThing): when the picked type's mapping landed
+        // nothing — no saved rows resolved, or every set was dropped because the outer row's
+        // NestedSchemaTypeName disagrees with the picked type's own schema type — a {"@type":"Person"}
+        // shell is invalid structured data. Returning null lets ResolveItem fall through to the
+        // picked node's name, which is at least true.
+        return SchemaPropertySetter.HasResolvedProperty(instance) ? instance : null;
     }
 
     /// <summary>
@@ -210,6 +283,7 @@ internal static class PickedContentResolver
             MappingRepository = context.MappingRepository,
             HttpContextAccessor = context.HttpContextAccessor,
             ResolverFactory = context.ResolverFactory,
+            ComplexTypeBuilder = context.ComplexTypeBuilder,
             Property = publishedProperty,
             RecursionDepth = context.RecursionDepth + 1,
             MaxRecursionDepth = context.MaxRecursionDepth,

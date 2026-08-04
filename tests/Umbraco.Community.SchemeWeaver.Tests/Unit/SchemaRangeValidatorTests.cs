@@ -566,4 +566,125 @@ public class SchemaRangeValidatorTests
 
         _sut.Validate(dto).Should().BeEmpty();
     }
+
+    // --- Picked-item objects and unconfigured picker sub-rows (issue #40) ---
+
+    [Fact]
+    public void PickerSubRow_NoConfig_NonTextSubProperty_Warns()
+    {
+        // THE #40 DEFECT made legible: Organization.Logo reading a content picker with no
+        // picked-item config renders the picked node's NAME, which the setter then coerces into
+        // a relative URL — "logo":"Jane Doe". Nothing else in the validator catches this.
+        var contentTypeService = ContentTypeServiceWith("article",
+            ("authorNode", "Umbraco.ContentPicker"));
+        var sut = CreateValidator(contentTypeService);
+
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Publisher",
+            SourceType = "complexType",
+            NestedSchemaTypeName = "Organization",
+            ResolverConfig =
+                """{"complexTypeMappings":[{"schemaProperty":"Logo","sourceType":"property","contentTypePropertyAlias":"authorNode"}]}"""
+        });
+
+        sut.Validate(dto).Should().ContainSingle()
+            .Which.Message.Should().Contain("no picked-item configuration");
+    }
+
+    [Fact]
+    public void PickerSubRow_NoConfig_TextSubProperty_Silent()
+    {
+        // Organization.Name legitimately accepts the picked node's name — warning here would be
+        // a false positive on a perfectly reasonable mapping.
+        var contentTypeService = ContentTypeServiceWith("article",
+            ("authorNode", "Umbraco.ContentPicker"));
+        var sut = CreateValidator(contentTypeService);
+
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Publisher",
+            SourceType = "complexType",
+            NestedSchemaTypeName = "Organization",
+            ResolverConfig =
+                """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"authorNode"}]}"""
+        });
+
+        sut.Validate(dto).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void PickerSubRow_WithDrillConfig_Silent()
+    {
+        var contentTypeService = ContentTypeServiceWith("article",
+            ("authorNode", "Umbraco.ContentPicker"));
+        var sut = CreateValidator(contentTypeService);
+
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Publisher",
+            SourceType = "complexType",
+            NestedSchemaTypeName = "Organization",
+            ResolverConfig =
+                """{"complexTypeMappings":[{"schemaProperty":"Logo","sourceType":"property","contentTypePropertyAlias":"authorNode","resolverConfig":"{\"pickedPropertyAlias\":\"logo\"}"}]}"""
+        });
+
+        sut.Validate(dto).Should().BeEmpty("a configured drill resolves a real value, not the node name");
+    }
+
+    [Fact]
+    public void PickedObject_WithDrillConfigToo_WarnsThatDrillWins()
+    {
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Author",
+            SourceType = "property",
+            ContentTypePropertyAlias = "authorNode",
+            NestedSchemaTypeName = "Person",
+            ResolverConfig =
+                """{"pickedPropertyAlias":"fullName","pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"}]}}"""
+        });
+
+        _sut.Validate(dto).Should().ContainSingle()
+            .Which.Message.Should().Contain("Drill-down wins");
+    }
+
+    [Fact]
+    public void PickedObject_WithNoSchemaType_WarnsNothingWillBeEmitted()
+    {
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Author",
+            SourceType = "property",
+            ContentTypePropertyAlias = "authorNode",
+            ResolverConfig =
+                """{"pickedComplexType":{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"}]}}"""
+        });
+
+        _sut.Validate(dto).Should().ContainSingle()
+            .Which.Message.Should().Contain("no Schema.org type is set");
+    }
+
+    [Fact]
+    public void PickedObject_SubRowMediaCheck_ResolvesAgainstPickedContentType()
+    {
+        // The object's sub-rows read the PICKED type. Resolving 'portrait' against the page's
+        // own doc type would find nothing and pass silently — a false negative.
+        var contentTypeService = ContentTypeServiceWith("authorProfile",
+            ("portrait", "Umbraco.MediaPicker3"));
+        var sut = CreateValidator(contentTypeService);
+
+        var dto = Article(new PropertyMappingDto
+        {
+            SchemaPropertyName = "Author",
+            SourceType = "property",
+            ContentTypePropertyAlias = "authorNode",
+            NestedSchemaTypeName = "Person",
+            ResolverConfig =
+                """{"pickedContentTypeAlias":"authorProfile","pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"JobTitle","sourceType":"property","contentTypePropertyAlias":"portrait"}]}}"""
+        });
+
+        sut.Validate(dto).Should().ContainSingle()
+            .Which.Message.Should().Contain("portrait");
+    }
 }

@@ -635,4 +635,226 @@ describe('PropertyMappingTableElement', () => {
       expect(row.resolverConfig).to.equal(null);
     });
   });
+
+  // Issue #40 — the fourth picked-item mode: a per-usage inline object built
+  // from the picked node's own properties, configured in the stacked
+  // complex-type modal opened onto the RELATED content type.
+  describe('picked-item mode block (per-usage object)', () => {
+    const INNER = '{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"}]}';
+
+    const objectRow = (overrides: Partial<PropertyMappingRow> = {}): PropertyMappingRow => ({
+      schemaPropertyName: 'author', schemaPropertyType: 'Person', sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode', sourceContentTypeAlias: '', staticValue: '',
+      confidence: null, editorAlias: 'Umbraco.ContentPicker', nestedSchemaTypeName: '',
+      resolverConfig: null, acceptedTypes: ['Person'], isComplexType: true, expanded: false,
+      subMappings: [], selectedSubType: '', sourceContentTypeProperties: [], ...overrides,
+    });
+
+    it('offers four modes when the property accepts a non-primitive type', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow()]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      const select = el.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"] uui-select') as HTMLElement & { options: Array<{ value: string }> };
+      expect(select).to.exist;
+      expect(select.options.map((o) => o.value)).to.deep.equal(['name', 'wholeItem', 'pickedObject', 'property']);
+    });
+
+    it('hides the per-usage object option when every accepted type is primitive', async () => {
+      // 'String'/'Uri' are the spellings Schema.NET actually emits in acceptedTypes — the
+      // Schema.org tokens ('Text', 'URL') never reach the client, so a fixture using those
+      // would pass against a gate that filters the wrong vocabulary.
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({ acceptedTypes: ['String', 'Uri'] })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      const select = el.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"] uui-select') as HTMLElement & { options: Array<{ value: string }> };
+      expect(select.options.map((o) => o.value)).to.deep.equal(['name', 'wholeItem', 'property']);
+    });
+
+    it('seeds the object type from the first NON-primitive accepted type', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({ acceptedTypes: ['String', 'Organization'] })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      let changed: PropertyMappingRow[] = [];
+      el.addEventListener('mappings-changed', (e: Event) => { changed = (e as CustomEvent).detail.mappings; });
+
+      (el as unknown as { _handlePickerModeChange: (i: number, m: string) => void })._handlePickerModeChange(0, 'pickedObject');
+
+      // Seeding 'String' would hand the modal a type with no properties to map.
+      expect(changed[0].nestedSchemaTypeName).to.equal('Organization');
+    });
+
+    it('discards the configured object when the object type changes', async () => {
+      // The sub-rows name properties of the OLD type; keeping them would make the row, the
+      // modal and the rendered output disagree about which type this is.
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person',
+        pickedContentTypeAlias: 'authorProfile',
+        pickedComplexType: '{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"}]}',
+        resolverConfig: '{"pickedContentTypeAlias":"authorProfile","pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[]}}',
+        acceptedTypes: ['Person', 'Organization'],
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      let changed: PropertyMappingRow[] = [];
+      el.addEventListener('mappings-changed', (e: Event) => { changed = (e as CustomEvent).detail.mappings; });
+
+      (el as unknown as { _handlePickedObjectTypeChange: (i: number, v: string) => void })._handlePickedObjectTypeChange(0, 'Organization');
+
+      expect(changed[0].nestedSchemaTypeName).to.equal('Organization');
+      expect(changed[0].pickedComplexType).to.equal(undefined);
+      expect(changed[0].resolverConfig).to.equal(null);
+      expect(changed[0].pickedContentTypeAlias).to.equal('authorProfile', 'the picked doc type still applies');
+    });
+
+    // A per-usage object row ALSO sets nestedSchemaTypeName (the validator's
+    // range check reads it), so deriving the mode from that field first would
+    // reload the row as "Whole item" — and one touch of the select would wipe
+    // the configured object.
+    it('derives pickedObject mode even though nestedSchemaTypeName is set', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person',
+        pickedComplexType: INNER,
+        pickedContentTypeAlias: 'authorProfile',
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`) as any;
+      expect(el._pickerMode(el.mappings[0])).to.equal('pickedObject');
+      expect(el.shadowRoot!.querySelector('[data-mark="schemeweaver:configure-picked-object:author"]')).to.exist;
+    });
+
+    it('shows the configured check once an object is saved on the row', async () => {
+      const configured = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person', pickedComplexType: INNER, pickedContentTypeAlias: 'authorProfile',
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      expect(configured.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"] .configured-check')).to.exist;
+    });
+
+    it('disables the configure button with an explanatory title until a document type is picked', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({ nestedSchemaTypeName: 'Person', pickedComplexType: INNER })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      const button = el.shadowRoot!.querySelector('[data-mark="schemeweaver:configure-picked-object:author"]');
+      expect(button).to.exist;
+      expect(button!.hasAttribute('disabled')).to.be.true;
+      expect(button!.hasAttribute('title')).to.be.true;
+
+      const ready = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person', pickedComplexType: INNER, pickedContentTypeAlias: 'authorProfile',
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      const enabled = ready.shadowRoot!.querySelector('[data-mark="schemeweaver:configure-picked-object:author"]');
+      expect(enabled!.hasAttribute('disabled')).to.be.false;
+      expect(enabled!.hasAttribute('title')).to.be.false;
+    });
+
+    it('reuses the same document type picker the drill-down mode renders', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person', pickedComplexType: INNER, pickedContentTypeAlias: 'authorProfile',
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`);
+      expect(el.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"] umb-input-document-type')).to.exist;
+      expect(el.shadowRoot!.querySelector('[data-mark="schemeweaver:picker-mode"] schemeweaver-schema-type-input')).to.exist;
+    });
+
+    it('switching to pickedObject clears the drill alias but KEEPS the picked content type', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        pickedPropertyAlias: 'fullName',
+        pickedContentTypeAlias: 'authorProfile',
+        pickedContentTypeProperties: ['fullName', 'jobTitle', 'bio'],
+        resolverConfig: '{"pickedPropertyAlias":"fullName","pickedContentTypeAlias":"authorProfile"}',
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`) as any;
+      let detail: any = null;
+      el.addEventListener('mappings-changed', (e: Event) => { detail = (e as CustomEvent).detail; });
+
+      el._handlePickerModeChange(0, 'pickedObject');
+
+      const row = detail.mappings[0];
+      expect(row.pickedPropertyAlias).to.equal(undefined);
+      // The alias is what seeds the configure modal — losing it would leave the
+      // button permanently disabled after a mode switch.
+      expect(row.pickedContentTypeAlias).to.equal('authorProfile');
+      expect(row.pickedContentTypeProperties).to.deep.equal(['fullName', 'jobTitle', 'bio']);
+      expect(row.nestedSchemaTypeName).to.equal('Person'); // seeded from acceptedTypes[0]
+      // No object configured yet, so nothing to serialise.
+      expect(row.resolverConfig).to.equal(null);
+    });
+
+    it('switching from pickedObject to single-property clears the object and rewrites the config', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person',
+        pickedComplexType: INNER,
+        pickedContentTypeAlias: 'authorProfile',
+        resolverConfig: `{"pickedContentTypeAlias":"authorProfile","pickedComplexType":${INNER}}`,
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`) as any;
+      let detail: any = null;
+      el.addEventListener('mappings-changed', (e: Event) => { detail = (e as CustomEvent).detail; });
+
+      el._handlePickerModeChange(0, 'property');
+
+      const row = detail.mappings[0];
+      expect(row.pickedComplexType).to.equal(undefined);
+      expect(row.nestedSchemaTypeName).to.equal('');
+      expect(row.resolverConfig, 'the object must not survive as a stale config').to.equal(null);
+    });
+
+    it('switching to whole-item or name clears the per-usage object entirely', async () => {
+      for (const mode of ['wholeItem', 'name']) {
+        const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+          nestedSchemaTypeName: 'Person',
+          pickedComplexType: INNER,
+          pickedContentTypeAlias: 'authorProfile',
+          resolverConfig: `{"pickedContentTypeAlias":"authorProfile","pickedComplexType":${INNER}}`,
+        })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`) as any;
+        let detail: any = null;
+        el.addEventListener('mappings-changed', (e: Event) => { detail = (e as CustomEvent).detail; });
+
+        el._handlePickerModeChange(0, mode);
+
+        const row = detail.mappings[0];
+        expect(row.pickedComplexType, mode).to.equal(undefined);
+        expect(row.pickedContentTypeAlias, mode).to.equal(undefined);
+        expect(row.resolverConfig, mode).to.equal(null);
+      }
+    });
+
+    it('dispatches configure-picked-complex-type carrying the PICKED type and its properties', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person',
+        pickedComplexType: INNER,
+        pickedContentTypeAlias: 'authorProfile',
+        pickedContentTypeProperties: ['fullName', 'jobTitle', 'bio'],
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`) as any;
+      let detail: any = null;
+      el.addEventListener('configure-picked-complex-type', (e: Event) => { detail = (e as CustomEvent).detail; });
+
+      el._handleConfigurePickedComplexType(0);
+
+      expect(detail).to.exist;
+      expect(detail.index).to.equal(0);
+      expect(detail.schemaPropertyName).to.equal('author');
+      expect(detail.acceptedTypes).to.deep.equal(['Person']);
+      expect(detail.selectedSubType).to.equal('Person');
+      expect(detail.pickedContentTypeAlias).to.equal('authorProfile');
+      expect(detail.pickedContentTypeProperties).to.deep.equal(['fullName', 'jobTitle', 'bio']);
+      expect(detail.existingConfig).to.equal(INNER);
+    });
+
+    it('changing the main property clears the per-usage object too', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person',
+        pickedComplexType: INNER,
+        pickedContentTypeAlias: 'authorProfile',
+        resolverConfig: `{"pickedContentTypeAlias":"authorProfile","pickedComplexType":${INNER}}`,
+      })]} .availableProperties=${['authorNode', 'otherPicker']}></schemeweaver-property-mapping-table>`) as any;
+      let detail: any = null;
+      el.addEventListener('mappings-changed', (e: Event) => { detail = (e as CustomEvent).detail; });
+
+      el._handlePropertyChange(0, 'otherPicker');
+
+      const row = detail.mappings[0];
+      expect(row.pickedComplexType).to.equal(undefined);
+      expect(row.nestedSchemaTypeName).to.equal('');
+      expect(row.resolverConfig).to.equal(null);
+    });
+
+    // The mode used to be hard-pinned to 'property' here, which snapped an
+    // object row into drill mode the moment its document type was chosen.
+    it('browsing a document type preserves the row current mode', async () => {
+      const el = await fixture(html`<schemeweaver-property-mapping-table .mappings=${[objectRow({
+        nestedSchemaTypeName: 'Person', pickedComplexType: INNER, pickedContentTypeAlias: 'authorProfile',
+      })]} .availableProperties=${['authorNode']}></schemeweaver-property-mapping-table>`) as any;
+
+      el._handlePickedDocumentTypeChange(0, {
+        target: { selection: ['00000000-0000-0000-0000-000000000099'] },
+      } as unknown as Event);
+
+      expect(el._pickerModeDraft.get('author')).to.equal('pickedObject');
+    });
+  });
 });

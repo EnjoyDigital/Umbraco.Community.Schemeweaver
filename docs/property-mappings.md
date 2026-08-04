@@ -19,6 +19,8 @@ This is the most common source type. The property alias refers to any standard U
 
 **Example:** Mapping `articleBody` to a Rich Text property called `bodyText` on a Blog Post document type.
 
+Content Picker and Multi Node Tree Picker properties also stay on this source type — they are references to other nodes, and what they emit is controlled by `ResolverConfig` and `NestedSchemaTypeName`. See [Content Picker Mappings](#content-picker-mappings).
+
 ### 2. Static Value (`static`)
 
 Uses a hardcoded string value that you type in at mapping time. The value is emitted as-is in the JSON-LD output -- no property is read from any content node.
@@ -59,7 +61,27 @@ For a comprehensive guide on configuring block content mappings, see [Block Cont
 
 Builds a nested Schema.org Thing with its own sub-property mappings. This is used for schema properties that expect a structured object rather than a simple value -- for example, `author` expecting a `Person`, or `address` expecting a `PostalAddress`.
 
-Complex types are configured with a `ResolverConfig` JSON object containing a `complexTypeMappings` array. Each entry specifies a schema sub-property and either a content property alias (source type `property`) or a static value (source type `static`).
+Complex types are configured with a `ResolverConfig` JSON object containing a `complexTypeMappings` array. Each entry (a **sub-row**) names a schema sub-property and says where its value comes from.
+
+#### Sub-row fields
+
+| Field | Description |
+|---|---|
+| `schemaProperty` | The sub-property to set on the nested Thing (e.g. `name`, `logo`) |
+| `sourceType` | `property`, `static`, `parent`, `ancestor`, `sibling`, or `complexType` |
+| `contentTypePropertyAlias` | Property alias to read (for `property`/`parent`/`ancestor`/`sibling`); built-ins such as `__name` and `__url` are allowed |
+| `staticValue` | Fixed value (for `static`) |
+| `sourceContentTypeAlias` | Content type filter for `ancestor`/`sibling` |
+| `transformType` | `stripHtml`, `toAbsoluteUrl` or `formatDate`, applied to node-sourced string sub-values only (`static` sub-values are never transformed) |
+| `resolverConfig` | Nested JSON config: another `complexTypeMappings` object for `complexType` sub-rows, or picked-item config when the sub-row's property is a content picker (see [Content Picker Mappings](#content-picker-mappings)) |
+
+Sub-rows are resolved through the same resolver pipeline as top-level mappings, so a media picker sub-row yields an `ImageObject`, a DateTime formats as ISO 8601, and a content picker sub-row can be drilled or nested.
+
+**Related-node sub-rows.** `parent`, `ancestor` and `sibling` sub-rows locate their target node exactly as a top-level related mapping would, which is what lets an inline `Organization` read its `name` and `logo` from the site root. They resolve relative to the **page being generated**, at every nesting depth — with one exception: inside a per-usage picked object (`pickedComplexType`, see below) the base node is the **picked node**, so those sub-rows walk the picked node's branch of the tree instead.
+
+**Nested complex types.** A `complexType` sub-row carries its own `complexTypeMappings` in its `resolverConfig` (with a `selectedSubType` naming the inner type) and recurses — e.g. `Organization.address` as a `PostalAddress` inside an inline `Organization`. Config nesting does not advance the recursion-depth counter (that counter bounds *node* hops), because the JSON structure is finite by definition.
+
+**Empty-shell guard.** If no sub-row resolves a value — or every value is dropped by type conversion — the nested Thing is omitted entirely rather than emitting an invalid `{"@type":"Person"}` shell.
 
 **Example:** Mapping `author` on an Article to a `Person` complex type, with sub-mappings for `name` from the content property `authorName` and `url` as a static value.
 
@@ -81,6 +103,102 @@ Complex types are configured with a `ResolverConfig` JSON object containing a `c
 ```
 
 This source type is shown in the picker only when the schema property is flagged as a complex type.
+
+---
+
+## Content Picker Mappings
+
+A **Content Picker** (`Umbraco.ContentPicker`) or **Multi Node Tree Picker** (`Umbraco.MultiNodeTreePicker`) property is a *reference* to another node rather than a value of its own. Such a property stays on the `property` source type; what it emits is decided by the mapping's `NestedSchemaTypeName` and `ResolverConfig`.
+
+Each picked node runs through a **four-rung precedence ladder** — the first configured rung wins:
+
+| Rung | Mode | Configured by | Emits |
+|:---:|---|---|---|
+| 1 | **Drill-down** | `ResolverConfig` `pickedPropertyAlias` | The value of ONE property read off the picked node |
+| 2 | **Per-usage object** | `ResolverConfig` `pickedComplexType` (+ `NestedSchemaTypeName`) | An inline Schema.org object built from the picked node's properties |
+| 3 | **Whole item** | `NestedSchemaTypeName` alone | The picked node rendered via its own content type's saved mapping |
+| 4 | **Fallback** | *(nothing configured)* | The picked node's `Name` |
+
+Rungs 1 and 2 deliberately **do not** fall back to the node name. An explicitly configured drill or object that resolves nothing emits nothing — substituting a bare string would either be dropped by the property setter or auto-wrapped into a fabricated Thing.
+
+### 1. Drill-down
+
+```json
+{ "pickedPropertyAlias": "jobTitle", "pickedContentTypeAlias": "authorProfile" }
+```
+
+Reads a single property off the picked node through the **full value pipeline**, so a drilled Media Picker yields an `ImageObject`, a DateTime formats as ISO 8601, and the [built-in properties](#built-in-properties) (`__name`, `__url`, `__createDate`, `__updateDate`) resolve against the *picked* node rather than the page.
+
+`pickedContentTypeAlias` is a **backoffice UI hint only** (it tells the property picker whose properties to list) and is never consulted at render time — the alias is read off whatever node was actually picked.
+
+Because the render emits that single property's value, a configured drill-down also suppresses the range validator's check on `NestedSchemaTypeName`: the chosen object type is ignored at render time, so warning about it would flag output that never happens.
+
+### 2. Per-usage object
+
+```json
+{
+  "pickedComplexType": {
+    "selectedSubType": "Person",
+    "complexTypeMappings": [
+      { "schemaProperty": "name", "sourceType": "property", "contentTypePropertyAlias": "fullName" },
+      { "schemaProperty": "jobTitle", "sourceType": "property", "contentTypePropertyAlias": "jobTitle" },
+      { "schemaProperty": "image", "sourceType": "property", "contentTypePropertyAlias": "photo" },
+      { "schemaProperty": "url", "sourceType": "property", "contentTypePropertyAlias": "__url" }
+    ]
+  }
+}
+```
+
+Builds an inline Schema.org object using the same `complexTypeMappings` shape as the [Complex Type](#7-complex-type-complextype) source, except that every sub-row reads the **picked node's** properties. The picked content type needs no mapping of its own, so the same picked type can be shaped differently on different pages — an `authorProfile` can be a full `Person` on an article and just a `name` elsewhere.
+
+Set the row's `NestedSchemaTypeName` to the same type as well. It is what the range validator checks against the schema property's accepted types, and at render time it takes precedence over `selectedSubType`.
+
+Inside a per-usage object the base node has moved, so `parent`, `ancestor` and `sibling` sub-rows resolve **relative to the picked node**, not to the page being generated. Everywhere else, related-node sub-rows are page-relative.
+
+The key is deliberately nested under `pickedComplexType` rather than hoisting `complexTypeMappings` to the top level: that key already means "resolve against *this* node" for `complexType` and `blockContent` rows, and reusing it would let a source-type switch silently re-base the object onto the page. The key names the base node.
+
+### 3. Whole item
+
+Set `NestedSchemaTypeName` and leave both picked-item keys out of `ResolverConfig`. The picked node is rendered as a nested Thing by replaying **its own content type's saved SchemaMapping** through the resolver pipeline — one definition, reused everywhere that type is picked.
+
+If the picked type has no mapping, or its mapping lands nothing (for example the outer `NestedSchemaTypeName` disagrees with the picked type's own schema type, so every value is dropped by the setter), the whole-item rung yields nothing and resolution falls through to rung 4 — the node's name, which is at least true.
+
+Cycles and runaway nesting are bounded by the `MaxRecursionDepth` setting (default 3) and by a visited-node set, so an A-picks-B, B-picks-A arrangement terminates by degrading to a name.
+
+### Multi Node Tree Picker fan-out
+
+Every picked node runs the same ladder. A single pick returns its value directly (parity with the single content picker); several picks return a **list**.
+
+Because `SchemaPropertySetter` only binds `IEnumerable<Thing>` or `IEnumerable<string>`, a mixed list is **homogenised**: if any item resolved to a Thing, the Things are kept and the loose strings are dropped; otherwise everything is converted to strings. A `List<object>` would match neither binding and be dropped wholesale, so this is a deterministic partial result rather than silence. Keep one mode per row rather than relying on a partial config.
+
+A picked item that throws is skipped individually — one bad node never breaks the rest of the list, or the page.
+
+### Pickers as complex-type sub-rows
+
+A `complexTypeMappings` sub-row whose `contentTypePropertyAlias` is itself a picker takes the same picked-item config, carried in the **sub-row's own** `resolverConfig` string:
+
+```json
+{
+  "complexTypeMappings": [
+    {
+      "schemaProperty": "jobTitle",
+      "sourceType": "property",
+      "contentTypePropertyAlias": "authorNode",
+      "resolverConfig": "{\"pickedPropertyAlias\":\"jobTitle\"}"
+    },
+    {
+      "schemaProperty": "worksFor",
+      "sourceType": "property",
+      "contentTypePropertyAlias": "employerNode",
+      "resolverConfig": "{\"nestedSchemaTypeName\":\"Organization\"}"
+    }
+  ]
+}
+```
+
+A `ComplexTypeMappingEntry` has no `NestedSchemaTypeName` field of its own, so for a sub-row the whole-item type name travels **inside** `resolverConfig` as `nestedSchemaTypeName`. Without either key the sub-row emits only the picked node's name.
+
+This forwarding is gated on the property's editor alias, so a stale `complexType` or `blockContent` config left on a non-picker sub-row can never reach the picker resolver.
 
 ---
 
@@ -199,7 +317,8 @@ The `PropertyValueResolverFactory` collects all registered `IPropertyValueResolv
 | `BlockContentResolver` | `Umbraco.BlockList`, `Umbraco.BlockGrid` | 10 | Extracts block items and maps each to a Schema.NET Thing using nested mappings from `ResolverConfig` JSON. Supports string extraction mode. See [Block Content Mapping](block-content.md). |
 | `MediaPickerResolver` | `Umbraco.MediaPicker3`, `Umbraco.MediaPicker` | 10 | Extracts the first media item's URL from the `umbracoFile` property. Handles `MediaWithCrops`, `ImageCropperValue`, and plain string paths. Returns an absolute URL. |
 | `RichTextResolver` | `Umbraco.RichText`, `Umbraco.TinyMCE`, `Umbraco.MarkdownEditor` | 10 | Extracts HTML from `IHtmlEncodedString` (Rich Text/TinyMCE) or plain string (Markdown). Further transforms like `stripHtml` are applied by the generator. |
-| `ContentPickerResolver` | `Umbraco.ContentPicker` | 10 | Returns the picked content's name by default. When a `NestedSchemaTypeName` is configured and recursion depth permits (max 3), generates a nested Thing from the picked content's own schema mapping. |
+| `ContentPickerResolver` | `Umbraco.ContentPicker` | 10 | Resolves the picked node through the shared four-rung ladder: drill-down (`ResolverConfig` `pickedPropertyAlias`), per-usage object (`pickedComplexType`), whole-item nesting (`NestedSchemaTypeName` + the picked type's own schema mapping), then the node's `Name`. Bounded by `MaxRecursionDepth` and a visited-node set. See [Content Picker Mappings](#content-picker-mappings). |
+| `MultiNodeTreePickerResolver` | `Umbraco.MultiNodeTreePicker` | 10 | Runs every picked node through the same ladder as `ContentPickerResolver`. A single pick returns its value directly; several picks return a homogenised list (Things preferred, loose strings dropped when any Thing is present). An item that fails is skipped rather than breaking the list. |
 | `DateTimeResolver` | `Umbraco.DateTime` | 10 | Formats `DateTime` and `DateTimeOffset` values as ISO 8601 round-trip strings (`"o"` format). |
 | `NumericResolver` | `Umbraco.Integer`, `Umbraco.Decimal` | 10 | Preserves the numeric type (`int`, `long`, `decimal`, `double`, `float`) so Schema.NET serialises it as a JSON number rather than a string. |
 | `BooleanResolver` | `Umbraco.TrueFalse` | 10 | Preserves the boolean type. Also handles integer truthy values (`0` = false, non-zero = true). |

@@ -219,6 +219,61 @@ public class ContentPickerResolverTests
     }
 
     [Fact]
+    public void Resolve_WithNestedSchemaType_MappingResolvesNothing_ReturnsName_NotEmptyShell()
+    {
+        // The picked type HAS a mapping, but nothing it maps lands a value — here because the
+        // mapped property does not exist on the picked node. Without the empty-shell guard this
+        // emitted a bare {"@type":"Person"}, which is invalid structured data AND survives the
+        // caller's own HasResolvedProperty check (a populated shell looks resolved). Falling back
+        // to the node's name is at least true.
+        var pickedContentType = Substitute.For<IPublishedContentType>();
+        pickedContentType.Alias.Returns("person");
+
+        var pickedContent = Substitute.For<IPublishedContent>();
+        pickedContent.ContentType.Returns(pickedContentType);
+        pickedContent.Name.Returns("John");
+        pickedContent.GetProperty("fullName").Returns((IPublishedProperty?)null);
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(pickedContent);
+
+        _repository.GetByContentTypeAlias("person").Returns(new SchemaMapping
+        {
+            Id = 2,
+            ContentTypeAlias = "person",
+            SchemaTypeName = "Person",
+            IsEnabled = true
+        });
+        _repository.GetPropertyMappings(2).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", ContentTypePropertyAlias = "fullName" }
+        });
+
+        var context = new PropertyResolverContext
+        {
+            Content = Substitute.For<IPublishedContent>(),
+            Mapping = new PropertyMapping
+            {
+                SchemaPropertyName = "Author",
+                NestedSchemaTypeName = "Person"
+            },
+            PropertyAlias = "author",
+            SchemaTypeRegistry = _registry,
+            MappingRepository = _repository,
+            HttpContextAccessor = _httpContextAccessor,
+            ResolverFactory = CreateResolverFactory(),
+            Property = property,
+            RecursionDepth = 0,
+            MaxRecursionDepth = 3
+        };
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("John");
+        result.Should().NotBeAssignableTo<Schema.NET.Thing>();
+    }
+
+    [Fact]
     public void Resolve_SelfReferencingContent_WithNestedMapping_ResolvesNestedThing()
     {
         // Content picker pointing to the same content node (self-reference).

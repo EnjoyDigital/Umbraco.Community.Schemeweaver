@@ -20,7 +20,7 @@ import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from '../modals/complex-type-
 import type { SchemaMappingDto, ContentTypeProperty, RankedSchemaPropertyInfo } from '../api/types.js';
 import { SourceType } from '../constants/source-type.js';
 
-import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, rowsToPropertyMappingDtos, applySourceTypeChange, applyWarningsToRows } from '../utils/mapping-converters.js';
+import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, rowsToPropertyMappingDtos, applySourceTypeChange, applyWarningsToRows, pickedComplexConfigToResolverConfig } from '../utils/mapping-converters.js';
 import { changeSchemaType } from '../utils/change-schema-type.js';
 import { SchemeWeaverMappingChangedEvent } from '../utils/mapping-changed-event.js';
 
@@ -526,8 +526,10 @@ export class SchemaMappingViewElement extends UmbLitElement {
       pickedContentTypeUnique: match.key,
       pickedContentTypeProperties: propertyAliases,
       pickedPropertyAlias: undefined,
-      // The old drilled alias belongs to the previous type — clearing only the
-      // row field would leave the stale drill config to be saved verbatim.
+      // The old drilled alias and the old per-usage object both reference the
+      // previous type's aliases — clearing only the row fields would leave the
+      // stale config to be saved verbatim.
+      pickedComplexType: undefined,
       resolverConfig: null,
     };
     this._rows = updated;
@@ -729,6 +731,58 @@ export class SchemaMappingViewElement extends UmbLitElement {
     }
   }
 
+  /**
+   * Per-usage picked object (issue #40): opens the PICKED content type in the
+   * stacked complex-type editor, so the sub-rows map the picked node's own
+   * properties. The result is written back nested under `pickedComplexType` —
+   * never flat — and `nestedSchemaTypeName` is set alongside it because that
+   * column is what the server-side range validator reads.
+   *
+   * Kept byte-for-byte in step with the property-mapping modal's copy: a
+   * divergence between the two hosts is what silently destroyed every
+   * `reference` row in an earlier release.
+   */
+  private async _handleConfigurePickedComplexType(e: CustomEvent) {
+    const {
+      index, schemaPropertyName, acceptedTypes, selectedSubType,
+      pickedContentTypeAlias, pickedContentTypeProperties, existingConfig,
+    } = e.detail;
+    if (!this.#modalManagerContext) return;
+    // No picked document type means no properties to map against — the modal
+    // would open onto an empty table.
+    if (!pickedContentTypeAlias) return;
+
+    const modalHandler = this.#modalManagerContext.open(this, SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL, {
+      data: {
+        schemaPropertyName,
+        acceptedTypes: acceptedTypes || [],
+        selectedSubType: selectedSubType || '',
+        contentTypeAlias: pickedContentTypeAlias,
+        availableProperties: pickedContentTypeProperties || [],
+        existingConfig: existingConfig ?? null,
+        parentPath: this.localize.term('schemeWeaver_pickedObjectBreadcrumb', pickedContentTypeAlias),
+      },
+    });
+
+    try {
+      const result = await modalHandler.onSubmit();
+      if (result?.resolverConfig) {
+        const updated = [...this._rows];
+        const row = updated[index];
+        updated[index] = {
+          ...row,
+          nestedSchemaTypeName: result.selectedSubType,
+          pickedComplexType: result.resolverConfig,
+          pickedPropertyAlias: undefined,
+          resolverConfig: pickedComplexConfigToResolverConfig(result.resolverConfig, row.pickedContentTypeAlias),
+        };
+        this._rows = updated;
+      }
+    } catch {
+      // Modal was rejected / closed
+    }
+  }
+
   render() {
     // The workspace editor already provides the surrounding umb-body-layout
     // (headline bar, scroll container) — this view renders content only.
@@ -820,6 +874,7 @@ export class SchemaMappingViewElement extends UmbLitElement {
           @resolve-picked-document-type=${this._handleResolvePickedDocumentType}
           @configure-nested-mapping=${this._handleConfigureNestedMapping}
           @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
+          @configure-picked-complex-type=${this._handleConfigurePickedComplexType}
         ></schemeweaver-property-mapping-table>
       </uui-box>
     `;

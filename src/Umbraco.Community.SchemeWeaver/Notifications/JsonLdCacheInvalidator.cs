@@ -92,6 +92,30 @@ internal static class JsonLdCacheInvalidator
         }
     }
 
+    /// <summary>
+    /// A content-picker / MNTP row is <c>property</c>-sourced, so <see cref="SchemeWeaverConstants.SourceTypes.IsCrossNode"/>
+    /// does not see it — but it renders data belonging to whatever node was PICKED, which means
+    /// publishing that node has to evict the picking page's cached JSON-LD. Without this, editing an
+    /// Author node left every article that picks it serving the pre-edit graph until republish.
+    ///
+    /// The mapping row does not record the property's editor alias, so this infers "renders another
+    /// node" from the configuration only a picker row ever carries: a nested type to render the
+    /// picked item as, or a picked-item resolver config (drill-down, or a per-usage object).
+    /// </summary>
+    private static bool IsPickedContentRow(Models.Entities.PropertyMapping mapping)
+    {
+        if (!string.Equals(mapping.SourceType, SchemeWeaverConstants.SourceTypes.Property,
+                StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(mapping.NestedSchemaTypeName))
+            return true;
+
+        var picked = Services.Resolvers.PickedContentResolver.ParseConfig(mapping.ResolverConfig);
+        return !string.IsNullOrWhiteSpace(picked?.PickedPropertyAlias)
+            || !string.IsNullOrWhiteSpace(picked?.NestedSchemaTypeName);
+    }
+
     private static bool SiteHasCrossNodeMappings(ISchemaMappingRepository repo, ILogger logger)
     {
         try
@@ -101,7 +125,8 @@ internal static class JsonLdCacheInvalidator
 
             return repo.GetAllPropertyMappingsByMappingId().Values
                 .SelectMany(list => list)
-                .Any(p => SchemeWeaverConstants.SourceTypes.IsCrossNode(p.SourceType));
+                .Any(p => SchemeWeaverConstants.SourceTypes.IsCrossNode(p.SourceType)
+                    || IsPickedContentRow(p));
         }
         catch (Exception ex)
         {

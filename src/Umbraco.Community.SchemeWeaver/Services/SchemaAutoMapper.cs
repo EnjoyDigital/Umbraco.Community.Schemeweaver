@@ -26,11 +26,7 @@ public class SchemaAutoMapper : ISchemaAutoMapper
 
     private static HashSet<string> MediaPickerAliases => SchemeWeaverConstants.PropertyEditors.MediaPickerAliases;
 
-    private static readonly HashSet<string> ContentPickerAliases = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Umbraco.ContentPicker",
-        "Umbraco.MultiNodeTreePicker"
-    };
+    private static HashSet<string> ContentPickerAliases => SchemeWeaverConstants.PropertyEditors.ContentPickerAliases;
 
     /// <summary>
     /// Schema.org property names that are broadly useful across most types. Used by

@@ -82,10 +82,17 @@ const server = new McpServer(
       "nestedMappings for multi-field blocks, or the nestable `routes` for blocks-nested-in-blocks and Block Grid areas — " +
       "always map a body-sections container like contentGrid/blocks/sections to mainEntity or hasPart as WebPageElement, never leave it unmapped); " +
       "'parent'/'ancestor'/'sibling' (a related node up/around the tree — e.g. a 'category' grouping from the parent's title; " +
-      "ALSO valid on complexTypeMappings sub-rows, so an inline Organization's name/logo can read the site root); " +
+      "ALSO valid on complexTypeMappings sub-rows, so an inline Organization's name/logo can read the site root — those " +
+      "sub-rows are page-relative, except inside a pickedComplexType where they walk from the PICKED node); " +
       "'reference' (a shared graph piece by key, e.g. organization). " +
-      "Content pickers (ContentPicker/MNTP) under 'property' render the picked node(s): name by default, the whole node via " +
-      "nestedSchemaTypeName + the picked type's own mapping, or one property via resolverConfig {\"pickedPropertyAlias\":\"...\"}. " +
+      "Content pickers (ContentPicker/MNTP) under 'property' render the picked node(s) by precedence: resolverConfig " +
+      "{\"pickedPropertyAlias\":\"...\"} drills ONE property off the picked node; else resolverConfig " +
+      "{\"pickedComplexType\":{\"selectedSubType\":\"Person\",\"complexTypeMappings\":[…]}} (plus a matching nestedSchemaTypeName) " +
+      "builds a per-usage inline object whose sub-rows read the PICKED node — the picked type needs no mapping of its own, so " +
+      "the same type can be shaped differently per page; else nestedSchemaTypeName alone renders the whole node via the picked " +
+      "type's OWN mapping; else the node's name. An MNTP fans several picks out to an array. A picker used as a complexType " +
+      "SUB-ROW takes the same config in the SUB-ROW's own resolverConfig ({\"pickedPropertyAlias\":\"...\"} to drill, or " +
+      "{\"nestedSchemaTypeName\":\"...\"} for the whole node) — without it the sub-row emits only the picked node's name. " +
       "Built-ins always available as 'property': __name, __url, __createDate, __updateDate. " +
       "Inspect blocks with get-block-element-types — its propertyInfos[].nestedBlockElementTypes surfaces blocks-within-blocks. " +
       "The schemeweaver-map skill carries the full source-type catalogue and worked examples.",

@@ -24,6 +24,13 @@ interface ComplexSubMapping {
   isComplexType: boolean;
   resolverConfig: string | null;
   isPopular: boolean;
+  /** Keys of the stored sub-mapping that this UI does not model — today `transformType`
+   *  (honoured by `BlockContentResolver` / `JsonLdGenerator` and documented in the MCP
+   *  tool schema), tomorrow whatever a newer backend or MCP version adds. Without a
+   *  verbatim carry from load to save, merely opening a mapping authored via MCP or
+   *  uSync and pressing Save would silently strip those keys, changing the rendered
+   *  JSON-LD and leaving permanent uSync drift / flapping Deploy checksums. */
+  extraKeys: Record<string, unknown>;
 }
 
 type WizardStep = 'type-selection' | 'mappings' | 'preview';
@@ -90,21 +97,13 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         this._selectedSubType = complexTypes[0];
       }
 
-      // If we have a selected type and no existing mappings, load properties
-      if (this._selectedSubType && this._subMappings.length === 0) {
-        await this._loadSubTypeProperties(this._selectedSubType);
-      }
-
-      // Skip to mappings if we already have data
-      if (this._selectedSubType && this._subMappings.length > 0) {
-        this._currentStep = 'mappings';
-      } else if (this._selectedSubType) {
-        this._currentStep = 'mappings';
-      }
-
-      // Auto-select and skip if only 1 (non-primitive) type
-      if (complexTypes.length === 1 && this._currentStep === 'type-selection') {
-        this._selectedSubType = complexTypes[0];
+      // Always fetch the sub-type's schema properties once a type is known — including
+      // when an existing config was just loaded. The stored rows carry no schema
+      // metadata, so skipping this left every loaded row with `acceptedTypes: []` and
+      // `isComplexType: false`, which renders a nested object as a plain property
+      // picker and makes a saved nested config impossible to reopen.
+      // `_loadSubTypeProperties` merges onto whatever `_loadExistingConfig` produced.
+      if (this._selectedSubType) {
         await this._loadSubTypeProperties(this._selectedSubType);
         this._currentStep = 'mappings';
       }
@@ -122,23 +121,38 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
       const config = JSON.parse(this.data!.existingConfig!);
       if (config.complexTypeMappings && Array.isArray(config.complexTypeMappings)) {
         this._selectedSubType = config.selectedSubType || this.data?.selectedSubType || '';
-        this._subMappings = config.complexTypeMappings.map((m: Record<string, unknown>) => ({
-          schemaProperty: (m.schemaProperty as string) || '',
-          schemaPropertyType: '',
-          sourceType: (m.sourceType as SourceTypeValue) || SourceType.Property,
-          contentTypePropertyAlias: (m.contentTypePropertyAlias as string) || '',
-          staticValue: (m.staticValue as string) || '',
-          sourceContentTypeAlias: (m.sourceContentTypeAlias as string) || '',
-          sourceContentTypeProperties: [],
-          acceptedTypes: [],
-          isComplexType: false,
-          resolverConfig: m.resolverConfig
-            ? (typeof m.resolverConfig === 'string'
-              ? m.resolverConfig as string
-              : JSON.stringify(m.resolverConfig))
-            : null,
-          isPopular: true,
-        }));
+        this._subMappings = config.complexTypeMappings.map((m: Record<string, unknown>) => {
+          // Pull out the six keys this UI owns; everything left over is carried
+          // verbatim so a save never strips what the editor cannot see.
+          const {
+            schemaProperty,
+            sourceType,
+            contentTypePropertyAlias,
+            staticValue,
+            sourceContentTypeAlias,
+            resolverConfig,
+            ...extraKeys
+          } = m;
+
+          return {
+            schemaProperty: (schemaProperty as string) || '',
+            schemaPropertyType: '',
+            sourceType: (sourceType as SourceTypeValue) || SourceType.Property,
+            contentTypePropertyAlias: (contentTypePropertyAlias as string) || '',
+            staticValue: (staticValue as string) || '',
+            sourceContentTypeAlias: (sourceContentTypeAlias as string) || '',
+            sourceContentTypeProperties: [],
+            acceptedTypes: [],
+            isComplexType: false,
+            resolverConfig: resolverConfig
+              ? (typeof resolverConfig === 'string'
+                ? resolverConfig as string
+                : JSON.stringify(resolverConfig))
+              : null,
+            isPopular: true,
+            extraKeys,
+          };
+        });
       }
     } catch {
       // Silently ignore parse errors — fall back to default config
@@ -151,9 +165,12 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
 
     // Merge with existing mappings, preserving user data
     const existingMap = new Map(this._subMappings.map(m => [m.schemaProperty.toLowerCase(), m]));
+    const matched = new Set<string>();
 
-    this._subMappings = props.map((prop: RankedSchemaPropertyInfo) => {
-      const existing = existingMap.get(prop.name.toLowerCase());
+    const merged: ComplexSubMapping[] = props.map((prop: RankedSchemaPropertyInfo) => {
+      const key = prop.name.toLowerCase();
+      const existing = existingMap.get(key);
+      if (existing) matched.add(key);
       // Properties the user has already configured stay in the popular section
       // so toggling the disclosure never hides an active mapping.
       const userConfigured = !!existing && (
@@ -162,6 +179,8 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         !!existing.resolverConfig
       );
       if (existing) {
+        // Only display/metadata fields are refreshed — every user-authored field
+        // (including `extraKeys`) is carried over untouched.
         return {
           ...existing,
           schemaPropertyType: prop.propertyType,
@@ -182,8 +201,23 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
         isComplexType: prop.isComplexType || false,
         resolverConfig: null,
         isPopular: prop.isPopular,
+        extraKeys: {},
       };
     });
+
+    // Configured sub-mappings the ranked response didn't return (authored via MCP or
+    // uSync, or a property this Schema.NET build doesn't rank) must survive the merge —
+    // otherwise re-picking the type quietly deletes the editor's saved work. They are
+    // appended and forced into the popular section so they stay visible and editable.
+    // Unconfigured strays are dropped: they hold no data and would only clutter the
+    // table after a genuine change of sub-type.
+    const retained: ComplexSubMapping[] = this._subMappings
+      .filter(m =>
+        !matched.has(m.schemaProperty.toLowerCase()) &&
+        (!!m.contentTypePropertyAlias || !!m.staticValue || !!m.resolverConfig))
+      .map(m => ({ ...m, isPopular: true }));
+
+    this._subMappings = [...merged, ...retained];
 
     // Load properties for any existing source content types
     const sourceAliases = [...new Set(
@@ -435,6 +469,9 @@ export class ComplexTypeMappingModalElement extends UmbModalBaseElement<ComplexT
     return {
       selectedSubType: this._selectedSubType,
       complexTypeMappings: active.map(m => ({
+        // Unknown keys first so the UI-owned keys below always win — a stale extra
+        // can never resurrect a value the editor has since changed or cleared.
+        ...m.extraKeys,
         schemaProperty: m.schemaProperty,
         sourceType: m.sourceType,
         ...(m.contentTypePropertyAlias ? { contentTypePropertyAlias: m.contentTypePropertyAlias } : {}),

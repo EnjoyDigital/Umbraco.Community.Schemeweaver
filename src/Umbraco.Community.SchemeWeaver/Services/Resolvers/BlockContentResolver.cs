@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -570,6 +570,7 @@ public class BlockContentResolver : IPropertyValueResolver
                     MappingRepository = context.MappingRepository,
                     HttpContextAccessor = context.HttpContextAccessor,
                     ResolverFactory = factory,
+                    ComplexTypeBuilder = context.ComplexTypeBuilder,
                     Property = prop,                           // the block element property
                     RecursionDepth = context.RecursionDepth,
                     MaxRecursionDepth = context.MaxRecursionDepth,
@@ -651,6 +652,7 @@ public class BlockContentResolver : IPropertyValueResolver
             MappingRepository = context.MappingRepository,
             HttpContextAccessor = context.HttpContextAccessor,
             ResolverFactory = context.ResolverFactory,
+            ComplexTypeBuilder = context.ComplexTypeBuilder,
             Property = nestedProperty,
             RecursionDepth = context.RecursionDepth + 1,
             MaxRecursionDepth = context.MaxRecursionDepth,

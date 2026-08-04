@@ -34,4 +34,13 @@ public static class SchemaPrimitiveTypes
 
         return acceptedTypes.All(IsPrimitive) && acceptedTypes.Any(TextLike.Contains);
     }
+
+    /// <summary>
+    /// True when the property's range accepts a plain text value AT ALL (unlike
+    /// <see cref="IsPlainTextRange"/>, a range that also accepts structured types still counts).
+    /// Used to decide whether an unconfigured content-picker sub-row — which renders the picked
+    /// node's NAME — is emitting something the target could legitimately hold.
+    /// </summary>
+    public static bool AcceptsText(IReadOnlyList<string> acceptedTypes)
+        => acceptedTypes is { Count: > 0 } && acceptedTypes.Any(TextLike.Contains);
 }

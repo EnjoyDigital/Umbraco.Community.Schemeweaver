@@ -16,6 +16,9 @@ export const POPULAR_PROPERTIES = [
  */
 export function dtoToRow(dto: PropertyMappingDto, loadOrder?: number): PropertyMappingRow {
   const drill = parseDrillConfig(dto.sourceType, dto.resolverConfig);
+  // Drill-down wins at render, so only look for a per-usage object when the row
+  // is not drilled — the two modes are mutually exclusive on the wire too.
+  const pickedObject = drill ? null : parsePickedComplexConfig(dto.sourceType, dto.resolverConfig);
   return {
     schemaPropertyName: dto.schemaPropertyName || '',
     schemaPropertyType: '',
@@ -40,7 +43,8 @@ export function dtoToRow(dto: PropertyMappingDto, loadOrder?: number): PropertyM
     transformType: dto.transformType ?? null,
     targetPieceKey: dto.targetPieceKey ?? null,
     pickedPropertyAlias: drill?.pickedPropertyAlias,
-    pickedContentTypeAlias: drill?.pickedContentTypeAlias,
+    pickedContentTypeAlias: drill?.pickedContentTypeAlias ?? pickedObject?.pickedContentTypeAlias,
+    pickedComplexType: pickedObject?.pickedComplexType,
   };
 }
 
@@ -86,6 +90,73 @@ export function drillConfigToResolverConfig(
     pickedContentTypeAlias
       ? { pickedPropertyAlias, pickedContentTypeAlias }
       : { pickedPropertyAlias },
+  );
+}
+
+/**
+ * Parses a per-usage picked-object config out of a row's resolverConfig — the
+ * inline Schema.org object built from the PICKED node's own properties
+ * (issue #40). As strict as {@link parseDrillConfig}: only `property`-sourced
+ * rows can carry one, and only a nested `pickedComplexType` holding a non-empty
+ * `complexTypeMappings` array counts.
+ *
+ * A TOP-LEVEL `complexTypeMappings` deliberately does NOT match. That key means
+ * "resolve against THIS node" for complexType/blockContent rows, so a flat
+ * payload would slip through `applySourceTypeChange`'s config guard and be
+ * silently re-based onto the page when the source chip is switched and back.
+ *
+ * The inner object is returned re-serialised, byte-for-byte what the
+ * complex-type modal emits, so it can be handed straight back as its
+ * `existingConfig`.
+ */
+export function parsePickedComplexConfig(
+  sourceType: string | undefined,
+  resolverConfig: string | null | undefined,
+): { pickedComplexType: string; pickedContentTypeAlias?: string } | null {
+  if (sourceType !== SourceType.Property || !resolverConfig) return null;
+  try {
+    const parsed = JSON.parse(resolverConfig);
+    const inner = parsed?.pickedComplexType;
+    if (inner && Array.isArray(inner.complexTypeMappings) && inner.complexTypeMappings.length > 0) {
+      return {
+        pickedComplexType: JSON.stringify(inner),
+        pickedContentTypeAlias:
+          typeof parsed.pickedContentTypeAlias === 'string' && parsed.pickedContentTypeAlias
+            ? parsed.pickedContentTypeAlias
+            : undefined,
+      };
+    }
+  } catch {
+    // Malformed config — treat as no picked-object config, mirroring the backend.
+  }
+  return null;
+}
+
+/**
+ * Serialises a row's per-usage picked-object state into its resolverConfig (or
+ * clears it), mirroring {@link drillConfigToResolverConfig}. `pickedComplexType`
+ * is the complex-type modal's own serialised config; it is nested under its own
+ * key (never hoisted) for the reason documented on
+ * {@link parsePickedComplexConfig}. `pickedContentTypeAlias` stays at the top
+ * level, where the load-time hydration already reads it.
+ */
+export function pickedComplexConfigToResolverConfig(
+  pickedComplexType: string | undefined,
+  pickedContentTypeAlias: string | undefined,
+): string | null {
+  if (!pickedComplexType) return null;
+  let inner: unknown;
+  try {
+    inner = JSON.parse(pickedComplexType);
+  } catch {
+    // The modal only ever hands back valid JSON; a malformed value is not worth
+    // persisting as a config the backend would then have to skip.
+    return null;
+  }
+  return JSON.stringify(
+    pickedContentTypeAlias
+      ? { pickedContentTypeAlias, pickedComplexType: inner }
+      : { pickedComplexType: inner },
   );
 }
 
@@ -232,10 +303,14 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
   // resolverConfig is only meaningful across a source change when it is a
   // complexType/blockContent shape moving between those two types. A picker
   // drill config (property-sourced) must NOT masquerade as complex config —
-  // it would pass the complexType save filter while rendering nothing.
+  // it would pass the complexType save filter while rendering nothing. A
+  // per-usage picked-object config is excluded for the sharper reason that its
+  // sub-rows read the PICKED node: carried onto a complexType row they would be
+  // silently re-based onto the page.
   const keepsConfigShape =
     (newSourceType === SourceType.BlockContent || newSourceType === SourceType.ComplexType)
-    && !parseDrillConfig(row.sourceType, row.resolverConfig);
+    && !parseDrillConfig(row.sourceType, row.resolverConfig)
+    && !parsePickedComplexConfig(row.sourceType, row.resolverConfig);
   return {
     ...row,
     sourceType: newSourceType,
@@ -253,6 +328,7 @@ export function applySourceTypeChange(row: PropertyMappingRow, newSourceType: So
     selectedSubType: newSourceType === SourceType.ComplexType ? row.selectedSubType : '',
     targetPieceKey: newSourceType === SourceType.Reference ? row.targetPieceKey : null,
     pickedPropertyAlias: undefined,
+    pickedComplexType: undefined,
     pickedContentTypeAlias: undefined,
     pickedContentTypeProperties: undefined,
     pickedContentTypeUnique: undefined,

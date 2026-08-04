@@ -11,7 +11,7 @@ import type { NestedMappingModalValue, NestedMappingModalSiblingClaim } from './
 import { parseResolverConfig, legacyConfigToRoutes } from '../components/block-route-model.js';
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
-import { mergeAutoMapSuggestions, applySourceTypeChange, rowsToPropertyMappingDtos } from '../utils/mapping-converters.js';
+import { mergeAutoMapSuggestions, applySourceTypeChange, rowsToPropertyMappingDtos, pickedComplexConfigToResolverConfig } from '../utils/mapping-converters.js';
 
 import type { SchemaPropertyInfo } from '../api/types.js';
 import { SourceType } from '../constants/source-type.js';
@@ -180,6 +180,58 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
     }
   }
 
+  /**
+   * Per-usage picked object (issue #40): opens the PICKED content type in the
+   * stacked complex-type editor, so the sub-rows map the picked node's own
+   * properties. The result is written back nested under `pickedComplexType` —
+   * never flat — and `nestedSchemaTypeName` is set alongside it because that
+   * column is what the server-side range validator reads.
+   *
+   * Kept byte-for-byte in step with the workspace view's copy: a divergence
+   * between the two hosts is what silently destroyed every `reference` row in an
+   * earlier release.
+   */
+  private async _handleConfigurePickedComplexType(e: CustomEvent) {
+    const {
+      index, schemaPropertyName, acceptedTypes, selectedSubType,
+      pickedContentTypeAlias, pickedContentTypeProperties, existingConfig,
+    } = e.detail;
+    if (!this.#modalManagerContext) return;
+    // No picked document type means no properties to map against — the modal
+    // would open onto an empty table.
+    if (!pickedContentTypeAlias) return;
+
+    const modalHandler = this.#modalManagerContext.open(this, SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL, {
+      data: {
+        schemaPropertyName,
+        acceptedTypes: acceptedTypes || [],
+        selectedSubType: selectedSubType || '',
+        contentTypeAlias: pickedContentTypeAlias,
+        availableProperties: pickedContentTypeProperties || [],
+        existingConfig: existingConfig ?? null,
+        parentPath: this.localize.term('schemeWeaver_pickedObjectBreadcrumb', pickedContentTypeAlias),
+      },
+    });
+
+    try {
+      const result = await modalHandler.onSubmit();
+      if (result?.resolverConfig) {
+        const updated = [...this._mappings];
+        const row = updated[index];
+        updated[index] = {
+          ...row,
+          nestedSchemaTypeName: result.selectedSubType,
+          pickedComplexType: result.resolverConfig,
+          pickedPropertyAlias: undefined,
+          resolverConfig: pickedComplexConfigToResolverConfig(result.resolverConfig, row.pickedContentTypeAlias),
+        };
+        this._mappings = updated;
+      }
+    } catch {
+      // Modal was rejected / closed
+    }
+  }
+
   private async _handlePickSourceOrigin(e: CustomEvent) {
     const { index, editorAlias, isComplexType, currentSourceType } = e.detail;
     if (!this.#modalManagerContext) return;
@@ -238,8 +290,10 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       pickedContentTypeUnique: match.key,
       pickedContentTypeProperties: propertyAliases,
       pickedPropertyAlias: undefined,
-      // The old drilled alias belongs to the previous type — clearing only the
-      // row field would leave the stale drill config to be saved verbatim.
+      // The old drilled alias and the old per-usage object both reference the
+      // previous type's aliases — clearing only the row fields would leave the
+      // stale config to be saved verbatim.
+      pickedComplexType: undefined,
       resolverConfig: null,
     };
     this._mappings = updated;
@@ -492,6 +546,7 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
           @mappings-changed=${this._handleMappingsChanged}
           @configure-nested-mapping=${this._handleConfigureNestedMapping}
           @configure-complex-type-mapping=${this._handleConfigureComplexTypeMapping}
+          @configure-picked-complex-type=${this._handleConfigurePickedComplexType}
           @pick-source-origin=${this._handlePickSourceOrigin}
           @resolve-document-type=${this._handleResolveDocumentType}
           @resolve-picked-document-type=${this._handleResolvePickedDocumentType}

@@ -104,9 +104,56 @@ Choosing the right `sourceType` is where you beat the heuristic.
   tree; set `sourceContentTypeAlias` (for ancestor/sibling). For a grouping prop
   like `category` that names the section the node lives under and has no local
   property, map it from the parent: `sourceType "parent"`, `contentTypePropertyAlias
-  "title"` (the parent's name).
+  "title"` (the parent's name). Also valid as `complexTypeMappings` sub-rows, where
+  they resolve relative to the PAGE — except inside a `pickedComplexType` (below),
+  where the base node is the picked node and they walk ITS branch of the tree.
 - **`reference`** — points at a shared graph piece; set `targetPieceKey`
   (e.g. `organization`, `website`) — used for publisher/author org references.
+
+### Content pickers and multi-node tree pickers
+
+A `Umbraco.ContentPicker` / `Umbraco.MultiNodeTreePicker` property stays
+`sourceType "property"` — the picker is a *reference* to another node, and what
+you get out of it is decided by `resolverConfig` + `nestedSchemaTypeName`. Four
+modes, resolved as a precedence ladder (first configured rung wins):
+
+1. **Drill** — `resolverConfig {"pickedPropertyAlias":"jobTitle"}` reads ONE
+   property off the picked node, through the full value pipeline: a drilled
+   MediaPicker yields an `ImageObject`, a DateTime formats as ISO 8601, and the
+   built-ins (`__name`, `__url`, `__createDate`, `__updateDate`) resolve against
+   the PICKED node. Use it when the page needs a single scalar from the pick
+   (`author.url` from the author node's `__url`).
+2. **Per-usage object** — `resolverConfig {"pickedComplexType":{"selectedSubType":
+   "Person","complexTypeMappings":[…]}}`, plus `nestedSchemaTypeName` set to the
+   same type. Builds an inline Schema.org object whose sub-rows read the PICKED
+   node's properties. The picked type needs NO mapping of its own, so the same
+   picked type can be shaped differently on different pages. Use it when this page
+   wants a bespoke shape, or the picked type is an element/utility type you would
+   not map in its own right.
+3. **Whole item** — `nestedSchemaTypeName` only. Renders the picked node via the
+   picked content type's OWN saved mapping. Use it when that type already has (or
+   deserves) a mapping worth reusing everywhere it is picked — one definition, many
+   pages.
+4. **Name** (no config) — the picked node's name as a plain string. The fallback,
+   and the right answer when the schema property just wants a label (`Person.name`,
+   `about`, a bare `keywords` entry) and nothing structured is wanted.
+
+Rungs 1 and 2 never fall back to the name: an explicitly configured drill or object
+that resolves nothing emits nothing (a bespoke shape must not silently degrade into
+an unrelated string). Set `nestedSchemaTypeName` on any picker row that emits an
+object — it is what the range validator checks against the schema property's
+accepted types.
+
+**MNTP fan-out:** every picked node runs the same ladder, so several picks emit an
+ARRAY. Mixed results are homogenised — Things win and loose strings are dropped —
+so keep one mode per row rather than relying on a partial config.
+
+**Pickers as complexType sub-rows:** a sub-row whose `contentTypePropertyAlias` is
+itself a picker carries the config in the SUB-ROW's own `resolverConfig` — either
+`{"pickedPropertyAlias":"…"}` to drill, or `{"nestedSchemaTypeName":"…"}` to render
+the whole picked node via its own mapping (a `complexTypeMappings` entry has no
+`nestedSchemaTypeName` field, so for a sub-row the type name travels inside
+`resolverConfig`). Leave it off and the sub-row emits only the picked node's name.
 
 ## Worked examples
 
@@ -133,6 +180,21 @@ Person) → complexType, NOT a plain property:
   "contentTypePropertyAlias": "authorName", "nestedSchemaTypeName": "Person",
   "resolverConfig": "{\"complexTypeMappings\":[{\"schemaProperty\":\"Name\",\"sourceType\":\"property\",\"contentTypePropertyAlias\":\"authorName\"}]}" }
 ```
+
+**Article.author from a content picker** — an `authorNode` Content Picker pointing
+at an `authorProfile` doc type (`fullName`, `jobTitle`, `photo`) → a per-usage
+`Person` built from the PICKED node, so `authorProfile` needs no mapping of its own:
+```json
+{ "schemaPropertyName": "author", "sourceType": "property",
+  "contentTypePropertyAlias": "authorNode", "nestedSchemaTypeName": "Person",
+  "resolverConfig": "{\"pickedComplexType\":{\"selectedSubType\":\"Person\",\"complexTypeMappings\":[{\"schemaProperty\":\"name\",\"sourceType\":\"property\",\"contentTypePropertyAlias\":\"fullName\"},{\"schemaProperty\":\"jobTitle\",\"sourceType\":\"property\",\"contentTypePropertyAlias\":\"jobTitle\"},{\"schemaProperty\":\"image\",\"sourceType\":\"property\",\"contentTypePropertyAlias\":\"photo\"},{\"schemaProperty\":\"url\",\"sourceType\":\"property\",\"contentTypePropertyAlias\":\"__url\"}]}}" }
+```
+Want only the author's name instead? Drop to a drill:
+`"resolverConfig": "{\"pickedPropertyAlias\":\"fullName\"}"` (and leave
+`nestedSchemaTypeName` off). Already mapped `authorProfile` to `Person` elsewhere?
+Drop the `resolverConfig` entirely and keep `nestedSchemaTypeName: "Person"` — the
+picked node then renders through its own mapping. On an MNTP the same row emits an
+array of `Person` objects, one per pick.
 
 **Vehicle.brand** — from a `brand` text prop → plain property, NOT a Brand object:
 ```json

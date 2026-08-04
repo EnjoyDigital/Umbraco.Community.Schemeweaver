@@ -47,6 +47,13 @@ public class PropertyResolverContext
     public IPropertyValueResolverFactory? ResolverFactory { get; init; }
 
     /// <summary>
+    /// Builder for inline complex objects assembled from a picked node (see
+    /// <see cref="IComplexTypeBuilder"/>). Null on legacy and test paths, exactly like
+    /// <see cref="ResolverFactory"/> — resolvers must degrade rather than throw.
+    /// </summary>
+    public IComplexTypeBuilder? ComplexTypeBuilder { get; init; }
+
+    /// <summary>
     /// The raw published property, already located on the correct node. May be null.
     /// </summary>
     public IPublishedProperty? Property { get; init; }

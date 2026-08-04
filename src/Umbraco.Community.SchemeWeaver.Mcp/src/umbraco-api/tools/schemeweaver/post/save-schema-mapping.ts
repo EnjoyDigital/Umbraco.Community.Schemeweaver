@@ -34,10 +34,21 @@ const propertyMappingSchema = z.object({
         "'property' = a property on the content node itself (set contentTypePropertyAlias); the default for scalars and media. " +
         "Built-ins __name/__url/__createDate/__updateDate are always available here. " +
         "A content-picker property (Umbraco.ContentPicker or Umbraco.MultiNodeTreePicker) under 'property' renders the picked " +
-        "node(s): by default the node name; with nestedSchemaTypeName set, the whole picked node via its own content type's " +
-        "mapping; or DRILL INTO one property of the picked node via resolverConfig " +
-        '{"pickedPropertyAlias":"...","pickedContentTypeAlias":"...?"} (drill-down wins over nestedSchemaTypeName; ' +
-        "pickedContentTypeAlias is only a backoffice UI hint). MNTP emits a list when several nodes are picked. " +
+        "node(s) through a FOUR-RUNG precedence ladder — first configured rung wins: " +
+        "(1) DRILL-DOWN — resolverConfig " +
+        '{"pickedPropertyAlias":"...","pickedContentTypeAlias":"...?"} reads ONE property off the picked node through the ' +
+        "full value pipeline (a drilled media picker therefore yields an ImageObject, and __name/__url resolve against the " +
+        "PICKED node); pickedContentTypeAlias is only a backoffice UI hint and is never consulted at render time. " +
+        "(2) PER-USAGE OBJECT — resolverConfig " +
+        '{"pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[…]}} builds an inline Schema.org object ' +
+        "whose sub-rows read the PICKED node's properties. The picked type needs NO mapping of its own, so the same picked " +
+        "type can be shaped differently on different pages. Also set nestedSchemaTypeName to that same type — it is what the " +
+        "range validator reads, and it wins over selectedSubType. " +
+        "(3) WHOLE ITEM — nestedSchemaTypeName on its own renders the picked node as a nested Thing via the picked content " +
+        "type's OWN saved mapping (one definition, reused everywhere that type is picked). " +
+        "(4) FALLBACK — the picked node's name. " +
+        "Rungs 1 and 2 never degrade to the name: an explicitly configured drill/object that resolves nothing emits nothing. " +
+        "With an MNTP every picked node runs the same ladder, so several picks fan out to an ARRAY. " +
         "'static' = a fixed value for all content of this type (set staticValue, contentTypePropertyAlias=null); " +
         "'complexType' = the schema property denotes a named ENTITY (Person, Organization, Place, PostalAddress, Offer…); " +
         "nest it even from a single field (e.g. author -> Person from one authorName text prop). Set nestedSchemaTypeName " +
@@ -76,8 +87,12 @@ const propertyMappingSchema = z.object({
     .string()
     .nullish()
     .describe(
-      "For complex-type properties (isComplexType=true) and 'blockContent': the Schema.org type of the nested object, " +
-        "e.g. 'Person' for author, 'ImageObject' for image, 'Question' for FAQ blocks"
+      "The Schema.org type of the nested object — used by 'complexType' rows, 'blockContent' rows, AND content-picker/MNTP " +
+        "'property' rows. E.g. 'Person' for author, 'ImageObject' for image, 'Question' for FAQ blocks. " +
+        "On a picker row it selects WHOLE-ITEM rendering: the picked node rendered via its own content type's saved mapping. " +
+        "When that row also carries a `pickedComplexType` resolverConfig it names the type of that per-usage object instead " +
+        "(and overrides its selectedSubType). It is also the type the range validator checks against the schema property's " +
+        "accepted types, so set it on every row that emits an object."
     ),
   resolverConfig: z
     .string()
@@ -113,11 +128,22 @@ const propertyMappingSchema = z.object({
         "is still accepted for single-level blocks but `routes` is preferred and required for nesting. " +
         "For complex types: {\"selectedSubType\":\"...\",\"complexTypeMappings\":[{\"schemaProperty\":\"...\"," +
         "\"sourceType\":\"property|static|parent|ancestor|sibling|complexType\",\"contentTypePropertyAlias\":\"...\"," +
-        "\"staticValue\":\"...\",\"sourceContentTypeAlias\":\"...?\",\"transformType\":\"...?\"}]} — a parent/ancestor/sibling " +
-        "sub-row reads the property off the related node (relative to the PAGE, at any nesting depth; ancestor/sibling need " +
-        "sourceContentTypeAlias), e.g. an inline Organization whose name/logo read the site root. " +
-        "For a content-picker/MNTP 'property' row, drill into one property of the picked node with: " +
-        "{\"pickedPropertyAlias\":\"...\",\"pickedContentTypeAlias\":\"...?\"} (wins over nestedSchemaTypeName)."
+        "\"staticValue\":\"...\",\"sourceContentTypeAlias\":\"...?\",\"transformType\":\"...?\",\"resolverConfig\":\"...?\"}]} — " +
+        "a parent/ancestor/sibling sub-row reads the property off the related node (ancestor/sibling need " +
+        "sourceContentTypeAlias), e.g. an inline Organization whose name/logo read the site root. Those related-node sub-rows " +
+        "resolve relative to the PAGE at any nesting depth, EXCEPT inside a `pickedComplexType` (below) — there the base node " +
+        "is the PICKED node, so parent/ancestor/sibling walk the picked node's branch of the tree, not the page's. " +
+        "A sub-row whose contentTypePropertyAlias is ITSELF a content picker/MNTP carries its own picker config in the " +
+        "SUB-ROW's `resolverConfig` string: {\"pickedPropertyAlias\":\"...\"} to drill one property off the picked node, or " +
+        "{\"nestedSchemaTypeName\":\"...\"} to render the whole picked node via its own content type's mapping (a " +
+        "complexTypeMappings entry has no nestedSchemaTypeName column of its own, so for a SUB-ROW the type name travels " +
+        "inside resolverConfig). Without either key a picker sub-row emits only the picked node's name. " +
+        "For a content-picker/MNTP 'property' row, EITHER drill into one property of the picked node with " +
+        "{\"pickedPropertyAlias\":\"...\",\"pickedContentTypeAlias\":\"...?\"}, OR build a per-usage inline object from the " +
+        "picked node with {\"pickedComplexType\":{\"selectedSubType\":\"Person\",\"complexTypeMappings\":[ …same sub-row shape " +
+        "as above… ]}} — set the row's nestedSchemaTypeName to that type too (the range validator reads it, and it wins over " +
+        "selectedSubType). Precedence: pickedPropertyAlias > pickedComplexType > nestedSchemaTypeName (whole item) > the " +
+        "picked node's name. With an MNTP several picked nodes fan out to an ARRAY of objects."
     ),
   dynamicRootConfig: z
     .string()

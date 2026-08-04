@@ -96,6 +96,10 @@ public class SchemaRangeValidator : ISchemaRangeValidator
                 continue;
             }
 
+            // Picked-item config sanity, BEFORE the NestedSchemaTypeName skip below — an object
+            // with no type set never reaches that point, and is exactly the case worth reporting.
+            ValidatePickedItemConfig(pm, mapping, issues);
+
             // complexType / nested type / content-picker store the chosen object
             // type in NestedSchemaTypeName. static / plain scalar mappings leave it
             // null — there's no object type to range-check, so skip (false-positive
@@ -128,7 +132,16 @@ public class SchemaRangeValidator : ISchemaRangeValidator
             // Outer type is in range — but the INNER complexTypeMappings can still be
             // broken (unknown sub-properties, media pickers bound onto string-only
             // sub-properties, out-of-range nested sub-types). Inspect them too.
-            ValidateComplexTypeConfig(pm, mapping, issues);
+            //
+            // A per-usage picked object carries its sub-mappings under `pickedComplexType`, and
+            // those sub-rows read the PICKED content type — checking their aliases against this
+            // page's doc type would pass everything silently.
+            var pickedObject = Resolvers.PickedContentResolver.ParseConfig(pm.ResolverConfig);
+            if (pickedObject?.PickedComplexType?.ComplexTypeMappings is { Count: > 0 })
+                ValidateComplexTypeConfig(pm, mapping, issues,
+                    pickedObject.PickedComplexType, pickedObject.PickedContentTypeAlias);
+            else
+                ValidateComplexTypeConfig(pm, mapping, issues);
         }
 
         return issues;
@@ -143,21 +156,35 @@ public class SchemaRangeValidator : ISchemaRangeValidator
     /// complexType-sourced entries whose SelectedSubType is outside the sub-property's range
     /// (one level of recursion, mirroring <see cref="ValidateBlockRoutes"/>).
     /// </summary>
+    /// <param name="preParsedConfig">
+    /// Supplied for a per-usage picked object, whose sub-mappings live under a different
+    /// resolverConfig key and so cannot be re-parsed from <paramref name="pm"/> directly.
+    /// </param>
+    /// <param name="subRowContentTypeAlias">
+    /// Content type the sub-rows' property aliases belong to. Null means the page's own type; a
+    /// picked object passes the PICKED type, so editor-alias lookups resolve where the properties
+    /// actually live.
+    /// </param>
     private void ValidateComplexTypeConfig(
         PropertyMappingDto pm,
         SchemaMappingDto mapping,
-        List<ValidationIssue> issues)
+        List<ValidationIssue> issues,
+        ComplexTypeConfigModel? preParsedConfig = null,
+        string? subRowContentTypeAlias = null)
     {
-        ComplexTypeConfigModel? config;
-        try
+        ComplexTypeConfigModel? config = preParsedConfig;
+        if (config is null)
         {
-            config = string.IsNullOrEmpty(pm.ResolverConfig)
-                ? null
-                : JsonSerializer.Deserialize<ComplexTypeConfigModel>(pm.ResolverConfig, JsonOptions);
-        }
-        catch (JsonException)
-        {
-            return;
+            try
+            {
+                config = string.IsNullOrEmpty(pm.ResolverConfig)
+                    ? null
+                    : JsonSerializer.Deserialize<ComplexTypeConfigModel>(pm.ResolverConfig, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                return;
+            }
         }
 
         if (config?.ComplexTypeMappings is not { Count: > 0 } entries)
@@ -182,7 +209,8 @@ public class SchemaRangeValidator : ISchemaRangeValidator
 
             if (string.Equals(entry.SourceType, "property", StringComparison.OrdinalIgnoreCase))
             {
-                ValidateMediaOntoSubProperty(pm, mapping, entry, subProp, issues);
+                ValidateMediaOntoSubProperty(pm, mapping, entry, subProp, issues, subRowContentTypeAlias);
+                ValidatePickerSubRowWithoutConfig(pm, mapping, entry, subProp, issues, subRowContentTypeAlias);
             }
             else if (string.Equals(entry.SourceType, "ancestor", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(entry.SourceType, "sibling", StringComparison.OrdinalIgnoreCase))
@@ -210,6 +238,90 @@ public class SchemaRangeValidator : ISchemaRangeValidator
     /// resolved media AS the nested instance (see <see cref="NestedTypeIsImageObjectFamily"/>)
     /// and the mapping renders correctly.
     /// </summary>
+    /// <summary>
+    /// Checks a picker row's own picked-item configuration for combinations that silently do
+    /// nothing. Only reachable through hand-authored / MCP / uSync payloads (the backoffice keeps
+    /// the modes mutually exclusive), which is precisely the audience the validator serves.
+    /// </summary>
+    private static void ValidatePickedItemConfig(
+        PropertyMappingDto pm,
+        SchemaMappingDto mapping,
+        List<ValidationIssue> issues)
+    {
+        if (!string.Equals(pm.SourceType, "property", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var picked = Resolvers.PickedContentResolver.ParseConfig(pm.ResolverConfig);
+        if (picked?.PickedComplexType?.ComplexTypeMappings is not { Count: > 0 })
+            return;
+
+        if (!string.IsNullOrWhiteSpace(picked.PickedPropertyAlias))
+        {
+            issues.Add(new ValidationIssue(
+                ValidationSeverity.Warning, mapping.SchemaTypeName, pm.SchemaPropertyName,
+                $"'{pm.SchemaPropertyName}' configures both a drilled property and a custom object on " +
+                "the picked item. Drill-down wins and the object is ignored — remove one."));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(pm.NestedSchemaTypeName)
+            && string.IsNullOrWhiteSpace(picked.PickedComplexType.SelectedSubType))
+        {
+            issues.Add(new ValidationIssue(
+                ValidationSeverity.Warning, mapping.SchemaTypeName, pm.SchemaPropertyName,
+                $"'{pm.SchemaPropertyName}' is configured as a custom object built from the picked item, " +
+                "but no Schema.org type is set for it — nothing will be emitted."));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(picked.PickedContentTypeAlias))
+        {
+            issues.Add(new ValidationIssue(
+                ValidationSeverity.Info, mapping.SchemaTypeName, pm.SchemaPropertyName,
+                $"'{pm.SchemaPropertyName}' builds a custom object from the picked item but records no " +
+                "picked document type, so its sub-properties cannot be verified. Add " +
+                "'pickedContentTypeAlias', or re-open the mapping in the backoffice to record it."));
+        }
+    }
+
+    /// <summary>
+    /// Warns when a content-picker / MNTP sub-row carries NO picked-item config and its target
+    /// sub-property cannot hold text. With no config the render emits the picked node's NAME, which
+    /// the setter then either coerces into a relative URL (<c>"logo":"Jane Doe"</c>) or auto-wraps
+    /// into a fabricated <c>{"@type":"…","name":"Jane Doe"}</c> — structured-looking garbage that no
+    /// other rule catches. Deliberately silent when the sub-property DOES accept text, because there
+    /// the node's name is a perfectly legitimate mapping.
+    /// </summary>
+    private void ValidatePickerSubRowWithoutConfig(
+        PropertyMappingDto pm,
+        SchemaMappingDto mapping,
+        ComplexTypeMappingEntry entry,
+        SchemaPropertyInfo subProp,
+        List<ValidationIssue> issues,
+        string? sourceContentTypeAlias = null)
+    {
+        var editorAlias = GetEditorAlias(sourceContentTypeAlias ?? mapping.ContentTypeAlias, entry.ContentTypePropertyAlias);
+        if (editorAlias is null
+            || !SchemeWeaverConstants.PropertyEditors.ContentPickerAliases.Contains(editorAlias))
+            return;
+
+        var picked = Resolvers.PickedContentResolver.ParseConfig(entry.ResolverConfig);
+        if (!string.IsNullOrWhiteSpace(picked?.PickedPropertyAlias)
+            || !string.IsNullOrWhiteSpace(picked?.NestedSchemaTypeName))
+            return;
+
+        if (Advisory.SchemaPrimitiveTypes.AcceptsText(subProp.AcceptedTypes))
+            return;
+
+        issues.Add(new ValidationIssue(
+            ValidationSeverity.Warning, mapping.SchemaTypeName, pm.SchemaPropertyName,
+            $"'{pm.SchemaPropertyName}': inner '{pm.NestedSchemaTypeName}.{subProp.Name}' reads content picker " +
+            $"'{entry.ContentTypePropertyAlias}' with no picked-item configuration, so the picked node's NAME is " +
+            $"emitted — but '{subProp.Name}' accepts {string.Join(", ", subProp.AcceptedTypes)}. Set that sub-row's " +
+            "resolverConfig to {\"pickedPropertyAlias\":\"…\"} to read one property of the picked node, or " +
+            "{\"nestedSchemaTypeName\":\"…\"} to render the whole picked node via its own mapping."));
+    }
+
     private void ValidateMediaOntoSubProperty(
         PropertyMappingDto pm,
         SchemaMappingDto mapping,

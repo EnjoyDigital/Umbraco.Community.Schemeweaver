@@ -2,7 +2,7 @@ import { expect } from '@open-wc/testing';
 import type { PropertyMappingDto, PropertyMappingSuggestion, ValidationIssue } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import { SourceType } from '../constants/source-type.js';
-import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows, drillConfigToResolverConfig, isRowConfigured, rowsToPropertyMappingDtos, reconcileRowsForSchemaType } from './mapping-converters.js';
+import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows, drillConfigToResolverConfig, isRowConfigured, rowsToPropertyMappingDtos, reconcileRowsForSchemaType, parsePickedComplexConfig, pickedComplexConfigToResolverConfig } from './mapping-converters.js';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
 
 /** Helper to create a minimal RankedSchemaPropertyInfo as the ranked endpoint returns it */
@@ -478,6 +478,124 @@ describe('picker drill-down config', () => {
     });
     const result = applySourceTypeChange(row, SourceType.BlockContent);
     expect(result.resolverConfig).to.contain('complexTypeMappings');
+  });
+});
+
+// Issue #40 — a fourth picked-item mode: a per-usage inline object built from
+// the PICKED node's own properties, nested under `pickedComplexType` so it can
+// never be mistaken for a config that resolves against the page.
+describe('picked-object config', () => {
+  const INNER = '{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"}]}';
+  const STORED = `{"pickedContentTypeAlias":"authorProfile","pickedComplexType":${INNER}}`;
+
+  it('parsePickedComplexConfig matches the nested key and recovers the picked type alias', () => {
+    const parsed = parsePickedComplexConfig(SourceType.Property, STORED);
+    expect(parsed).to.exist;
+    expect(parsed!.pickedContentTypeAlias).to.equal('authorProfile');
+    expect(JSON.parse(parsed!.pickedComplexType)).to.deep.equal(JSON.parse(INNER));
+  });
+
+  it('parsePickedComplexConfig rejects a FLAT complexTypeMappings payload', () => {
+    // The whole point of the nested key: a flat payload means "resolve against
+    // THIS node", so accepting it here would let a source-type switch silently
+    // re-base the object onto the page.
+    expect(parsePickedComplexConfig(SourceType.Property, INNER)).to.equal(null);
+  });
+
+  it('parsePickedComplexConfig rejects non-property rows, empty mappings and malformed JSON', () => {
+    expect(parsePickedComplexConfig(SourceType.ComplexType, STORED)).to.equal(null);
+    expect(parsePickedComplexConfig(SourceType.BlockContent, STORED)).to.equal(null);
+    expect(parsePickedComplexConfig(SourceType.Property, '{"pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[]}}')).to.equal(null);
+    expect(parsePickedComplexConfig(SourceType.Property, '{not json')).to.equal(null);
+    expect(parsePickedComplexConfig(SourceType.Property, null)).to.equal(null);
+  });
+
+  it('pickedComplexConfigToResolverConfig nests the inner object and keeps the alias top-level', () => {
+    const config = pickedComplexConfigToResolverConfig(INNER, 'authorProfile');
+    const parsed = JSON.parse(config!);
+    expect(parsed.pickedContentTypeAlias).to.equal('authorProfile');
+    expect(parsed.complexTypeMappings, 'the inner object must NOT be hoisted').to.equal(undefined);
+    expect(parsed.pickedComplexType.selectedSubType).to.equal('Person');
+  });
+
+  it('pickedComplexConfigToResolverConfig returns null with nothing to serialise', () => {
+    expect(pickedComplexConfigToResolverConfig(undefined, 'authorProfile')).to.equal(null);
+    expect(pickedComplexConfigToResolverConfig('{not json', 'authorProfile')).to.equal(null);
+  });
+
+  it('pickedComplexConfigToResolverConfig → dtoToRow round-trips the object and the alias', () => {
+    const row = dtoToRow(makeDto({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      nestedSchemaTypeName: 'Person',
+      resolverConfig: pickedComplexConfigToResolverConfig(INNER, 'authorProfile'),
+    }));
+    expect(row.pickedComplexType).to.exist;
+    expect(JSON.parse(row.pickedComplexType!)).to.deep.equal(JSON.parse(INNER));
+    expect(row.pickedContentTypeAlias).to.equal('authorProfile');
+    expect(row.pickedPropertyAlias).to.equal(undefined);
+    // nestedSchemaTypeName is authoritative for the range check and must survive.
+    expect(row.nestedSchemaTypeName).to.equal('Person');
+  });
+
+  it('dtoToRow leaves pickedComplexType undefined for a drilled row', () => {
+    const row = dtoToRow(makeDto({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: '{"pickedPropertyAlias":"fullName","pickedContentTypeAlias":"authorProfile"}',
+    }));
+    expect(row.pickedComplexType).to.equal(undefined);
+    expect(row.pickedPropertyAlias).to.equal('fullName');
+  });
+
+  it('a picked-object row survives the save filter (it has a property alias)', () => {
+    const row = makeRow({
+      schemaPropertyName: 'author',
+      contentTypePropertyAlias: 'authorNode',
+      nestedSchemaTypeName: 'Person',
+      resolverConfig: pickedComplexConfigToResolverConfig(INNER, 'authorProfile'),
+      pickedComplexType: INNER,
+      pickedContentTypeAlias: 'authorProfile',
+    });
+    expect(isRowConfigured(row)).to.be.true;
+    const dto = rowsToPropertyMappingDtos([row])[0];
+    expect(dto).to.exist;
+    expect(dto.nestedSchemaTypeName).to.equal('Person');
+    expect(JSON.parse(dto.resolverConfig!).pickedComplexType.selectedSubType).to.equal('Person');
+  });
+
+  it('applySourceTypeChange from a picked-object row to complexType DROPS the config', () => {
+    // This pins the whole design decision. The object's sub-rows read the PICKED
+    // node; carried onto a complexType row they would be silently re-based onto
+    // the page while still passing the complexType save filter.
+    const row = makeRow({
+      schemaPropertyName: 'author',
+      sourceType: SourceType.Property,
+      contentTypePropertyAlias: 'authorNode',
+      nestedSchemaTypeName: 'Person',
+      resolverConfig: STORED,
+      pickedComplexType: INNER,
+      pickedContentTypeAlias: 'authorProfile',
+    });
+    const result = applySourceTypeChange(row, SourceType.ComplexType);
+    expect(result.resolverConfig).to.equal(null);
+    expect(result.pickedComplexType).to.equal(undefined);
+    expect(result.pickedContentTypeAlias).to.equal(undefined);
+  });
+
+  it('applySourceTypeChange clears the picked-object fields for every other target too', () => {
+    const row = makeRow({
+      schemaPropertyName: 'author',
+      contentTypePropertyAlias: 'authorNode',
+      resolverConfig: STORED,
+      pickedComplexType: INNER,
+      pickedContentTypeAlias: 'authorProfile',
+    });
+    const result = applySourceTypeChange(row, SourceType.Static);
+    expect(result.pickedComplexType).to.equal(undefined);
+    expect(result.resolverConfig).to.equal(null);
   });
 });
 

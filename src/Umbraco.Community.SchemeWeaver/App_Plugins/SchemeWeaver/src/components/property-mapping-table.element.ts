@@ -4,7 +4,8 @@ import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
 import { SourceType, sourceTypeLabelKey, type SourceTypeValue } from '../constants/source-type.js';
 import { summariseResolverConfig } from './block-route-model.js';
-import { drillConfigToResolverConfig } from '../utils/mapping-converters.js';
+import { drillConfigToResolverConfig, pickedComplexConfigToResolverConfig } from '../utils/mapping-converters.js';
+import { filterOutPrimitiveAcceptedTypes } from '../utils/schema-primitives.js';
 import './property-combobox.element.js';
 import './schema-type-input.element.js';
 
@@ -114,6 +115,17 @@ export interface PropertyMappingRow {
    * `pickedContentTypeAlias`; the backend never reads it.
    */
   pickedContentTypeAlias?: string;
+  /**
+   * Per-usage picked object (issue #40): the SERIALISED complex-type config —
+   * `{ selectedSubType, complexTypeMappings }`, byte-identical to what the
+   * complex-type modal emits — whose sub-rows read the PICKED node's properties
+   * rather than the page's. Persisted nested under `pickedComplexType` inside
+   * `resolverConfig`; mirrored here for rendering/editing. Mutually exclusive
+   * with {@link pickedPropertyAlias} (drill-down wins at render), and it takes
+   * precedence over {@link nestedSchemaTypeName} — which an object row ALSO
+   * sets, because the type it names is what the validator range-checks.
+   */
+  pickedComplexType?: string;
   /** Property aliases of {@link pickedContentTypeAlias}, fetched for the dropdown. */
   pickedContentTypeProperties?: string[];
   /** GUID of the browsed document type backing the drill-down doc-type picker (UI-only). */
@@ -134,7 +146,7 @@ const EDITOR_BADGE_MAP: Record<string, string> = {
 const PICKER_EDITOR_ALIASES = ['Umbraco.ContentPicker', 'Umbraco.MultiNodeTreePicker'];
 
 /** How a picked-content row renders its value(s). Derived from row state, never persisted. */
-type PickerMode = 'name' | 'wholeItem' | 'property';
+type PickerMode = 'name' | 'wholeItem' | 'property' | 'pickedObject';
 
 @customElement('schemeweaver-property-mapping-table')
 export class PropertyMappingTableElement extends UmbLitElement {
@@ -221,14 +233,16 @@ export class PropertyMappingTableElement extends UmbLitElement {
     const updated = [...this.mappings];
     const row = updated[index];
     updated[index] = { ...row, contentTypePropertyAlias: value };
-    // A different content property means any picked-item state (drilled alias
-    // OR whole-item nested type) belongs to the OLD property — none of it may
-    // survive the change, or the save persists config the UI no longer shows.
-    if (row.pickedPropertyAlias || row.pickedContentTypeAlias || row.nestedSchemaTypeName) {
+    // A different content property means any picked-item state (drilled alias,
+    // per-usage object, OR whole-item nested type) belongs to the OLD property —
+    // none of it may survive the change, or the save persists config the UI no
+    // longer shows.
+    if (row.pickedPropertyAlias || row.pickedComplexType || row.pickedContentTypeAlias || row.nestedSchemaTypeName) {
       updated[index] = {
         ...updated[index],
         nestedSchemaTypeName: '',
         pickedPropertyAlias: undefined,
+        pickedComplexType: undefined,
         pickedContentTypeAlias: undefined,
         pickedContentTypeProperties: undefined,
         pickedContentTypeUnique: undefined,
@@ -253,10 +267,18 @@ export class PropertyMappingTableElement extends UmbLitElement {
   @state()
   private _pickerModeDraft = new Map<string, PickerMode>();
 
+  /**
+   * `pickedComplexType` MUST be tested before `nestedSchemaTypeName`: a
+   * per-usage object row sets BOTH (the nested type names the object's
+   * Schema.org type and is what the validator range-checks), so testing the
+   * nested type first would reload a saved object row as "Whole item" — and one
+   * touch of the mode select would then wipe the object.
+   */
   private _pickerMode(mapping: PropertyMappingRow): PickerMode {
     const draft = this._pickerModeDraft.get(mapping.schemaPropertyName);
     if (draft) return draft;
     if (mapping.pickedPropertyAlias) return 'property';
+    if (mapping.pickedComplexType) return 'pickedObject';
     if (mapping.nestedSchemaTypeName) return 'wholeItem';
     return 'name';
   }
@@ -273,6 +295,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
         ...row,
         nestedSchemaTypeName: '',
         pickedPropertyAlias: undefined,
+        pickedComplexType: undefined,
         pickedContentTypeAlias: undefined,
         pickedContentTypeProperties: undefined,
         pickedContentTypeUnique: undefined,
@@ -284,14 +307,35 @@ export class PropertyMappingTableElement extends UmbLitElement {
         // Sensible starting type: the schema property's first accepted type.
         nestedSchemaTypeName: row.nestedSchemaTypeName || row.acceptedTypes?.[0] || 'Thing',
         pickedPropertyAlias: undefined,
+        pickedComplexType: undefined,
         pickedContentTypeAlias: undefined,
         pickedContentTypeProperties: undefined,
         pickedContentTypeUnique: undefined,
         resolverConfig: null,
       };
+    } else if (mode === 'pickedObject') {
+      // Per-usage object: mutually exclusive with the drilled alias, but the
+      // picked content type is KEPT — it is what seeds the configure modal with
+      // the properties to map against.
+      updated[index] = {
+        ...row,
+        nestedSchemaTypeName:
+          row.nestedSchemaTypeName
+          || filterOutPrimitiveAcceptedTypes(row.acceptedTypes ?? [])[0]
+          || 'Thing',
+        pickedPropertyAlias: undefined,
+        resolverConfig: pickedComplexConfigToResolverConfig(row.pickedComplexType, row.pickedContentTypeAlias),
+      };
     } else {
-      // Single property: drill config wins at render, so the nested type must go.
-      updated[index] = { ...row, nestedSchemaTypeName: '' };
+      // Single property: drill config wins at render, so the nested type and any
+      // per-usage object must go — and the config is rewritten to the drill-only
+      // shape rather than left holding the object that is no longer shown.
+      updated[index] = {
+        ...row,
+        nestedSchemaTypeName: '',
+        pickedComplexType: undefined,
+        resolverConfig: drillConfigToResolverConfig(row.pickedPropertyAlias, row.pickedContentTypeAlias),
+      };
     }
     this.mappings = updated;
     this._dispatchChange();
@@ -304,6 +348,29 @@ export class PropertyMappingTableElement extends UmbLitElement {
     this._dispatchChange();
   }
 
+  /**
+   * Object mode's type control. Unlike whole-item mode, this row also carries configured
+   * sub-rows — and those name properties of the OLD type, so changing the type has to discard
+   * them. Leaving them would put three sources of truth in disagreement: the row would show the
+   * new type, re-opening the modal would show the old one (its stored `selectedSubType` wins on
+   * load), and the render would build the new type out of the old type's sub-rows and silently
+   * drop whatever fell out of range.
+   */
+  private _handlePickedObjectTypeChange(index: number, value: string) {
+    const row = this.mappings[index];
+    if (value === row.nestedSchemaTypeName) return;
+
+    const updated = [...this.mappings];
+    updated[index] = {
+      ...row,
+      nestedSchemaTypeName: value,
+      pickedComplexType: undefined,
+      resolverConfig: null,
+    };
+    this.mappings = updated;
+    this._dispatchChange();
+  }
+
   private _handlePickedDocumentTypeChange(index: number, e: Event) {
     const target = e.target as HTMLElement & { selection: string[] };
     const selection = target.selection;
@@ -312,6 +379,7 @@ export class PropertyMappingTableElement extends UmbLitElement {
       updated[index] = {
         ...updated[index],
         pickedPropertyAlias: undefined,
+        pickedComplexType: undefined,
         pickedContentTypeAlias: undefined,
         pickedContentTypeProperties: undefined,
         pickedContentTypeUnique: undefined,
@@ -322,11 +390,13 @@ export class PropertyMappingTableElement extends UmbLitElement {
       return;
     }
 
-    // Pin the mode: the host's resolve handler clears pickedPropertyAlias (the
-    // old alias belongs to the previous type), which would otherwise snap the
-    // derived mode back to 'name' mid-edit.
+    // Pin the mode the row is CURRENTLY in: the host's resolve handler clears
+    // pickedPropertyAlias and pickedComplexType (both belong to the previous
+    // type), which would otherwise snap the derived mode back to 'name'
+    // mid-edit — and hard-coding 'property' here would snap an object row into
+    // drill mode the moment its document type was chosen.
     const draft = new Map(this._pickerModeDraft);
-    draft.set(this.mappings[index].schemaPropertyName, 'property');
+    draft.set(this.mappings[index].schemaPropertyName, this._pickerMode(this.mappings[index]));
     this._pickerModeDraft = draft;
 
     this.dispatchEvent(
@@ -472,6 +542,32 @@ export class PropertyMappingTableElement extends UmbLitElement {
           acceptedTypes: mapping.acceptedTypes,
           selectedSubType: mapping.selectedSubType,
           resolverConfig: mapping.resolverConfig,
+        },
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
+
+  /**
+   * Per-usage picked object: asks the host to open the PICKED content type in
+   * the stacked complex-type editor. Deliberately its OWN event rather than
+   * `configure-complex-type-mapping` — that event's handlers write the returned
+   * config FLAT into `resolverConfig`, which is exactly the shape a picked
+   * object must never produce (see `parsePickedComplexConfig`).
+   */
+  private _handleConfigurePickedComplexType(index: number) {
+    const mapping = this.mappings[index];
+    this.dispatchEvent(
+      new CustomEvent('configure-picked-complex-type', {
+        detail: {
+          index,
+          schemaPropertyName: mapping.schemaPropertyName,
+          acceptedTypes: mapping.acceptedTypes,
+          selectedSubType: mapping.nestedSchemaTypeName,
+          pickedContentTypeAlias: mapping.pickedContentTypeAlias,
+          pickedContentTypeProperties: mapping.pickedContentTypeProperties,
+          existingConfig: mapping.pickedComplexType,
         },
         bubbles: true,
         composed: false,
@@ -764,11 +860,21 @@ export class PropertyMappingTableElement extends UmbLitElement {
 
   /**
    * Picked-item value mode for content picker / MNTP rows: emit the node name
-   * (default), render the whole item via its own mapping as a chosen type, or
+   * (default), render the whole item via its own mapping as a chosen type,
+   * build a per-usage inline object from the picked item's own properties, or
    * drill into a single property of the picked item.
+   *
+   * The per-usage object option only appears when the schema property accepts at
+   * least one non-primitive type — the same filter the complex-type modal's own
+   * type picker applies, so the option can never open a modal onto an empty type
+   * list. An already-configured object row still renders its editor regardless.
    */
   private _renderPickerModeBlock(mapping: PropertyMappingRow, index: number) {
     const mode = this._pickerMode(mapping);
+    // acceptedTypes carry Schema.NET's CLR-ish spellings (String, Uri, DateTime), NOT the
+    // Schema.org tokens (text, url) — so this must use the acceptedTypes-shaped filter, or
+    // String/Uri slip through and the option opens a modal with no properties to map.
+    const offersPickedObject = filterOutPrimitiveAcceptedTypes(mapping.acceptedTypes ?? []).length > 0;
     return html`
       <div class="picker-mode-block" data-mark="schemeweaver:picker-mode">
         <uui-select
@@ -776,6 +882,9 @@ export class PropertyMappingTableElement extends UmbLitElement {
           .options=${[
             { name: this.localize.term('schemeWeaver_pickerModeName'), value: 'name', selected: mode === 'name' },
             { name: this.localize.term('schemeWeaver_pickerModeWholeItem'), value: 'wholeItem', selected: mode === 'wholeItem' },
+            ...(offersPickedObject
+              ? [{ name: this.localize.term('schemeWeaver_pickerModePickedObject'), value: 'pickedObject', selected: mode === 'pickedObject' }]
+              : []),
             { name: this.localize.term('schemeWeaver_pickerModeSingleProperty'), value: 'property', selected: mode === 'property' },
           ]}
           @change=${(e: Event) =>
@@ -791,14 +900,10 @@ export class PropertyMappingTableElement extends UmbLitElement {
               <small class="picker-mode-hint">${this.localize.term('schemeWeaver_pickerWholeItemHint')}</small>
             `
           : nothing}
+        ${mode === 'pickedObject' ? this._renderPickedObjectInputs(mapping, index) : nothing}
         ${mode === 'property'
           ? html`
-              <umb-input-document-type
-                .documentTypesOnly=${true}
-                .max=${1}
-                .selection=${mapping.pickedContentTypeUnique ? [mapping.pickedContentTypeUnique] : []}
-                @change=${(e: Event) => this._handlePickedDocumentTypeChange(index, e)}
-              ></umb-input-document-type>
+              ${this._renderPickedDocumentTypeInput(mapping, index)}
               ${mapping.pickedContentTypeProperties?.length
                 ? html`
                     <schemeweaver-property-combobox
@@ -813,6 +918,59 @@ export class PropertyMappingTableElement extends UmbLitElement {
             `
           : nothing}
       </div>
+    `;
+  }
+
+  /**
+   * The picked item's document type browser. Shared by the drill-down and
+   * per-usage object modes — both list the picked type's properties, so they
+   * must offer the identical control and write through the identical handler.
+   */
+  private _renderPickedDocumentTypeInput(mapping: PropertyMappingRow, index: number) {
+    return html`
+      <umb-input-document-type
+        .documentTypesOnly=${true}
+        .max=${1}
+        .selection=${mapping.pickedContentTypeUnique ? [mapping.pickedContentTypeUnique] : []}
+        @change=${(e: Event) => this._handlePickedDocumentTypeChange(index, e)}
+      ></umb-input-document-type>
+    `;
+  }
+
+  /**
+   * Per-usage object editor: pick the related document type, name the
+   * Schema.org type the object takes, then configure its properties in the
+   * stacked complex-type modal. The configure button is disabled until a
+   * document type is chosen — mirroring the "Map blocks" pattern — because the
+   * modal has nothing to map against without one.
+   */
+  private _renderPickedObjectInputs(mapping: PropertyMappingRow, index: number) {
+    const hasPickedContentType = !!mapping.pickedContentTypeAlias;
+    return html`
+      ${this._renderPickedDocumentTypeInput(mapping, index)}
+      <schemeweaver-schema-type-input
+        .value=${mapping.nestedSchemaTypeName}
+        @change=${(e: Event) =>
+          this._handlePickedObjectTypeChange(index, (e.target as HTMLElement & { value: string }).value)}
+      ></schemeweaver-schema-type-input>
+      <div class="block-actions">
+        <uui-button
+          look="secondary"
+          compact
+          data-mark="schemeweaver:configure-picked-object:${mapping.schemaPropertyName}"
+          label=${this.localize.term('schemeWeaver_configurePickedObject')}
+          title=${hasPickedContentType ? nothing : this.localize.term('schemeWeaver_configurePickedObjectDisabledHint')}
+          ?disabled=${!hasPickedContentType}
+          @click=${() => this._handleConfigurePickedComplexType(index)}
+        >
+          <uui-icon name="icon-brackets"></uui-icon>
+          ${this.localize.term('schemeWeaver_configurePickedObject')}
+        </uui-button>
+        ${mapping.pickedComplexType
+          ? html`<uui-icon name="icon-check" class="configured-check"></uui-icon>`
+          : nothing}
+      </div>
+      <small class="picker-mode-hint">${this.localize.term('schemeWeaver_pickerPickedObjectHint')}</small>
     `;
   }
 

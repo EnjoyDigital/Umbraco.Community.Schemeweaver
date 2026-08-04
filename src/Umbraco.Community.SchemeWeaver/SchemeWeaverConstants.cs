@@ -73,6 +73,19 @@ public static class SchemeWeaverConstants
         };
 
         /// <summary>
+        /// Editor aliases whose value is picked CONTENT — a reference to another node rather than a
+        /// value of its own. The single source of truth for "this property resolves through the
+        /// <see cref="Resolvers.PickedContentResolver"/> ladder" — referenced by the auto-mapper
+        /// (recognising picker rows), by the complex-type sub-row config forwarding in
+        /// <see cref="Services.JsonLdGenerator"/>, and by the range validator.
+        /// </summary>
+        public static readonly HashSet<string> ContentPickerAliases = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Umbraco.ContentPicker",
+            "Umbraco.MultiNodeTreePicker"
+        };
+
+        /// <summary>
         /// Editor aliases whose resolved value is HTML/markup. The single source of truth for
         /// "this source produces HTML" — referenced by <see cref="Resolvers.RichTextResolver"/>
         /// (what it resolves) and by the mapping advisor (which suggests <c>stripHtml</c> when one

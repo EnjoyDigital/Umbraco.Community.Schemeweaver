@@ -205,6 +205,128 @@ describe('SchemaMappingViewElement', () => {
     expect(row.resolverConfig).to.equal(null);
   });
 
+  // Issue #40 — the per-usage picked object opens the RELATED content type in
+  // the stacked complex-type editor, so its sub-rows map the PICKED node's own
+  // properties. Opening it against the page's own content type would silently
+  // produce an object built from the wrong node.
+  describe('per-usage picked object', () => {
+    const INNER = '{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"}]}';
+
+    function pickerRow(overrides: Record<string, unknown> = {}): any {
+      return {
+        schemaPropertyName: 'author',
+        schemaPropertyType: 'Person',
+        sourceType: 'property',
+        contentTypePropertyAlias: 'authorNode',
+        sourceContentTypeAlias: '',
+        staticValue: '',
+        confidence: null,
+        editorAlias: 'Umbraco.ContentPicker',
+        nestedSchemaTypeName: '',
+        resolverConfig: null,
+        acceptedTypes: ['Person'],
+        isComplexType: true,
+        expanded: false,
+        subMappings: [],
+        selectedSubType: '',
+        sourceContentTypeProperties: [],
+        pickedContentTypeAlias: 'authorProfile',
+        pickedContentTypeProperties: ['fullName', 'jobTitle', 'bio'],
+        ...overrides,
+      };
+    }
+
+    /** Records what the complex-type modal was opened with, then submits a config. */
+    function stubComplexTypeModal(result: { resolverConfig: string; selectedSubType: string } | null): OpenedModal[] {
+      const opened: OpenedModal[] = [];
+      __mockContextRegistry.provide(UMB_MODAL_MANAGER_CONTEXT, {
+        open(_host: unknown, token: { alias?: string }, options?: { data?: Record<string, unknown> }) {
+          opened.push({ alias: token?.alias, data: options?.data });
+          return result
+            ? { onSubmit: () => Promise.resolve(result) }
+            : { onSubmit: () => Promise.reject(new Error('cancelled')) };
+        },
+      });
+      return opened;
+    }
+
+    async function mountWith(rows: any[]): Promise<any> {
+      const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`) as any;
+      el._contentTypeAlias = 'blogArticle';
+      el._availableProperties = ['title', 'authorNode'];
+      el._rows = rows;
+      return el;
+    }
+
+    function detailFor(row: any) {
+      return new CustomEvent('configure-picked-complex-type', {
+        detail: {
+          index: 0,
+          schemaPropertyName: row.schemaPropertyName,
+          acceptedTypes: row.acceptedTypes,
+          selectedSubType: row.nestedSchemaTypeName,
+          pickedContentTypeAlias: row.pickedContentTypeAlias,
+          pickedContentTypeProperties: row.pickedContentTypeProperties,
+          existingConfig: row.pickedComplexType,
+        },
+      });
+    }
+
+    it('opens the modal against the PICKED content type, not the page content type', async () => {
+      const opened = stubComplexTypeModal(null);
+      const row = pickerRow();
+      const el = await mountWith([row]);
+
+      await el._handleConfigurePickedComplexType(detailFor(row));
+
+      expect(opened).to.have.lengthOf(1);
+      expect(opened[0].alias).to.equal('SchemeWeaver.Modal.ComplexTypeMapping');
+      expect(opened[0].data!.contentTypeAlias).to.equal('authorProfile');
+      expect(opened[0].data!.contentTypeAlias).to.not.equal(el._contentTypeAlias);
+      expect(opened[0].data!.availableProperties).to.deep.equal(['fullName', 'jobTitle', 'bio']);
+      expect(opened[0].data!.parentPath, 'a breadcrumb names the picked item').to.be.a('string');
+    });
+
+    it('writes the result back NESTED, and sets the authoritative nested type', async () => {
+      stubComplexTypeModal({ resolverConfig: INNER, selectedSubType: 'Person' });
+      const row = pickerRow({ pickedPropertyAlias: 'jobTitle' });
+      const el = await mountWith([row]);
+
+      await el._handleConfigurePickedComplexType(detailFor(row));
+
+      const written = el._rows[0];
+      expect(written.pickedComplexType).to.equal(INNER);
+      expect(written.nestedSchemaTypeName).to.equal('Person');
+      // The drill alias and the object are mutually exclusive.
+      expect(written.pickedPropertyAlias).to.equal(undefined);
+      const config = JSON.parse(written.resolverConfig);
+      expect(config.pickedContentTypeAlias).to.equal('authorProfile');
+      expect(config.pickedComplexType.selectedSubType).to.equal('Person');
+      expect(config.complexTypeMappings, 'the config must never be written flat').to.equal(undefined);
+    });
+
+    it('bails out before opening anything when no document type has been picked', async () => {
+      const opened = stubComplexTypeModal({ resolverConfig: INNER, selectedSubType: 'Person' });
+      const row = pickerRow({ pickedContentTypeAlias: undefined, pickedContentTypeProperties: undefined });
+      const el = await mountWith([row]);
+
+      await el._handleConfigurePickedComplexType(detailFor(row));
+
+      expect(opened).to.be.empty;
+      expect(el._rows[0].pickedComplexType).to.equal(undefined);
+    });
+
+    it('leaves the row untouched when the modal is cancelled', async () => {
+      stubComplexTypeModal(null);
+      const row = pickerRow();
+      const el = await mountWith([row]);
+
+      await el._handleConfigurePickedComplexType(detailFor(row));
+
+      expect(el._rows[0]).to.equal(row);
+    });
+  });
+
   // Regression guards — two side-by-side workspace views for different
   // doc types must render fully independent state. If the SchemeWeaverContext
   // is ever shared as a singleton again, these should catch the leak.

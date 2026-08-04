@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -2675,6 +2675,532 @@ public class JsonLdGeneratorTests
         emitted.Should().Be("Principal Developer");
         result.ToString().Should().NotContain("Jane Doe",
             "drill-down must emit the drilled property, not the picked node's name");
+    }
+
+    // --- Picker sub-rows inside a complexType (issue #40) ---
+
+    /// <summary>
+    /// Builds a picked node carrying one property, and the picker property that points at it.
+    /// Pass several nodes to model a Multi Node Tree Picker.
+    /// </summary>
+    private static IPublishedProperty CreatePickerProperty(
+        string pickerEditorAlias, params IPublishedContent[] picked)
+    {
+        var pickerType = Substitute.For<IPublishedPropertyType>();
+        pickerType.EditorAlias.Returns(pickerEditorAlias);
+        var pickerProperty = Substitute.For<IPublishedProperty>();
+        pickerProperty.PropertyType.Returns(pickerType);
+        pickerProperty.GetValue(Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns(picked.Length == 1 ? picked[0] : picked.ToList());
+        return pickerProperty;
+    }
+
+    /// <summary>Picked node carrying several properties, all plain text boxes.</summary>
+    private static IPublishedContent CreatePickedNode(
+        string contentTypeAlias, string nodeName, Dictionary<string, object?> properties)
+    {
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns(contentTypeAlias);
+
+        var node = Substitute.For<IPublishedContent>();
+        node.Name.Returns(nodeName);
+        node.Key.Returns(Guid.NewGuid());
+        node.ContentType.Returns(contentType);
+
+        foreach (var kvp in properties)
+        {
+            var propertyType = Substitute.For<IPublishedPropertyType>();
+            propertyType.EditorAlias.Returns("Umbraco.TextBox");
+            var property = Substitute.For<IPublishedProperty>();
+            property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(kvp.Value);
+            property.PropertyType.Returns(propertyType);
+            node.GetProperty(kvp.Key).Returns(property);
+        }
+
+        return node;
+    }
+
+    private static IPublishedContent CreatePickedNode(
+        string contentTypeAlias, string nodeName,
+        string propertyAlias, object? propertyValue,
+        string propertyEditorAlias = "Umbraco.TextBox")
+    {
+        var contentType = Substitute.For<IPublishedContentType>();
+        contentType.Alias.Returns(contentTypeAlias);
+
+        var propertyType = Substitute.For<IPublishedPropertyType>();
+        propertyType.EditorAlias.Returns(propertyEditorAlias);
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(propertyValue);
+        property.PropertyType.Returns(propertyType);
+
+        var node = Substitute.For<IPublishedContent>();
+        node.Name.Returns(nodeName);
+        node.Key.Returns(Guid.NewGuid());
+        node.ContentType.Returns(contentType);
+        node.GetProperty(propertyAlias).Returns(property);
+        return node;
+    }
+
+    [Fact]
+    public void ComplexType_PickerSubRow_NoConfig_StillEmitsNodeName()
+    {
+        // Backwards-compatibility pin: a picker sub-row with no picked-item config keeps
+        // emitting the picked node's name, exactly as it did before #40. Every mapping
+        // saved before this feature is in precisely this state.
+        var picked = CreatePickedNode("author", "Jane Doe", "jobTitle", "Principal Developer");
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", picked);
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"authorNode"}]}"""
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.GetProperty("author").GetProperty("name").GetString().Should().Be("Jane Doe");
+    }
+
+    [Fact]
+    public void ComplexType_PickerSubRow_DrillConfig_ResolvesPickedProperty()
+    {
+        // THE #40 DEFECT. Before the fix the sub-row got a blank synthetic mapping, so the
+        // picker resolver saw no config and returned the picked node's NAME — jobTitle
+        // rendered as "Jane Doe". The sub-row's own resolverConfig is now forwarded.
+        var picked = CreatePickedNode("author", "Jane Doe", "jobTitle", "Principal Developer");
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", picked);
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"JobTitle","sourceType":"property","contentTypePropertyAlias":"authorNode","resolverConfig":"{\"pickedPropertyAlias\":\"jobTitle\"}"}]}"""
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.GetProperty("author").GetProperty("jobTitle").GetString()
+            .Should().Be("Principal Developer");
+        result.ToString().Should().NotContain("Jane Doe",
+            "a drilled sub-row must emit the drilled property, never the picked node's name");
+    }
+
+    [Fact]
+    public void ComplexType_PickerSubRow_WholeItemConfig_NestsPickedTypeMapping()
+    {
+        // Whole-item nesting from a sub-row: the nested type name travels inside the sub-row's
+        // resolverConfig, because a ComplexTypeMappingEntry has no NestedSchemaTypeName column.
+        // The node NAME and the mapped fullName differ deliberately: if they matched, the
+        // unfixed fallback (emit the node name, which the setter then auto-wraps into a
+        // {"@type":"Person","name":…} shell) would satisfy the assertions for the wrong reason.
+        var picked = CreatePickedNode("author", "author-jane-doe", "fullName", "Jane Doe");
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", picked);
+        article.GetProperty("founderNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetByContentTypeAlias("author").Returns(new SchemaMapping
+        {
+            Id = 2,
+            ContentTypeAlias = "author",
+            SchemaTypeName = "Person",
+            IsEnabled = true
+        });
+        _repository.GetPropertyMappings(2).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "fullName" }
+        });
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Founder","sourceType":"property","contentTypePropertyAlias":"founderNode","resolverConfig":"{\"nestedSchemaTypeName\":\"Person\"}"}]}"""
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var founder = doc.RootElement.GetProperty("author").GetProperty("founder");
+        founder.GetProperty("@type").GetString().Should().Be("Person");
+        founder.GetProperty("name").GetString().Should().Be("Jane Doe");
+        result.ToString().Should().NotContain("author-jane-doe",
+            "whole-item nesting must render the picked type's mapping, not the node name");
+    }
+
+    [Fact]
+    public void ComplexType_MntpSubRow_WholeItemConfig_EmitsArrayOfObjects()
+    {
+        // MNTP fan-out needs no resolver change: the per-item loop and the List<Thing>
+        // homogenisation already existed — they were simply unreachable from a sub-row.
+        var jane = CreatePickedNode("author", "Jane Doe", "fullName", "Jane Doe");
+        var john = CreatePickedNode("author", "John Smith", "fullName", "John Smith");
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.MultiNodeTreePicker", jane, john);
+        article.GetProperty("teamNodes").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetByContentTypeAlias("author").Returns(new SchemaMapping
+        {
+            Id = 2,
+            ContentTypeAlias = "author",
+            SchemaTypeName = "Person",
+            IsEnabled = true
+        });
+        _repository.GetPropertyMappings(2).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Name", SourceType = "property", ContentTypePropertyAlias = "fullName" }
+        });
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Employee","sourceType":"property","contentTypePropertyAlias":"teamNodes","resolverConfig":"{\"nestedSchemaTypeName\":\"Person\"}"}]}"""
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var employees = doc.RootElement.GetProperty("author").GetProperty("employee");
+        employees.ValueKind.Should().Be(JsonValueKind.Array);
+        employees.EnumerateArray().Select(e => e.GetProperty("name").GetString())
+            .Should().BeEquivalentTo("Jane Doe", "John Smith");
+    }
+
+    [Fact]
+    public void ComplexType_NonPickerSubRow_ResolverConfigNotForwarded()
+    {
+        // Pins the editor-alias gate: config forwarding must be inert for every non-picker
+        // sub-row, so a stale blob can never be re-interpreted by another resolver.
+        var article = CreateContent("article", new Dictionary<string, object?>
+        {
+            ["authorName"] = "Jane Doe"
+        });
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"authorName","resolverConfig":"{\"pickedPropertyAlias\":\"nonsense\",\"nestedSchemaTypeName\":\"Organization\"}"}]}"""
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.GetProperty("author").GetProperty("name").GetString().Should().Be("Jane Doe");
+    }
+
+    [Fact]
+    public void ComplexType_PickerSubRow_PicksHostPage_DoesNotSelfNest()
+    {
+        // Cycle guard. The sub-row's picker points back at the page being rendered; without
+        // VisitedContentKeys being seeded at the sub-value boundary this recurses until the
+        // stack dies — and a StackOverflowException cannot be caught, so the never-break-the-page
+        // policy would be no defence at all.
+        var article = CreateContent("article");
+        article.Name.Returns("The Article");
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", article);
+        article.GetProperty("selfNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "complexType",
+                NestedSchemaTypeName = "Organization",
+                ResolverConfig =
+                    """{"complexTypeMappings":[{"schemaProperty":"Founder","sourceType":"property","contentTypePropertyAlias":"selfNode","resolverConfig":"{\"nestedSchemaTypeName\":\"Person\"}"}]}"""
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        // Terminates, and degrades to the node's name rather than nesting the page in itself.
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var founder = doc.RootElement.GetProperty("author").GetProperty("founder");
+        var emitted = founder.ValueKind == JsonValueKind.String
+            ? founder.GetString()
+            : founder.GetProperty("name").GetString();
+        emitted.Should().Be("The Article");
+    }
+
+    // --- Per-usage object built from the picked node (issue #40, mode 4) ---
+
+    private const string PickedPersonObjectConfig =
+        """{"pickedContentTypeAlias":"author","pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"},{"schemaProperty":"JobTitle","sourceType":"property","contentTypePropertyAlias":"jobTitle"}]}}""";
+
+    [Fact]
+    public void PickedComplexType_BuildsObjectFromPickedNode()
+    {
+        // THE #40 FEATURE: a bespoke Person assembled from the picked node's own properties,
+        // with no saved mapping on the picked type at all.
+        var picked = CreatePickedNode("author", "author-jane-doe", new Dictionary<string, object?>
+        {
+            ["fullName"] = "Jane Doe",
+            ["jobTitle"] = "Principal Developer"
+        });
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", picked);
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetByContentTypeAlias("author").Returns((SchemaMapping?)null);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "property",
+                ContentTypePropertyAlias = "authorNode",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig = PickedPersonObjectConfig
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var author = doc.RootElement.GetProperty("author");
+        author.GetProperty("@type").GetString().Should().Be("Person");
+        author.GetProperty("name").GetString().Should().Be("Jane Doe");
+        author.GetProperty("jobTitle").GetString().Should().Be("Principal Developer");
+        result.ToString().Should().NotContain("author-jane-doe");
+    }
+
+    [Fact]
+    public void PickedComplexType_Mntp_EmitsArrayOfObjects()
+    {
+        // Fan-out is free: MultiNodeTreePickerResolver already loops picks and homogenises
+        // to List<Thing>. Several picks therefore yield an array of bespoke objects.
+        var jane = CreatePickedNode("author", "node-jane", new Dictionary<string, object?>
+        {
+            ["fullName"] = "Jane Doe",
+            ["jobTitle"] = "Principal Developer"
+        });
+        var john = CreatePickedNode("author", "node-john", new Dictionary<string, object?>
+        {
+            ["fullName"] = "John Smith",
+            ["jobTitle"] = "Technical Writer"
+        });
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.MultiNodeTreePicker", jane, john);
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetByContentTypeAlias("author").Returns((SchemaMapping?)null);
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "property",
+                ContentTypePropertyAlias = "authorNode",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig = PickedPersonObjectConfig
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var authors = doc.RootElement.GetProperty("author");
+        authors.ValueKind.Should().Be(JsonValueKind.Array);
+        authors.EnumerateArray().Select(a => a.GetProperty("jobTitle").GetString())
+            .Should().BeEquivalentTo("Principal Developer", "Technical Writer");
+    }
+
+    [Fact]
+    public void PickedComplexType_DrillDownStillWins()
+    {
+        // Ladder order: drill sits above the object, so no mapping authored before #40 changes.
+        var picked = CreatePickedNode("author", "node-jane", new Dictionary<string, object?>
+        {
+            ["fullName"] = "Jane Doe",
+            ["jobTitle"] = "Principal Developer"
+        });
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", picked);
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "property",
+                ContentTypePropertyAlias = "authorNode",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig =
+                    """{"pickedPropertyAlias":"jobTitle","pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"}]}}"""
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        result.ToString().Should().Contain("Principal Developer");
+        result.ToString().Should().NotContain("Jane Doe",
+            "the drilled property wins; the object config must be ignored entirely");
+    }
+
+    [Fact]
+    public void PickedComplexType_TakesPrecedenceOverWholeItemNesting()
+    {
+        // The object is more specific than the picked type's own mapping, so it wins.
+        var picked = CreatePickedNode("author", "node-jane", new Dictionary<string, object?>
+        {
+            ["fullName"] = "Jane Doe",
+            ["jobTitle"] = "Principal Developer"
+        });
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", picked);
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetByContentTypeAlias("author").Returns(new SchemaMapping
+        {
+            Id = 2,
+            ContentTypeAlias = "author",
+            SchemaTypeName = "Person",
+            IsEnabled = true
+        });
+        _repository.GetPropertyMappings(2).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Description", SourceType = "property", ContentTypePropertyAlias = "fullName" }
+        });
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "property",
+                ContentTypePropertyAlias = "authorNode",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig = PickedPersonObjectConfig
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var author = doc.RootElement.GetProperty("author");
+        author.GetProperty("jobTitle").GetString().Should().Be("Principal Developer");
+        author.TryGetProperty("description", out _).Should().BeFalse(
+            "the per-usage object replaces the picked type's own mapping, it does not merge with it");
+    }
+
+    [Fact]
+    public void PickedComplexType_ResolvesNothing_OmitsPropertyRatherThanEmittingName()
+    {
+        // An explicitly configured object must not silently degrade to the node's name: the editor
+        // chose an object shape, and a bare string would be dropped or auto-wrapped into a
+        // fabricated Thing — the exact class of plausible-looking garbage #40 set out to remove.
+        var picked = CreatePickedNode("author", "node-jane", new Dictionary<string, object?>());
+        var article = CreateContent("article");
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", picked);
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "property",
+                ContentTypePropertyAlias = "authorNode",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig = PickedPersonObjectConfig
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        doc.RootElement.TryGetProperty("author", out _).Should().BeFalse();
+        result.ToString().Should().NotContain("node-jane");
+    }
+
+    [Fact]
+    public void PickedComplexType_CycleAtoBtoA_Terminates()
+    {
+        // A picks B; B's object has a sub-row picking A back, asking to nest A whole. Without the
+        // visited chain being carried across the node hop this recurses until the stack dies — and
+        // a StackOverflowException cannot be caught, so it would take the whole request down.
+        var article = CreateContent("article");
+        article.Name.Returns("The Article");
+
+        var picked = CreatePickedNode("author", "node-jane", new Dictionary<string, object?>
+        {
+            ["fullName"] = "Jane Doe"
+        });
+        var backPicker = CreatePickerProperty("Umbraco.ContentPicker", article);
+        picked.GetProperty("employerNode").Returns(backPicker);
+
+        var pickerProperty = CreatePickerProperty("Umbraco.ContentPicker", picked);
+        article.GetProperty("authorNode").Returns(pickerProperty);
+
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new()
+            {
+                SchemaPropertyName = "Author",
+                SourceType = "property",
+                ContentTypePropertyAlias = "authorNode",
+                NestedSchemaTypeName = "Person",
+                ResolverConfig =
+                    """{"pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"fullName"},{"schemaProperty":"WorksFor","sourceType":"property","contentTypePropertyAlias":"employerNode","resolverConfig":"{\"nestedSchemaTypeName\":\"Article\"}"}]}}"""
+            }
+        });
+
+        var result = CreateSutWithFullResolverFactory().GenerateJsonLd(article);
+
+        using var doc = JsonDocument.Parse(result!.ToString());
+        var author = doc.RootElement.GetProperty("author");
+        author.GetProperty("name").GetString().Should().Be("Jane Doe");
+        // The back-reference degrades to the page's name rather than nesting the page in itself.
+        var worksFor = author.GetProperty("worksFor");
+        var emitted = worksFor.ValueKind == JsonValueKind.String
+            ? worksFor.GetString()
+            : worksFor.GetProperty("name").GetString();
+        emitted.Should().Be("The Article");
     }
 
     #endregion

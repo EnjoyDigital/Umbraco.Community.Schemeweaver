@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -22,7 +22,7 @@ namespace Umbraco.Community.SchemeWeaver.Services;
 /// Generates JSON-LD from published content using stored schema mappings.
 /// Uses the extensible <see cref="IPropertyValueResolver"/> pattern for property value extraction.
 /// </summary>
-public partial class JsonLdGenerator : IJsonLdGenerator
+public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
 {
     private readonly ISchemaMappingRepository _repository;
     private readonly ISchemaTypeRegistry _registry;
@@ -34,6 +34,11 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     private readonly IVariationContextAccessor _variationContextAccessor;
     private readonly ILogger<JsonLdGenerator> _logger;
     private readonly SchemeWeaverOptions _options;
+
+    /// <summary>
+    /// Shared empty visited-node chain, for the top-level entry into complex-type resolution.
+    /// </summary>
+    private static readonly IReadOnlySet<Guid> NoVisitedContentKeys = new HashSet<Guid>();
 
     /// <summary>
     /// Fallback serialiser options for Schema.NET types that have property name collisions
@@ -463,6 +468,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 MappingRepository = _repository,
                 HttpContextAccessor = _httpContextAccessor,
                 ResolverFactory = _resolverFactory,
+            ComplexTypeBuilder = this,
                 RecursionDepth = 0,
                 MaxRecursionDepth = _options.MaxRecursionDepth,
                 Culture = culture,
@@ -652,6 +658,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
                 MappingRepository = _repository,
                 HttpContextAccessor = _httpContextAccessor,
                 ResolverFactory = _resolverFactory,
+            ComplexTypeBuilder = this,
                 Property = null,
                 RecursionDepth = 0,
                 MaxRecursionDepth = _options.MaxRecursionDepth,
@@ -679,6 +686,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
             MappingRepository = _repository,
             HttpContextAccessor = _httpContextAccessor,
             ResolverFactory = _resolverFactory,
+            ComplexTypeBuilder = this,
             Property = publishedProperty,
             RecursionDepth = 0,
             MaxRecursionDepth = _options.MaxRecursionDepth,
@@ -703,11 +711,35 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
     /// <summary>
     /// Recursively resolves a complex Schema.org type from its config.
-    /// No depth limit — recursion is bounded by the finite JSON structure of resolverConfig.
+    ///
+    /// The config's own recursion is bounded by the finite JSON structure of resolverConfig, but the
+    /// BASE NODE can change as we descend (a picked-item object builds from the picked node), so the
+    /// content graph — which is not finite — becomes reachable. <paramref name="recursionDepth"/> and
+    /// <paramref name="visitedContentKeys"/> bound that traversal; without them an A-picks-B,
+    /// B-picks-A cycle recurses to a StackOverflowException, which cannot be caught and so defeats
+    /// the never-break-the-page policy entirely.
+    ///
+    /// Both parameters default to "top level" so every pre-existing caller behaves exactly as before.
+    /// The visited set is checked against <paramref name="content"/> on entry and only THEN extended
+    /// with it — a caller passes the chain it has already walked, never the node it is asking for.
     /// </summary>
-    private object? ResolveComplexTypeFromConfig(
-        string typeName, ComplexTypeConfigModel? config, IPublishedContent content, string? culture)
+    /// <inheritdoc />
+    public Thing? BuildFromConfig(
+        string typeName, ComplexTypeConfigModel config, IPublishedContent content, string? culture,
+        int recursionDepth, IReadOnlySet<Guid> visitedContentKeys)
+        => ResolveComplexTypeFromConfig(typeName, config, content, culture, recursionDepth, visitedContentKeys);
+
+    private Thing? ResolveComplexTypeFromConfig(
+        string typeName, ComplexTypeConfigModel? config, IPublishedContent content, string? culture,
+        int recursionDepth = 0, IReadOnlySet<Guid>? visitedContentKeys = null)
     {
+        if (recursionDepth >= _options.MaxRecursionDepth)
+            return null;
+
+        var visited = visitedContentKeys ?? NoVisitedContentKeys;
+        if (visited.Contains(content.Key))
+            return null; // this node is already being rendered further up the chain
+
         var clrType = _registry.GetClrType(typeName);
         if (clrType is null || Activator.CreateInstance(clrType) is not Thing nestedInstance)
             return null;
@@ -721,7 +753,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         var resolved = new List<(ComplexTypeMappingEntry SubMapping, object Value)>();
         foreach (var subMapping in config.ComplexTypeMappings.Where(m => !string.IsNullOrEmpty(m.SchemaProperty)))
         {
-            var value = ResolveSubValue(subMapping, content, culture);
+            var value = ResolveSubValue(subMapping, content, culture, recursionDepth, visited);
             if (value is not null)
                 resolved.Add((subMapping, value));
         }
@@ -747,20 +779,22 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// stays untransformed, mirroring the top-level static behaviour; complexType yields a Thing,
     /// not a string) — and, when it collapses to whitespace, drops the sub-value.
     /// </summary>
-    private object? ResolveSubValue(ComplexTypeMappingEntry subMapping, IPublishedContent content, string? culture)
+    private object? ResolveSubValue(
+        ComplexTypeMappingEntry subMapping, IPublishedContent content, string? culture,
+        int recursionDepth, IReadOnlySet<Guid> visitedContentKeys)
     {
         object? value = subMapping.SourceType switch
         {
             SchemeWeaverConstants.SourceTypes.Static => subMapping.StaticValue,
             SchemeWeaverConstants.SourceTypes.Property when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
-                ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias, culture),
+                ResolveComplexTypePropertyValue(content, subMapping.ContentTypePropertyAlias, culture, recursionDepth, visitedContentKeys, subMapping),
             SchemeWeaverConstants.SourceTypes.Parent
                 or SchemeWeaverConstants.SourceTypes.Ancestor
                 or SchemeWeaverConstants.SourceTypes.Sibling
                 when !string.IsNullOrEmpty(subMapping.ContentTypePropertyAlias) =>
-                ResolveRelatedNodeSubValue(subMapping, content, culture),
+                ResolveRelatedNodeSubValue(subMapping, content, culture, recursionDepth, visitedContentKeys),
             SchemeWeaverConstants.SourceTypes.ComplexType when !string.IsNullOrEmpty(subMapping.ResolverConfig) =>
-                ResolveNestedComplexType(subMapping, content, culture),
+                ResolveNestedComplexType(subMapping, content, culture, recursionDepth, visitedContentKeys),
             _ => null
         };
 
@@ -836,14 +870,20 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// Resolves a nested complex type sub-mapping by parsing its ResolverConfig and recursing.
     /// </summary>
     private object? ResolveNestedComplexType(
-        ComplexTypeMappingEntry entry, IPublishedContent content, string? culture)
+        ComplexTypeMappingEntry entry, IPublishedContent content, string? culture,
+        int recursionDepth, IReadOnlySet<Guid> visitedContentKeys)
     {
         var nestedConfig = ParseComplexTypeConfig(entry.ResolverConfig);
         var nestedTypeName = nestedConfig?.SelectedSubType;
         if (string.IsNullOrEmpty(nestedTypeName))
             return null;
 
-        return ResolveComplexTypeFromConfig(nestedTypeName, nestedConfig, content, culture);
+        // Same node, one level deeper in the CONFIG — so neither guard advances. The depth counter
+        // bounds node hops, not config nesting: config nesting is still bounded by the finite JSON
+        // structure of resolverConfig, and incrementing here would silently truncate legitimately
+        // deep existing mappings. The visited set likewise passes through: the base node has not moved.
+        return ResolveComplexTypeFromConfig(
+            nestedTypeName, nestedConfig, content, culture, recursionDepth, visitedContentKeys);
     }
 
     /// <summary>
@@ -851,10 +891,13 @@ public partial class JsonLdGenerator : IJsonLdGenerator
     /// locates the target node exactly as a top-level related mapping would, then
     /// resolves the sub-property off that node through the resolver pipeline. This
     /// is what lets e.g. an inline Organization's name/logo read the site root.
-    /// Sub-mappings always resolve relative to the page being generated, at every
-    /// nesting depth.
+    /// Sub-mappings resolve relative to the page being generated, at every nesting depth —
+    /// EXCEPT inside a picked-item object (<see cref="IComplexTypeBuilder"/>), where the base node
+    /// is the PICKED node, so parent/ancestor/sibling walk the picked node's branch of the tree.
     /// </summary>
-    private object? ResolveRelatedNodeSubValue(ComplexTypeMappingEntry subMapping, IPublishedContent content, string? culture)
+    private object? ResolveRelatedNodeSubValue(
+        ComplexTypeMappingEntry subMapping, IPublishedContent content, string? culture,
+        int recursionDepth, IReadOnlySet<Guid> visitedContentKeys)
     {
         var syntheticMapping = new PropertyMapping
         {
@@ -868,14 +911,22 @@ public partial class JsonLdGenerator : IJsonLdGenerator
         if (targetNode is null)
             return null;
 
-        return ResolveComplexTypePropertyValue(targetNode, subMapping.ContentTypePropertyAlias!, culture);
+        return ResolveComplexTypePropertyValue(
+            targetNode, subMapping.ContentTypePropertyAlias!, culture, recursionDepth, visitedContentKeys);
     }
 
     /// <summary>
     /// Resolves a property value for complex type sub-mappings using the resolver factory.
     /// This ensures media pickers, content pickers, built-ins etc. are handled correctly.
+    ///
+    /// This is the boundary at which a sub-value can leave the current node (a picker property
+    /// resolves to whatever it points at), so it is here — and only here — that
+    /// <paramref name="content"/> joins the visited chain the resolver pipeline inherits.
     /// </summary>
-    private object? ResolveComplexTypePropertyValue(IPublishedContent content, string propertyAlias, string? culture)
+    private object? ResolveComplexTypePropertyValue(
+        IPublishedContent content, string propertyAlias, string? culture,
+        int recursionDepth, IReadOnlySet<Guid> visitedContentKeys,
+        ComplexTypeMappingEntry? subMapping = null)
     {
         IPublishedProperty? publishedProperty = null;
         string? editorAlias;
@@ -897,22 +948,39 @@ public partial class JsonLdGenerator : IJsonLdGenerator
 
         var resolver = _resolverFactory.GetResolver(editorAlias);
 
+        // A picker sub-row historically got a BLANK synthetic mapping, so PickedContentResolver saw
+        // no config, skipped both drill-down and whole-item nesting, and emitted the picked node's
+        // NAME for every sub-property — Person.jobTitle rendering the author's name, Organization.logo
+        // rendering "Jane Doe". Forward the sub-row's own ResolverConfig so a picker sub-row can be
+        // configured exactly like a top-level picker row.
+        //
+        // Gated on the editor alias so this is provably inert for every non-picker sub-row: a stale
+        // complexType/blockContent blob left on a property sub-row must never reach BlockContentResolver.
+        var isPicker = editorAlias is not null
+            && SchemeWeaverConstants.PropertyEditors.ContentPickerAliases.Contains(editorAlias);
+        var pickedConfig = isPicker ? PickedContentResolver.ParseConfig(subMapping?.ResolverConfig) : null;
+
         var context = new PropertyResolverContext
         {
             Content = content,
             Mapping = new Models.Entities.PropertyMapping
             {
+                SchemaPropertyName = subMapping?.SchemaProperty ?? string.Empty,
                 ContentTypePropertyAlias = propertyAlias,
-                SourceType = "property"
+                SourceType = "property",
+                ResolverConfig = isPicker ? subMapping?.ResolverConfig : null,
+                NestedSchemaTypeName = pickedConfig?.NestedSchemaTypeName
             },
             PropertyAlias = propertyAlias,
             SchemaTypeRegistry = _registry,
             MappingRepository = _repository,
             HttpContextAccessor = _httpContextAccessor,
             ResolverFactory = _resolverFactory,
+            ComplexTypeBuilder = this,
             Property = publishedProperty,
-            RecursionDepth = 0,
+            RecursionDepth = recursionDepth,
             MaxRecursionDepth = _options.MaxRecursionDepth,
+            VisitedContentKeys = new HashSet<Guid>(visitedContentKeys) { content.Key },
             Culture = culture
         };
 
