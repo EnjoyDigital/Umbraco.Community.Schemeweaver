@@ -232,9 +232,11 @@ test.describe('SchemeWeaver AI — real Anthropic calls', () => {
     expect(first).toBeTruthy();
     expect(typeof first['schemaPropertyName']).toBe('string');
     expect((first['schemaPropertyName'] as string).length).toBeGreaterThan(0);
-    // Content type property alias may legitimately be null when the AI declines
-    // to map a schema property — but the field should always be present.
-    expect('contentTypePropertyAlias' in first).toBe(true);
+    // The suggestion DTO's alias field is suggestedContentTypePropertyAlias
+    // (PropertyMappingSuggestion — not the contentTypePropertyAlias of a saved
+    // mapping row). It may legitimately be null when the AI declines to map a
+    // schema property, but the field is always serialised.
+    expect('suggestedContentTypePropertyAlias' in first).toBe(true);
 
     if (first['confidence'] !== undefined) {
       expect(typeof first['confidence']).toBe('number');

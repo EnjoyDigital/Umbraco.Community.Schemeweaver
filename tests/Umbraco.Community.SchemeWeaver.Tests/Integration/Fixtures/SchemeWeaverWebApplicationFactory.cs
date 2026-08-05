@@ -120,6 +120,11 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>,
             {
                 services.Remove(descriptor);
             }
+
+            // Umbraco.AI's background EF migration must not run in integration hosts —
+            // its DDL races test traffic on the shared cache, and it migrates the wrong
+            // database anyway. Full story: UmbracoAiTestHostOverrides.
+            UmbracoAiTestHostOverrides.RemoveUmbracoAiMigrationHandler(services);
         });
     }
 

@@ -1,5 +1,9 @@
 # SchemeWeaver.AI revival — verified contract (Umbraco.AI 1.14)
 
+> **SUPERSEDED (2026-08-05):** the satellite now builds for Umbraco 17 AND 18.
+> Umbraco.AI ships major-aligned lines (17.x / 18.x) with an identical API surface,
+> so the "17-only" constraints below no longer apply. Kept as historical record.
+
 > Phase-0 spike output. **All of the recovered satellite code compiles clean against
 > Umbraco.AI.Core 1.14.0 with 0 warnings / 0 errors** (built with `-p:UmbracoMajor=17`).
 > The original was written against Core ~1.8; the API we use did **not** break.

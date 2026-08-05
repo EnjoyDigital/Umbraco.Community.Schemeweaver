@@ -92,15 +92,14 @@ jobs:
       - name: Pack Deploy satellite
         run: dotnet pack src/Umbraco.Community.SchemeWeaver.Deploy/Umbraco.Community.SchemeWeaver.Deploy.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
-      # AI satellite is Umbraco 17-only (Umbraco.AI 1.14 has no Umbraco 18 build), so it
-      # is packed on the 17 leg only. It is versioned independently of the release tag —
-      # it ships at its own prerelease version from the csproj (<Version>), so the
-      # push step's --skip-duplicate makes this a no-op on tags that don't bump it.
-      # --no-build is omitted intentionally: the AI project isn't in the solution the
-      # Build step compiles, and its frontend (wwwroot/) is produced by the AI pack target.
-      - name: Pack AI satellite (Umbraco 17 only)
-        if: matrix.umbraco == '17'
-        run: dotnet pack src/Umbraco.Community.SchemeWeaver.AI/Umbraco.Community.SchemeWeaver.AI.csproj --configuration Release -p:UmbracoMajor=17 --output ./artifacts
+      # AI satellite ships per-major like the rest of the suite, at this leg's stable
+      # $(SchemeWeaverPackageVersion) (17.x on the 17 leg, 18.x on the 18 leg). The AI
+      # project IS in the solution the Build step compiles, but --no-build is still
+      # omitted intentionally: the EnsureAIFrontendBuiltBeforePack target in the AI
+      # csproj must be free to run npm and rebuild after the frontend (wwwroot/) lands
+      # (Node.js is set up earlier in this job).
+      - name: Pack AI satellite
+        run: dotnet pack src/Umbraco.Community.SchemeWeaver.AI/Umbraco.Community.SchemeWeaver.AI.csproj --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
       - name: Upload NuGet package
         uses: actions/upload-artifact@v7
