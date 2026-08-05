@@ -82,6 +82,11 @@ public class HeuristicRichCoverageFactory : WebApplicationFactory<Program>, Xuni
         builder.ConfigureTestServices(services =>
         {
             services.AddTransient<IPolicyEvaluator, TestPolicyEvaluator>();
+
+            // Umbraco.AI's background EF migration must not run in integration hosts —
+            // its DDL races test traffic on the shared cache, and it migrates the wrong
+            // database anyway. Full story: UmbracoAiTestHostOverrides.
+            UmbracoAiTestHostOverrides.RemoveUmbracoAiMigrationHandler(services);
         });
     }
 

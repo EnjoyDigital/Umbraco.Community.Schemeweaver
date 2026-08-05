@@ -59,6 +59,9 @@ public class RichResultsAuditFactory : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.AddTransient<IPolicyEvaluator, TestPolicyEvaluator>();
+
+            // See UmbracoAiTestHostOverrides — no AI migration DDL in test hosts.
+            UmbracoAiTestHostOverrides.RemoveUmbracoAiMigrationHandler(services);
         });
     }
 
