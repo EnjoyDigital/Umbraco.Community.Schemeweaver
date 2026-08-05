@@ -10,9 +10,9 @@ If the AI package is not installed, SchemeWeaver works exactly as before -- the 
 
 | Requirement | Version |
 |---|---|
-| Umbraco | **17 only** — Umbraco.AI 1.14 has no Umbraco 18 build, so the AI satellite is Umbraco 17-only |
+| Umbraco | **17 and 18** — the AI satellite's version tracks the Umbraco major (17.x for Umbraco 17, 18.x for Umbraco 18) and pulls the matching major-aligned Umbraco.AI line |
 | Umbraco.Community.SchemeWeaver | Same version as the AI package |
-| Umbraco.AI.Core | `1.14.0` or later (up to, but not including, `2.0.0`) |
+| Umbraco.AI | Major-aligned with your Umbraco: `[17.0.0, 18.0.0)` on Umbraco 17, `[18.0.0, 19.0.0)` on Umbraco 18 (pulled automatically as a dependency) |
 | A configured AI chat provider | e.g. Anthropic or Azure OpenAI, via the matching Umbraco.AI provider package |
 
 The AI package depends on `IAIChatService` from `Umbraco.AI.Core.Chat`. You must have a chat **connection and profile** configured in your Umbraco instance for AI features to work (see Installation below). Refer to the [Umbraco.AI documentation](https://docs.umbraco.com/umbraco-ai) for provider setup.
@@ -24,7 +24,7 @@ The AI package depends on `IAIChatService` from `Umbraco.AI.Core.Chat`. You must
 Install the satellite package into the same project as SchemeWeaver:
 
 ```bash
-dotnet add package Umbraco.Community.SchemeWeaver.AI --prerelease
+dotnet add package Umbraco.Community.SchemeWeaver.AI
 ```
 
 You also need Umbraco.AI itself and a provider. Two things commonly trip people up:
@@ -73,10 +73,10 @@ For each selected row, the bulk apply process:
 When mapping properties (either from the bulk flow or the individual mapping modal), the AI package enhances the auto-mapping process:
 
 - The AI analyses content type properties semantically, understanding that `bodyText` maps to `articleBody` even without an explicit synonym entry
-- AI suggestions are **merged** with heuristic suggestions: for each schema property, the suggestion with the higher confidence score wins
-- If the AI call fails, the endpoint falls back entirely to heuristic suggestions
+- The AI result is **authoritative**: a well-formed AI suggestion wins outright for its schema property. Heuristic suggestions only fill schema properties the AI did not map, and every remaining schema property is listed as an unmapped placeholder for completeness
+- If the AI call fails or returns nothing usable, the endpoint falls back entirely to heuristic suggestions
 
-This merge strategy means AI enhances accuracy without sacrificing reliability.
+This strategy means AI enhances accuracy without sacrificing reliability.
 
 ### Umbraco Copilot Tools
 
@@ -113,9 +113,9 @@ The `AISchemaMapper` service orchestrates all AI operations:
 1. **System prompts** guide the LLM with Schema.org expertise, Umbraco editor type awareness (TextBox, RichText, MediaPicker3, BlockList, etc.), and a calibrated confidence scale
 2. **JSON extraction** handles markdown fences and extra text that LLMs sometimes wrap around JSON responses
 3. **Registry validation** filters AI suggestions against the actual Schema.NET.Pending type list, discarding any hallucinated type names
-4. **Merge strategy** for property mapping always retrieves heuristic suggestions as a baseline, then overlays AI suggestions where the AI's confidence is higher
+4. **Merge strategy** for property mapping always retrieves heuristic suggestions as a baseline (they are fed to the AI as context), then treats the AI's suggestions as authoritative — the heuristic only fills schema properties the AI left unmapped
 
-The architecture ensures that AI is additive -- it can only improve on heuristic results, never degrade them.
+The architecture ensures reliability: if the AI call fails or produces nothing usable, the heuristic baseline is returned unchanged.
 
 ---
 

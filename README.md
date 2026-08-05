@@ -143,7 +143,7 @@ See [Mapping Content Types](docs/mapping-content-types.md) and [Property Mapping
 - [Extending](docs/extending.md) — custom property resolvers, replacing core services
 - [uSync Integration](docs/usync.md) — sync mappings between environments
 - [Umbraco Deploy Integration](docs/deploy.md) — deploy mappings between environments with Umbraco Deploy / Cloud
-- [AI Integration](docs/ai-integration.md) — optional AI-powered mapping (Umbraco 17)
+- [AI Integration](docs/ai-integration.md) — optional AI-powered mapping (Umbraco 17 & 18)
 - [MCP Server](docs/mcp-server.md) — drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin with the bundled `schemeweaver-map` skill
 - [Advanced](docs/advanced.md) — inherited schemas, BreadcrumbList, validation, configuration, troubleshooting
 - [API Reference](docs/api-reference.md) — REST API endpoints

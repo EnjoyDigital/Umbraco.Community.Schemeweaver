@@ -7,11 +7,11 @@
     <IsPackable>true</IsPackable>
     <PackageId>Umbraco.Community.SchemeWeaver.AI</PackageId>
     <Description>AI-powered schema mapping for SchemeWeaver using Umbraco.AI</Description>
-    <PackageTags>umbraco-marketplace umbraco-v17 schema-org ai</PackageTags>
+    <PackageTags>umbraco-marketplace schema-org ai</PackageTags>
     <!-- Major-aligned with the rest of the suite (see Directory.Build.props): this
-         satellite is Umbraco 17-only, so it ships on the 17.x stable line. Building
-         requires -p:UmbracoMajor=17 (the guard below errors otherwise), so
-         $(SchemeWeaverPackageVersion) here is always the 17 leg's version. -->
+         satellite now ships per-major like every other package in the suite — 17.x
+         for Umbraco 17 and 18.x for Umbraco 18, selected via -p:UmbracoMajor — so
+         $(SchemeWeaverPackageVersion) resolves to the building leg's version. -->
     <Version>$(SchemeWeaverPackageVersion)</Version>
     <Authors>Oliver Picton</Authors>
     <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
@@ -30,17 +30,6 @@
     <StaticWebAssetBasePath>App_Plugins/SchemeWeaverAI</StaticWebAssetBasePath>
   </PropertyGroup>
 
-  <!--
-    Umbraco.AI 1.14 only supports Umbraco 17.4+ (no Umbraco 18 build exists yet),
-    so this satellite is 17-only. Building it under any other major is a hard error
-    rather than a confusing transitive restore failure. It is kept out of the
-    default (18) solution build; build it explicitly with -p:UmbracoMajor=17.
-  -->
-  <Target Name="GuardUmbracoMajor" BeforeTargets="Restore;Build"
-          Condition="'$(UmbracoMajor)' != '' AND '$(UmbracoMajor)' != '17'">
-    <Error Text="Umbraco.Community.SchemeWeaver.AI is Umbraco 17-only (Umbraco.AI 1.14 has no Umbraco 18 build). Build with -p:UmbracoMajor=17." />
-  </Target>
-
   <ItemGroup>
     <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
   </ItemGroup>
@@ -55,8 +44,8 @@
          (e.g. Umbraco.AI.Anthropic). Umbraco.AI.Core is also referenced explicitly
          because the satellite's C# compiles against Umbraco.AI.Core.* directly (it comes
          transitively via the umbrella, but referencing what you compile against is clearer). -->
-    <PackageReference Include="Umbraco.AI" Version="[1.14.0, 2.0.0)" />
-    <PackageReference Include="Umbraco.AI.Core" Version="[1.14.0, 2.0.0)" />
+    <PackageReference Include="Umbraco.AI" Version="$(SchemeWeaverUmbracoAiRange)" />
+    <PackageReference Include="Umbraco.AI.Core" Version="$(SchemeWeaverUmbracoAiRange)" />
   </ItemGroup>
 
   <ItemGroup>

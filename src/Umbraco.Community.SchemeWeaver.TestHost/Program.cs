@@ -1,6 +1,4 @@
-#if !UMBRACO18
-using Umbraco.AI.Extensions; // AddUmbracoAI() — Umbraco.AI.Startup, 17-only
-#endif
+using Umbraco.AI.Extensions; // AddUmbracoAI() — Umbraco.AI.Startup
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -15,13 +13,11 @@ builder.CreateUmbracoBuilder()
     // endpoints 500 with "Unable to resolve service for type
     // 'IRequestSegmentService'".
     .AddDeliveryApi()
-#if !UMBRACO18
-    // Umbraco.AI is 17-only (no Umbraco 18 build). Registers AI providers, profiles,
-    // persistence, and the backoffice AI UI. The Anthropic provider is discovered
-    // automatically from the Umbraco.AI.Anthropic assembly via [AIProvider] attribute.
+    // Registers AI providers, profiles, persistence, and the backoffice AI UI.
+    // The Anthropic provider is discovered automatically from the
+    // Umbraco.AI.Anthropic assembly via [AIProvider] attribute.
     // UmbracoAIComposer (IDiscoverable) also calls this — the call is idempotent.
     .AddUmbracoAI()
-#endif
     .AddComposers()
     .Build();
 

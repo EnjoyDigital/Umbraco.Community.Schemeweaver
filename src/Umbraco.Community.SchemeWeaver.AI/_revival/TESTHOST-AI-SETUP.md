@@ -1,5 +1,9 @@
 # TestHost AI Setup (Anthropic provider, Umbraco 17 build only)
 
+> **SUPERSEDED (2026-08-05):** the satellite now builds for Umbraco 17 AND 18 with
+> major-aligned Umbraco.AI lines (17.x / 18.x), and the TestHost includes it for both
+> majors. The "17 build only" framing below is historical.
+
 Umbraco.AI manages providers, connections, and profiles via the backoffice (the **AI**
 section). There is currently no programmatic seeding API exposed publicly, so the
 Anthropic connection and the SchemeWeaver profile(s) must be created manually after

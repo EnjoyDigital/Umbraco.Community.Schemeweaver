@@ -1,7 +1,6 @@
 {
   "id": "Umbraco.Community.SchemeWeaver.AI",
   "name": "SchemeWeaver AI",
-  "version": "17.5.1",
   "extensions": [
     {
       "type": "bundle",

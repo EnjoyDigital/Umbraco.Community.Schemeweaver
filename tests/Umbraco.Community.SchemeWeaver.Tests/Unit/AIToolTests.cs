@@ -1,4 +1,3 @@
-#if !UMBRACO18
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,8 +17,6 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 ///
 /// Each tool resolves its service dependencies via an <see cref="IServiceScopeFactory"/>,
 /// which is mocked here to return substituted services without requiring a full DI container.
-///
-/// These tests are 17-only because <c>Umbraco.AI.Core</c> has no Umbraco 18 build.
 /// </summary>
 public class AIToolTests
 {
@@ -147,4 +144,3 @@ public class AIToolTests
         typed.Suggestions.Should().Contain(s => s.SchemaPropertyName == "headline");
     }
 }
-#endif

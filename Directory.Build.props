@@ -48,6 +48,13 @@
          version installed for local/manual Deploy testing. -->
     <SchemeWeaverUmbracoDeployRange>[17.0.0, 18.0.0)</SchemeWeaverUmbracoDeployRange>
     <SchemeWeaverUmbracoDeployHost>17.2.1</SchemeWeaverUmbracoDeployHost>
+    <!-- Umbraco.AI line for this major: consumer-facing range for the AI satellite
+         (Umbraco.AI majors track CMS majors, so the legs stay mutually exclusive) and the
+         pinned versions the TestHost installs. Umbraco.AI.Anthropic x.0.1+ requires
+         Umbraco.AI.Core >= x.2.0, hence the Host pin at x.2.0. -->
+    <SchemeWeaverUmbracoAiRange>[17.0.0, 18.0.0)</SchemeWeaverUmbracoAiRange>
+    <SchemeWeaverUmbracoAiHost>17.2.0</SchemeWeaverUmbracoAiHost>
+    <SchemeWeaverUmbracoAiAnthropicHost>17.0.2</SchemeWeaverUmbracoAiAnthropicHost>
     <!-- Major-aligned stable package version for the Umbraco 17 line. 17.14.0
          adds per-usage complex objects for picker properties (issue #40). -->
     <SchemeWeaverPackageVersion>17.14.0</SchemeWeaverPackageVersion>
@@ -64,6 +71,11 @@
     <!-- Umbraco Deploy line for this major (see the 17 leg's comment) -->
     <SchemeWeaverUmbracoDeployRange>[18.0.0, 19.0.0)</SchemeWeaverUmbracoDeployRange>
     <SchemeWeaverUmbracoDeployHost>18.0.1</SchemeWeaverUmbracoDeployHost>
+    <!-- Umbraco.AI line for this major (see the 17 leg's comment). Anthropic x.0.1+
+         requires Umbraco.AI.Core >= x.2.0, hence the Host pin at x.2.0. -->
+    <SchemeWeaverUmbracoAiRange>[18.0.0, 19.0.0)</SchemeWeaverUmbracoAiRange>
+    <SchemeWeaverUmbracoAiHost>18.2.0</SchemeWeaverUmbracoAiHost>
+    <SchemeWeaverUmbracoAiAnthropicHost>18.0.2</SchemeWeaverUmbracoAiAnthropicHost>
     <!-- Major-aligned stable package version for the Umbraco 18 line. Its
          [18.0.0, 19.0.0) Umbraco.Cms range is mutually exclusive with the 17 leg's
          [17.4.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->

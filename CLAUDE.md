@@ -66,6 +66,12 @@ It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugi
   Deploy out of every other integration boot); its integration tests drive the real Deploy
   disk pipeline licence-free via Deploy's public `NullLicensing`. TestHost gets Deploy only
   via `dotnet run -p:SchemeWeaverIncludeDeploy=true` (run `dotnet clean` when toggling).
+- **AI satellite** (`src/Umbraco.Community.SchemeWeaver.AI/`) — AI-powered schema mapping
+  via Umbraco.AI. Ships per-major like the rest of the suite (17.x / 18.x via
+  `-p:UmbracoMajor`). Depends on the umbrella `Umbraco.AI` package (never a provider);
+  per-leg versions come from the `SchemeWeaverUmbracoAi*` properties in
+  Directory.Build.props. The TestHost includes it for both majors with the Anthropic
+  provider.
 - **Services/** — `SchemaTypeRegistry` (singleton, scans Schema.NET assembly), `JsonLdGenerator`, `SchemaAutoMapper`, `ContentTypeGenerator`
 - **Persistence/** — `SchemaMappingRepository` using NPoco (two tables: `SchemeWeaverSchemaMapping`, `SchemeWeaverPropertyMapping`)
 - **Models/Api/** — DTOs serialised as camelCase JSON: `SchemaMappingDto`, `PropertyMappingDto`, `SchemaTypeInfo`, `PropertyMappingSuggestion`, `JsonLdPreviewResponse`, `ContentTypeGenerationRequest`

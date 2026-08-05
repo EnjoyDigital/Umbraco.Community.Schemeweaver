@@ -1,4 +1,3 @@
-#if !UMBRACO18
 using FluentAssertions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -18,9 +17,6 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 
 /// <summary>
 /// Unit tests for <see cref="AISchemaMapper"/>.
-///
-/// These tests are 17-only because <see cref="AISchemaMapper"/> depends on
-/// <c>Umbraco.AI.Core</c>, which has no Umbraco 18 build.
 /// </summary>
 public class AISchemaMapperTests
 {
@@ -249,4 +245,3 @@ public class AISchemaMapperTests
         result.Should().Contain(s => s.SchemaPropertyName == "headline");
     }
 }
-#endif
