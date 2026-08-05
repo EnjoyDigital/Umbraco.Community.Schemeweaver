@@ -15,7 +15,12 @@
     <Version>$(SchemeWeaverPackageVersion)</Version>
     <Authors>Oliver Picton</Authors>
     <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
+    <PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <RootNamespace>Umbraco.Community.SchemeWeaver.AI</RootNamespace>
     <!--
       Static web assets: the Vite build outputs index.js to the SDK-default
@@ -29,6 +34,11 @@
     -->
     <StaticWebAssetBasePath>App_Plugins/SchemeWeaverAI</StaticWebAssetBasePath>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="NUGET_README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
