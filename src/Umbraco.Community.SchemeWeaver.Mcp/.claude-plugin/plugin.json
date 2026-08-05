@@ -1,7 +1,7 @@
 {
   "name": "schemeweaver-mcp",
   "displayName": "SchemeWeaver MCP Server",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Map Umbraco content types to Schema.org and generate JSON-LD via 16 MCP tools for AI assistants, including a validate-mapping doctor checklist, uSync drift/export and live block-instance + Delivery-API render verification. Bundles the schemeweaver-map skill that drives the full mapping loop end to end.",
   "author": {
     "name": "Oliver Picton",
