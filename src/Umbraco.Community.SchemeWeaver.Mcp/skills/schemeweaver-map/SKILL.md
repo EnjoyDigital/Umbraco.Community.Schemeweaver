@@ -10,7 +10,9 @@ name-only heuristic — by reasoning about MEANING, not just matching names. The
 goal is JSON-LD that wins Google rich results, then a clean `validate-mapping`.
 
 Requires the `schemeweaver` MCP server (this plugin) connected to a running
-Umbraco instance.
+Umbraco instance. Tools missing or failing auth? Run the `schemeweaver-setup`
+skill first. Auditing the whole site rather than one type? Use
+`schemeweaver-audit` — it delegates each fix back here.
 
 ## The loop
 

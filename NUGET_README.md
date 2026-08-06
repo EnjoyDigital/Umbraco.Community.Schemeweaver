@@ -77,7 +77,7 @@ const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 
 ## Use it with an AI assistant (MCP)
 
-SchemeWeaver also ships an **MCP server** plus a **`schemeweaver-map` skill** that let an AI assistant (Claude and others) reason semantically about the best Schema.org type for a content type, save the mapping, and verify the JSON-LD — usually a richer result than the name-matching auto-mapper. With [Claude Code](https://claude.com/claude-code) it's a two-command plugin install:
+SchemeWeaver also ships an **MCP server** plus bundled skills (setup, mapping, site audit) that let an AI assistant (Claude and others) reason semantically about the best Schema.org type for a content type, save the mapping, and verify the JSON-LD — usually a richer result than the name-matching auto-mapper. With [Claude Code](https://claude.com/claude-code) it's a two-command plugin install:
 
 ```text
 /plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver

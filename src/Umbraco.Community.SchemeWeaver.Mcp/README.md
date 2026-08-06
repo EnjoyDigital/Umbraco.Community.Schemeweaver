@@ -62,16 +62,23 @@ automatically. You still need the [Prerequisites](#prerequisites) below — an U
 SchemeWeaver and an API user. The sections after that (Setup / Running) are for **local development**
 of the server itself, not for plugin users.
 
-### The bundled skill
+### The bundled skills
 
-The plugin also ships the **`schemeweaver-map` skill** (declared via `"skills": "./skills/"` in
-`.claude-plugin/plugin.json`, source in [`skills/schemeweaver-map/SKILL.md`](skills/schemeweaver-map/SKILL.md)),
-so it installs alongside the server — no extra step. It turns the raw tools into a guided, end-to-end
-mapping loop (inspect → pick the most specific type → rank props → beat the heuristic → save →
-preview + validate, looping until `allClear`).
+The plugin also ships three skills (declared via `"skills": "./skills/"` in
+`.claude-plugin/plugin.json`, sources under [`skills/`](skills/)), so they install alongside the
+server — no extra step. Each triggers automatically from plain language, or explicitly by slug:
 
-Just ask in plain language ("map my `blogPost` to Schema.org and validate it") and it triggers
-automatically, or invoke it explicitly with `/schemeweaver-mcp:schemeweaver-map`.
+- **`schemeweaver-setup`** (`/schemeweaver-mcp:schemeweaver-setup`) — connect Claude to your
+  Umbraco site and prove it: API user creation, plugin configuration, a verification ladder, and
+  a troubleshooting table for 401s, login-page-instead-of-JSON and friends.
+- **`schemeweaver-map`** (`/schemeweaver-mcp:schemeweaver-map`) — the guided end-to-end mapping
+  loop for one content type (inspect → pick the most specific type → rank props → beat the
+  heuristic → save → preview + validate, looping until `allClear`). "Map my `blogPost` to
+  Schema.org and validate it."
+- **`schemeweaver-audit`** (`/schemeweaver-mcp:schemeweaver-audit`) — site-wide structured-data
+  audit: coverage sweep, rich-results triage, validation pass, live output spot checks, uSync
+  drift, a fixed-format report, then fixes driven through `schemeweaver-map`. "Why aren't my
+  pages getting rich results?"
 
 ## Prerequisites
 

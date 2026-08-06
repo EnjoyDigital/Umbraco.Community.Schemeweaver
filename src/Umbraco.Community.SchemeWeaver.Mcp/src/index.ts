@@ -95,7 +95,8 @@ const server = new McpServer(
       "{\"nestedSchemaTypeName\":\"...\"} for the whole node) — without it the sub-row emits only the picked node's name. " +
       "Built-ins always available as 'property': __name, __url, __createDate, __updateDate. " +
       "Inspect blocks with get-block-element-types — its propertyInfos[].nestedBlockElementTypes surfaces blocks-within-blocks. " +
-      "The schemeweaver-map skill carries the full source-type catalogue and worked examples.",
+      "The schemeweaver-map skill carries the full source-type catalogue and worked examples; " +
+      "schemeweaver-setup covers connection/auth problems and schemeweaver-audit drives a site-wide coverage audit.",
   }
 );
 

@@ -31,39 +31,55 @@ server, so installation is three commands:
 On install, Claude Code prompts you for three values — your **Umbraco Base URL**, **API User Client
 ID**, and **API User Client Secret** (the secret is stored in your OS keychain). It then starts the
 `schemeweaver` MCP server automatically and the tools listed below become available to the assistant.
-The plugin **also installs the [`schemeweaver-map` skill](#the-schemeweaver-map-skill)** — no separate step.
+The plugin **also installs the [three bundled skills](#bundled-skills)** — no separate step.
 
 You still need an Umbraco instance (v17/18) with SchemeWeaver installed and an **API user** with
 client credentials — see [Prerequisites](#prerequisites). For advanced tool filtering (read-only mode,
 excluding specific tools), set the `UMBRACO_READONLY` / `UMBRACO_EXCLUDE_TOOLS` environment variables
 in your shell before launching Claude Code — see [Tool filtering](#tool-filtering).
 
-## The `schemeweaver-map` skill
+## Bundled skills
 
-Installing the plugin also installs a [skill](https://docs.claude.com/en/docs/claude-code/skills) called
-`schemeweaver-map` — a guided workflow that turns the raw tools into a reliable, end-to-end mapping loop,
-so you don't have to prompt each step yourself.
+Installing the plugin also installs three [skills](https://docs.claude.com/en/docs/claude-code/skills) —
+guided workflows that turn the raw tools into reliable, end-to-end loops, so you don't have to prompt
+each step yourself. Each triggers automatically from plain language, or explicitly by its slug.
 
-**When it runs:** it triggers automatically whenever you ask Claude to map a content/document type to
-Schema.org, structured data or JSON-LD, to build or improve a SchemeWeaver mapping, or to get a page
-winning Google rich results. You can also invoke it explicitly:
+### `schemeweaver-setup` — connect and verify
 
-```text
-/schemeweaver-mcp:schemeweaver-map
-```
+Gets Claude Code talking to your Umbraco site and **proves it**: creating the API user (and the
+client-credential gotchas), configuring the plugin, then a verification ladder from `get-server-info`
+to `list-content-types`, with a troubleshooting table for the classic failures (401s, an HTML login
+page instead of JSON, certificate errors). It also triggers when any schemeweaver tool misbehaves.
 
-**What it does:** drives the tools in the recommended order and loops until the result is clean —
+> Connect Claude to my Umbraco site at https://www.example.com and check it works.
+
+Explicit invocation: `/schemeweaver-mcp:schemeweaver-setup`
+
+### `schemeweaver-map` — the mapping loop
+
+Drives the tools in the recommended order for ONE content type and loops until the result is clean —
 inspect the content type → pick the **most specific** fitting Schema.org type → rank the target's
 properties → take the heuristic baseline as a floor → reason **semantically** to draft a richer mapping
 (the right `sourceType` for each property: scalar, nested entity, block content, related node…) → save →
 `preview-json-ld` + `validate-mapping`, re-saving until `allClear` is true.
 
-**Example prompt:**
-
 > Map the `blogPost` content type to the best-fitting Schema.org type, improve on the heuristic
 > suggestions, save it, and keep fixing until the validation passes for Google rich results.
 
-The skill needs the `schemeweaver` MCP server (from this same plugin) connected to your Umbraco
+Explicit invocation: `/schemeweaver-mcp:schemeweaver-map`
+
+### `schemeweaver-audit` — site-wide coverage audit
+
+Surveys the whole site rather than one type: inventories every mapping and unmapped content type,
+triages the gaps by Google rich-result value, validates every existing mapping, spot-checks the live
+JSON-LD output, checks uSync drift, and delivers a fixed-format report with a prioritised action plan —
+then executes the agreed fixes one type at a time through `schemeweaver-map`.
+
+> Audit my site's structured data — why aren't my pages getting rich results?
+
+Explicit invocation: `/schemeweaver-mcp:schemeweaver-audit`
+
+The skills need the `schemeweaver` MCP server (from this same plugin) connected to your Umbraco
 instance — which the plugin sets up for you on install.
 
 ## What it exposes
