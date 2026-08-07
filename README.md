@@ -105,15 +105,19 @@ Install it as a Claude Code plugin — no clone, no build:
 
 Claude Code prompts for your **Umbraco Base URL** and the API user's **Client ID / Client Secret** (the secret is stored in your OS keychain), then starts the `schemeweaver` server automatically.
 
-### The included skill
+### The included skills
 
-The plugin **also installs the `schemeweaver-map` skill** — a guided workflow that drives the tools end to end (inspect the content type → pick the most specific Schema.org type → improve on the heuristic → save → preview and validate until it passes Google's Rich Results rules). Nothing extra to install.
+The plugin **also installs three skills** — guided workflows that drive the tools end to end. Nothing extra to install:
 
-To use it, just ask in plain language and it triggers automatically:
+- **`schemeweaver-setup`** — connect Claude to your Umbraco site (API user, plugin config) and verify it, with troubleshooting for the classic failures.
+- **`schemeweaver-map`** — map one content type (inspect → pick the most specific Schema.org type → improve on the heuristic → save → preview and validate until it passes Google's Rich Results rules).
+- **`schemeweaver-audit`** — audit the whole site's structured-data coverage and quality, report, then fix the gaps.
+
+Just ask in plain language and the right one triggers automatically:
 
 > Map my `blogPost` document type to Schema.org and validate the JSON-LD.
 
-…or invoke it explicitly with `/schemeweaver-mcp:schemeweaver-map`. See [MCP Server](docs/mcp-server.md) for the full tool list, the skill, and advanced options.
+…or invoke one explicitly, e.g. `/schemeweaver-mcp:schemeweaver-map`. See [MCP Server](docs/mcp-server.md) for the full tool list, the skills, and advanced options.
 
 ## How it works
 
@@ -144,7 +148,7 @@ See [Mapping Content Types](docs/mapping-content-types.md) and [Property Mapping
 - [uSync Integration](docs/usync.md) — sync mappings between environments
 - [Umbraco Deploy Integration](docs/deploy.md) — deploy mappings between environments with Umbraco Deploy / Cloud
 - [AI Integration](docs/ai-integration.md) — optional AI-powered mapping (Umbraco 17 & 18)
-- [MCP Server](docs/mcp-server.md) — drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin with the bundled `schemeweaver-map` skill
+- [MCP Server](docs/mcp-server.md) — drive SchemeWeaver from an AI assistant; installable as a Claude Code plugin with three bundled skills (setup, mapping, site audit)
 - [Advanced](docs/advanced.md) — inherited schemas, BreadcrumbList, validation, configuration, troubleshooting
 - [API Reference](docs/api-reference.md) — REST API endpoints
 
