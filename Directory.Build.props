@@ -55,9 +55,10 @@
     <SchemeWeaverUmbracoAiRange>[17.0.0, 18.0.0)</SchemeWeaverUmbracoAiRange>
     <SchemeWeaverUmbracoAiHost>17.2.0</SchemeWeaverUmbracoAiHost>
     <SchemeWeaverUmbracoAiAnthropicHost>17.0.2</SchemeWeaverUmbracoAiAnthropicHost>
-    <!-- Major-aligned stable package version for the Umbraco 17 line. 17.15.0
-         brings the AI satellite onto both majors (major-aligned Umbraco.AI). -->
-    <SchemeWeaverPackageVersion>17.15.0</SchemeWeaverPackageVersion>
+    <!-- Major-aligned stable package version for the Umbraco 17 line. 17.15.1
+         names the backoffice bundle extension so Extension Insights search
+         stops throwing (issue #77). -->
+    <SchemeWeaverPackageVersion>17.15.1</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -79,7 +80,7 @@
     <!-- Major-aligned stable package version for the Umbraco 18 line. Its
          [18.0.0, 19.0.0) Umbraco.Cms range is mutually exclusive with the 17 leg's
          [17.4.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->
-    <SchemeWeaverPackageVersion>18.10.0</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>18.10.1</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>
