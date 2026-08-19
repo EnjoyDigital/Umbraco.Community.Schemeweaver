@@ -21,6 +21,8 @@ This is the most common source type. The property alias refers to any standard U
 
 Content Picker and Multi Node Tree Picker properties also stay on this source type — they are references to other nodes, and what they emit is controlled by `ResolverConfig` and `NestedSchemaTypeName`. See [Content Picker Mappings](#content-picker-mappings).
 
+Block List and Block Grid properties can also be mapped on this source type. With no block configuration, the resolver degrades to **basic text extraction**: it walks the block items (including nested blocks and grid areas), pulls out the text-producing properties (Textstring, Textarea, Rich Text, Markdown), strips any HTML, and emits the fragments joined into a single plain-text string. This suits plain-text targets such as `description` or `articleBody`; for structured output per block, use the [Block Content source type](block-content.md) instead — the validator suggests this when the target property expects structured objects.
+
 ### 2. Static Value (`static`)
 
 Uses a hardcoded string value that you type in at mapping time. The value is emitted as-is in the JSON-LD output -- no property is read from any content node.

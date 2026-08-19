@@ -35,6 +35,14 @@ Recursion is limited to a maximum depth of 3 (configurable via `PropertyResolver
 
 ---
 
+## Basic Text Extraction (property mode)
+
+A block editor property does not have to use the `blockContent` source type. Mapped on the plain **Current Node (`property`)** source with no block configuration, the resolver falls back to basic text extraction: it walks the block items (nested block editors and Block Grid areas included, up to the recursion depth limit), reads every text-producing property (Textstring, Textarea, Rich Text, Markdown), strips HTML, and joins the fragments into one plain-text string.
+
+This is the quick path for plain-text targets — mapping a page's content blocks straight onto `description` or `articleBody` without configuring routes. Anything that is not prose (media, pickers, numbers, settings) is ignored. For structured output — one Schema.org object per block — use the `blockContent` source type described in the rest of this document; the mapping validator raises a suggestion when a block editor in property mode feeds a target that expects structured objects.
+
+---
+
 ## Nested Blocks (Blocks Inside Blocks) and Block Grid Areas
 
 Real-world content is rarely one level deep. SchemeWeaver resolves two forms of nesting:

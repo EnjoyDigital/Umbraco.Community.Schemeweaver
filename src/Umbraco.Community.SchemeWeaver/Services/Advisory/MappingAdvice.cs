@@ -19,6 +19,9 @@ public enum MappingAdviceKind
 
     /// <summary>The save reached the database only while uSync is installed — it won't reproduce elsewhere.</summary>
     ExportToUSync,
+
+    /// <summary>A block editor feeds a structured Schema.org property in basic property mode — blockContent would emit real Things.</summary>
+    PreferBlockContent,
 }
 
 /// <summary>
@@ -44,7 +47,7 @@ public sealed record MappingAdviceFix(
     string? PositionProperty = null);
 
 /// <summary>
-/// Pure input for the per-property advisory checks (1-3). Carries everything the advisor needs
+/// Pure input for the per-property advisory checks (1-4). Carries everything the advisor needs
 /// without taking an Umbraco service dependency — the one fact it can't derive, the source
 /// property's editor alias, is supplied by the caller (both call sites already hold it).
 /// </summary>
@@ -58,7 +61,7 @@ public sealed record MappingEntryInput(
     string? ResolverConfig = null);
 
 /// <summary>
-/// Pure input for the persistence advisory (check 4), computed by the service after a save.
+/// Pure input for the persistence advisory, computed by the service after a save.
 /// </summary>
 public sealed record PersistenceFacts(
     string DriftStatus,

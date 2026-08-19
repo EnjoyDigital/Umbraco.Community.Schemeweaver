@@ -9,6 +9,8 @@ using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PropertyEditors.ValueConverters;
 using Umbraco.Cms.Core.Routing;
+using Umbraco.Cms.Core.Strings;
+using Umbraco.Community.SchemeWeaver;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Services;
@@ -66,7 +68,7 @@ public class BlockContentResolverTests
     }
 
     [Fact]
-    public void Resolve_NoNestedSchemaTypeName_ReturnsNull()
+    public void Resolve_BlockContentModeWithoutNestedSchemaTypeName_ReturnsNull()
     {
         var blockListModel = CreateBlockListModel(CreateBlockElement("faqItem", new Dictionary<string, object?>
         {
@@ -76,11 +78,195 @@ public class BlockContentResolverTests
         var property = Substitute.For<IPublishedProperty>();
         property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
 
-        var context = CreateContext(property, nestedSchemaTypeName: null);
+        var context = CreateContext(property, nestedSchemaTypeName: null,
+            sourceType: SchemeWeaverConstants.SourceTypes.BlockContent);
 
         var result = _sut.Resolve(context);
 
         result.Should().BeNull();
+    }
+
+    // --- Basic text extraction (#39): a block editor in plain property mode with no block
+    // configuration emits the blocks' text/rich-text contents as one joined string. ---
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_ExtractsTextAndRichTextAsJoinedString()
+    {
+        var blockListModel = CreateBlockListModel(CreateBlockElementWithEditors("textSection",
+            ("heading", "Intro heading", "Umbraco.TextBox"),
+            ("body", new HtmlEncodedString("<p>Rich text <strong>body</strong>.</p>"), "Umbraco.RichText")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Intro heading Rich text body.");
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_WithResolverFactory_DoesNotDoubleStrip()
+    {
+        // Through the factory the RTE is stripped+decoded ONCE by RichTextResolver; the encoded
+        // "&lt;100&gt;" must survive as literal text rather than being eaten by a second strip.
+        var blockListModel = CreateBlockListModel(CreateBlockElementWithEditors("textSection",
+            ("body", new HtmlEncodedString("<p>score &lt;100&gt;</p>"), "Umbraco.RichText")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var factory = new PropertyValueResolverFactory(
+            [new RichTextResolver(), new DefaultPropertyValueResolver()]);
+        var context = CreateContext(property, resolverFactory: factory);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("score <100>");
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_FactoryWithoutRichTextResolver_StillStripsHtml()
+    {
+        // With a factory whose default resolver serves the RTE alias, the value arrives as raw
+        // HTML (ToString of the encoded string) and must still be stripped.
+        var blockListModel = CreateBlockListModel(CreateBlockElementWithEditors("textSection",
+            ("body", new HtmlEncodedString("<p>Hello <strong>World</strong></p>"), "Umbraco.RichText")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var factory = new PropertyValueResolverFactory([new DefaultPropertyValueResolver()]);
+        var context = CreateContext(property, resolverFactory: factory);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Hello World");
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_PlainTextWithAngleBrackets_NotMangled()
+    {
+        var blockListModel = CreateBlockListModel(CreateBlockElementWithEditors("textSection",
+            ("heading", "a<b and c>d", "Umbraco.TextBox")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("a<b and c>d");
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_NonTextProperties_Ignored()
+    {
+        var blockListModel = CreateBlockListModel(CreateBlockElementWithEditors("textSection",
+            ("count", 42, "Umbraco.Integer"),
+            ("image", "some-media-value", "Umbraco.MediaPicker3"),
+            ("title", "Hello", "Umbraco.TextBox")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Hello");
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_AllValuesEmptyOrWhitespace_ReturnsNull()
+    {
+        var blockListModel = CreateBlockListModel(CreateBlockElementWithEditors("textSection",
+            ("heading", "   ", "Umbraco.TextBox"),
+            ("body", new HtmlEncodedString("<p> </p>"), "Umbraco.RichText")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_MultipleBlocks_JoinsInOrder()
+    {
+        var blockListModel = CreateBlockListModel(
+            CreateBlockElementWithEditors("textSection", ("heading", "First", "Umbraco.TextBox")),
+            CreateBlockElementWithEditors("textSection", ("heading", "Second", "Umbraco.TextArea")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("First Second");
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_NestedBlockList_IncludesNestedText()
+    {
+        var nestedList = CreateBlockListModel(
+            CreateBlockElementWithEditors("textSection", ("heading", "Inner", "Umbraco.TextBox")));
+        var blockListModel = CreateBlockListModel(CreateBlockElementWithEditors("sectionGroup",
+            ("heading", "Outer", "Umbraco.TextBox"),
+            ("sections", nestedList, "Umbraco.BlockList")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        var context = CreateContext(property);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Outer Inner");
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_NestedBlocksBeyondMaxDepth_Skipped()
+    {
+        var nestedList = CreateBlockListModel(
+            CreateBlockElementWithEditors("textSection", ("heading", "Inner", "Umbraco.TextBox")));
+        var blockListModel = CreateBlockListModel(CreateBlockElementWithEditors("sectionGroup",
+            ("heading", "Outer", "Umbraco.TextBox"),
+            ("sections", nestedList, "Umbraco.BlockList")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockListModel);
+
+        // Depth 2 of max 3: the top level may still resolve, but descending into the nested
+        // block list would hit the cap, so only the outer text is extracted.
+        var context = CreateContext(property, recursionDepth: 2);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Outer");
+    }
+
+    [Fact]
+    public void Resolve_PropertyModeNoConfig_BlockGrid_ExtractsText()
+    {
+        var blockGridModel = CreateBlockGridModel(
+            CreateBlockElementWithEditors("textSection", ("heading", "Grid text", "Umbraco.TextBox")));
+
+        var property = Substitute.For<IPublishedProperty>();
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(blockGridModel);
+
+        var context = CreateContext(property);
+
+        var result = _sut.Resolve(context);
+
+        result.Should().Be("Grid text");
     }
 
     [Fact]
@@ -2131,6 +2317,7 @@ public class BlockContentResolverTests
         element.ContentType.Returns(contentType);
         element.Key.Returns(Guid.NewGuid());
 
+        var stubbedProps = new List<IPublishedProperty>();
         foreach (var kvp in properties)
         {
             var key = kvp.Key;
@@ -2141,7 +2328,12 @@ public class BlockContentResolverTests
             // probes by PascalCase schema property name) resolves a lower-cased block key.
             element.GetProperty(Arg.Is<string>(a => string.Equals(a, key, StringComparison.OrdinalIgnoreCase)))
                 .Returns(prop);
+            stubbedProps.Add(prop);
         }
+
+        // Basic text extraction walks element.Properties — without this stub NSubstitute
+        // auto-returns an empty enumerable and the walk silently sees nothing.
+        element.Properties.Returns(stubbedProps);
 
         return element;
     }
@@ -2167,7 +2359,8 @@ public class BlockContentResolverTests
         string? nestedSchemaTypeName = null,
         string? resolverConfig = null,
         int recursionDepth = 0,
-        IPropertyValueResolverFactory? resolverFactory = null)
+        IPropertyValueResolverFactory? resolverFactory = null,
+        string sourceType = SchemeWeaverConstants.SourceTypes.Property)
     {
         return new PropertyResolverContext
         {
@@ -2175,6 +2368,7 @@ public class BlockContentResolverTests
             Mapping = new PropertyMapping
             {
                 SchemaPropertyName = "MainEntity",
+                SourceType = sourceType,
                 NestedSchemaTypeName = nestedSchemaTypeName,
                 ResolverConfig = resolverConfig
             },
@@ -2203,6 +2397,7 @@ public class BlockContentResolverTests
         element.ContentType.Returns(contentType);
         element.Key.Returns(Guid.NewGuid());
 
+        var stubbedProps = new List<IPublishedProperty>();
         foreach (var (alias, value, editorAlias) in properties)
         {
             var prop = Substitute.For<IPublishedProperty>();
@@ -2216,7 +2411,12 @@ public class BlockContentResolverTests
             // Umbraco property aliases are case-insensitive — mirror that here.
             element.GetProperty(Arg.Is<string>(a => string.Equals(a, alias, StringComparison.OrdinalIgnoreCase)))
                 .Returns(prop);
+            stubbedProps.Add(prop);
         }
+
+        // Basic text extraction walks element.Properties — without this stub NSubstitute
+        // auto-returns an empty enumerable and the walk silently sees nothing.
+        element.Properties.Returns(stubbedProps);
 
         return element;
     }

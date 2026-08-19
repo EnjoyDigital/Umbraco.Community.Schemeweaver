@@ -174,6 +174,51 @@ public class MappingAdvisorTests
         advice.Should().NotContain(a => a.Kind == MappingAdviceKind.MissingRequiredNestedProperty);
     }
 
+    // --- Check 4: preferBlockContent. mainEntity is a structured range (basic extraction only
+    // joins text there); articleBody is plain-text so basic extraction is the correct end state. ---
+
+    [Fact]
+    public void AdviseEntry_BlockEditorInPropertyModeToStructuredProperty_SuggestsBlockContent()
+    {
+        var advice = _sut.AdviseEntry(new MappingEntryInput(
+            "FAQPage", "mainEntity", "property", ContentEditorAlias: "Umbraco.BlockList"));
+
+        advice.Should().ContainSingle(a => a.Kind == MappingAdviceKind.PreferBlockContent);
+        advice.Single().Fix.Should().BeNull();
+        advice.Single().Path.Should().Be("mainEntity");
+    }
+
+    [Fact]
+    public void AdviseEntry_BlockEditorInPropertyModeToPlainTextProperty_NoPreferBlockContentAdvice()
+    {
+        var advice = _sut.AdviseEntry(new MappingEntryInput(
+            "Article", "articleBody", "property", ContentEditorAlias: "Umbraco.BlockList"));
+
+        advice.Should().NotContain(a => a.Kind == MappingAdviceKind.PreferBlockContent);
+    }
+
+    [Fact]
+    public void AdviseEntry_BlockEditorInBlockContentMode_NoPreferBlockContentAdvice()
+    {
+        var advice = _sut.AdviseEntry(new MappingEntryInput(
+            "FAQPage", "mainEntity", "blockContent", ContentEditorAlias: "Umbraco.BlockList",
+            ResolverConfig: Routes("Question", "name", "acceptedAnswer")));
+
+        advice.Should().NotContain(a => a.Kind == MappingAdviceKind.PreferBlockContent);
+    }
+
+    [Fact]
+    public void AdviseEntry_BlockEditorInPropertyModeWithNestedSchemaTypeName_NoPreferBlockContentAdvice()
+    {
+        // A legacy property-mode mapping with a nested schema type still maps blocks to Things —
+        // basic extraction is not in play, so the advice would be wrong.
+        var advice = _sut.AdviseEntry(new MappingEntryInput(
+            "FAQPage", "mainEntity", "property", ContentEditorAlias: "Umbraco.BlockList",
+            NestedSchemaTypeName: "Question"));
+
+        advice.Should().NotContain(a => a.Kind == MappingAdviceKind.PreferBlockContent);
+    }
+
     // --- Multiple checks fire on one entry: all checks run (no short-circuit) and the
     // emission order is fixed (WrapInListItem before MissingRequired). ---
 
@@ -190,7 +235,7 @@ public class MappingAdvisorTests
             MappingAdviceKind.MissingRequiredNestedProperty);
     }
 
-    // --- Check 4: persistence ---
+    // --- Persistence advisory ---
 
     [Fact]
     public void AdvisePersistence_DbOnlyUSyncAvailableExportDisabled_SuggestsEnableExport()

@@ -97,6 +97,22 @@ public static class SchemeWeaverConstants
             "Umbraco.TinyMCE",
             "Umbraco.MarkdownEditor"
         };
+
+        /// <summary>
+        /// Editor aliases whose resolved value is prose text — the plain-text editors plus every
+        /// <see cref="HtmlProducingEditorAliases"/> member. Referenced by
+        /// <see cref="Resolvers.BlockContentResolver"/>'s basic text extraction (a block editor
+        /// mapped in plain <c>property</c> mode emits the joined text of these block properties).
+        /// Declared after <see cref="HtmlProducingEditorAliases"/> — field initialisers run in
+        /// declaration order.
+        /// </summary>
+        public static readonly HashSet<string> TextProducingEditorAliases = new(
+            HtmlProducingEditorAliases.Concat(new[]
+            {
+                "Umbraco.TextBox",
+                "Umbraco.TextArea"
+            }),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>

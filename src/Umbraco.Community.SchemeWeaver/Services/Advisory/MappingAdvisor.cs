@@ -57,12 +57,13 @@ public sealed class MappingAdvisor : IMappingAdvisor
 
         var config = ParseConfig(entry.ResolverConfig);
 
-        // Three independent checks, always all evaluated; emission order is fixed
-        // (StripHtml, then WrapInListItem, then MissingRequired).
+        // Four independent checks, always all evaluated; emission order is fixed
+        // (StripHtml, then WrapInListItem, then MissingRequired, then PreferBlockContent).
         var advices = new List<MappingAdvice>();
         advices.AddRange(AdviseStripHtml(entry, targetProp));
         advices.AddRange(AdviseWrapInListItem(entry, targetProp, config));
         advices.AddRange(AdviseMissingRequired(entry, config));
+        advices.AddRange(AdvisePreferBlockContent(entry, targetProp, config));
         return advices;
     }
 
@@ -105,6 +106,31 @@ public sealed class MappingAdvisor : IMappingAdvisor
             $"'{entry.SchemaPropertyName}' is an ordered list but its blocks are not wrapped as ListItems — " +
             "they emit without positions. Set wrapInListItem:true (optionally positionProperty) for an ordered ItemList.",
             new MappingAdviceFix(WrapInListItem: true));
+    }
+
+    // Check 4 (per-entry) — a block editor in plain property mode feeds a structured target.
+    // Basic text extraction (#39) joins the blocks' text into one string, which then gets
+    // auto-wrapped into a weak named Thing on non-plain-text targets — blockContent with routes
+    // emits real Things instead. Plain-text targets (description, articleBody) are exempt:
+    // there the joined text IS the correct end state and the advice would be noise.
+    private static IEnumerable<MappingAdvice> AdvisePreferBlockContent(
+        MappingEntryInput entry, SchemaPropertyInfo? targetProp, ResolverConfigModel? config)
+    {
+        if (targetProp is null
+            || config is not null
+            || !string.Equals(entry.SourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrWhiteSpace(entry.NestedSchemaTypeName)
+            || SchemaPrimitiveTypes.IsPlainTextRange(targetProp.AcceptedTypes))
+            yield break;
+
+        if (entry.ContentEditorAlias is { } editor
+            && SchemeWeaverConstants.PropertyEditors.BlockEditorAliases.Contains(editor))
+        {
+            yield return new MappingAdvice(
+                MappingAdviceKind.PreferBlockContent, entry.SchemaTypeName, entry.SchemaPropertyName,
+                $"'{entry.SchemaPropertyName}' is fed by a block editor ({editor}) in basic mode — only the blocks' text is extracted and joined. " +
+                "Switch the source to blockContent with routes to emit structured Schema.org objects per block.");
+        }
     }
 
     // Check 3 — a known rich-result nested type is missing a required property.

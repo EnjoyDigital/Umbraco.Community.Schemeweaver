@@ -58,6 +58,18 @@ public class BlockContentResolver : IPropertyValueResolver
         if (resolverConfig?.Routes is { Count: > 0 } routes)
             return ResolveRouted(blockItems, routes, resolverConfig, context);
 
+        // A block editor mapped in plain property/parent/ancestor/sibling mode (no resolver
+        // config, no nested schema type) degrades to basic text extraction rather than silently
+        // emitting nothing (#39). Explicit blockContent mappings missing their config still fall
+        // through to ResolveLegacy's warning, and nested blockContent recursion cannot land here
+        // because ResolveNestedBlockProperty stamps SourceType = BlockContent on child mappings.
+        if (!string.Equals(context.Mapping.SourceType, SchemeWeaverConstants.SourceTypes.BlockContent, StringComparison.OrdinalIgnoreCase)
+            && resolverConfig is null
+            && string.IsNullOrEmpty(context.Mapping.NestedSchemaTypeName))
+        {
+            return ResolveBasicText(blockItems, context);
+        }
+
         return ResolveLegacy(blockItems, resolverConfig, context);
     }
 
@@ -131,6 +143,87 @@ public class BlockContentResolver : IPropertyValueResolver
 
         if (!string.IsNullOrEmpty(s))
             target.Add(s);
+    }
+
+    /// <summary>
+    /// Basic extraction mode (#39): a block editor mapped WITHOUT any block configuration has
+    /// nothing to build Things from, so degrade gracefully — walk the block items (recursing into
+    /// nested block editors), pull out the text-producing properties
+    /// (<see cref="SchemeWeaverConstants.PropertyEditors.TextProducingEditorAliases"/>), strip
+    /// HTML, and join the fragments into a single plain-text string. A single string (not a list)
+    /// so scalar targets like <c>description</c>/<c>articleBody</c> receive the full text and
+    /// mapping-level transforms still apply. Returns null when nothing survives, so the mapping
+    /// is omitted rather than emitted blank.
+    /// </summary>
+    private string? ResolveBasicText(IEnumerable<IPublishedElement> blockItems, PropertyResolverContext context)
+    {
+        var fragments = new List<string>();
+        CollectBasicText(blockItems, context, fragments, context.RecursionDepth);
+        return fragments.Count > 0 ? string.Join(' ', fragments) : null;
+    }
+
+    private void CollectBasicText(
+        IEnumerable<IPublishedElement> blockItems,
+        PropertyResolverContext context,
+        List<string> fragments,
+        int depth)
+    {
+        foreach (var blockContent in blockItems)
+        {
+            foreach (var property in blockContent.Properties)
+            {
+                var editorAlias = property.PropertyType?.EditorAlias;
+
+                // Nested block editor: recurse internally rather than through
+                // ResolveBlockElementProperty — its child context keeps RecursionDepth
+                // un-incremented and would re-enter Resolve at unbounded depth.
+                if (IsBlockEditor(editorAlias))
+                {
+                    if (depth + 1 >= context.MaxRecursionDepth)
+                    {
+                        _logger.LogDebug(
+                            "Skipping nested block editor '{PropertyAlias}' during basic text extraction: recursion depth {Depth} reached max {MaxDepth}",
+                            property.Alias, depth + 1, context.MaxRecursionDepth);
+                        continue;
+                    }
+
+                    var nestedValue = property.GetValue(culture: context.Culture);
+                    var nestedItems = nestedValue is null ? null : ExtractBlockItems(nestedValue);
+                    if (nestedItems is not null)
+                        CollectBasicText(nestedItems, context, fragments, depth + 1);
+                    continue;
+                }
+
+                if (editorAlias is null
+                    || !SchemeWeaverConstants.PropertyEditors.TextProducingEditorAliases.Contains(editorAlias))
+                    continue;
+
+                var rawValue = ResolveBlockElementProperty(blockContent, property.Alias, context);
+                var stripHtml = SchemeWeaverConstants.PropertyEditors.HtmlProducingEditorAliases.Contains(editorAlias)
+                    && context.ResolverFactory?.GetResolver(editorAlias) is null or DefaultPropertyValueResolver;
+                foreach (var extractedValue in ExtractStrings(rawValue))
+                    AppendBasicText(fragments, extractedValue, stripHtml);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Appends one extracted text fragment. An HTML-producing source is stripped ONLY when its
+    /// value bypassed a dedicated resolver (no factory, or the alias fell through to
+    /// <see cref="DefaultPropertyValueResolver"/>) and so arrived as raw HTML — a value resolved
+    /// by <see cref="RichTextResolver"/> was already stripped and entity-decoded, and re-stripping
+    /// would decode entities a second time and eat legitimate angle-bracket text. Plain-text
+    /// sources are never stripped, so <c>"a&lt;b and c&gt;d"</c> in a TextBox survives intact.
+    /// </summary>
+    private static void AppendBasicText(List<string> fragments, string extractedValue, bool stripHtml)
+    {
+        var s = extractedValue;
+        if (stripHtml)
+            s = SchemaValueTransformer.StripHtmlTags(s);
+
+        s = s.Trim();
+        if (s.Length > 0)
+            fragments.Add(s);
     }
 
     /// <summary>
