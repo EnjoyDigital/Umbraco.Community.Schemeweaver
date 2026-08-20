@@ -2,7 +2,7 @@
 
 SchemeWeaver offers an optional companion package, **Umbraco.Community.SchemeWeaver.AI**, that uses [Umbraco.AI](https://marketplace.umbraco.com/package/umbraco.ai.core) to provide AI-powered schema mapping. When installed, it adds AI suggestion buttons to the existing SchemeWeaver UI and registers Copilot tools for conversational schema mapping.
 
-If the AI package is not installed, SchemeWeaver works exactly as before -- the heuristic auto-mapper handles all suggestions.
+If the AI package is not installed, SchemeWeaver works exactly as before: the heuristic auto-mapper handles all suggestions.
 
 ---
 
@@ -10,7 +10,7 @@ If the AI package is not installed, SchemeWeaver works exactly as before -- the 
 
 | Requirement | Version |
 |---|---|
-| Umbraco | **17 and 18** — the AI satellite's version tracks the Umbraco major (17.x for Umbraco 17, 18.x for Umbraco 18) and pulls the matching major-aligned Umbraco.AI line |
+| Umbraco | **17 and 18**: the AI satellite's version tracks the Umbraco major (17.x for Umbraco 17, 18.x for Umbraco 18) and pulls the matching major-aligned Umbraco.AI line |
 | Umbraco.Community.SchemeWeaver | Same version as the AI package |
 | Umbraco.AI | Major-aligned with your Umbraco: `[17.0.0, 18.0.0)` on Umbraco 17, `[18.0.0, 19.0.0)` on Umbraco 18 (pulled automatically as a dependency) |
 | A configured AI chat provider | e.g. Anthropic or Azure OpenAI, via the matching Umbraco.AI provider package |
@@ -35,7 +35,7 @@ You also need Umbraco.AI itself and a provider. Two things commonly trip people 
 2. **Configure a chat connection and set a Default Chat Profile.** In **Settings → AI**,
    add a connection for your provider (with its API key) and mark a chat profile as the
    default. Without a default profile the AI calls throw and SchemeWeaver silently falls
-   back to the heuristic mapper — so the AI buttons appear but suggestions never improve.
+   back to the heuristic mapper, so the AI buttons appear but suggestions never improve.
 
 No additional SchemeWeaver configuration is needed. The `SchemeWeaverAIComposer` registers the AI services and controller automatically. The frontend detects the AI package by calling `GET /ai/status` and shows AI buttons only when it returns successfully.
 
@@ -45,22 +45,26 @@ No additional SchemeWeaver configuration is needed. The `SchemeWeaverAIComposer`
 
 ### AI Schema Type Suggestions
 
-When you open the schema picker modal (**Map to Schema.org** on a document type), the AI package adds an **AI Analyse** entity action to the document type actions menu. This action:
+AI type suggestions surface in three places. The first is the **AI Analyse** entity action, which appears on each document type (in both the tree context menu and the workspace action menu). This action:
 
 1. Analyses the content type's name, property names, editor types, and descriptions
 2. Returns up to 3 ranked Schema.org type suggestions with confidence scores and reasoning
 3. Opens the schema picker with the top suggestion pre-highlighted
 
+The second is the **AI Analyse All** entity action on the Document Types tree root, which runs the analysis for every content type in one batch (see AI Bulk Analysis below). The third is inside the schema picker modal itself: with the AI package installed, the picker shows an **AI Suggested Schema** box with its own **AI Analyse** button, so you can request suggestions without leaving the picker.
+
+![The AI Suggested Schema box inside the schema type picker](images/ai-suggested-schema.png)
+
 The AI validates its suggestions against SchemeWeaver's type registry, so only valid Schema.org types from the Schema.NET.Pending library are returned.
 
 ### AI Bulk Analysis
 
-The **AI Analyse All** entity action appears on the Document Types root node. It opens a modal that analyses every non-element content type in a single batch:
+The **AI Analyse All** entity action on the Document Types tree root opens the **AI Analysis Results** modal, which analyses every non-element content type in a single batch:
 
-- Results are displayed as a table with columns for content type name, suggested schema type, confidence score, and reasoning
+- Results are displayed as a table with the columns Content Type, Schema Type, Confidence and Reasoning
 - Rows with confidence of 70% or above are pre-selected
 - Confidence is shown as a colour-coded tag: green (80%+), amber (50-79%), grey (below 50%)
-- Click **Apply** to create mappings for all selected rows in one operation
+- Click the **Apply (n)** button in the modal footer (n counts the selected rows) to create mappings for all selected rows in one operation
 
 For each selected row, the bulk apply process:
 
@@ -113,7 +117,7 @@ The `AISchemaMapper` service orchestrates all AI operations:
 1. **System prompts** guide the LLM with Schema.org expertise, Umbraco editor type awareness (TextBox, RichText, MediaPicker3, BlockList, etc.), and a calibrated confidence scale
 2. **JSON extraction** handles markdown fences and extra text that LLMs sometimes wrap around JSON responses
 3. **Registry validation** filters AI suggestions against the actual Schema.NET.Pending type list, discarding any hallucinated type names
-4. **Merge strategy** for property mapping always retrieves heuristic suggestions as a baseline (they are fed to the AI as context), then treats the AI's suggestions as authoritative — the heuristic only fills schema properties the AI left unmapped
+4. **Merge strategy** for property mapping always retrieves heuristic suggestions as a baseline (they are fed to the AI as context), then treats the AI's suggestions as authoritative: the heuristic only fills schema properties the AI left unmapped
 
 The architecture ensures reliability: if the AI call fails or produces nothing usable, the heuristic baseline is returned unchanged.
 

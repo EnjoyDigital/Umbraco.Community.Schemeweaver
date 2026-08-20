@@ -237,6 +237,50 @@ interface BlockElementTypeInfo {
 
 ---
 
+### POST /content-types/{contentTypeAlias}/properties/{propertyAlias}/block-suggest
+
+Suggests routed block mappings for the block element types inside a BlockList or BlockGrid property. Each suggestion targets one page-level Schema.org property (e.g. `mainEntity`, `hasPart`) and carries the per-block-type routes that feed it. The backoffice turns a suggestion into a single `blockContent` property mapping whose `resolverConfig` stores the routes.
+
+**Path Parameters**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `contentTypeAlias` | `string` | Yes | Umbraco content type alias |
+| `propertyAlias` | `string` | Yes | Property alias of a BlockList or BlockGrid property |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `targetSchemaProperty` | `string` | No | The page schema property the request is scoped to (e.g. `mainEntity`). When present, each top-level route carries `fitsTarget`: whether its nested schema type fits that property's accepted Schema.org range. When absent, `fitsTarget` is omitted from the payload. |
+
+**Response**: `200 OK`
+
+```json
+[
+  {
+    "schemaProperty": "mainEntity",
+    "confidence": 85,
+    "routes": [
+      {
+        "blockAlias": "faqItem",
+        "nestedSchemaType": "Question",
+        "confidence": 85,
+        "fitsTarget": true,
+        "propertyMappings": [
+          { "schemaProperty": "name", "contentProperty": "question" },
+          { "schemaProperty": "acceptedAnswer", "contentProperty": "answer", "wrapInType": "Answer", "wrapInProperty": "text" }
+        ]
+      }
+    ]
+  }
+]
+```
+
+Route property mappings may also carry a suggested `transformType` (e.g. `stripHtml` when a rich text source feeds a plain-text nested property) and, for blocks nested inside blocks, their own recursive `routes`.
+
+---
+
 ## Mappings
 
 ### GET /mappings
@@ -253,6 +297,7 @@ Returns all schema mappings with their property mappings.
     "schemaTypeName": "Article",
     "isEnabled": true,
     "isInherited": false,
+    "idOverride": null,
     "propertyMappings": [
       {
         "schemaPropertyName": "headline",
@@ -263,7 +308,9 @@ Returns all schema mappings with their property mappings.
         "isAutoMapped": true,
         "staticValue": null,
         "nestedSchemaTypeName": null,
-        "resolverConfig": null
+        "resolverConfig": null,
+        "dynamicRootConfig": null,
+        "targetPieceKey": null
       }
     ]
   }
@@ -279,7 +326,13 @@ interface SchemaMappingDto {
   schemaTypeName: string;
   isEnabled: boolean;
   isInherited: boolean;
+  idOverride: string | null;   // optional @id template; tokens {url}, {type}, {key}, {culture}, {siteUrl}
   propertyMappings: PropertyMappingDto[];
+  // Output-only fields, set by the server on read/save and ignored on input:
+  reachability: string | null; // 'routed-page' | 'composed-from-block' | 'unknown'
+  warnings: ValidationIssue[]; // structural warnings (e.g. out-of-range object mappings)
+  driftStatus: string | null;  // uSync drift code; see GET /mappings/drift
+  persistedTo: string | null;  // save response only: 'database' | 'database+usync'
 }
 
 interface PropertyMappingDto {
@@ -292,8 +345,12 @@ interface PropertyMappingDto {
   staticValue: string | null;
   nestedSchemaTypeName: string | null;
   resolverConfig: string | null;
+  dynamicRootConfig: string | null; // JSON for Umbraco dynamic root (origin, query steps); parent/ancestor/sibling sources
+  targetPieceKey: string | null;    // reference source type: key of the graph piece whose @id to emit
 }
 ```
+
+`idOverride` sets a custom `@id` template for the emitted entity; see [`@id` precedence](json-ld-output.md#id-precedence). See `ValidationIssue` under the [preview endpoint](#post-mappingscontenttypealiaspreview).
 
 ---
 
@@ -307,7 +364,7 @@ Returns a single schema mapping for the specified content type.
 |---|---|---|---|
 | `contentTypeAlias` | `string` | Yes | Umbraco content type alias |
 
-**Response**: `200 OK` -- returns `SchemaMappingDto` (see above)
+**Response**: `200 OK`, returning `SchemaMappingDto` (see above)
 
 **Status Codes**
 
@@ -322,7 +379,7 @@ Returns a single schema mapping for the specified content type.
 
 Creates or updates a schema mapping. If a mapping already exists for the content type alias, it is overwritten.
 
-`schemaTypeName` is not fixed once set -- posting a different one re-points the existing mapping at that type in place. Nothing is reconciled server-side, so property mappings the new type does not have are stored but never emitted (they surface as `warnings` on read, and are logged when the page renders). The backoffice reconciles for you -- see [Changing the Schema.org type](mapping-content-types.md#changing-the-schemaorg-type).
+`schemaTypeName` is not fixed once set: posting a different one re-points the existing mapping at that type in place. Nothing is reconciled server-side, so property mappings the new type does not have are stored but never emitted (they surface as `warnings` on read, and are logged when the page renders). The backoffice reconciles for you; see [Changing the Schema.org type](mapping-content-types.md#changing-the-schemaorg-type).
 
 **Request Body**: `SchemaMappingDto`
 
@@ -360,7 +417,7 @@ Creates or updates a schema mapping. If a mapping already exists for the content
 }
 ```
 
-**Response**: `200 OK` -- returns the saved `SchemaMappingDto`
+**Response**: `200 OK`, returning the saved `SchemaMappingDto`
 
 **Status Codes**
 
@@ -371,7 +428,7 @@ Creates or updates a schema mapping. If a mapping already exists for the content
 
 **Source Type Values**
 
-The `sourceType` field accepts the following lowercase string values:
+The `sourceType` field accepts the following eight lowercase string values:
 
 | Value | Description |
 |---|---|
@@ -382,6 +439,7 @@ The `sourceType` field accepts the following lowercase string values:
 | `sibling` | Read from a sibling node (optionally filtered by `sourceContentTypeAlias`) |
 | `blockContent` | Read from block elements within a BlockList/BlockGrid property |
 | `complexType` | Create a nested Schema.org type with sub-property mappings stored in `resolverConfig` |
+| `reference` | Graph Reference: emits a range-typed `@id` shell pointing at a shared graph piece named by `targetPieceKey` (see [The JSON-LD Output Model](json-ld-output.md)) |
 
 **Transform Type Values**
 
@@ -409,9 +467,57 @@ Deletes the schema mapping for the specified content type, including all its pro
 
 ---
 
+### GET /mappings/drift
+
+Reports uSync disk/database drift for every mapping. Requires the optional `Umbraco.Community.SchemeWeaver.uSync` addon; without it, `usyncAvailable` is `false` and `items` is empty. See the [uSync guide](usync.md).
+
+**Response**: `200 OK`
+
+```json
+{
+  "usyncAvailable": true,
+  "items": [
+    { "contentTypeAlias": "blogPost", "status": "in-sync" },
+    { "contentTypeAlias": "productPage", "status": "db-only" }
+  ]
+}
+```
+
+`status` is one of `in-sync`, `db-only`, `disk-only`, `content-differs`, or `usync-unavailable`.
+
+---
+
+### POST /mappings/export
+
+Exports mappings to the uSync data folder on demand. Requires the optional uSync addon; without it, `usyncAvailable` is `false` and nothing is written.
+
+**Request Body** (optional)
+
+```json
+{ "contentTypeAlias": "blogPost" }
+```
+
+Omit the body (or the `contentTypeAlias` field) to export all mappings.
+
+**Response**: `200 OK`
+
+```json
+{
+  "usyncAvailable": true,
+  "folder": "/app/uSync/v18/SchemeWeaverMappings",
+  "items": [
+    { "alias": "blogPost", "written": true, "error": null }
+  ]
+}
+```
+
+Each item reports whether its file was written; on failure `written` is `false` and `error` carries the reason.
+
+---
+
 ### POST /mappings/{contentTypeAlias}/auto-map
 
-Runs the auto-mapping algorithm to suggest property mappings between the Umbraco content type and a Schema.org type. Returns a flat array of suggestions -- it does not persist anything.
+Runs the auto-mapping algorithm to suggest property mappings between the Umbraco content type and a Schema.org type. Returns a flat array of suggestions; it does not persist anything.
 
 **Path Parameters**
 
@@ -464,9 +570,9 @@ The `confidence` field is an integer from 0 to 100. The UI interprets these thre
 
 | Range | Label |
 |---|---|
-| 80--100 | High confidence |
-| 50--79 | Medium confidence |
-| 0--49 | Low / no match |
+| 80–100 | High confidence |
+| 50–79 | Medium confidence |
+| 0–49 | Low / no match |
 
 **Status Codes**
 
@@ -510,6 +616,8 @@ Generates a JSON-LD preview for a content type. Supports both real (published co
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `contentKey` | `Guid` | No | Published content GUID key. If provided, generates real JSON-LD from live content. If omitted, generates a mock preview. |
+| `blockInstanceKey` | `Guid` | No | Used together with `contentKey`: previews the JSON-LD a single nested block instance contributes to its page, via the page mapping's route for that block type. |
+| `culture` | `string` | No | Culture code (e.g. `de-DE`) to build the preview from that language variant. See [Language Variants](language-variants.md). |
 
 **Response**: `200 OK`
 
@@ -517,19 +625,30 @@ Generates a JSON-LD preview for a content type. Supports both real (published co
 {
   "jsonLd": "{\"@context\":\"https://schema.org\",\"@type\":\"Article\",\"headline\":\"My Blog Post\"}",
   "isValid": true,
-  "errors": []
+  "errors": [],
+  "issues": [],
+  "context": "backoffice-preview",
+  "resolvedBaseUrl": "https://localhost:44331"
 }
 ```
 
-When validation errors are present:
+When validation issues are present:
 
 ```json
 {
   "jsonLd": "{\"@context\":\"https://schema.org\",\"@type\":\"Article\"}",
   "isValid": false,
-  "errors": ["Missing recommended property: headline"]
+  "errors": ["Missing required property: headline"],
+  "issues": [
+    { "severity": "critical", "schemaType": "Article", "path": "headline", "message": "Missing required property: headline" },
+    { "severity": "suggestion", "schemaType": "Article", "path": "articleBody", "message": "Rich text source feeds a plain-text property; add a stripHtml transform." }
+  ],
+  "context": "backoffice-preview",
+  "resolvedBaseUrl": "https://localhost:44331"
 }
 ```
+
+`issues` is the structured findings list: validator results plus the mapping's range warnings and advisories, each with a `severity` of `critical`, `warning`, `info`, or `suggestion`. `isValid` is `true` when no critical issues are present. `errors` is legacy: it repeats the message of every critical issue (plus any pre-validation generation error) for consumers that have not upgraded to read `issues`.
 
 **Status Codes**
 
@@ -544,8 +663,18 @@ When validation errors are present:
 ```typescript
 interface JsonLdPreviewResponse {
   jsonLd: string;
-  isValid: boolean;
-  errors: string[];
+  isValid: boolean;             // true when no critical issues are present
+  errors: string[];             // legacy: messages of critical issues only
+  issues: ValidationIssue[];
+  context: string;              // always 'backoffice-preview' from this endpoint
+  resolvedBaseUrl: string | null;
+}
+
+interface ValidationIssue {
+  severity: 'critical' | 'warning' | 'info' | 'suggestion';
+  schemaType: string;
+  path: string;
+  message: string;
 }
 ```
 
@@ -555,7 +684,7 @@ interface JsonLdPreviewResponse {
 
 ### POST /generate-content-type
 
-Creates a new Umbraco document type from a Schema.org type definition. This is the reverse of mapping -- instead of mapping an existing content type to a schema, it generates a content type with properties based on selected Schema.org properties.
+Creates a new Umbraco document type from a Schema.org type definition. This is the reverse of mapping: instead of mapping an existing content type to a schema, it generates a content type with properties based on selected Schema.org properties.
 
 **Request Body**: `ContentTypeGenerationRequest`
 
@@ -571,10 +700,10 @@ Creates a new Umbraco document type from a Schema.org type definition. This is t
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `schemaTypeName` | `string` | Yes | -- | Schema.org type to generate from |
-| `documentTypeName` | `string` | Yes | -- | Display name for the new document type |
-| `documentTypeAlias` | `string` | Yes | -- | Alias for the new document type |
-| `selectedProperties` | `string[]` | Yes | -- | Schema.org property names to create as Umbraco properties |
+| `schemaTypeName` | `string` | Yes | – | Schema.org type to generate from |
+| `documentTypeName` | `string` | Yes | – | Display name for the new document type |
+| `documentTypeAlias` | `string` | Yes | – | Alias for the new document type |
+| `selectedProperties` | `string[]` | Yes | – | Schema.org property names to create as Umbraco properties |
 | `propertyGroupName` | `string` | No | `"Content"` | Tab/group name for the generated properties |
 
 **Response**: `200 OK`
@@ -605,6 +734,28 @@ interface ContentTypeGenerationRequest {
   propertyGroupName?: string;  // defaults to "Content"
 }
 ```
+
+---
+
+## Server Context
+
+### GET /server-context
+
+Returns lightweight information about the target Umbraco instance, so programmatic callers (such as the SchemeWeaver MCP server) can tell a populated site from an empty sandbox before trusting a rendered result.
+
+**Response**: `200 OK`
+
+```json
+{
+  "hasPublishedContent": true,
+  "isTestHost": false
+}
+```
+
+| Field | Description |
+|---|---|
+| `hasPublishedContent` | `true` when at least one published content node exists at the tree root |
+| `isTestHost` | `true` when the host appears to be the SchemeWeaver TestHost sandbox |
 
 ---
 
@@ -736,7 +887,7 @@ interface BulkSchemaTypeSuggestion {
 
 ### POST /ai/ai-auto-map/{contentTypeAlias}
 
-Uses AI to suggest property mappings between a content type and a Schema.org type. The AI suggestions are merged with heuristic suggestions -- for each schema property, the suggestion with the higher confidence score is used. If the AI call fails, the endpoint falls back entirely to heuristic suggestions.
+Uses AI to suggest property mappings between a content type and a Schema.org type. The AI suggestions are merged with heuristic suggestions: for each schema property, the suggestion with the higher confidence score is used. If the AI call fails, the endpoint falls back entirely to heuristic suggestions.
 
 **Path Parameters**
 
@@ -750,7 +901,7 @@ Uses AI to suggest property mappings between a content type and a Schema.org typ
 |---|---|---|---|
 | `schemaTypeName` | `string` | Yes | Schema.org type name to map against |
 
-**Response**: `200 OK` -- returns `PropertyMappingSuggestion[]` (same format as the [heuristic auto-map endpoint](#post-mappingscontenttypealiasauto-map))
+**Response**: `200 OK`, returning `PropertyMappingSuggestion[]` (same format as the [heuristic auto-map endpoint](#post-mappingscontenttypealiasauto-map))
 
 **Status Codes**
 

@@ -26,23 +26,11 @@ Or via the .NET CLI in your solution directory:
 dotnet add src/MyUmbracoSite/MyUmbracoSite.csproj package Umbraco.Community.SchemeWeaver
 ```
 
-Both Umbraco majors ship as stable packages, so no `--prerelease` flag is needed. NuGet picks the build matching your project's Umbraco major automatically (`17.x` for Umbraco 17, `18.x` for Umbraco 18) — see [Umbraco 17 vs 18](../README.md#umbraco-17-vs-18) for how the major-aligned scheme works.
+Both Umbraco majors ship as stable packages, so no `--prerelease` flag is needed. NuGet picks the build matching your project's Umbraco major automatically (`17.x` for Umbraco 17, `18.x` for Umbraco 18); see [Umbraco 17 vs 18](../README.md#umbraco-17-vs-18) for how the major-aligned scheme works.
 
 ## What happens on first run
 
-When the application starts for the first time after installation, SchemeWeaver automatically:
-
-1. **Registers all services** -- the `SchemeWeaverComposer` (an Umbraco `IComposer`) registers the schema type registry, mapping repository, auto-mapper, JSON-LD generator, content type generator, Delivery API index handler, and all property value resolvers via dependency injection.
-
-2. **Runs database migrations** -- the `SchemeWeaverMigrationPlan` creates two database tables:
-   - `SchemeWeaverSchemaMapping` -- stores the link between an Umbraco content type alias and a Schema.org type name, along with flags like `isInherited`.
-   - `SchemeWeaverPropertyMapping` -- stores individual property mappings (schema property name, source type, content type property alias, static values, nested type configuration, and resolver config).
-
-3. **Scans Schema.org types** -- the `SchemaTypeRegistry` singleton scans the Schema.NET.Pending assembly at startup and discovers all available Schema.org types (780) with their properties, parent types, and descriptions.
-
-4. **Registers the backoffice UI** -- the package's static web assets (built Lit web components) are served from `App_Plugins/SchemeWeaver`, adding a Schema.org workspace view tab to the document type editor and entity actions to the document type actions menu.
-
-No configuration in `appsettings.json` is needed. There are no feature flags to enable.
+On first start after installation, SchemeWeaver sets itself up automatically: the `SchemeWeaverComposer` registers every service with dependency injection, database migrations create the two mapping tables (`SchemeWeaverSchemaMapping` and `SchemeWeaverPropertyMapping`), the `SchemaTypeRegistry` scans the Schema.NET.Pending assembly to discover around 800 Schema.org types, and the backoffice UI (the Schema.org workspace view and the document type entity actions) is served from the package's static web assets. No configuration in `appsettings.json` is needed, and there are no feature flags to enable.
 
 ## Adding the tag helper
 
@@ -64,18 +52,20 @@ Then place the tag helper inside your `<head>` element:
 </head>
 ```
 
-The `content` attribute accepts any `IPublishedContent` instance. On each page render, the tag helper generates up to four categories of JSON-LD output:
+The `content` attribute accepts any `IPublishedContent` instance. On each page render, the tag helper emits a single `<script type="application/ld+json">` element containing a `@graph` document:
 
-1. **Inherited schemas** -- from ancestor nodes that have mappings marked as inherited, rendered in root-first order.
-2. **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy.
-3. **Main page schema** -- the JSON-LD for the current page's own mapping.
-4. **Block element schemas** -- JSON-LD from any mapped block elements within the page.
+```json
+{
+  "@context": "https://schema.org",
+  "@graph": [ ... ]
+}
+```
 
-Each block is output as a separate `<script type="application/ld+json">` element. If no mappings exist for the current page or its ancestors, the tag helper outputs nothing.
+The graph holds cross-referenced entities: the site-level Organization and WebSite, the page's BreadcrumbList and primary image, and the page's own mapped entity. The site-level entities are read from a **site settings node** (a published node whose document type is mapped to `Organization` or a subtype); without one, the Organization and WebSite entities are simply absent from the graph. See [The JSON-LD Output Model](json-ld-output.md) for the full model, the `@id` conventions, and the legacy one-script-per-source mode. If nothing at all can be emitted for the page, the tag helper outputs nothing.
 
 ### Headless / Delivery API
 
-If you are using Umbraco's Delivery API rather than server-rendered templates, no tag helper is needed -- fetch the page's JSON-LD from SchemeWeaver's dedicated endpoint and inject the strings as `<script type="application/ld+json">` tags:
+If you are using Umbraco's Delivery API rather than server-rendered templates, no tag helper is needed: fetch the page's JSON-LD from SchemeWeaver's dedicated endpoint and inject each returned string as a `<script type="application/ld+json">` tag (under the default graph output the array holds a single `@graph` document):
 
 ```typescript
 const response = await fetch(
@@ -96,6 +86,8 @@ Navigate to **Settings > Document Types** in the Umbraco backoffice. Open the do
 ### Step 2: Pick a Schema.org type
 
 Click **Map to Schema.org** to open the Schema.org type picker modal.
+
+![The Schema.org tab before a mapping exists](images/schema-tab-empty.png)
 
 Use the search field to find your target type. Types are grouped by their parent type in the Schema.org hierarchy, so `Article`, `BlogPosting`, and `NewsArticle` all appear under the `CreativeWork` group. Each type shows its description and property count to help you choose.
 
@@ -127,18 +119,23 @@ When you are satisfied, click **Save** in the modal. SchemeWeaver persists the m
 
 ### Step 5: Publish content and verify
 
-Publish (or re-publish) a piece of content that uses the mapped content type. View the page source in your browser and look for `<script type="application/ld+json">` blocks. You should see output similar to:
+Publish (or re-publish) a piece of content that uses the mapped content type. View the page source in your browser and look for the `<script type="application/ld+json">` element. You should see a `@graph` document containing your mapped entity, similar to:
 
 ```json
 {
   "@context": "https://schema.org",
-  "@type": "BlogPosting",
-  "headline": "10 Tips for Better SEO",
-  "author": {
-    "@type": "Person",
-    "name": "Jane Smith"
-  },
-  "datePublished": "2024-01-15"
+  "@graph": [
+    {
+      "@type": "BlogPosting",
+      "@id": "https://example.com/blog/10-tips/#blogposting",
+      "headline": "10 Tips for Better SEO",
+      "author": {
+        "@type": "Person",
+        "name": "Jane Smith"
+      },
+      "datePublished": "2024-01-15"
+    }
+  ]
 }
 ```
 
@@ -146,12 +143,16 @@ Publish (or re-publish) a piece of content that uses the mapped content type. Vi
 
 Once JSON-LD is rendering on your pages, validate it using these tools:
 
-- **[Google Rich Results Test](https://search.google.com/test/rich-results)** -- paste a URL or code snippet to see which rich result types Google can extract from your markup.
-- **[Schema.org Validator](https://validator.schema.org/)** -- validates your JSON-LD against the full Schema.org specification, highlighting any missing required properties or type mismatches.
-- **SchemeWeaver's built-in preview** -- open any content item that uses a mapped content type, switch to the **JSON-LD** tab, and view the generated JSON-LD with a valid/invalid indicator, copy button, and refresh button.
+- **[Google Rich Results Test](https://search.google.com/test/rich-results)**: paste a URL or code snippet to see which rich result types Google can extract from your markup.
+- **[Schema.org Validator](https://validator.schema.org/)**: validates your JSON-LD against the full Schema.org specification, highlighting any missing required properties or type mismatches.
+- **SchemeWeaver's built-in preview**: open any content item that uses a mapped content type, switch to the **JSON-LD** tab, and view the generated JSON-LD with a valid/invalid indicator, copy button, and refresh button.
 
 ## Next steps
 
-- **[Mapping Content Types](mapping-content-types.md)** -- detailed guide to the schema picker, property mapping table, inherited schemas, and deleting mappings.
-- **Property Mappings** (property-mappings.md) -- deep dive into source types, transforms, block content mapping, and complex nested types.
-- **Block Content** (block-content.md) -- working with Block List and Block Grid editors in your schema mappings.
+- **[Quick Start for Developers](quickstart-developer.md)**: the fastest route from install to a full `@graph` on your pages.
+- **[Quick Start for SEOs](quickstart-seo.md)**: what the output means for rich results, no code required.
+- **[Mapping Content Types](mapping-content-types.md)**: detailed guide to the schema picker, property mapping table, inherited schemas, and deleting mappings.
+- **[Property Mappings](property-mappings.md)**: deep dive into source types, transforms, block content mapping, and complex nested types.
+- **[Block Content](block-content.md)**: working with Block List and Block Grid editors in your schema mappings.
+- **[The JSON-LD Output Model](json-ld-output.md)**: the `@graph` output, graph pieces, the site settings node, and `@id` templates.
+- **[Language Variants](language-variants.md)**: culture support for multilingual sites.

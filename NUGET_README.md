@@ -4,17 +4,18 @@ Map Umbraco Content Types to Schema.org types and automatically generate JSON-LD
 
 ## Features
 
-- **The full Schema.org vocabulary** -- every type in the Schema.NET.Pending library (~800), including pending types
-- **Auto-mapping with confidence scores** -- suggests property mappings using exact matching, synonym dictionaries, and substring matching
-- **Seven source types** -- pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, or nested complex types
-- **Transforms** -- strip HTML, convert to absolute URL, or format dates before output
-- **Content Type generation** -- scaffold a new Umbraco document type from any Schema.org type
-- **Language variants** -- culture-aware JSON-LD generation for multi-language sites with automatic `inLanguage` population
-- **Delivery API integration** -- a dedicated, culture-aware `/json-ld` endpoint returns each page's JSON-LD for headless front-ends, cached with event-driven invalidation
-- **Tag helper** -- drop `<scheme-weaver content="@Model" />` into any Razor template
-- **Inherited schemas** -- mark a mapping as inherited and it outputs on all descendant pages
-- **BreadcrumbList** -- automatically generated from the content's ancestor hierarchy
-- **Rich Results validation** -- the backoffice flags missing required/recommended properties against Google's structured-data rules
+- **The full Schema.org vocabulary**: every type in the Schema.NET.Pending library (around 800), including pending types
+- **Connected `@graph` output**: Organization, WebSite, breadcrumb and page entity cross-referenced by `@id`, the same shape Yoast emits, with a legacy one-script-per-entity mode available
+- **Auto-mapping with confidence scores**: suggests property mappings using exact matching, synonym dictionaries, and substring matching
+- **Eight source types**: pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, nested complex types, or a shared graph reference
+- **Transforms**: strip HTML, convert to absolute URL, or format dates before output
+- **Content Type generation**: scaffold a new Umbraco document type from any Schema.org type
+- **Language variants**: culture-aware JSON-LD generation for multi-language sites with automatic `inLanguage` population
+- **Delivery API integration**: a dedicated, culture-aware `/json-ld` endpoint returns each page's JSON-LD for headless front-ends, cached with event-driven invalidation
+- **Tag helper**: drop `<scheme-weaver content="@Model" />` into any Razor template
+- **Inherited schemas**: mark a mapping as inherited and it outputs on all descendant pages
+- **BreadcrumbList**: automatically generated from the content's ancestor hierarchy
+- **Rich Results validation and suggestions**: the backoffice flags missing required and recommended properties against Google's structured-data rules
 
 ## Requirements
 
@@ -29,7 +30,7 @@ dotnet add package Umbraco.Community.SchemeWeaver
 
 No additional configuration needed. The package registers all services, creates its database tables on first run, and adds the backoffice UI automatically.
 
-**Umbraco 17 vs 18:** Umbraco 18 made a binary-breaking change to `IPublishedContent`, so SchemeWeaver ships one **stable** build per major from the same source — `17.x` for Umbraco 17 and `18.x` for Umbraco 18, the same major-aligned scheme uSync uses. The install command above is identical for both; each build's mutually-exclusive `Umbraco.Cms` dependency range means NuGet auto-selects the one matching your Umbraco major (no `--prerelease` needed).
+**Umbraco 17 vs 18:** Umbraco 18 made a binary-breaking change to `IPublishedContent`, so SchemeWeaver ships one **stable** build per major from the same source: `17.x` for Umbraco 17 and `18.x` for Umbraco 18, the same major-aligned scheme uSync uses. The install command above is identical for both; each build's mutually-exclusive `Umbraco.Cms` dependency range means NuGet auto-selects the one matching your Umbraco major (no `--prerelease` needed).
 
 ## Quick Start
 
@@ -52,13 +53,13 @@ In your master layout (e.g. `_Layout.cshtml`):
 2. Click the **Schema.org** tab
 3. Click **Map to Schema.org** and select a type (e.g. Product, Article, Event)
 4. Review the auto-suggested property mappings and click **Save**
-5. Publish content -- JSON-LD appears in the page source
+5. Publish content and the JSON-LD appears in the page source as a single `@graph` script
 
-To switch to a different Schema.org type later, use **Change** next to the type tag -- the property mappings the new type still accepts are kept.
+To switch to a different Schema.org type later, use **Change** next to the type tag; the property mappings the new type still accepts are kept.
 
 ### 3. Headless / Delivery API
 
-JSON-LD is served from a dedicated endpoint — fetch it and inject the strings as
+JSON-LD is served from a dedicated endpoint. Fetch it and inject the strings as
 `<script type="application/ld+json">` tags:
 
 ```typescript
@@ -71,13 +72,13 @@ const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 
 ## Optional companions
 
-- **uSync** — sync schema mappings between environments: `Umbraco.Community.SchemeWeaver.uSync`
-- **Umbraco Deploy / Cloud** — deploy schema mappings as `.uda` artifacts: `Umbraco.Community.SchemeWeaver.Deploy`
-- **AI** (Umbraco 17 & 18) — AI-powered mapping suggestions via Umbraco.AI: `Umbraco.Community.SchemeWeaver.AI`
+- **uSync**: sync schema mappings between environments: `Umbraco.Community.SchemeWeaver.uSync`
+- **Umbraco Deploy / Cloud**: deploy schema mappings as `.uda` artifacts: `Umbraco.Community.SchemeWeaver.Deploy`
+- **AI** (Umbraco 17 & 18): AI-powered mapping suggestions via Umbraco.AI: `Umbraco.Community.SchemeWeaver.AI`
 
 ## Use it with an AI assistant (MCP)
 
-SchemeWeaver also ships an **MCP server** plus bundled skills (setup, mapping, site audit) that let an AI assistant (Claude and others) reason semantically about the best Schema.org type for a content type, save the mapping, and verify the JSON-LD — usually a richer result than the name-matching auto-mapper. With [Claude Code](https://claude.com/claude-code) it's a two-command plugin install:
+SchemeWeaver also ships an **MCP server** plus bundled skills (setup, mapping, site audit) that let an AI assistant (Claude and others) reason semantically about the best Schema.org type for a content type, save the mapping, and verify the JSON-LD, usually a richer result than the name-matching auto-mapper. With [Claude Code](https://claude.com/claude-code) it's a two-command plugin install:
 
 ```text
 /plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver
@@ -100,7 +101,7 @@ Each mapping connects one Umbraco Content Type to one Schema.org type. Within th
 
 ## Documentation
 
-Full documentation, source code, and contribution guidelines at [github.com/EnjoyDigital/Umbraco.Community.Schemeweaver](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver).
+Full documentation, source code, and contribution guidelines at [github.com/EnjoyDigital/Umbraco.Community.Schemeweaver](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver). Start with the [developer quick start](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/blob/main/docs/quickstart-developer.md).
 
 ## Licence
 

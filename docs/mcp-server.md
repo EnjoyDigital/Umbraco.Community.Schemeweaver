@@ -6,7 +6,7 @@ built on the official [Umbraco MCP Server SDK](https://docs.umbraco.com/umbraco-
 
 The point: SchemeWeaver's built-in auto-mapper is a name-matching heuristic. An LLM with
 these tools can reason **semantically** about a content type's properties and a Schema.org
-type's vocabulary, produce a better mapping, save it, and verify the generated JSON-LD —
+type's vocabulary, produce a better mapping, save it, and verify the generated JSON-LD,
 end to end.
 
 > **Not part of the NuGet package.** The MCP server is a developer/AI tool that lives in the
@@ -18,7 +18,7 @@ end to end.
 
 ## Install as a Claude Code plugin
 
-The quickest way to use the server with [Claude Code](https://claude.com/claude-code) — no clone,
+The quickest way to use the server with [Claude Code](https://claude.com/claude-code): no clone,
 no build. The plugin is served straight from this GitHub repo and bundles a pre-built, self-contained
 server, so installation is three commands:
 
@@ -28,23 +28,23 @@ server, so installation is three commands:
 /reload-plugins
 ```
 
-On install, Claude Code prompts you for three values — your **Umbraco Base URL**, **API User Client
+On install, Claude Code prompts you for three values: your **Umbraco Base URL**, **API User Client
 ID**, and **API User Client Secret** (the secret is stored in your OS keychain). It then starts the
 `schemeweaver` MCP server automatically and the tools listed below become available to the assistant.
-The plugin **also installs the [three bundled skills](#bundled-skills)** — no separate step.
+The plugin **also installs the [three bundled skills](#bundled-skills)**; there is no separate step.
 
 You still need an Umbraco instance (v17/18) with SchemeWeaver installed and an **API user** with
-client credentials — see [Prerequisites](#prerequisites). For advanced tool filtering (read-only mode,
+client credentials; see [Prerequisites](#prerequisites). For advanced tool filtering (read-only mode,
 excluding specific tools), set the `UMBRACO_READONLY` / `UMBRACO_EXCLUDE_TOOLS` environment variables
-in your shell before launching Claude Code — see [Tool filtering](#tool-filtering).
+in your shell before launching Claude Code; see [Tool filtering](#tool-filtering).
 
 ## Bundled skills
 
-Installing the plugin also installs three [skills](https://docs.claude.com/en/docs/claude-code/skills) —
+Installing the plugin also installs three [skills](https://docs.claude.com/en/docs/claude-code/skills):
 guided workflows that turn the raw tools into reliable, end-to-end loops, so you don't have to prompt
 each step yourself. Each triggers automatically from plain language, or explicitly by its slug.
 
-### `schemeweaver-setup` — connect and verify
+### `schemeweaver-setup`: connect and verify
 
 Gets Claude Code talking to your Umbraco site and **proves it**: creating the API user (and the
 client-credential gotchas), configuring the plugin, then a verification ladder from `get-server-info`
@@ -55,9 +55,9 @@ page instead of JSON, certificate errors). It also triggers when any schemeweave
 
 Explicit invocation: `/schemeweaver-mcp:schemeweaver-setup`
 
-### `schemeweaver-map` — the mapping loop
+### `schemeweaver-map`: the mapping loop
 
-Drives the tools in the recommended order for ONE content type and loops until the result is clean —
+Drives the tools in the recommended order for ONE content type and loops until the result is clean:
 inspect the content type → pick the **most specific** fitting Schema.org type → rank the target's
 properties → take the heuristic baseline as a floor → reason **semantically** to draft a richer mapping
 (the right `sourceType` for each property: scalar, nested entity, block content, related node…) → save →
@@ -68,19 +68,19 @@ properties → take the heuristic baseline as a floor → reason **semantically*
 
 Explicit invocation: `/schemeweaver-mcp:schemeweaver-map`
 
-### `schemeweaver-audit` — site-wide coverage audit
+### `schemeweaver-audit`: site-wide coverage audit
 
 Surveys the whole site rather than one type: inventories every mapping and unmapped content type,
 triages the gaps by Google rich-result value, validates every existing mapping, spot-checks the live
-JSON-LD output, checks uSync drift, and delivers a fixed-format report with a prioritised action plan —
+JSON-LD output, checks uSync drift, and delivers a fixed-format report with a prioritised action plan,
 then executes the agreed fixes one type at a time through `schemeweaver-map`.
 
-> Audit my site's structured data — why aren't my pages getting rich results?
+> Audit my site's structured data: why aren't my pages getting rich results?
 
 Explicit invocation: `/schemeweaver-mcp:schemeweaver-audit`
 
 The skills need the `schemeweaver` MCP server (from this same plugin) connected to your Umbraco
-instance — which the plugin sets up for you on install.
+instance, which the plugin sets up for you on install.
 
 ## What it exposes
 
@@ -95,7 +95,7 @@ Sixteen SchemeWeaver tools, plus a `get-server-info` smoke-test tool from the ba
 | `get-block-element-types` | Element types inside a Block List/Grid property, recursing into blocks nested in blocks / Block Grid areas |
 | `get-all-schema-mappings` / `get-schema-mapping` | Existing mappings |
 | `suggest-property-mappings` | The heuristic auto-mapper baseline (confidence 0–100) |
-| `save-schema-mapping` | Create/replace a mapping |
+| `save-schema-mapping` | Create or replace a mapping; a save replaces the whole mapping, and supports the full source-type set, including `reference` rows and nestable `blockContent` routes |
 | `delete-schema-mapping` | Remove a mapping |
 | `preview-json-ld` | Generate JSON-LD for a content node + Rich Results validation issues (backoffice-context preview) |
 | `get-rendered-json-ld` | Fetch the **live** JSON-LD a published page emits, from the anonymous Delivery API (ground truth) |
@@ -105,10 +105,16 @@ Sixteen SchemeWeaver tools, plus a `get-server-info` smoke-test tool from the ba
 | `get-usync-drift` | Report drift between live mappings and uSync files |
 | `get-server-info` | Server version/runtime (auth smoke test, from the base SDK) |
 
+### Preview vs live render
+
+`preview-json-ld` renders from the saved mapping without publishing anything, in the backoffice management context; its URL and `@id` resolution reflect the management host, so treat it as a fast working preview rather than proof of the live output. `get-rendered-json-ld` fetches the JSON-LD a published page actually emits via the anonymous Delivery API, which is the ground truth (the Delivery API must be enabled in the Umbraco instance).
+
+**Self-signed TLS:** `get-rendered-json-ld` uses a plain `fetch`, so a local HTTPS instance needs either a trusted development certificate or `NODE_TLS_REJECT_UNAUTHORIZED=0` set in the server's environment.
+
 ## Prerequisites
 
 - Node.js >= 22
-- A running Umbraco instance (v17/18) with SchemeWeaver installed — the repo's TestHost works out of the box
+- A running Umbraco instance (v17/18) with SchemeWeaver installed: the repo's TestHost works out of the box
 - An **API user** in that instance with client credentials. For the TestHost,
   `scripts/setup-api-user.mjs` creates one automatically:
   ```bash

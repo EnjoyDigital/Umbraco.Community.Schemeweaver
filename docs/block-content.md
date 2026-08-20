@@ -1,12 +1,14 @@
 # Block Content Mapping
 
-Block content mapping allows SchemeWeaver to extract structured data from Umbraco's BlockList and BlockGrid editors, transforming block elements into nested Schema.org types within your JSON-LD output. This is essential for schemas that require arrays of structured objects -- FAQ questions, product reviews, recipe steps, and similar patterns.
+Block content mapping allows SchemeWeaver to extract structured data from Umbraco's BlockList and BlockGrid editors, transforming block elements into nested Schema.org types within your JSON-LD output. This is essential for schemas that require arrays of structured objects: FAQ questions, product reviews, recipe steps, and similar patterns.
 
 ---
 
 ## Overview
 
-Umbraco's block editors store collections of typed elements. Each block element is an `IPublishedElement` with its own content type and properties. SchemeWeaver's `BlockContentResolver` reads these collections and maps each element to a Schema.NET `Thing` (or extracts simple string values), producing nested JSON-LD that search engines can consume.
+Umbraco's block editors store collections of typed elements. Each block element is an `IPublishedElement` with its own content type and properties. SchemeWeaver's `BlockContentResolver` reads these collections and maps each element to a Schema.NET `Thing` (or extracts simple string values), producing nested JSON-LD that search engines can consume as part of the page's output (assembled as described in [The JSON-LD Output Model](json-ld-output.md)).
+
+There are two ways to use a block editor in a mapping: leave it on the plain Current Node (`property`) source for basic text extraction (covered next), or use the `blockContent` source type to emit structured objects, one Schema.org Thing per block. The `blockContent` route is the subject of most of this page; see [Property Mappings](property-mappings.md) for the full source-type reference.
 
 The block content source type (`blockContent`) is available when:
 
@@ -15,31 +17,31 @@ The block content source type (`blockContent`) is available when:
 
 ---
 
+## Basic Text Extraction (property mode)
+
+The simplest option first: a block editor property does not have to use the `blockContent` source type at all. Mapped on the plain **Current Node (`property`)** source with no block configuration, the resolver falls back to basic text extraction: it walks the block items (nested block editors and Block Grid areas included, up to the recursion depth limit), reads every text-producing property (Textstring, Textarea, Rich Text, Markdown), strips HTML, and joins the fragments into one plain-text string.
+
+This is the quick path for plain-text targets: mapping a page's content blocks straight onto `description` or `articleBody` without configuring routes. Anything that is not prose (media, pickers, numbers, settings) is ignored. For structured output (one Schema.org object per block) use the `blockContent` source type described in the rest of this document; when a block editor in property mode feeds a target that expects structured objects, the PreferBlockContent advisory raises a suggestion (surfaced at suggestion severity).
+
+---
+
 ## How Resolution Works
 
 The `BlockContentResolver` follows this process:
 
-1. **Extract block items** -- Reads the property value and extracts `IPublishedElement` content items from either a `BlockListModel` or `BlockGridModel`.
+1. **Extract block items**: Reads the property value and extracts `IPublishedElement` content items from either a `BlockListModel` or `BlockGridModel`.
 
-2. **Check for string extraction mode** -- If the resolver config specifies `"extractAs": "stringList"`, each block item has a single named property extracted as a plain string. The result is a `List<string>` rather than a list of Things. This is used for Schema.org properties that expect string arrays (e.g., `recipeIngredient`).
+2. **Check for string extraction mode**: If the resolver config specifies `"extractAs": "stringList"`, each block item has a single named property extracted as a plain string. The result is a `List<string>` rather than a list of Things. This is used for Schema.org properties that expect string arrays (e.g., `recipeIngredient`).
 
-3. **Map to Things** -- For each block element, the resolver creates an instance of the configured Schema.org type (`NestedSchemaTypeName`) and populates it using either:
+3. **Map to Things**: For each block element, the resolver creates an instance of the configured Schema.org type (`NestedSchemaTypeName`) and populates it using either:
    - **Configured nested mappings** from the `ResolverConfig` JSON, or
    - **Auto-mapping by name** if no nested mappings are configured (matches block property aliases to schema property names, case-insensitive)
 
-4. **Apply wrapping** -- If a nested mapping specifies `wrapInType`, the resolved value is wrapped in an intermediate Schema.org type before being set on the parent Thing.
+4. **Apply wrapping**: If a nested mapping specifies `wrapInType`, the resolved value is wrapped in an intermediate Schema.org type before being set on the parent Thing.
 
-5. **Return collection** -- The resolver returns a `List<Thing>` which Schema.NET serialises as a JSON array in the output.
+5. **Return collection**: The resolver returns a `List<Thing>` which Schema.NET serialises as a JSON array in the output.
 
-Recursion is limited to a maximum depth of 3 (configurable via `PropertyResolverContext.MaxRecursionDepth`) to prevent infinite loops.
-
----
-
-## Basic Text Extraction (property mode)
-
-A block editor property does not have to use the `blockContent` source type. Mapped on the plain **Current Node (`property`)** source with no block configuration, the resolver falls back to basic text extraction: it walks the block items (nested block editors and Block Grid areas included, up to the recursion depth limit), reads every text-producing property (Textstring, Textarea, Rich Text, Markdown), strips HTML, and joins the fragments into one plain-text string.
-
-This is the quick path for plain-text targets — mapping a page's content blocks straight onto `description` or `articleBody` without configuring routes. Anything that is not prose (media, pickers, numbers, settings) is ignored. For structured output — one Schema.org object per block — use the `blockContent` source type described in the rest of this document; the mapping validator raises a suggestion when a block editor in property mode feeds a target that expects structured objects.
+Recursion is limited to a maximum depth of 3 (configurable via the `SchemeWeaver:MaxRecursionDepth` setting in appsettings) to prevent infinite loops.
 
 ---
 
@@ -47,11 +49,11 @@ This is the quick path for plain-text targets — mapping a page's content block
 
 Real-world content is rarely one level deep. SchemeWeaver resolves two forms of nesting:
 
-1. **A block whose own property is itself a Block List/Grid** — e.g. a `section` block that
+1. **A block whose own property is itself a Block List/Grid**: e.g. a `section` block that
    contains a nested `questions` Block List of `faqItem` blocks. When a route's property
    mapping targets such a property, give it its own `routes` and resolution recurses, emitting
    the inner blocks as nested Things.
-2. **Block Grid areas** — blocks placed inside a Block Grid item's layout *areas* are traversed
+2. **Block Grid areas**: blocks placed inside a Block Grid item's layout *areas* are traversed
    too (previously only top-level grid items were read). Area layout carries no Schema.org
    meaning, so area blocks are flattened into the parent collection.
 
@@ -125,33 +127,24 @@ String extraction mode is activated by setting `"extractAs": "stringList"` in th
 
 ---
 
-## The Nested Mapping Wizard
+## The Block Mapping Panel
 
-When you configure a `blockContent` mapping in the SchemeWeaver UI, a three-step wizard guides you through the process.
+Block mappings are configured per row: each mapping-table row whose property is a block editor shows a **Map blocks** button, which opens the "Map blocks to ..." panel scoped to that schema property.
 
-### Step 1: Select Block Element Type
+![The block mapping panel with an expanded block row](images/block-mapping-modal.png)
 
-The wizard loads the block element types configured on the BlockList/BlockGrid property and presents them as selectable cards, each showing the element's name, alias, and available properties.
+The panel's header shows the context: the block property, its editor kind, and the target schema property with the types it accepts. The **Block Mappings** box then lists every block element type configured on the editor:
 
-If only one block element type is configured, it is auto-selected and the wizard advances to step 2 automatically.
+- Each block row shows the element's name and alias, a **{n} mapped** tag once it has mappings, and row actions: **Auto-map**, expand/collapse, and **Remove mapping**. Unmapped rows carry a **Not mapped** tag and a **Map this block** action.
+- Expanding a row reveals its mapping table (Schema Property, Value, Wrap in Type). Different block types can map to different Schema.org types, so a heterogeneous list emits a differently-typed object per element type.
+- **Auto-map all** fills every block row at once. Auto-mapping runs a three-tier matching algorithm (exact name match, then partial match, then complex-type sub-property match, e.g. the block's `ratingValue` matching `Rating.ratingValue` inside `reviewRating` and wrapping accordingly) and only fills empty mappings; manual selections are never overwritten.
+- When some blocks in the list would better fit a different schema property, a fan-out banner offers **Create rows for other properties**.
 
-If no block types can be detected (e.g., when the property configuration cannot be read), you can manually type in a block element alias.
+For a block whose own property is itself a Block List or Grid, the expanded row offers a **Route nested block** toggle, which nests the routing model one level deeper (see [Nested Blocks](#nested-blocks-blocks-inside-blocks-and-block-grid-areas) above):
 
-### Step 2: Map Properties
+![Nested block routing inside the block mapping panel](images/nested-block-routes.png)
 
-A mapping table shows every property of the target Schema.org type in the left column, with dropdown selectors for the corresponding block element property in the centre column. The right column shows the **Wrap In Type** for complex schema properties.
-
-The wizard includes an **Auto-Map** button that runs a three-tier matching algorithm:
-
-1. **Exact name match** (case-insensitive) between block property and schema property
-2. **Partial/contains match** where one name is a substring of the other
-3. **Complex type sub-property match** that looks into accepted types' properties (e.g., the block has `ratingValue`, the schema property `reviewRating` accepts `Rating`, and `Rating` has a property called `ratingValue` -- so it matches with wrapping)
-
-Auto-mapping only fills empty mappings and never overwrites manual selections.
-
-### Step 3: Preview
-
-Shows a summary of all configured mappings and a collapsible JSON preview of the `ResolverConfig` that will be stored. Review the configuration and click **Save** to apply.
+Saving the panel writes the `routes` configuration onto the mapping row; the JSON it produces is exactly the shape documented throughout this page.
 
 ---
 
@@ -201,7 +194,7 @@ The `wrapInType` and `wrapInProperty` fields are set per nested mapping entry:
 
 ### Concrete Examples
 
-**FAQ -- wrapping an answer in an Answer type:**
+**FAQ: wrapping an answer in an Answer type**
 
 Without wrapping, the answer text would be set directly on `acceptedAnswer`, which is invalid because Schema.org expects an `Answer` object. With wrapping:
 
@@ -234,7 +227,7 @@ Without wrapping, the answer text would be set directly on `acceptedAnswer`, whi
 }
 ```
 
-**Product Review -- wrapping a rating value in a Rating type:**
+**Product Review: wrapping a rating value in a Rating type**
 
 ```json
 {
@@ -270,9 +263,9 @@ Without wrapping, the answer text would be set directly on `acceptedAnswer`, whi
 }
 ```
 
-### Auto-Detection in the Wizard
+### Auto-Detection in the Block Mapping Panel
 
-The nested mapping wizard automatically detects when wrapping is needed. When you select a content property for a complex schema property, the wizard:
+The block mapping panel automatically detects when wrapping is needed. When you select a content property for a complex schema property, the panel:
 
 1. Checks all accepted types for the schema property
 2. Looks for exact or partial name matches between the content property name and the accepted type's sub-properties

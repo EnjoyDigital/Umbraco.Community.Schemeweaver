@@ -1,6 +1,6 @@
 # Advanced Topics
 
-This guide covers SchemeWeaver's deeper features: BreadcrumbList generation, JSON-LD output ordering, the workspace views, Rich Results validation, configuration, database schema, and troubleshooting. For extensibility and custom resolvers, see [Extending SchemeWeaver](extending.md).
+This guide covers SchemeWeaver's deeper features: BreadcrumbList generation, JSON-LD output ordering, the workspace views, validation and suggestions, configuration, database schema, and troubleshooting. For extensibility and custom resolvers, see [Extending SchemeWeaver](extending.md).
 
 ## BreadcrumbList Auto-Generation
 
@@ -57,19 +57,11 @@ For a page at **Home > About > Our Team**, the generated BreadcrumbList looks li
 
 ### Where BreadcrumbList Appears
 
-- **Tag helper** (`<scheme-weaver content="@Model" />`): Included as a separate `<script type="application/ld+json">` block.
-- **Delivery API**: NOT included. See the [Delivery API guide](delivery-api.md) for details on why and how to build your own.
+Under the default `@graph` output, the breadcrumb is a graph piece: whenever the page has at least one ancestor it appears inside the single graph document emitted by both the tag helper and the Delivery API. In legacy mode (`UseGraphModel` set to `false`), the tag helper emits it as a separate `<script type="application/ld+json">` block, and the Delivery API includes it as a separate string unless `EmitBreadcrumbsInDeliveryApi` is `false`. Note that this flag only applies in legacy mode; under graph output the breadcrumb piece is emitted regardless, tracked in [issue #81](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues/81).
 
 ## JSON-LD Output Order
 
-When SchemeWeaver renders structured data, multiple JSON-LD blocks may be emitted for a single page. The tag helper and the Delivery API content index handler both follow the same ordering:
-
-1. **Inherited schemas** (root-first) -- schemas from ancestor content types marked as "inherited" (e.g. `WebSite` on the home page, `Organization` on a company node). The ancestor chain is walked from parent upwards, then reversed so the root-level schema appears first.
-2. **BreadcrumbList** -- auto-generated breadcrumb trail (tag helper only; excluded from Delivery API).
-3. **Main page schema** -- the schema mapped to the current content node's document type.
-4. **Block element schemas** -- schemas generated from mapped block elements found in BlockList and BlockGrid properties. Properties that are already explicitly mapped via the `blockContent` source type are excluded to avoid duplication.
-
-Each schema is rendered as its own `<script type="application/ld+json">` block (tag helper) or as a separate string in the `schemaOrg` array (Delivery API).
+By default SchemeWeaver emits a single `@graph` document per page, so there is no multi-block ordering to think about: the graph pieces appear in a stable order inside one `<script type="application/ld+json">` element, cross-referenced by `@id`. See [The JSON-LD Output Model](json-ld-output.md) for the full model. The numbered inherited/breadcrumb/main/block ordering applies only when `UseGraphModel` is `false`, and is documented in that guide's [legacy mode section](json-ld-output.md#legacy-mode-one-script-per-source).
 
 ## Schema.org Workspace View
 
@@ -77,16 +69,18 @@ SchemeWeaver adds a **Schema.org** tab to the document type editor in the Umbrac
 
 ### Features
 
-- **Schema type display** -- shows the currently mapped Schema.org type (e.g. `Article`, `Event`) with the content type alias.
-- **Inherited toggle** -- a toggle switch that marks the schema as inherited, meaning it will be output on all descendant pages in addition to pages of this content type.
-- **Property mapping table** -- an editable table showing mapped Schema.org properties with dropdowns to select the Umbraco property source, source type, and source origin (parent, ancestor, sibling, static, blockContent, complexType). Additional properties can be added via the "Add property" combobox below the table. Individual rows can be removed using the trash icon on hover.
-- **Auto-map** -- a button that calls the auto-mapping endpoint to suggest property mappings based on name similarity and type compatibility. Suggestions are merged into the existing table, preserving any manual overrides.
-- **Document type save integration** -- persists the mapping to the database when the document type itself is saved via the backoffice.
+- **Schema type display**: shows the currently mapped Schema.org type (e.g. `Article`, `Event`) with the content type alias.
+- **Inherited toggle**: a toggle switch that marks the schema as inherited, meaning it will be output on all descendant pages in addition to pages of this content type.
+- **Property mapping table**: an editable table showing mapped Schema.org properties with dropdowns to select the Umbraco property source, source type, and source origin (parent, ancestor, sibling, static, blockContent, complexType). Additional properties can be added via the "Add property" combobox below the table. Individual rows can be removed using the trash icon on hover.
+- **Auto-map**: a button that calls the auto-mapping endpoint to suggest property mappings based on name similarity and type compatibility. Suggestions are merged into the existing table, preserving any manual overrides.
+- **Document type save integration**: persists the mapping to the database when the document type itself is saved via the backoffice.
 
 The workspace view loads the existing mapping on mount by observing the workspace context's `alias` observable, and fetches both the schema properties and the content type properties to populate the dropdowns.
 
 
 ## JSON-LD Content View / Preview
+
+![The JSON-LD tab on a content node with preview and validation](images/jsonld-preview-tab.png)
 
 SchemeWeaver adds a **JSON-LD** tab to content nodes (not document types) via the `schemeweaver-jsonld-content-view` workspace view. This tab shows a live preview of the JSON-LD that would be generated for the current content node.
 
@@ -108,7 +102,7 @@ The preview endpoint (`POST /mappings/{contentTypeAlias}/preview`) supports two 
 5. The preview shows a formatted JSON-LD block with syntax highlighting, a valid/invalid badge, and copy/refresh buttons.
 
 
-## Rich Results Validation
+## Validation and Suggestions
 
 Every JSON-LD preview is run through a validator that checks the generated output against
 Google's [structured-data requirements](https://developers.google.com/search/docs/appearance/structured-data)
@@ -117,9 +111,10 @@ mock preview on the document type's Schema.org tab):
 
 - A **valid / invalid badge** summarises whether the output is eligible for rich results.
 - **Issues** are listed by severity:
-  - **Critical** — a required property is missing or malformed; the result is ineligible until fixed.
-  - **Warning** — a recommended property is missing; the result is eligible but weaker.
-  - **Info** — informational notes.
+  - **Critical**: a required property is missing or malformed; the result is ineligible until fixed.
+  - **Warning**: a recommended property is missing; the result is eligible but weaker.
+  - **Info**: informational notes.
+  - **Suggestion**: a non-blocking improvement raised by the mapping advisor (see below).
 
 Validation is rule-based and type-aware: there are dedicated rule sets for the common rich-result
 types (Article, Product, Event, Recipe, FAQ, JobPosting, LocalBusiness, BreadcrumbList, and many
@@ -129,10 +124,25 @@ still get the generic check, so you always get baseline feedback.
 The same validation issues are returned by the preview API (`POST /mappings/{alias}/preview`) and
 by the MCP `preview-json-ld` tool, so you can lint mappings programmatically as well as in the UI.
 
+### Mapping advisories
+
+![The validation panel showing critical, warning and suggestion severities](images/validation-suggestion.png)
+
+Suggestion-severity items come from the mapping advisor, which inspects a mapping for concrete,
+actionable improvements. There are five advisory kinds:
+
+- **StripHtml**: an HTML-producing source (such as a rich text editor) feeds a plain-text Schema.org property without a `stripHtml` transform.
+- **WrapInListItem**: a block list feeds an ordered-list property such as `itemListElement` without wrapping each entry in a `ListItem`.
+- **MissingRequiredNestedProperty**: a known rich-result nested type (such as `Question`) is missing a property that Google requires.
+- **ExportToUSync**: a save only reached the database while the uSync addon is installed, so the mapping will not reproduce on other environments until exported (see [uSync Integration](usync.md)).
+- **PreferBlockContent**: a block editor mapped in basic property mode feeds a structured Schema.org target; switching the row to `blockContent` would emit real nested entities instead of a flattened value.
+
+Advisories inform and suggest, they never modify the saved mapping.
+
 ## Configuration
 
 All settings are optional and bind to a `SchemeWeaver` section in `appsettings.json`. The defaults
-suit most sites — you only need this section to change behaviour.
+suit most sites; you only need this section to change behaviour.
 
 ```json
 {
@@ -155,14 +165,16 @@ suit most sites — you only need this section to change behaviour.
 
 | Key | Default | Description |
 |---|---|---|
-| `UseGraphModel` | `true` | Output shape. `true` emits a single Yoast-style `@graph` envelope with cross-referenced `@id`s (best for modern SEO pipelines). `false` emits one `<script type="application/ld+json">` block per source (inherited mappings, breadcrumb, main mapping, block elements) — useful for per-entity diffing or stricter CSP. The flag flows through the tag helper, Delivery API, Examine index and backoffice preview, so the preview always matches what ships. |
+| `UseGraphModel` | `true` | Output shape. `true` emits a single Yoast-style `@graph` envelope with cross-referenced `@id`s (best for modern SEO pipelines). `false` emits one `<script type="application/ld+json">` block per source (inherited mappings, breadcrumb, main mapping, block elements), useful for per-entity diffing or stricter CSP. The flag flows through the tag helper, Delivery API, Examine index and backoffice preview, so the preview always matches what ships. See [The JSON-LD Output Model](json-ld-output.md). |
 | `MaxRecursionDepth` | `3` | Maximum depth for nested property resolution (content pickers, block lists). Guards against infinite loops in circular content. |
-| `EmitBreadcrumbsInDeliveryApi` | `true` | Whether `BreadcrumbList` is included in the Delivery API `/json-ld` output. Set `false` if your headless front-end builds its own breadcrumb from its routing data. The server-rendered tag helper always emits breadcrumbs regardless. |
-| `CacheDuration` | `00:30:00` | Absolute cache duration for the per-content JSON-LD blocks served by the Delivery API. A safety-net only — invalidation is event-driven (publish/unpublish/move/delete). |
-| `SiteSettings.ContentTypeAlias` | `schemaSiteSettings` | Content type alias of the singleton settings node that drives the site-level part of the graph (Organization / WebSite pieces). The first published node of this type is used. |
-| `SiteSettings.ContentKey` | `null` | Optional explicit GUID of the settings node. Overrides the alias-based lookup when the convention doesn't fit. |
-| `SiteSearch.UrlTemplate` | `null` | Absolute URL template of your search results page, containing the literal `{search_term_string}` placeholder. When set, the WebSite graph node emits a `potentialAction` `SearchAction` — the markup Google requires for the sitelinks search box. Unset (default) emits no `potentialAction`. |
-| `SiteSearch.QueryInputName` | `search_term_string` | The variable name declared in `query-input` (`required name=…`) and expected as the `{placeholder}` in `UrlTemplate`. Rarely needs changing. |
+| `EmitBreadcrumbsInDeliveryApi` | `true` | Legacy mode only: when `UseGraphModel` is `false`, controls whether `BreadcrumbList` is included in the Delivery API `/json-ld` output. Under the default graph output the breadcrumb piece is emitted regardless of this flag ([issue #81](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues/81)). The server-rendered tag helper always emits breadcrumbs. |
+| `CacheDuration` | `00:30:00` | Absolute cache duration for the per-content JSON-LD blocks served by the Delivery API. A safety-net only; invalidation is event-driven (publish/unpublish/move/delete). |
+| `SiteSettings.ContentTypeAlias` | `schemaSiteSettings` | Content type alias of the singleton settings node that drives the site-level part of the graph (Organization / WebSite pieces). The first published node of this type is used. See [the site settings node](json-ld-output.md#the-site-settings-node). |
+| `SiteSettings.ContentKey` | `null` | Optional explicit GUID of the settings node. Overrides the alias-based lookup when the convention doesn't fit. See [the site settings node](json-ld-output.md#the-site-settings-node). |
+| `SiteSearch.UrlTemplate` | `null` | Absolute URL template of your search results page, containing the literal `{search_term_string}` placeholder. When set, the WebSite graph node emits a `potentialAction` `SearchAction`, the markup Google requires for the sitelinks search box. Unset (default) emits no `potentialAction`. See [sitelinks search box](json-ld-output.md#sitelinks-search-box). |
+| `SiteSearch.QueryInputName` | `search_term_string` | The variable name declared in `query-input` (`required name=…`) and expected as the `{placeholder}` in `UrlTemplate`. Rarely needs changing. See [sitelinks search box](json-ld-output.md#sitelinks-search-box). |
+| `ExportMappingsToUSyncOnSave` | `false` | When `true`, the optional uSync addon exports a mapping to the uSync data folder every time it is saved or deleted in the backoffice. A SchemeWeaver-owned flag, deliberately independent of uSync's global `ExportOnSave`. No effect without the uSync addon installed. See [uSync Integration](usync.md). |
+| `USyncBootImport` | `Off` | How the optional uSync addon imports committed mapping files on boot: `Off` (first-boot-only seeding), `Seed` (create missing mappings on every boot, never overwrites), `Upsert` (disk wins on every boot). No effect without the uSync addon installed. See [uSync Integration](usync.md). |
 
 ## Extending SchemeWeaver
 
@@ -193,6 +205,7 @@ Stores the top-level mapping between an Umbraco content type and a Schema.org ty
 | `CreatedDate` | `datetime` | No | When the mapping was created |
 | `UpdatedDate` | `datetime` | No | When the mapping was last updated |
 | `IsInherited` | `bit` | No | Whether this schema is output on descendant pages (default: 0) |
+| `IdOverride` | `nvarchar` | Yes | Optional `@id` template that overrides the default `{url}#{type}` convention (tokens: `{url}`, `{type}`, `{key}`, `{culture}`, `{siteUrl}`); see [`@id` precedence](json-ld-output.md#id-precedence) |
 
 ### SchemeWeaverPropertyMapping
 
@@ -203,7 +216,7 @@ Stores individual property mappings within a schema mapping.
 | `Id` | `int` | No | Auto-increment primary key |
 | `SchemaMappingId` | `int` | No | Foreign key to `SchemeWeaverSchemaMapping.Id` |
 | `SchemaPropertyName` | `nvarchar` | No | Schema.org property name (e.g. `headline`) |
-| `SourceType` | `nvarchar` | No | Value source: `property`, `static`, `parent`, `ancestor`, `sibling`, `blockContent`, `complexType` |
+| `SourceType` | `nvarchar` | No | Value source: `property`, `static`, `parent`, `ancestor`, `sibling`, `blockContent`, `complexType`, `reference` |
 | `ContentTypePropertyAlias` | `nvarchar` | Yes | Umbraco property alias to read from |
 | `SourceContentTypeAlias` | `nvarchar` | Yes | Content type alias filter for `parent`/`ancestor`/`sibling` sources |
 | `TransformType` | `nvarchar` | Yes | Transform to apply: `stripHtml`, `toAbsoluteUrl`, `formatDate` |
@@ -211,14 +224,19 @@ Stores individual property mappings within a schema mapping.
 | `StaticValue` | `nvarchar` | Yes | Static value (used when `SourceType` is `static`) |
 | `NestedSchemaTypeName` | `nvarchar` | Yes | Nested Schema.org type name for complex type mappings |
 | `ResolverConfig` | `nvarchar(max)` / `TEXT` | Yes | JSON configuration for property resolvers (e.g. sub-mappings for complex types) |
+| `DynamicRootConfig` | `nvarchar(max)` / `TEXT` | Yes | JSON configuration for Umbraco dynamic root settings (origin and query steps) used by `parent`/`ancestor`/`sibling` sources |
+| `TargetPieceKey` | `nvarchar` | Yes | For the `reference` source type: the key of the graph piece whose `@id` this property resolves to (e.g. `organization`) |
 
 ### Migration History
 
-The tables are created and updated via three migrations in `SchemeWeaverMigrationPlan`:
+The tables are created and updated via six migrations in `SchemeWeaverMigrationPlan`:
 
-1. **`schemeweaver-tables-v1`** (`CreateTablesMigration`) -- creates both tables with all original columns.
-2. **`schemeweaver-add-resolver-config-v2`** (`AddResolverConfigMigration`) -- adds the `ResolverConfig` column to `SchemeWeaverPropertyMapping`.
-3. **`schemeweaver-add-is-inherited-v3`** (`AddIsInheritedMigration`) -- adds the `IsInherited` column to `SchemeWeaverSchemaMapping`.
+1. **`schemeweaver-tables-v1`** (`CreateTablesMigration`): creates both tables with all original columns.
+2. **`schemeweaver-add-resolver-config-v2`** (`AddResolverConfigMigration`): adds the `ResolverConfig` column to `SchemeWeaverPropertyMapping`.
+3. **`schemeweaver-add-is-inherited-v3`** (`AddIsInheritedMigration`): adds the `IsInherited` column to `SchemeWeaverSchemaMapping`.
+4. **`schemeweaver-add-dynamic-root-config-v4`** (`AddDynamicRootConfigMigration`): adds the `DynamicRootConfig` column to `SchemeWeaverPropertyMapping`.
+5. **`schemeweaver-add-id-override-v5`** (`AddIdOverrideMigration`): adds the `IdOverride` column to `SchemeWeaverSchemaMapping`.
+6. **`schemeweaver-add-target-piece-key-v6`** (`AddTargetPieceKeyMigration`): adds the `TargetPieceKey` column to `SchemeWeaverPropertyMapping`.
 
 Migrations use raw SQL for SQLite compatibility, as Umbraco's fluent migration builder does not support `ALTER TABLE` on SQLite.
 

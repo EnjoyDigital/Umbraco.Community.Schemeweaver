@@ -4,18 +4,6 @@ SchemeWeaver exposes JSON-LD structured data to headless consumers through a ded
 Delivery API endpoint, alongside writing the same data into Umbraco's Examine-backed content
 index (useful for filter/sort/search).
 
-> **⚠️ Breaking change in 1.3.0**
->
-> Earlier versions of this document claimed `schemaOrg` appeared on standard Delivery API
-> content responses under `properties.schemaOrg`. That was never surfaced — `IContentIndexHandler`
-> feeds the Examine index only; Umbraco builds the response body's `properties` dict from
-> `IPublishedContent.Properties`, so index-handler fields never reach the API consumer.
->
-> As of 1.3.0 `schemaOrg` is served from a dedicated endpoint instead:
-> `GET /umbraco/delivery/api/v2/schemeweaver/json-ld`.
-> Consumers fetch it in parallel with their content fetch and inject the strings into
-> `<script type="application/ld+json">` tags. See the Next.js example below.
-
 ## Overview
 
 When you map a doc type to a Schema.org type, SchemeWeaver generates JSON-LD at request time
@@ -23,27 +11,36 @@ via `IJsonLdBlocksProvider` and caches the result in-process. The provider is in
 publish / unpublish / move / delete notifications, so the cache stays fresh without any
 manual busting.
 
-Each response contains a string array in the documented order:
+Note that `schemaOrg` is not part of the standard Delivery API content response:
+`IContentIndexHandler` feeds the Examine index only, so index-handler fields never reach the
+content response body. Instead, JSON-LD is served from the dedicated endpoints below, and
+consumers fetch it in parallel with their content fetch. See the Next.js example further down.
 
-1. Inherited schemas from ancestor nodes (root-first). E.g. a `WebSite` mapping on Home with
-   `IsInherited = true` appears on every descendant.
-2. `BreadcrumbList` derived from the content tree (opt-out via config — see below).
-3. The current page's own schema.
-4. Schemas from mapped block elements (BlockList / BlockGrid).
+Under the default graph output (`SchemeWeaver:UseGraphModel` is `true`), the response's
+`schemaOrg` array contains a **single element**: the complete `@graph` document for the page,
+ready to render into one `<script type="application/ld+json">` tag. See
+[The JSON-LD Output Model](json-ld-output.md) for what the graph contains.
+
+In legacy mode (`UseGraphModel` set to `false`) the array instead contains one string per
+source of data, in this order: inherited schemas from ancestor nodes (root-first), the
+`BreadcrumbList` (opt-out via config, see below), the current page's own schema, then schemas
+from mapped block elements (BlockList / BlockGrid).
 
 ## Endpoints
 
-Both endpoints return:
+Both endpoints return a `schemaOrg` string array. Under the default graph output it holds a
+single element carrying the whole `@graph` document:
 
 ```json
 {
   "schemaOrg": [
-    "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",...}",
-    "{\"@context\":\"https://schema.org\",\"@type\":\"BreadcrumbList\",...}",
-    "{\"@context\":\"https://schema.org\",\"@type\":\"Article\",...}"
+    "{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\",...},{\"@type\":\"WebSite\",...},{\"@type\":\"BreadcrumbList\",...},{\"@type\":\"Article\",...}]}"
   ]
 }
 ```
+
+In legacy mode the array holds one string per source instead (for example a `WebSite` string,
+a `BreadcrumbList` string and an `Article` string).
 
 ### `GET /umbraco/delivery/api/v2/schemeweaver/json-ld?id={guid}[&culture={string}]`
 
@@ -55,9 +52,15 @@ response (and therefore the `id`).
 Resolves by route path. Convenient for SSR consumers that know the URL but not the key yet.
 `route` is normalised to start with `/`.
 
+Both routes accept two optional query parameters: `culture` selects the language variant the
+JSON-LD is built from (see [Language Variants](language-variants.md)), and `scope` (`site`,
+`page`, or the default `all`) filters the graph to site-level pieces (Organization, WebSite),
+page-level pieces, or everything. Scope filtering suits frontends that render site-wide
+JSON-LD once from a shared layout and page-level JSON-LD per route.
+
 ### Auth
 
-The endpoint honours the same Api-Key protection as the rest of the Delivery API — when
+The endpoint honours the same Api-Key protection as the rest of the Delivery API: when
 `Umbraco:CMS:DeliveryApi:PublicAccess` is `false`, callers must send the `Api-Key` header.
 Preview requests additionally require preview access.
 
@@ -77,11 +80,13 @@ Preview requests additionally require preview access.
 }
 ```
 
-- **`EmitBreadcrumbsInDeliveryApi`** (default `true`) — when `false`, the `BreadcrumbList`
-  block is not included. Useful when your headless front-end has a URL structure that
-  diverges from the Umbraco content tree, so you'd rather build the breadcrumb client-side
-  from your routing data.
-- **`CacheDuration`** (default `00:30:00`) — absolute cache expiration per `(content key,
+- **`EmitBreadcrumbsInDeliveryApi`** (default `true`): legacy mode only. When `UseGraphModel`
+  is `false`, setting this to `false` drops the `BreadcrumbList` block, useful when your
+  headless front-end has a URL structure that diverges from the Umbraco content tree and you
+  would rather build the breadcrumb client-side from your routing data. Under the default
+  graph output the breadcrumb piece is emitted regardless of this flag; tracked in
+  [issue #81](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues/81).
+- **`CacheDuration`** (default `00:30:00`): absolute cache expiration per `(content key,
   culture)` entry. Acts as a safety-net only; real invalidation is event-driven via
   `ContentPublished` / `ContentUnpublished` / `ContentMoved` / `ContentMovedToRecycleBin` /
   `ContentDeleted` notifications. Tune longer if your publish cadence is high and you're
@@ -93,7 +98,7 @@ SchemeWeaver also writes the same block array into the Delivery API Examine cont
 under the `schemaOrg` field. This is **only** useful if you want to filter / sort / search
 content by its JSON-LD payload at the Delivery API query layer (e.g.
 `/content?filter=schemaOrg:\"@type:WebSite\"`). The response body of that query will still
-not include the field — use the dedicated endpoint described above to read the data.
+not include the field; use the dedicated endpoint described above to read the data.
 
 ## Consuming the endpoint
 
@@ -110,7 +115,7 @@ const response = await fetch(
   }
 );
 
-if (!response.ok) return; // 401/404 etc. — render page without JSON-LD
+if (!response.ok) return; // 401/404 etc.: render page without JSON-LD
 
 const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 ```
@@ -226,7 +231,7 @@ export function JsonLd({ blocks }: JsonLdProps) {
 ### Site-level JSON-LD for non-CMS routes
 
 Pages that aren't backed by a CMS node (custom listing pages, forms, etc.) can still render
-the inherited site schemas by fetching the root:
+the site-level JSON-LD by fetching the root:
 
 ```tsx
 // app/layout.tsx
@@ -234,9 +239,10 @@ const siteBlocks = await getSchemaOrg('/');
 // render <JsonLd blocks={siteBlocks} /> in the document shell
 ```
 
-CMS pages that call `getSchemaOrg(path)` for their own route automatically include the
-inherited Website block already, so you need to dedupe across the layout + page boundary (a
-simple string-set equality works — SchemeWeaver serializes deterministically).
+CMS pages that call `getSchemaOrg(path)` for their own route already carry the site-level
+entities in their graph, so avoid emitting them twice across the layout + page boundary:
+fetch with `scope=site` in the layout and `scope=page` on CMS routes, or skip the layout
+fetch on CMS pages entirely.
 
 ## BreadcrumbList considerations
 
@@ -245,10 +251,13 @@ to build each `ListItem.item` URL. If your front-end has its own routing on top 
 URL scheme, those URLs will point to the Umbraco-hosted paths, not your consumer URLs. Two
 options:
 
-1. Keep emission on and rewrite the URLs client-side (parse the block, replace the
-   `item` URLs, serialize back).
-2. Turn emission off (`SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi = false`) and build
-   the breadcrumb client-side from your own routing data:
+1. Keep the emitted breadcrumb and rewrite the URLs client-side (parse the document, replace
+   the `item` URLs, serialize back).
+2. Build the breadcrumb client-side from your own routing data and ignore the emitted one.
+   In legacy mode (`UseGraphModel` set to `false`) you can additionally turn emission off with
+   `SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi = false`; under the default graph output
+   the breadcrumb piece is currently emitted regardless of that flag (tracked in
+   [issue #81](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues/81)):
 
 ```typescript
 function buildBreadcrumbJsonLd(crumbs: { name: string; url: string }[]) {

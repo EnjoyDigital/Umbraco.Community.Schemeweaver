@@ -1,6 +1,6 @@
 # Content Type Generation
 
-SchemeWeaver can generate Umbraco document types directly from Schema.org type definitions. This is useful when you are building content structures specifically to support structured data -- rather than retrofitting schema mappings onto existing content types, you can start from a Schema.org type and let SchemeWeaver create a document type with the right properties already in place.
+SchemeWeaver can generate Umbraco document types directly from Schema.org type definitions. This is useful when you are building content structures specifically to support structured data. Rather than retrofitting schema mappings onto existing content types, you can start from a Schema.org type and let SchemeWeaver create a document type with the right properties already in place.
 
 ---
 
@@ -13,7 +13,7 @@ The content type generator:
 - Organises properties into sensible groups (Content, Metadata, SEO)
 - Generates camelCase aliases and friendly display names from Schema.org property names
 
-The generated document type is a starting point. It is **not** automatically mapped to the Schema.org type -- you still need to create a schema mapping separately after generation. This separation is intentional: you may want to adjust the document type, add additional properties, or modify the property editors before setting up the mapping.
+The generated document type is a starting point. It is **not** automatically mapped to the Schema.org type: you still need to create a schema mapping separately after generation. This separation is intentional: you may want to adjust the document type, add additional properties, or modify the property editors before setting up the mapping.
 
 ---
 
@@ -25,7 +25,7 @@ Content type generation is available as an entity action on the **Document Types
 2. Hover over any document type (or the Document Types root node) and click the **actions menu** (`...`) to open the action list
 3. Select **Generate from Schema.org**
 
-This opens the generation modal. The entity action resolves the document type's GUID to an alias internally, but the generation process creates a brand new document type -- it does not modify the one you selected.
+This opens the generation modal. The entity action resolves the document type's GUID to an alias internally, but the generation process creates a brand new document type: it does not modify the one you selected.
 
 ---
 
@@ -43,10 +43,10 @@ Click on a type to select it and advance to the property selection step.
 
 After selecting a schema type, two fields are pre-populated:
 
-- **Content Type Name** -- defaults to the Schema.org type name (e.g., `Recipe`)
-- **Content Type Alias** -- defaults to the camelCase version (e.g., `recipe`)
+- **Content Type Name**: defaults to the Schema.org type name (e.g., `Recipe`)
+- **Content Type Alias**: defaults to the camelCase version (e.g., `recipe`)
 
-You can edit both fields. The alias must be unique -- the generator will reject the request if a content type with the same alias already exists.
+You can edit both fields. The alias must be unique: the generator will reject the request if a content type with the same alias already exists.
 
 ### Step 3: Select Properties
 
@@ -124,9 +124,9 @@ All other properties are placed in the default group, which is `"Content"` unles
 
 Schema.org property names are transformed for Umbraco:
 
-- **Alias** -- converted to camelCase (first character lowered). E.g., `RecipeYield` becomes `recipeYield`
-- **Display Name** -- split on capital letters with spaces inserted. E.g., `articleBody` becomes `Article Body`
-- **Description** -- set to `Schema.org: {propertyName} ({propertyType})` for reference
+- **Alias**: converted to camelCase (first character lowered). E.g., `RecipeYield` becomes `recipeYield`
+- **Display Name**: split on capital letters with spaces inserted. E.g., `articleBody` becomes `Article Body`
+- **Description**: set to `Schema.org: {propertyName} ({propertyType})` for reference
 
 ---
 
@@ -136,7 +136,7 @@ The generated document type is a scaffold. There are several steps you will typi
 
 ### 1. Review and Adjust Property Editors
 
-The automatic editor mapping is conservative -- most properties default to Textbox. Consider changing:
+The automatic editor mapping is conservative: most properties default to Textbox. Consider changing:
 
 - `image` to a **Media Picker** (`Umbraco.MediaPicker3`)
 - `articleBody` or `description` to **Rich Text** (`Umbraco.RichText`)
@@ -164,8 +164,8 @@ The generated document type does **not** have a schema mapping created automatic
 
 1. Open the generated document type in **Settings > Document Types**
 2. Switch to the **Schema.org** tab
-3. Click **Map to Schema.org** and select the same Schema.org type you generated from
-4. Use the auto-mapper to quickly match the generated properties to their Schema.org counterparts -- since the properties were named after Schema.org properties, the exact-match tier (confidence 100) should match most of them automatically
+3. Click **Map to Schema.org** and select the same Schema.org type you generated from (the full flow is covered in [Mapping Content Types](mapping-content-types.md))
+4. Use the auto-mapper to quickly match the generated properties to their Schema.org counterparts: since the properties were named after Schema.org properties, the exact-match tier (confidence 100) should match most of them automatically
 5. Save the document type to persist the mapping
 
 ### 5. Create Content

@@ -10,16 +10,19 @@ SchemeWeaver's DI registrations in `SchemeWeaverComposer`:
 
 | Interface | Built-in Implementation | Scope | Extension Pattern |
 |---|---|---|---|
-| `IPropertyValueResolver` | 14 resolvers | Scoped | **Add alongside** (multicast) |
+| `IPropertyValueResolver` | 15 resolvers | Scoped | **Add alongside** (multicast) |
 | `IPropertyValueResolverFactory` | `PropertyValueResolverFactory` | Scoped | Replace |
 | `ISchemaAutoMapper` | `SchemaAutoMapper` | Scoped | Replace |
 | `IJsonLdGenerator` | `JsonLdGenerator` | Scoped | Replace |
+| `IGraphGenerator` | `GraphGenerator` | Scoped | Replace |
+| `IGraphPiece` | 5 built-in pieces (Organization, WebSite, BreadcrumbList, PrimaryImage, MainEntity) | Scoped | **Add alongside** (multicast) |
+| `ISiteSettingsResolver` | `SiteSettingsResolver` | Scoped | Replace |
 | `ISchemaTypeRegistry` | `SchemaTypeRegistry` | Singleton | Replace |
 | `ISchemaMappingRepository` | `SchemaMappingRepository` | Scoped | Replace |
 | `IContentTypeGenerator` | `ContentTypeGenerator` | Scoped | Replace |
 | `ISchemeWeaverService` | `SchemeWeaverService` | Scoped | Replace |
 
-The key distinction: `IPropertyValueResolver` is **multicast** (you register additional implementations alongside the built-in ones), while every other service is **replaceable** (your registration takes precedence over SchemeWeaver's).
+The key distinction: `IPropertyValueResolver` and `IGraphPiece` are **multicast** (you register additional implementations alongside the built-in ones), while every other service is **replaceable** (your registration takes precedence over SchemeWeaver's).
 
 ---
 
@@ -143,6 +146,7 @@ The context object passed to every resolver:
 | `MediaPickerResolver` | `Umbraco.MediaPicker3`, `Umbraco.MediaPicker` | 10 | Extracts absolute media URL |
 | `RichTextResolver` | `Umbraco.TinyMCE`, `Umbraco.RichText`, `Umbraco.MarkdownEditor` | 10 | Strips HTML or returns raw |
 | `ContentPickerResolver` | `Umbraco.ContentPicker` | 10 | Resolves picked content URL; tracks visited keys to prevent circular references |
+| `MultiNodeTreePickerResolver` | `Umbraco.MultiNodeTreePicker` | 10 | Resolves each picked node with the same ladder as the content picker; a single pick returns its value directly, multiple picks return a homogenised list |
 | `BlockContentResolver` | `Umbraco.BlockList`, `Umbraco.BlockGrid` | 10 | Resolves block element schemas using nested mappings from `ResolverConfig` |
 | `BuiltInPropertyResolver` | `SchemeWeaver.BuiltIn` | 10 | Handles `__url`, `__name`, `__createDate`, `__updateDate` |
 | `DateTimeResolver` | `Umbraco.DateTime` | 10 | Formats as ISO 8601 (`yyyy-MM-dd`) |
@@ -153,7 +157,36 @@ The context object passed to every resolver:
 | `DropdownListResolver` | `Umbraco.DropDown.Flexible` | 10 | Returns selected value |
 | `ColorPickerResolver` | `Umbraco.ColorPicker` | 10 | Returns colour value |
 | `MultiUrlPickerResolver` | `Umbraco.MultiUrlPicker` | 10 | Resolves first URL |
-| `DefaultPropertyValueResolver` | *(fallback -- empty aliases)* | 0 | Calls `GetValue()?.ToString()` |
+| `DefaultPropertyValueResolver` | *(fallback: empty aliases)* | 0 | Calls `GetValue()?.ToString()` |
+
+---
+
+## Custom Graph Pieces
+
+Under the default `@graph` output, every entity in the graph is produced by an `IGraphPiece`. Five built-in pieces ship in the box (Organization, WebSite, BreadcrumbList, PrimaryImage and MainEntity); you can add your own to emit additional entities. A piece implements four members:
+
+- `Key`: a stable lowercase identifier (for example `"organization"`), used so pieces can cross-reference each other's `@id` without knowing the concrete implementation.
+- `Order`: sort order for emission. Built-in pieces use 100-spaced numbers so custom pieces can slot between them.
+- `ResolveId(ctx)`: first pass. Returns the absolute `@id` the piece will emit, or `null` to skip the piece entirely for this request (a skipped piece appears nowhere in the graph).
+- `Build(ctx)`: second pass. Builds the Schema.NET `Thing`. By this point the context holds every piece's `@id`, so cross-references can be constructed. Returning `null` also skips the piece.
+
+An optional `Scope` property (defaulting to page scope) declares whether the piece describes the current page or the whole site, which drives the Delivery API's `scope` filtering.
+
+Register the piece from your own composer using the dedicated extension method:
+
+```csharp
+using Umbraco.Community.SchemeWeaver.Graph;
+
+public class MyPieceComposer : IComposer
+{
+    public void Compose(IUmbracoBuilder builder)
+    {
+        builder.Services.AddSchemeWeaverGraphPiece<MyProductPiece>();
+    }
+}
+```
+
+Because a piece may return a null `@id` to decline, the graph degrades gracefully when a piece has nothing to say for a given request. See [The JSON-LD Output Model](json-ld-output.md) for the built-in pieces, their `@id` conventions, and the graph structure they produce.
 
 ---
 
@@ -198,16 +231,18 @@ Your registration runs after SchemeWeaver's `SchemeWeaverComposer`, so it replac
 
 ## Replacing the JSON-LD Generator
 
-The `IJsonLdGenerator` controls the runtime JSON-LD output -- both for the tag helper and the Delivery API.
+The `IJsonLdGenerator` controls the runtime JSON-LD output, both for the tag helper and the Delivery API.
 
 ```csharp
 public interface IJsonLdGenerator
 {
-    Thing? GenerateJsonLd(IPublishedContent content);
-    string? GenerateJsonLdString(IPublishedContent content);
-    string? GenerateBreadcrumbJsonLd(IPublishedContent content);
-    IEnumerable<string> GenerateInheritedJsonLdStrings(IPublishedContent content);
-    IEnumerable<string> GenerateBlockElementJsonLdStrings(IPublishedContent content);
+    Thing? GenerateJsonLd(IPublishedContent content, string? culture = null,
+        GraphPieceContext? graphContext = null);
+    string? GenerateJsonLdString(IPublishedContent content, string? culture = null);
+    string? GenerateBreadcrumbJsonLd(IPublishedContent content, string? culture = null);
+    IEnumerable<string> GenerateInheritedJsonLdStrings(IPublishedContent content, string? culture = null);
+    IEnumerable<string> GenerateBlockElementJsonLdStrings(IPublishedContent content, string? culture = null);
+    string? GetResolvedBaseUrl();
 }
 ```
 
@@ -227,9 +262,9 @@ public class MyJsonLdGenerator : IJsonLdGenerator
         // Delegate to the built-in implementation for base behaviour
     }
 
-    public string? GenerateJsonLdString(IPublishedContent content)
+    public string? GenerateJsonLdString(IPublishedContent content, string? culture = null)
     {
-        var json = _inner.GenerateJsonLdString(content);
+        var json = _inner.GenerateJsonLdString(content, culture);
         // Post-process the JSON-LD
         return json;
     }
@@ -320,12 +355,13 @@ public class MyComposer : IComposer
 }
 ```
 
-For multicast services like `IPropertyValueResolver`, ordering does not matter -- all registrations are collected by the factory regardless of order.
+For multicast services like `IPropertyValueResolver` and `IGraphPiece`, ordering does not matter: all registrations are collected regardless of order.
 
 ---
 
 ## Further Reading
 
-- **[Property Mappings](property-mappings.md)** -- source types, transforms, and the auto-mapping algorithm
-- **[Block Content](block-content.md)** -- how BlockContentResolver and nested mappings work
-- **[API Reference](api-reference.md)** -- REST API endpoints
+- **[Property Mappings](property-mappings.md)**: source types, transforms, and the auto-mapping algorithm
+- **[Block Content](block-content.md)**: how BlockContentResolver and nested mappings work
+- **[API Reference](api-reference.md)**: REST API endpoints
+- **[The JSON-LD Output Model](json-ld-output.md)**: the graph the pieces assemble
