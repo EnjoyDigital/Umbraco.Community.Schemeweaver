@@ -55,10 +55,12 @@
     <SchemeWeaverUmbracoAiRange>[17.0.0, 18.0.0)</SchemeWeaverUmbracoAiRange>
     <SchemeWeaverUmbracoAiHost>17.2.0</SchemeWeaverUmbracoAiHost>
     <SchemeWeaverUmbracoAiAnthropicHost>17.0.2</SchemeWeaverUmbracoAiAnthropicHost>
-    <!-- Major-aligned stable package version for the Umbraco 17 line. 17.16.0
-         adds basic text extraction for block editors mapped in plain property
-         mode, plus the PreferBlockContent advisory (issue #39). -->
-    <SchemeWeaverPackageVersion>17.16.0</SchemeWeaverPackageVersion>
+    <!-- Major-aligned stable package version for the Umbraco 17 line. 17.17.0
+         adds the SchemeWeaver:PublicSiteUrl option, which anchors emitted JSON-LD
+         to a configured public origin instead of the incoming request's host —
+         the headless/decoupled case where the front-end calls the Delivery API on
+         a cms.* hostname. -->
+    <SchemeWeaverPackageVersion>17.17.0</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -77,10 +79,11 @@
     <SchemeWeaverUmbracoAiRange>[18.0.0, 19.0.0)</SchemeWeaverUmbracoAiRange>
     <SchemeWeaverUmbracoAiHost>18.2.0</SchemeWeaverUmbracoAiHost>
     <SchemeWeaverUmbracoAiAnthropicHost>18.0.2</SchemeWeaverUmbracoAiAnthropicHost>
-    <!-- Major-aligned stable package version for the Umbraco 18 line. Its
-         [18.0.0, 19.0.0) Umbraco.Cms range is mutually exclusive with the 17 leg's
-         [17.4.0, 18.0.0), so NuGet only ever resolves one of the two per consumer. -->
-    <SchemeWeaverPackageVersion>18.11.0</SchemeWeaverPackageVersion>
+    <!-- Major-aligned stable package version for the Umbraco 18 line (see the 17
+         leg for what 18.12.0 adds). Its [18.0.0, 19.0.0) Umbraco.Cms range is
+         mutually exclusive with the 17 leg's [17.4.0, 18.0.0), so NuGet only ever
+         resolves one of the two per consumer. -->
+    <SchemeWeaverPackageVersion>18.12.0</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>
