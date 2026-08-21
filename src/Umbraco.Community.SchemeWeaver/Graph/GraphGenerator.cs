@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Schema.NET;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -30,7 +29,7 @@ public sealed class GraphGenerator : IGraphGenerator
 {
     private readonly IReadOnlyList<IGraphPiece> _pieces;
     private readonly ISiteSettingsResolver _siteSettingsResolver;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ISiteOriginResolver _originResolver;
     private readonly IPublishedUrlProvider _urlProvider;
     private readonly ILogger<GraphGenerator> _logger;
 
@@ -60,7 +59,7 @@ public sealed class GraphGenerator : IGraphGenerator
     public GraphGenerator(
         IEnumerable<IGraphPiece> pieces,
         ISiteSettingsResolver siteSettingsResolver,
-        IHttpContextAccessor httpContextAccessor,
+        ISiteOriginResolver originResolver,
         IPublishedUrlProvider urlProvider,
         ILogger<GraphGenerator> logger)
     {
@@ -71,7 +70,7 @@ public sealed class GraphGenerator : IGraphGenerator
             .ThenBy(p => p.Key, StringComparer.Ordinal)
             .ToList();
         _siteSettingsResolver = siteSettingsResolver;
-        _httpContextAccessor = httpContextAccessor;
+        _originResolver = originResolver;
         _urlProvider = urlProvider;
         _logger = logger;
     }
@@ -171,7 +170,10 @@ public sealed class GraphGenerator : IGraphGenerator
         if (nodes.Count == 0)
             return null;
 
-        return WrapAsGraph(nodes);
+        // Provider-resolved absolute URLs (breadcrumb items, media, page urls)
+        // may still sit on the request's host — the single rebase pass here is
+        // what guarantees the WHOLE graph presents on the public origin.
+        return _originResolver.RebaseToPublicOrigin(WrapAsGraph(nodes));
     }
 
     private static bool PieceMatchesScope(IGraphPiece piece, PieceScopeFilter scope) => scope switch
@@ -285,16 +287,7 @@ public sealed class GraphGenerator : IGraphGenerator
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private Uri? ResolveSiteUrl()
-    {
-        var request = _httpContextAccessor.HttpContext?.Request;
-        if (request is null)
-            return null;
-
-        return Uri.TryCreate($"{request.Scheme}://{request.Host}", UriKind.Absolute, out var uri)
-            ? uri
-            : null;
-    }
+    private Uri? ResolveSiteUrl() => _originResolver.ResolveOrigin();
 
     private Uri? ResolvePageUrl(IPublishedContent content)
     {

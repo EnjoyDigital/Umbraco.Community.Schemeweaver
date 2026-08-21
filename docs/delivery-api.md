@@ -74,12 +74,20 @@ Preview requests additionally require preview access.
 ```json
 {
   "SchemeWeaver": {
+    "PublicSiteUrl": "https://www.example.com",
     "EmitBreadcrumbsInDeliveryApi": true,
     "CacheDuration": "00:30:00"
   }
 }
 ```
 
+- **`PublicSiteUrl`** (default `null`): **most headless sites want this.** Your front-end
+  calls this endpoint server-to-server on the CMS's own hostname, so by default every
+  absolute URL in the response — `@id`, `url`, `image`, breadcrumb `item`s — describes the
+  CMS host (`https://cms.example.com/...`) rather than the public site the markup is
+  embedded on. Set this to your public origin and SchemeWeaver anchors the whole payload to
+  it instead, leaving foreign hosts (CDN media, `sameAs` links) untouched. See
+  [Headless: the public site URL](advanced.md#headless-the-public-site-url).
 - **`EmitBreadcrumbsInDeliveryApi`** (default `true`): legacy mode only. When `UseGraphModel`
   is `false`, setting this to `false` drops the `BreadcrumbList` block, useful when your
   headless front-end has a URL structure that diverges from the Umbraco content tree and you
@@ -248,8 +256,14 @@ fetch on CMS pages entirely.
 
 `BreadcrumbList` is derived from the Umbraco content tree and uses `IPublishedUrlProvider`
 to build each `ListItem.item` URL. If your front-end has its own routing on top of a flatter
-URL scheme, those URLs will point to the Umbraco-hosted paths, not your consumer URLs. Two
-options:
+URL scheme, those URLs will point to the Umbraco-hosted paths, not your consumer URLs.
+
+Note this is about the **path** shape. If the paths already match and only the *host* is
+wrong, you don't need either option below — set
+[`PublicSiteUrl`](advanced.md#headless-the-public-site-url), which rebases breadcrumb item
+URLs along with the rest of the payload.
+
+For genuinely divergent paths, two options:
 
 1. Keep the emitted breadcrumb and rewrite the URLs client-side (parse the document, replace
    the `item` URLs, serialize back).

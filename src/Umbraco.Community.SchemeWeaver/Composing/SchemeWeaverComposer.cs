@@ -113,6 +113,10 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<IGraphGenerator, GraphGenerator>();
         builder.Services.AddScoped<ISiteSettingsResolver, SiteSettingsResolver>();
 
+        // Site origin (PublicSiteUrl override / request host). Singleton: it
+        // normalises options once and reads the request via the accessor.
+        builder.Services.AddSingleton<ISiteOriginResolver, SiteOriginResolver>();
+
         // Built-in pieces. Order is set on each piece (100-spaced) so custom
         // pieces can slot between them; registration order here doesn't matter.
         builder.Services.AddSchemeWeaverGraphPiece<OrganizationPiece>();

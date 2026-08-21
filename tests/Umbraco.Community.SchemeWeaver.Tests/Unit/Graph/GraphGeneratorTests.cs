@@ -37,10 +37,19 @@ public class GraphGeneratorTests
         _httpContextAccessor.HttpContext.Returns(httpContext);
     }
 
-    private GraphGenerator Build(params IGraphPiece[] pieces) => new(
+    private GraphGenerator Build(params IGraphPiece[] pieces) => Build(null, pieces);
+
+    /// <summary>Re-points the in-flight request at <paramref name="host"/> (default fixture host is example.com).</summary>
+    private void SetRequestHost(string host) =>
+        _httpContextAccessor.HttpContext!.Request.Host = new HostString(host);
+
+    private GraphGenerator Build(string? publicSiteUrl, params IGraphPiece[] pieces) => new(
         pieces,
         _siteSettingsResolver,
-        _httpContextAccessor,
+        new SiteOriginResolver(
+            _httpContextAccessor,
+            Options.Create(new SchemeWeaverOptions { PublicSiteUrl = publicSiteUrl }),
+            NullLogger<SiteOriginResolver>.Instance),
         _urlProvider,
         NullLogger<GraphGenerator>.Instance);
 
@@ -93,6 +102,91 @@ public class GraphGeneratorTests
         node.GetProperty("@type").GetString().Should().Be("Organization");
         node.GetProperty("@id").GetString().Should().Be("https://example.com/#organization");
         node.GetProperty("name").GetString().Should().Be("Acme");
+    }
+
+    [Fact]
+    public void GenerateGraphJson_PublicSiteUrlConfigured_SiteUrlAndProviderUrlsBothUsePublicOrigin()
+    {
+        // The headless case: Umbraco is reached on cms.example.com (request host) but
+        // the front-end serves www.example.com. Both URL sources must land on the public
+        // origin — ctx.SiteUrl (piece-built @ids) AND IPublishedUrlProvider-resolved
+        // absolute URLs, which the provider returns already stamped with the cms host.
+        SetRequestHost("cms.example.com");
+        var page = Page("https://cms.example.com/about/");
+        var sut = Build("https://www.example.com",
+            new SiteUrlEchoPiece("website", 100),
+            new PageUrlEchoPiece("webpage", 200));
+
+        var json = sut.GenerateGraphJson(page);
+        json.Should().NotBeNull();
+
+        json!.Should().NotContain("cms.example.com", "no request-host URL may survive the rebase");
+
+        using var doc = JsonDocument.Parse(json!);
+        var graph = doc.RootElement.GetProperty("@graph");
+        graph[0].GetProperty("@id").GetString().Should().Be("https://www.example.com/#website");
+        // Authority-only Uris serialise via OriginalString (no trailing slash) — the
+        // same shape the request-derived path has always produced.
+        graph[0].GetProperty("url").GetString().Should().Be("https://www.example.com");
+        graph[1].GetProperty("url").GetString().Should().Be("https://www.example.com/about/");
+    }
+
+    [Fact]
+    public void GenerateGraphJson_NoPublicSiteUrl_KeepsRequestHost()
+    {
+        SetRequestHost("cms.example.com");
+        var page = Page("https://cms.example.com/about/");
+        var sut = Build(new SiteUrlEchoPiece("website", 100), new PageUrlEchoPiece("webpage", 200));
+
+        var json = sut.GenerateGraphJson(page);
+
+        using var doc = JsonDocument.Parse(json!);
+        var graph = doc.RootElement.GetProperty("@graph");
+        graph[0].GetProperty("@id").GetString().Should().Be("https://cms.example.com/#website");
+        graph[1].GetProperty("url").GetString().Should().Be("https://cms.example.com/about/");
+    }
+
+    [Fact]
+    public void GenerateGraphJson_PublicSiteUrlConfigured_LeavesForeignHostUrlsUntouched()
+    {
+        SetRequestHost("cms.example.com");
+        var sut = Build("https://www.example.com",
+            new StubPiece("organization", 100,
+                id: "https://cms.example.com/#organization",
+                thing: new Organization
+                {
+                    Name = "Acme",
+                    SameAs = new Uri("https://twitter.com/acme"),
+                    Logo = new ImageObject { Url = new Uri("https://cdn.acme.net/logo.png") }
+                }));
+
+        var json = sut.GenerateGraphJson(Page("https://cms.example.com/about/"));
+
+        using var doc = JsonDocument.Parse(json!);
+        var org = doc.RootElement.GetProperty("@graph")[0];
+        org.GetProperty("@id").GetString().Should().Be("https://www.example.com/#organization");
+        org.GetProperty("sameAs").GetString().Should().Be("https://twitter.com/acme");
+        org.GetProperty("logo").GetProperty("url").GetString().Should().Be("https://cdn.acme.net/logo.png");
+    }
+
+    /// <summary>Emits a WebSite whose @id and url come from <c>ctx.SiteUrl</c>.</summary>
+    private sealed class SiteUrlEchoPiece(string key, int order) : IGraphPiece
+    {
+        public string Key => key;
+        public int Order => order;
+        public PieceScope Scope => PieceScope.Site;
+        public string? ResolveId(GraphPieceContext ctx) => ctx.SiteUrl is null ? null : $"{ctx.SiteUrl}#{key}";
+        public Thing? Build(GraphPieceContext ctx) => new WebSite { Url = ctx.SiteUrl };
+    }
+
+    /// <summary>Emits a WebPage whose url comes from <c>ctx.PageUrl</c> (provider-resolved).</summary>
+    private sealed class PageUrlEchoPiece(string key, int order) : IGraphPiece
+    {
+        public string Key => key;
+        public int Order => order;
+        public PieceScope Scope => PieceScope.Page;
+        public string? ResolveId(GraphPieceContext ctx) => ctx.PageUrl is null ? null : $"{ctx.PageUrl}#{key}";
+        public Thing? Build(GraphPieceContext ctx) => new WebPage { Url = ctx.PageUrl };
     }
 
     [Fact]
@@ -409,6 +503,10 @@ public class GraphGeneratorTests
                 new DefaultPropertyValueResolver()
             ]),
             _urlProvider,
+            new SiteOriginResolver(
+                _httpContextAccessor,
+                Options.Create(new SchemeWeaverOptions()),
+                NullLogger<SiteOriginResolver>.Instance),
             Substitute.For<IVariationContextAccessor>(),
             NullLogger<JsonLdGenerator>.Instance,
             Options.Create(new SchemeWeaverOptions()));

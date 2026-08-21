@@ -47,6 +47,10 @@ public class BlockInstancePreviewTests
             Substitute.For<IPublishedContentStatusFilteringService>(),
             factory,
             Substitute.For<IPublishedUrlProvider>(),
+            new SiteOriginResolver(
+                _httpContextAccessor,
+                Options.Create(new SchemeWeaverOptions()),
+                NullLogger<SiteOriginResolver>.Instance),
             _variationContextAccessor,
             NullLogger<JsonLdGenerator>.Instance,
             Options.Create(new SchemeWeaverOptions()));

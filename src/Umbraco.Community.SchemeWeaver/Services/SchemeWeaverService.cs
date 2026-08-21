@@ -305,9 +305,10 @@ public class SchemeWeaverService : ISchemeWeaverService
             _logger.LogError(ex, "Error generating JSON-LD preview for content {ContentId}", content.Id);
         }
 
-        // The resolved base URL is the backoffice host in this context, so it's
-        // surfaced to make the preview-vs-live @id divergence visible. Resolved
-        // regardless of UseGraphModel — both paths read the same HttpContext host.
+        // Without a PublicSiteUrl override the resolved base URL is the backoffice
+        // host in this context, so it's surfaced to make the preview-vs-live @id
+        // divergence visible; with one configured, preview and live agree. Resolved
+        // regardless of UseGraphModel — both paths resolve the origin identically.
         response.ResolvedBaseUrl = _generator.GetResolvedBaseUrl();
         AppendStructuralWarnings(response, content.ContentType.Alias);
 

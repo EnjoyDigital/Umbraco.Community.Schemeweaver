@@ -49,10 +49,22 @@ public class JsonLdGeneratorTests
             _publishedStatusFilteringService,
             _resolverFactory,
             _urlProvider,
+            CreateOriginResolver(),
             _variationContextAccessor,
             _logger,
             Options.Create(new SchemeWeaverOptions()));
     }
+
+    /// <summary>
+    /// A real <see cref="SiteOriginResolver"/> over the substituted accessor. With
+    /// <c>PublicSiteUrl</c> unset it resolves from the request host — the behaviour
+    /// every pre-existing assertion here was written against.
+    /// </summary>
+    private ISiteOriginResolver CreateOriginResolver(string? publicSiteUrl = null)
+        => new SiteOriginResolver(
+            _httpContextAccessor,
+            Options.Create(new SchemeWeaverOptions { PublicSiteUrl = publicSiteUrl }),
+            NullLogger<SiteOriginResolver>.Instance);
 
     private static IPublishedContent CreateContent(string contentTypeAlias, Dictionary<string, object?>? properties = null)
     {
@@ -104,6 +116,46 @@ public class JsonLdGeneratorTests
                 return nodes.Where(n => keys.Contains(n.Key)).ToArray();
             });
 #pragma warning restore CS0618
+    }
+
+    /// <summary>
+    /// Non-graph (per-mapping) path: a configured PublicSiteUrl must reach the serialised
+    /// output too, including the provider-resolved page URL and the default @id built from it.
+    /// </summary>
+    [Fact]
+    public void GenerateJsonLdString_PublicSiteUrlConfigured_RebasesUrlsAndDefaultId()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("cms.example.com");
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var content = CreateContent("article");
+        _urlProvider.GetUrl(content, UrlMode.Absolute).Returns("https://cms.example.com/insights/a/");
+        _repository.GetByContentTypeAlias("article").Returns(CreateMapping("article", "Article"));
+        _repository.GetPropertyMappings(1).Returns(new List<PropertyMapping>
+        {
+            new() { SchemaPropertyName = "Url", SourceType = "property", ContentTypePropertyAlias = "__url" }
+        });
+
+        var sut = new JsonLdGenerator(
+            _repository, _registry, _httpContextAccessor, _navigationQueryService,
+            _publishedStatusFilteringService,
+            new PropertyValueResolverFactory([
+                new BuiltInPropertyResolver(_urlProvider), new DefaultPropertyValueResolver()
+            ]),
+            _urlProvider, CreateOriginResolver("https://www.example.com"),
+            _variationContextAccessor, _logger, Options.Create(new SchemeWeaverOptions()));
+
+        var json = sut.GenerateJsonLdString(content);
+
+        json.Should().NotBeNull();
+        json!.Should().NotContain("cms.example.com");
+        using var doc = JsonDocument.Parse(json);
+        doc.RootElement.GetProperty("url").GetString()
+            .Should().Be("https://www.example.com/insights/a/");
+        doc.RootElement.GetProperty("@id").GetString()
+            .Should().Be("https://www.example.com/insights/a/#article");
     }
 
     [Fact]
@@ -533,7 +585,8 @@ public class JsonLdGeneratorTests
         return new JsonLdGenerator(
             _repository, _registry, _httpContextAccessor,
             _navigationQueryService, _publishedStatusFilteringService,
-            blockResolverFactory, _urlProvider, _variationContextAccessor,
+            blockResolverFactory, _urlProvider, CreateOriginResolver(),
+            _variationContextAccessor,
             _logger, Options.Create(new SchemeWeaverOptions()));
     }
 
@@ -2009,7 +2062,7 @@ public class JsonLdGeneratorTests
         return new JsonLdGenerator(
             _repository, _registry, _httpContextAccessor,
             _navigationQueryService, _publishedStatusFilteringService,
-            factory, _urlProvider, _variationContextAccessor,
+            factory, _urlProvider, CreateOriginResolver(), _variationContextAccessor,
             _logger, Options.Create(new SchemeWeaverOptions()));
     }
 
@@ -2325,7 +2378,7 @@ public class JsonLdGeneratorTests
         });
         return new JsonLdGenerator(
             _repository, _registry, _httpContextAccessor, _navigationQueryService,
-            _publishedStatusFilteringService, factory, _urlProvider,
+            _publishedStatusFilteringService, factory, _urlProvider, CreateOriginResolver(),
             _variationContextAccessor, _logger, Options.Create(new SchemeWeaverOptions()));
     }
 

@@ -151,6 +151,7 @@ suit most sites; you only need this section to change behaviour.
     "MaxRecursionDepth": 3,
     "EmitBreadcrumbsInDeliveryApi": true,
     "CacheDuration": "00:30:00",
+    "PublicSiteUrl": "https://www.example.com",
     "SiteSettings": {
       "ContentTypeAlias": "schemaSiteSettings",
       "ContentKey": null
@@ -169,12 +170,68 @@ suit most sites; you only need this section to change behaviour.
 | `MaxRecursionDepth` | `3` | Maximum depth for nested property resolution (content pickers, block lists). Guards against infinite loops in circular content. |
 | `EmitBreadcrumbsInDeliveryApi` | `true` | Legacy mode only: when `UseGraphModel` is `false`, controls whether `BreadcrumbList` is included in the Delivery API `/json-ld` output. Under the default graph output the breadcrumb piece is emitted regardless of this flag ([issue #81](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues/81)). The server-rendered tag helper always emits breadcrumbs. |
 | `CacheDuration` | `00:30:00` | Absolute cache duration for the per-content JSON-LD blocks served by the Delivery API. A safety-net only; invalidation is event-driven (publish/unpublish/move/delete). |
+| `PublicSiteUrl` | `null` | Public origin (scheme + host) the emitted JSON-LD presents itself as. Set it on headless/decoupled sites where Umbraco is reached on a different host than the one your front-end serves pages on. Unset (default) derives every URL from the incoming request's host. See [Headless: the public site URL](#headless-the-public-site-url). |
 | `SiteSettings.ContentTypeAlias` | `schemaSiteSettings` | Content type alias of the singleton settings node that drives the site-level part of the graph (Organization / WebSite pieces). The first published node of this type is used. See [the site settings node](json-ld-output.md#the-site-settings-node). |
 | `SiteSettings.ContentKey` | `null` | Optional explicit GUID of the settings node. Overrides the alias-based lookup when the convention doesn't fit. See [the site settings node](json-ld-output.md#the-site-settings-node). |
 | `SiteSearch.UrlTemplate` | `null` | Absolute URL template of your search results page, containing the literal `{search_term_string}` placeholder. When set, the WebSite graph node emits a `potentialAction` `SearchAction`, the markup Google requires for the sitelinks search box. Unset (default) emits no `potentialAction`. See [sitelinks search box](json-ld-output.md#sitelinks-search-box). |
 | `SiteSearch.QueryInputName` | `search_term_string` | The variable name declared in `query-input` (`required name=…`) and expected as the `{placeholder}` in `UrlTemplate`. Rarely needs changing. See [sitelinks search box](json-ld-output.md#sitelinks-search-box). |
 | `ExportMappingsToUSyncOnSave` | `false` | When `true`, the optional uSync addon exports a mapping to the uSync data folder every time it is saved or deleted in the backoffice. A SchemeWeaver-owned flag, deliberately independent of uSync's global `ExportOnSave`. No effect without the uSync addon installed. See [uSync Integration](usync.md). |
 | `USyncBootImport` | `Off` | How the optional uSync addon imports committed mapping files on boot: `Off` (first-boot-only seeding), `Seed` (create missing mappings on every boot, never overwrites), `Upsert` (disk wins on every boot). No effect without the uSync addon installed. See [uSync Integration](usync.md). |
+
+### Headless: the public site URL
+
+By default every absolute URL SchemeWeaver emits — `@id`s, `url`, `image`, breadcrumb
+items, the `{siteUrl}` token — is anchored to the **host the request arrived on**. On a
+coupled site that is exactly right: the request host *is* the public site.
+
+On a headless or decoupled site it usually isn't. Your front-end (Next.js, Nuxt, Astro)
+calls the Delivery API server-to-server on the CMS's own hostname, so the JSON-LD it gets
+back — and embeds verbatim into the public page — describes the CMS host:
+
+```json
+{ "@type": "WebSite", "@id": "https://cms.example.com/#website", "url": "https://cms.example.com" }
+```
+
+Google then reads structured data whose `@id`s and `url`s point at a host that isn't the
+canonical site — the markup no longer corroborates the page it appears on.
+
+Set the public origin and SchemeWeaver anchors everything to it instead:
+
+```json
+{ "SchemeWeaver": { "PublicSiteUrl": "https://www.example.com" } }
+```
+
+```json
+{ "@type": "WebSite", "@id": "https://www.example.com/#website", "url": "https://www.example.com" }
+```
+
+Two things change when it is set:
+
+1. The **site URL** — `WebSite`/`Organization` `@id`s, the `{siteUrl}` token, and the
+   relative-URL fallback — derives from this origin rather than the request. This also
+   makes site-level output work when there is **no request at all**, such as during
+   Examine indexing.
+2. Every absolute URL in the final serialised output that sits on the **request's**
+   origin is rebased onto the public origin. That catches page URLs, media URLs and
+   breadcrumb items wherever they were resolved, including those Umbraco's
+   `IPublishedUrlProvider` returns already stamped with the CMS host.
+
+URLs on any **other** host are left alone — CDN media, `sameAs` links to social profiles,
+and any absolute URL an editor typed keep their own hostnames.
+
+Notes:
+
+- It is an **origin**, not a base path: a path, query or fragment on the value is ignored
+  with a warning. Ports are preserved (`https://www.example.com:8443`).
+- An unparseable or non-`http(s)` value is ignored with a warning, falling back to the
+  request host — a typo in `appsettings.json` degrades, it never takes structured data down.
+- The backoffice preview also resolves through it, so preview and live agree instead of
+  diverging on the backoffice host (see `ResolvedBaseUrl` in the preview response).
+- The alternative, if you would rather not pin the origin in configuration, is to have your
+  front-end send `X-Forwarded-Host` / `X-Forwarded-Proto` and enable
+  `UseForwardedHeaders` in the CMS. SchemeWeaver reads `Request.Host`, so correcting the
+  request corrects the output too. `PublicSiteUrl` is the simpler option when the public
+  origin is a known constant.
 
 ## Extending SchemeWeaver
 

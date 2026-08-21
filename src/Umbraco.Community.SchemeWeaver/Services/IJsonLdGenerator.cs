@@ -45,11 +45,12 @@ public interface IJsonLdGenerator
 
     /// <summary>
     /// Returns the base URL (scheme + host) the generator resolves <c>@id</c>
-    /// and <c>url</c> tokens against for the current request, or null when no
-    /// HTTP context is available. In the backoffice this is the backoffice host,
-    /// so a preview's resolved URLs can differ from the live render — callers
-    /// surface it so editors can see that divergence. Resolves from the same
-    /// <c>HttpContext</c> host regardless of the graph/non-graph mode.
+    /// and <c>url</c> tokens against: <c>SchemeWeaver:PublicSiteUrl</c> when
+    /// configured, else the current request's host, or null when neither is
+    /// available. With no override, in the backoffice this is the backoffice
+    /// host, so a preview's resolved URLs can differ from the live render —
+    /// callers surface it so editors can see that divergence. Resolves the
+    /// same way regardless of the graph/non-graph mode.
     /// </summary>
     string? GetResolvedBaseUrl();
 

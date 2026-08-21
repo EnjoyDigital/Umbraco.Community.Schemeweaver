@@ -49,6 +49,28 @@ public class SchemeWeaverOptions
     public bool UseGraphModel { get; set; } = true;
 
     /// <summary>
+    /// Public origin (scheme + host, e.g. <c>https://www.example.com</c>) the emitted JSON-LD
+    /// should present itself as — for headless/decoupled sites where the request reaching
+    /// Umbraco arrives on a different host (a cms.* subdomain, an internal service URL) than
+    /// the one the public front-end serves pages on. Unset (the default) preserves the
+    /// historical behaviour: URLs derive from the incoming request's host.
+    ///
+    /// When set, two things happen:
+    /// <list type="bullet">
+    ///   <item><description>the site URL (<c>WebSite</c>/<c>Organization</c> <c>@id</c>s, the
+    ///   <c>{siteUrl}</c> token, relative-URL fallbacks) derives from this origin instead of the
+    ///   request — including when there is no request at all (Examine indexing);</description></item>
+    ///   <item><description>every absolute URL in the final serialised output that sits on the
+    ///   REQUEST's origin (page URLs, media URLs, breadcrumb items — wherever they were
+    ///   resolved) is rebased onto this origin. URLs on any other host (CDNs, external
+    ///   <c>sameAs</c> links) are left untouched.</description></item>
+    /// </list>
+    /// Any path, query or fragment on the value is ignored with a warning — this is an origin,
+    /// not a base path. Invalid values are ignored with a warning rather than throwing.
+    /// </summary>
+    public string? PublicSiteUrl { get; set; }
+
+    /// <summary>
     /// Site-wide settings content node resolution. Used by the built-in
     /// Organization / WebSite pieces to locate the singleton node whose
     /// SchemaMapping drives the site-level part of the graph.

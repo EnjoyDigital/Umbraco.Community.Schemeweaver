@@ -31,6 +31,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
     private readonly IPublishedContentStatusFilteringService _publishedStatusFilteringService;
     private readonly IPropertyValueResolverFactory _resolverFactory;
     private readonly IPublishedUrlProvider _urlProvider;
+    private readonly ISiteOriginResolver _originResolver;
     private readonly IVariationContextAccessor _variationContextAccessor;
     private readonly ILogger<JsonLdGenerator> _logger;
     private readonly SchemeWeaverOptions _options;
@@ -71,6 +72,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
         IPublishedContentStatusFilteringService publishedStatusFilteringService,
         IPropertyValueResolverFactory resolverFactory,
         IPublishedUrlProvider urlProvider,
+        ISiteOriginResolver originResolver,
         IVariationContextAccessor variationContextAccessor,
         ILogger<JsonLdGenerator> logger,
         IOptions<SchemeWeaverOptions> options)
@@ -82,6 +84,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
         _publishedStatusFilteringService = publishedStatusFilteringService;
         _resolverFactory = resolverFactory;
         _urlProvider = urlProvider;
+        _originResolver = originResolver;
         _variationContextAccessor = variationContextAccessor;
         _logger = logger;
         _options = options.Value;
@@ -377,25 +380,23 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
         if (!string.IsNullOrEmpty(url) && url != "#")
             return url;
 
-        // Fallback: build absolute URL from relative + request context
+        // Fallback: build absolute URL from relative + the site origin
+        // (PublicSiteUrl when configured, else the request host)
         var relativeUrl = _urlProvider.GetUrl(content, UrlMode.Relative);
         if (string.IsNullOrEmpty(relativeUrl) || relativeUrl == "#")
             return null;
 
-        var request = _httpContextAccessor.HttpContext?.Request;
-        if (request is null)
+        var siteUrl = ResolveSiteUrl();
+        if (siteUrl is null)
             return null;
 
-        return $"{request.Scheme}://{request.Host}{relativeUrl}";
+        return $"{siteUrl}{relativeUrl}";
     }
 
-    private string? ResolveSiteUrl()
-    {
-        var request = _httpContextAccessor.HttpContext?.Request;
-        if (request is not null)
-            return $"{request.Scheme}://{request.Host}";
-        return null;
-    }
+    private string? ResolveSiteUrl() =>
+        // GetLeftPart keeps the historical no-trailing-slash shape the
+        // {siteUrl} token and default-@id convention were built on.
+        _originResolver.ResolveOrigin()?.GetLeftPart(UriPartial.Authority);
 
     /// <inheritdoc />
     public string? GetResolvedBaseUrl() => ResolveSiteUrl();
@@ -1096,7 +1097,11 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
 
         try
         {
-            return ReEncodeWithHtmlSafeEncoder(thing.ToString());
+            // Rebase LAST, on the final serialised string — this is the one
+            // chokepoint that catches request-host URLs regardless of which
+            // resolver produced them (page urls, media, breadcrumbs, pickers).
+            return _originResolver.RebaseToPublicOrigin(
+                ReEncodeWithHtmlSafeEncoder(thing.ToString()));
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("collides with another property"))
         {
@@ -1108,7 +1113,8 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
             {
                 // _deduplicatingOptions carries no explicit Encoder, so it uses
                 // JavaScriptEncoder.Default, which already escapes < > & — no re-encode needed.
-                return JsonSerializer.Serialize<object>(thing, _deduplicatingOptions);
+                return _originResolver.RebaseToPublicOrigin(
+                    JsonSerializer.Serialize<object>(thing, _deduplicatingOptions));
             }
             catch (JsonException inner)
             {
