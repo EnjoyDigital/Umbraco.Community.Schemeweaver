@@ -100,10 +100,15 @@ public sealed class WebSitePiece : IGraphPiece
         // Precedence:
         //   1. siteSettings.siteName    (explicit Schema.org-shaped name)
         //   2. siteSettings.companyName (common Umbraco convention for branded sites)
-        //   3. siteSettings.name        (generic name property)
-        //   4. siteSettings.brandName   (another common convention)
-        //   5. Umbraco content node Name on the settings node (often editor-set)
-        //   6. Host component of the site URL (last-resort, always defined)
+        //   3. siteSettings.company     (the same convention, unsuffixed)
+        //   4. siteSettings.name        (generic name property)
+        //   5. siteSettings.brandName   (another common convention)
+        //   6. Umbraco content node Name on the settings node (often editor-set)
+        //   7. Host component of the site URL (last-resort, always defined)
+        //
+        // The node Name deliberately sits BELOW every convention property: settings
+        // singletons are routinely called "Settings" or "Site Config", which is a
+        // worse site name than anything an editor typed into a named field.
         try
         {
             if (ctx.SiteSettings is { } settings)
@@ -112,6 +117,8 @@ public sealed class WebSitePiece : IGraphPiece
                     return siteName;
                 if (settings.Value<string>("companyName") is { Length: > 0 } companyName)
                     return companyName;
+                if (settings.Value<string>("company") is { Length: > 0 } company)
+                    return company;
                 if (settings.Value<string>("name") is { Length: > 0 } nameProp)
                     return nameProp;
                 if (settings.Value<string>("brandName") is { Length: > 0 } brandName)

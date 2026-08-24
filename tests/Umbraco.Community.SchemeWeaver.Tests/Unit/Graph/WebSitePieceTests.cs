@@ -7,6 +7,7 @@ using NSubstitute;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.SchemeWeaver.Graph;
 using Umbraco.Community.SchemeWeaver.Graph.Pieces;
+using Umbraco.Community.SchemeWeaver.Tests.Unit.TestSupport;
 using Xunit;
 
 namespace Umbraco.Community.SchemeWeaver.Tests.Unit.Graph;
@@ -50,6 +51,88 @@ public class WebSitePieceTests
 
         action.GetProperty("query-input").GetString()
             .Should().Be("required name=search_term_string");
+    }
+
+    /// <summary>
+    /// A settings node exposing <paramref name="properties"/> via <c>Value&lt;string&gt;()</c>,
+    /// with <paramref name="nodeName"/> as its Umbraco content-node name.
+    /// </summary>
+    private static IPublishedContent SettingsNode(
+        string nodeName, Dictionary<string, string?> properties)
+    {
+        HermeticStaticServiceProvider.EnsureInstalled();
+
+        var content = Substitute.For<IPublishedContent>();
+        content.Name.Returns(nodeName);
+
+        foreach (var (alias, value) in properties)
+        {
+            var property = Substitute.For<IPublishedProperty>();
+            property.Alias.Returns(alias);
+            property.HasValue(Arg.Any<string?>(), Arg.Any<string?>())
+                .Returns(!string.IsNullOrEmpty(value));
+            property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(value);
+            content.GetProperty(alias).Returns(property);
+        }
+
+        return content;
+    }
+
+    private static GraphPieceContext ContextWithSettings(IPublishedContent settings) => new()
+    {
+        Content = Substitute.For<IPublishedContent>(),
+        SiteUrl = new Uri("https://example.com/"),
+        SiteSettings = settings,
+    };
+
+    [Fact]
+    public void Build_SettingsUsesCompanyConvention_NamesSiteFromCompany()
+    {
+        // "company" is a widespread Umbraco settings-node convention. Without it in the
+        // precedence chain the name fell through to the content-node name, which on a
+        // settings singleton is typically the literal word "Settings".
+        var sut = Build();
+
+        var node = Serialise(sut.Build(ContextWithSettings(
+            SettingsNode("Settings", new() { ["company"] = "VWV" })))!);
+
+        node.GetProperty("name").GetString().Should().Be("VWV");
+    }
+
+    [Fact]
+    public void Build_SettingsHasCompanyNameAndCompany_PrefersCompanyName()
+    {
+        var sut = Build();
+
+        var node = Serialise(sut.Build(ContextWithSettings(
+            SettingsNode("Settings", new()
+            {
+                ["companyName"] = "Acme Legal Ltd",
+                ["company"] = "Acme",
+            })))!);
+
+        node.GetProperty("name").GetString().Should().Be("Acme Legal Ltd");
+    }
+
+    [Fact]
+    public void Build_SettingsHasEmptyCompany_FallsThroughToNodeName()
+    {
+        var sut = Build();
+
+        var node = Serialise(sut.Build(ContextWithSettings(
+            SettingsNode("Acme Site", new() { ["company"] = "" })))!);
+
+        node.GetProperty("name").GetString().Should().Be("Acme Site");
+    }
+
+    [Fact]
+    public void Build_NoSettingsNode_FallsBackToHost()
+    {
+        var sut = Build();
+
+        var node = Serialise(sut.Build(Context())!);
+
+        node.GetProperty("name").GetString().Should().Be("example.com");
     }
 
     [Fact]
