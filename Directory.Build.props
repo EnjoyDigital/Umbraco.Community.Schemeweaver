@@ -59,8 +59,9 @@
          adds the SchemeWeaver:PublicSiteUrl option, which anchors emitted JSON-LD
          to a configured public origin instead of the incoming request's host —
          the headless/decoupled case where the front-end calls the Delivery API on
-         a cms.* hostname. -->
-    <SchemeWeaverPackageVersion>17.17.0</SchemeWeaverPackageVersion>
+         a cms.* hostname. 17.17.1 adds the "company" settings-node convention to
+         the WebSite name lookup. -->
+    <SchemeWeaverPackageVersion>17.17.1</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -83,7 +84,7 @@
          leg for what 18.12.0 adds). Its [18.0.0, 19.0.0) Umbraco.Cms range is
          mutually exclusive with the 17 leg's [17.4.0, 18.0.0), so NuGet only ever
          resolves one of the two per consumer. -->
-    <SchemeWeaverPackageVersion>18.12.0</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>18.12.1</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>
