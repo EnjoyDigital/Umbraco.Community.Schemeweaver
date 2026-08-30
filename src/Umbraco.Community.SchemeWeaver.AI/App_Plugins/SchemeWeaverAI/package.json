@@ -21,7 +21,7 @@
     "@umbraco-cms/backoffice": "18.0.0",
     "@types/node": "^22.20.1",
     "typescript": "^5.3.3",
-    "vite": "^8.1.5"
+    "vite": "^8.2.2"
   },
   "overrides": {
     "monaco-editor": {
