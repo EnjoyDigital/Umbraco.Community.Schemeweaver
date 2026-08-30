@@ -41,7 +41,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@umbraco-cms/mcp-server-sdk": "17.0.0-beta.28",
     "dotenv": "^17.4.2",
-    "uuid": "^14.0.1",
+    "uuid": "^14.0.2",
     "yargs": "^18.1.0",
     "zod": "^4.2.1"
   },
@@ -53,12 +53,12 @@
     "@types/yargs": "^17.0.33",
     "jest": "^30.4.2",
     "msw": "^2.15.0",
-    "orval": "^8.23.0",
+    "orval": "^8.26.0",
     "rimraf": "^6.0.1",
     "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
     "tsup": "^8.4.0",
-    "undici": "^8.9.0",
+    "undici": "^8.10.0",
     "typescript": "^5.8.3"
   },
   "overrides": {
