@@ -433,6 +433,74 @@ public class GraphGeneratorTests
         jsonNoArg.Should().Be(jsonExplicitAll);
     }
 
+    // --- Piece exclusion (EmitBreadcrumbsInDeliveryApi under graph output) ---
+
+    [Fact]
+    public void GenerateGraphJson_ExcludedPieceKey_IsOmittedFromGraph_AndItsIdDoesNotResolve()
+    {
+        // Contrast with the scope tests above: a SCOPED-out piece still resolves
+        // its @id so cross-scope refs work, but an EXCLUDED piece must vanish in
+        // both phases — otherwise the WebPage would emit a dangling
+        // breadcrumb: {"@id": ".../#breadcrumb"} pointing at a node that isn't
+        // in the payload (issue #81).
+        string? capturedBreadcrumbId = "not-captured";
+        var sut = Build(
+            new StubPiece("webpage", 300,
+                id: "https://example.com/about/#webpage",
+                thing: new WebPage(),
+                onBuild: ctx => capturedBreadcrumbId = ctx.IdFor("breadcrumb")),
+            new StubPiece("breadcrumb", 400,
+                id: "https://example.com/about/#breadcrumb",
+                thing: new BreadcrumbList()));
+
+        var json = sut.GenerateGraphJson(Page(), excludePieceKeys: ["breadcrumb"]);
+        using var doc = JsonDocument.Parse(json!);
+
+        var graph = doc.RootElement.GetProperty("@graph");
+        graph.GetArrayLength().Should().Be(1);
+        graph[0].GetProperty("@type").GetString().Should().Be("WebPage");
+        capturedBreadcrumbId.Should().BeNull(
+            "an excluded piece must not register an @id for others to reference");
+    }
+
+    [Fact]
+    public void GenerateGraphJson_ExcludeNullOrEmpty_EmitsEveryPiece()
+    {
+        var sut = Build(
+            new StubPiece("webpage", 300,
+                id: "https://example.com/about/#webpage",
+                thing: new WebPage()),
+            new StubPiece("breadcrumb", 400,
+                id: "https://example.com/about/#breadcrumb",
+                thing: new BreadcrumbList()));
+
+        var baseline = sut.GenerateGraphJson(Page());
+        var withNull = sut.GenerateGraphJson(Page(), excludePieceKeys: null);
+        var withEmpty = sut.GenerateGraphJson(Page(), excludePieceKeys: Array.Empty<string>());
+
+        using var doc = JsonDocument.Parse(baseline!);
+        doc.RootElement.GetProperty("@graph").GetArrayLength().Should().Be(2);
+        withNull.Should().Be(baseline);
+        withEmpty.Should().Be(baseline);
+    }
+
+    [Fact]
+    public void GenerateGraphJson_ExcludedKey_NotRegistered_IsIgnored()
+    {
+        var sut = Build(
+            new StubPiece("webpage", 300,
+                id: "https://example.com/about/#webpage",
+                thing: new WebPage()),
+            new StubPiece("breadcrumb", 400,
+                id: "https://example.com/about/#breadcrumb",
+                thing: new BreadcrumbList()));
+
+        var baseline = sut.GenerateGraphJson(Page());
+        var withUnknown = sut.GenerateGraphJson(Page(), excludePieceKeys: ["no-such-piece"]);
+
+        withUnknown.Should().Be(baseline);
+    }
+
     // --- Site-settings logo repair (media logo complexType trap) ------------
 
     [Fact]

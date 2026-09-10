@@ -12,7 +12,8 @@ namespace Umbraco.Community.SchemeWeaver.Graph;
 /// <summary>
 /// Default <see cref="IGraphGenerator"/>. Two-phase assembly:
 /// 1. Ask every registered <see cref="IGraphPiece"/> for its @id (null → skip).
-///    This populates <see cref="GraphPieceContext.Ids"/>.
+///    This populates <see cref="GraphPieceContext.Ids"/>. Pieces the caller
+///    excluded by key are skipped here too, so nothing can reference them.
 /// 2. Ask every needed piece to build its Schema.NET Thing. Pieces read from
 ///    <see cref="GraphPieceContext.Ids"/> to construct cross-references.
 /// Built things are then serialised, the per-node <c>@context</c> is stripped,
@@ -78,7 +79,8 @@ public sealed class GraphGenerator : IGraphGenerator
     public string? GenerateGraphJson(
         IPublishedContent content,
         string? culture = null,
-        PieceScopeFilter scope = PieceScopeFilter.All)
+        PieceScopeFilter scope = PieceScopeFilter.All,
+        IReadOnlyCollection<string>? excludePieceKeys = null)
     {
         if (_pieces.Count == 0)
             return null;
@@ -91,6 +93,14 @@ public sealed class GraphGenerator : IGraphGenerator
         // cross-scope @id refs still resolve — a scope=Page WebPage piece can
         // still emit publisher: {"@id": "...#organization"} even though the
         // Organization body isn't in this graph.
+        //
+        // Caller-excluded pieces are the deliberate exception: they are dropped
+        // BEFORE ResolveId so their @id never lands in Ids and dependants (the
+        // WebPage's breadcrumb ref, user graph-ref mappings) omit the reference
+        // instead of pointing at a node that isn't there.
+        var excluded = excludePieceKeys is { Count: > 0 }
+            ? new HashSet<string>(excludePieceKeys, StringComparer.Ordinal)
+            : null;
         var ids = new Dictionary<string, string>(StringComparer.Ordinal);
         var probeContext = new GraphPieceContext
         {
@@ -105,6 +115,12 @@ public sealed class GraphGenerator : IGraphGenerator
         var needed = new List<IGraphPiece>(_pieces.Count);
         foreach (var piece in _pieces)
         {
+            if (excluded is not null && excluded.Contains(piece.Key))
+            {
+                _logger.LogDebug("Graph piece {PieceKey} excluded by caller — skipping", piece.Key);
+                continue;
+            }
+
             try
             {
                 var id = piece.ResolveId(probeContext);

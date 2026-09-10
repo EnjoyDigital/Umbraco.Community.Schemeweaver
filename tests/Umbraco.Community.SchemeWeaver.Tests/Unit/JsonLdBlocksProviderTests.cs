@@ -16,31 +16,46 @@ namespace Umbraco.Community.SchemeWeaver.Tests.Unit;
 /// <summary>
 /// Exercises the ordering, caching and invalidation semantics of
 /// <see cref="JsonLdBlocksProvider"/>. Generation logic lives in
-/// <see cref="IJsonLdGenerator"/>; here we substitute it and verify the provider faithfully
-/// stitches the four inputs together.
+/// <see cref="IJsonLdGenerator"/> (legacy path) and <see cref="IGraphGenerator"/> (graph
+/// path); here we substitute both and verify the provider faithfully stitches the legacy
+/// inputs together and hands the graph generator the right exclusions.
 /// </summary>
 public class JsonLdBlocksProviderTests
 {
     private readonly IJsonLdGenerator _generator = Substitute.For<IJsonLdGenerator>();
+    private readonly IGraphGenerator _graphGenerator = Substitute.For<IGraphGenerator>();
 
     private JsonLdBlocksProvider CreateSut(
         SchemeWeaverOptions? options = null,
         IMemoryCache? cache = null)
     {
-        var services = new ServiceCollection();
-        services.AddSingleton(_generator);
-        var provider = services.BuildServiceProvider();
-        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
-
         // These tests exercise the legacy multi-block path. The v1.4 graph-model
-        // behaviour is covered by GraphGeneratorTests, so opt out of it here.
+        // assembly is covered by GraphGeneratorTests; the provider's graph-path
+        // wiring is covered by CreateGraphSut below.
         var effective = options ?? new SchemeWeaverOptions();
         effective.UseGraphModel = false;
+        return Create(effective, cache);
+    }
+
+    private JsonLdBlocksProvider CreateGraphSut(SchemeWeaverOptions? options = null)
+    {
+        var effective = options ?? new SchemeWeaverOptions();
+        effective.UseGraphModel = true;
+        return Create(effective, cache: null);
+    }
+
+    private JsonLdBlocksProvider Create(SchemeWeaverOptions options, IMemoryCache? cache)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(_generator);
+        services.AddSingleton(_graphGenerator);
+        var provider = services.BuildServiceProvider();
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
 
         return new JsonLdBlocksProvider(
             scopeFactory,
             cache ?? new MemoryCache(new MemoryCacheOptions()),
-            Options.Create(effective),
+            Options.Create(options),
             NullLogger<JsonLdBlocksProvider>.Instance);
     }
 
@@ -96,6 +111,46 @@ public class JsonLdBlocksProviderTests
         // Opting out must short-circuit the generator call — otherwise a stale breadcrumb
         // could slip in from a cached upstream layer.
         _generator.DidNotReceiveWithAnyArgs().GenerateBreadcrumbJsonLd(default!, default);
+    }
+
+    [Fact]
+    public void GetBlocks_GraphMode_BreadcrumbOptOut_ExcludesBreadcrumbPiece()
+    {
+        // Issue #81: the flag used to be read only on the legacy path, so under
+        // the default graph output it did nothing. The provider must now ask the
+        // graph generator to leave the breadcrumb piece out entirely.
+        var sut = CreateGraphSut(new SchemeWeaverOptions { EmitBreadcrumbsInDeliveryApi = false });
+        var content = FakeContent();
+        _graphGenerator
+            .GenerateGraphJson(content, Arg.Any<string?>(), Arg.Any<PieceScopeFilter>(), Arg.Any<IReadOnlyCollection<string>?>())
+            .Returns("{\"@graph\":[]}");
+
+        var blocks = sut.GetBlocks(content, culture: null, PieceScopeFilter.Page);
+
+        blocks.Should().ContainSingle();
+        _graphGenerator.Received(1).GenerateGraphJson(
+            content,
+            null,
+            PieceScopeFilter.Page,
+            Arg.Is<IReadOnlyCollection<string>?>(keys => keys != null && keys.Contains("breadcrumb")));
+    }
+
+    [Fact]
+    public void GetBlocks_GraphMode_DefaultOptions_ExcludesNothing()
+    {
+        var sut = CreateGraphSut();
+        var content = FakeContent();
+        _graphGenerator
+            .GenerateGraphJson(content, Arg.Any<string?>(), Arg.Any<PieceScopeFilter>(), Arg.Any<IReadOnlyCollection<string>?>())
+            .Returns("{\"@graph\":[]}");
+
+        _ = sut.GetBlocks(content, culture: "en-gb");
+
+        _graphGenerator.Received(1).GenerateGraphJson(
+            content,
+            "en-gb",
+            PieceScopeFilter.All,
+            Arg.Is<IReadOnlyCollection<string>?>(keys => keys == null));
     }
 
     [Fact]

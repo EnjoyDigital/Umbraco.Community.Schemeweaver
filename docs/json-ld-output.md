@@ -132,7 +132,7 @@ Set `UseGraphModel` to `false` and SchemeWeaver reverts to emitting one `<script
 
 Both modes are supported long-term; legacy mode suits consumers that want per-entity diffing or stricter CSP granularity.
 
-> **Known issue**: `SchemeWeaver:EmitBreadcrumbsInDeliveryApi` currently only has an effect in legacy mode; under the default graph output the breadcrumb piece is emitted regardless. Tracked in [#81](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues/81).
+`SchemeWeaver:EmitBreadcrumbsInDeliveryApi` removes the breadcrumb from Delivery API output in either mode. Under graph output the `BreadcrumbList` node and the `WebPage` reference to it are omitted; in legacy mode the separate `BreadcrumbList` string is dropped. The tag helper always emits breadcrumbs.
 
 ## Configuration summary
 

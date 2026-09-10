@@ -22,6 +22,10 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
     private readonly SchemeWeaverOptions _options;
     private readonly ILogger<JsonLdBlocksProvider> _logger;
 
+    // Graph pieces to leave out of Delivery API output. Only the breadcrumb is
+    // opt-out today (EmitBreadcrumbsInDeliveryApi); null means "emit everything".
+    private readonly IReadOnlyCollection<string>? _excludedPieceKeys;
+
     // Per-content-key cancellation tokens drive eviction. Each cache entry is linked to its
     // content key's CTS; cancelling the CTS evicts every culture variant for that content in
     // one go. A global CTS covers "invalidate everything" (schema-mapping writes).
@@ -38,6 +42,9 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
         _cache = cache;
         _options = options.Value;
         _logger = logger;
+        _excludedPieceKeys = _options.EmitBreadcrumbsInDeliveryApi
+            ? null
+            : [Graph.Pieces.BreadcrumbListPiece.PieceKey];
     }
 
     public string[] GetBlocks(IPublishedContent content, string? culture, PieceScopeFilter scope = PieceScopeFilter.All)
@@ -146,10 +153,14 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
             // callers that expected many blocks still get a string array — just
             // with one element — so no client-side refactor is required beyond
             // rendering the single entry.
+            //
+            // EmitBreadcrumbsInDeliveryApi applies here as well as on the legacy
+            // path below: the breadcrumb piece is excluded outright so neither its
+            // node nor the WebPage's reference to it reaches the headless payload.
             if (_options.UseGraphModel)
             {
                 var graphGenerator = serviceScope.ServiceProvider.GetRequiredService<IGraphGenerator>();
-                var graphJson = graphGenerator.GenerateGraphJson(content, culture, scope);
+                var graphJson = graphGenerator.GenerateGraphJson(content, culture, scope, _excludedPieceKeys);
                 return string.IsNullOrEmpty(graphJson)
                     ? Array.Empty<string>()
                     : [graphJson];

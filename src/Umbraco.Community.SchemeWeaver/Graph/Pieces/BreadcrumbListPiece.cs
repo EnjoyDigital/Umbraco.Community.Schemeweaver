@@ -35,7 +35,14 @@ public sealed class BreadcrumbListPiece : IGraphPiece
         _logger = logger;
     }
 
-    public string Key => "breadcrumb";
+    /// <summary>
+    /// The piece key. Referenced by <see cref="Services.JsonLdBlocksProvider"/> to
+    /// exclude this piece from Delivery API output when
+    /// <see cref="SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi"/> is off.
+    /// </summary>
+    public const string PieceKey = "breadcrumb";
+
+    public string Key => PieceKey;
     public int Order => 400;
     public PieceScope Scope => PieceScope.Page;
 

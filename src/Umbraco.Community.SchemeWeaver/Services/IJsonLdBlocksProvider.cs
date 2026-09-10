@@ -13,9 +13,11 @@ public interface IJsonLdBlocksProvider
     /// <summary>
     /// Returns the ordered JSON-LD blocks for <paramref name="content"/> in
     /// <paramref name="culture"/> filtered by <paramref name="scope"/>. Order: inherited
-    /// ancestor schemas (root-first) → <c>BreadcrumbList</c> (unless opted out) → main page
-    /// schema → block element schemas (legacy path), or a single <c>@graph</c> element
-    /// (graph-model path, the v1.4+ default). Empty array if there is nothing to emit.
+    /// ancestor schemas (root-first) → <c>BreadcrumbList</c> → main page schema → block
+    /// element schemas (legacy path), or a single <c>@graph</c> element (graph-model path,
+    /// the v1.4+ default). On both paths the breadcrumb is omitted when
+    /// <see cref="SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi"/> is <c>false</c>.
+    /// Empty array if there is nothing to emit.
     /// </summary>
     /// <param name="scope">
     /// Optional scope filter for headless frontends that split JSON-LD between layout (site)

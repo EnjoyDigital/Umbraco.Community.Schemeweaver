@@ -41,8 +41,18 @@ public interface IGraphGenerator
     /// graph can still reference the Organization's @id, which its sibling
     /// <c>Site</c>-scoped graph supplies in a separate script tag.
     /// </param>
+    /// <param name="excludePieceKeys">
+    /// Optional keys of registered <see cref="IGraphPiece"/>s to leave out of the
+    /// graph entirely. Unlike <paramref name="scope"/>, an excluded piece is skipped
+    /// in BOTH phases: its <c>@id</c> never enters <see cref="GraphPieceContext.Ids"/>,
+    /// so other pieces drop their references to it rather than emitting a dangling
+    /// <c>{"@id": ...}</c>. The Delivery API uses this to honour
+    /// <see cref="SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi"/>. Null or empty
+    /// excludes nothing.
+    /// </param>
     string? GenerateGraphJson(
         IPublishedContent content,
         string? culture = null,
-        PieceScopeFilter scope = PieceScopeFilter.All);
+        PieceScopeFilter scope = PieceScopeFilter.All,
+        IReadOnlyCollection<string>? excludePieceKeys = null);
 }

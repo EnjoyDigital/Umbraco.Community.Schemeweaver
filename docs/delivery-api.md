@@ -88,12 +88,13 @@ Preview requests additionally require preview access.
   embedded on. Set this to your public origin and SchemeWeaver anchors the whole payload to
   it instead, leaving foreign hosts (CDN media, `sameAs` links) untouched. See
   [Headless: the public site URL](advanced.md#headless-the-public-site-url).
-- **`EmitBreadcrumbsInDeliveryApi`** (default `true`): legacy mode only. When `UseGraphModel`
-  is `false`, setting this to `false` drops the `BreadcrumbList` block, useful when your
-  headless front-end has a URL structure that diverges from the Umbraco content tree and you
-  would rather build the breadcrumb client-side from your routing data. Under the default
-  graph output the breadcrumb piece is emitted regardless of this flag; tracked in
-  [issue #81](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues/81).
+- **`EmitBreadcrumbsInDeliveryApi`** (default `true`): set to `false` to leave the
+  `BreadcrumbList` out of the Delivery API payload, useful when your headless front-end has a
+  URL structure that diverges from the Umbraco content tree and you would rather build the
+  breadcrumb client-side from your routing data. Works in both modes: under the default graph
+  output the breadcrumb node is dropped from the `@graph` along with the `WebPage` node's
+  `breadcrumb` reference; in legacy mode the separate `BreadcrumbList` string is dropped. The
+  server-rendered tag helper is not affected.
 - **`CacheDuration`** (default `00:30:00`): absolute cache expiration per `(content key,
   culture)` entry. Acts as a safety-net only; real invalidation is event-driven via
   `ContentPublished` / `ContentUnpublished` / `ContentMoved` / `ContentMovedToRecycleBin` /
@@ -267,11 +268,9 @@ For genuinely divergent paths, two options:
 
 1. Keep the emitted breadcrumb and rewrite the URLs client-side (parse the document, replace
    the `item` URLs, serialize back).
-2. Build the breadcrumb client-side from your own routing data and ignore the emitted one.
-   In legacy mode (`UseGraphModel` set to `false`) you can additionally turn emission off with
-   `SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi = false`; under the default graph output
-   the breadcrumb piece is currently emitted regardless of that flag (tracked in
-   [issue #81](https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver/issues/81)):
+2. Build the breadcrumb client-side from your own routing data and turn server emission off
+   with `SchemeWeaverOptions.EmitBreadcrumbsInDeliveryApi = false`, so the payload carries no
+   `BreadcrumbList` node and no reference to one:
 
 ```typescript
 function buildBreadcrumbJsonLd(crumbs: { name: string; url: string }[]) {

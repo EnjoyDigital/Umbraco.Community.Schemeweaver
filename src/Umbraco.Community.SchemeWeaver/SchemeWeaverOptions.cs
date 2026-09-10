@@ -13,7 +13,11 @@ public class SchemeWeaverOptions
 
     /// <summary>
     /// Whether <see cref="Schema.NET.BreadcrumbList"/> JSON-LD is included in the Delivery API
-    /// output under the <c>schemaOrg</c> field. Default is <c>true</c>.
+    /// output — the <c>/schemeweaver/json-ld</c> endpoint and the <c>schemaOrg</c> index
+    /// field. Default is <c>true</c>. Applies in both output modes: under the default
+    /// <see cref="UseGraphModel"/> the breadcrumb node is left out of the <c>@graph</c> and the
+    /// WebPage node's <c>breadcrumb</c> reference is omitted with it; in legacy mode the
+    /// separate <c>BreadcrumbList</c> string is dropped.
     ///
     /// Set to <c>false</c> if your headless front-end has a URL structure that diverges from the
     /// Umbraco content tree and you want to generate the breadcrumb client-side from your own
