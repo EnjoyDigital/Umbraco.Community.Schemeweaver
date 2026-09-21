@@ -61,8 +61,11 @@
          the headless/decoupled case where the front-end calls the Delivery API on
          a cms.* hostname. 17.17.1 adds the "company" settings-node convention to
          the WebSite name lookup. 17.17.2 makes EmitBreadcrumbsInDeliveryApi work
-         under the default graph output (issue #81). -->
-    <SchemeWeaverPackageVersion>17.17.2</SchemeWeaverPackageVersion>
+         under the default graph output (issue #81). 17.18.0 adds the TypeSafe
+         satellite (calibrated auto-map judgments from TypeSafe System One, its own
+         package) and the ISchemaAutoMapperReplacingComposer marker in the core that
+         the AI composer implements so the two satellites compose in a fixed order. -->
+    <SchemeWeaverPackageVersion>17.18.0</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -82,10 +85,10 @@
     <SchemeWeaverUmbracoAiHost>18.2.0</SchemeWeaverUmbracoAiHost>
     <SchemeWeaverUmbracoAiAnthropicHost>18.0.2</SchemeWeaverUmbracoAiAnthropicHost>
     <!-- Major-aligned stable package version for the Umbraco 18 line (see the 17
-         leg for what 18.12.0 adds). Its [18.0.0, 19.0.0) Umbraco.Cms range is
+         leg for what 18.13.0 adds). Its [18.0.0, 19.0.0) Umbraco.Cms range is
          mutually exclusive with the 17 leg's [17.4.0, 18.0.0), so NuGet only ever
          resolves one of the two per consumer. -->
-    <SchemeWeaverPackageVersion>18.12.2</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>18.13.0</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>
