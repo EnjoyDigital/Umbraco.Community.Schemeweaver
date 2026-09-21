@@ -80,7 +80,15 @@ public class RichResultsAuditFactory : WebApplicationFactory<Program>
             if (Directory.Exists(_dataDirectory))
                 Directory.Delete(_dataDirectory, recursive: true);
         }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        catch (IOException ex) { ReportOrphanedDataDirectory(ex); }
+        catch (UnauthorizedAccessException ex) { ReportOrphanedDataDirectory(ex); }
     }
+
+    // Best effort: Umbraco can still hold the SQLite file open for a moment after Dispose, so
+    // the delete may fail. Say so on stderr rather than fail the teardown; the orphaned temp
+    // folder is harmless and the OS cleans it up eventually.
+    private void ReportOrphanedDataDirectory(Exception ex)
+        => Console.Error.WriteLine(
+            $"{GetType().Name}: could not delete '{_dataDirectory}' " +
+            $"({ex.GetType().Name}: {ex.Message}); leaving it behind.");
 }

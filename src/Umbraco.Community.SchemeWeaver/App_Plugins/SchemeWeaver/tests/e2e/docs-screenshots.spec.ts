@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { ConstantHelper, test } from '@umbraco/playwright-testhelpers';
+import { test } from '@umbraco/playwright-testhelpers';
 import { join } from 'path';
 import { mkdirSync, readdirSync, readFileSync } from 'fs';
 
