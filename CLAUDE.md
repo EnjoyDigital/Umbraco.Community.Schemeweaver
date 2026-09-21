@@ -72,6 +72,24 @@ It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugi
   per-leg versions come from the `SchemeWeaverUmbracoAi*` properties in
   Directory.Build.props. The TestHost includes it for both majors with the Anthropic
   provider.
+- **TypeSafe satellite** (`src/Umbraco.Community.SchemeWeaver.TypeSafe/`): calibrated
+  auto-map suggestions from TypeSafe System One (model Jev, `POST /v1/systemone`, raw HTTP
+  via `HttpClient`; there is no .NET SDK and no third-party AI framework dependency). The
+  composer runs `[ComposeAfter(SchemeWeaverComposer)]` and DECORATES `ISchemaAutoMapper`
+  (`TypeSafeSchemaAutoMapper` wraps whatever was registered before it: the heuristic, or the
+  AI mapper when both are installed). Ordering against `.AI` is deterministic: the AI composer
+  implements the core marker `ISchemaAutoMapperReplacingComposer` and the TypeSafe composer
+  declares `[ComposeAfter]` on that interface (weak, satisfied when absent), so the cascade is
+  always TypeSafe, then AI, then heuristic. Any new composer that REPLACES the seam must
+  implement the marker. This wiring means the property-mapping modal and the MCP
+  `suggest-property-mappings` tool get TypeSafe results with no UI change. Four rounds of
+  closed-set judgments (bind, shape, beam-search nested-type descent from the declared
+  range, inner bind); heuristic popular-defaults rows are kept as priors; media pickers are
+  never wrapped; cross-node sources and nested-block routes stay with the prior mapper.
+  Inert without `SchemeWeaver:TypeSafe:ApiKey` (user-secrets / env var, never appsettings)
+  and on any API failure; one startup log line says active/inert and what it wraps; Health
+  Check "SchemeWeaver TypeSafe". Ships per-major like the rest of the suite purely because
+  the core does. Tests live under `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/TypeSafe/`.
 - **Services/** — `SchemaTypeRegistry` (singleton, scans Schema.NET assembly), `JsonLdGenerator`, `SchemaAutoMapper`, `ContentTypeGenerator`
 - **Persistence/** — `SchemaMappingRepository` using NPoco (two tables: `SchemeWeaverSchemaMapping`, `SchemeWeaverPropertyMapping`)
 - **Models/Api/** — DTOs serialised as camelCase JSON: `SchemaMappingDto`, `PropertyMappingDto`, `SchemaTypeInfo`, `PropertyMappingSuggestion`, `JsonLdPreviewResponse`, `ContentTypeGenerationRequest`
@@ -130,6 +148,15 @@ All under `/umbraco/management/api/v1/schemeweaver`, backoffice-authenticated:
 | TS Unit/Component | @open-wc/testing + MSW | App_Plugins/SchemeWeaver/src/**/*.test.ts |
 | Mocked Backoffice | Playwright + the real Umbraco-CMS backoffice via `VITE_EXAMPLE_PATH`, all HTTP served by SchemeWeaver's own MSW handlers. Needs a local Umbraco-CMS clone and a tiny `addMockHandlers` patch — see `App_Plugins/SchemeWeaver/tests/mocked-backoffice/README.md` | App_Plugins/SchemeWeaver/tests/mocked-backoffice/ |
 | E2E | Playwright + @umbraco/playwright-testhelpers | App_Plugins/SchemeWeaver/tests/e2e/ |
+
+TypeSafe satellite unit tests (`Unit/TypeSafe/`) never hit the network: they use a fake
+`ITypeSafeClient` and the gold-oracle pattern from `eval/oracle.mjs` (a stub that answers
+every question the way gold implies, so the harness ceiling, not the model, is under test).
+
+The eval harness for the satellite is `eval/run-typesafe.mjs` (scores Jev vs heuristic vs
+gold; needs a TypeSafe key) and `eval/oracle.mjs` (no key, no network; prints the ceiling).
+Both read `eval/cache/schema-types.json`, which `eval/SchemaTypeDump` (a C# console app
+that instantiates the production `SchemaTypeRegistry` directly, no Umbraco boot) generates.
 
 The Mocked Backoffice tier currently requires the user to apply a
 one-line patch to their local Umbraco-CMS clone, because Umbraco v17.2.2

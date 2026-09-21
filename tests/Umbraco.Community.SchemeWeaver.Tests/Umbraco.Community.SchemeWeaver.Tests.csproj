@@ -25,6 +25,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\Umbraco.Community.SchemeWeaver.AI\Umbraco.Community.SchemeWeaver.AI.csproj" />
+		<ProjectReference Include="..\..\src\Umbraco.Community.SchemeWeaver.TypeSafe\Umbraco.Community.SchemeWeaver.TypeSafe.csproj" />
 	</ItemGroup>
 
 	<PropertyGroup Condition="'$(UmbracoMajor)'!='17'">

@@ -53,6 +53,11 @@ public class RichResultsAuditFactory : WebApplicationFactory<Program>
                 ["uSync:Settings:ImportOnFirstBoot"] = "true",
                 ["uSync:Settings:FirstBootGroup"] = "All",
                 ["uSync:Settings:ImportAtStartup"] = "None",
+
+                // The TypeSafe satellite is composed into every TestHost boot. It must stay
+                // inert here: a developer's real key in user-secrets must never change what
+                // the audit sees, and integration hosts make no network calls.
+                ["SchemeWeaver:TypeSafe:Enabled"] = "false",
             });
         });
 

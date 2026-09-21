@@ -5,6 +5,7 @@
     <Project Path="src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj" />
     <Project Path="src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj" />
     <Project Path="src/Umbraco.Community.SchemeWeaver.TestHost/Umbraco.Community.SchemeWeaver.TestHost.csproj" />
+    <Project Path="src/Umbraco.Community.SchemeWeaver.TypeSafe/Umbraco.Community.SchemeWeaver.TypeSafe.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Umbraco.Community.SchemeWeaver.Deploy.Tests/Umbraco.Community.SchemeWeaver.Deploy.Tests.csproj" />

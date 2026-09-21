@@ -101,6 +101,11 @@ jobs:
       - name: Pack AI satellite
         run: dotnet pack src/Umbraco.Community.SchemeWeaver.AI/Umbraco.Community.SchemeWeaver.AI.csproj --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
+      # TypeSafe satellite: per-major like the rest of the suite, no frontend build, so it
+      # packs --no-build from the solution Build step like uSync and Deploy.
+      - name: Pack TypeSafe satellite
+        run: dotnet pack src/Umbraco.Community.SchemeWeaver.TypeSafe/Umbraco.Community.SchemeWeaver.TypeSafe.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
+
       - name: Upload NuGet package
         uses: actions/upload-artifact@v7
         with:

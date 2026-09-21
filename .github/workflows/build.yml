@@ -158,13 +158,15 @@ jobs:
 
       # The AI satellite line omits --no-build deliberately (matching release.yml): its
       # EnsureAIFrontendBuiltBeforePack target must be free to run npm and rebuild after
-      # the AI frontend (wwwroot/) lands — that output is not committed.
-      - name: Pack (SchemeWeaver + uSync + Deploy + AI addons)
+      # the AI frontend (wwwroot/) lands — that output is not committed. The TypeSafe
+      # satellite has no frontend, so it packs --no-build like uSync and Deploy.
+      - name: Pack (SchemeWeaver + uSync + Deploy + AI + TypeSafe addons)
         run: |
           dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.Deploy/Umbraco.Community.SchemeWeaver.Deploy.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.AI/Umbraco.Community.SchemeWeaver.AI.csproj --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
+          dotnet pack src/Umbraco.Community.SchemeWeaver.TypeSafe/Umbraco.Community.SchemeWeaver.TypeSafe.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
 
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v7

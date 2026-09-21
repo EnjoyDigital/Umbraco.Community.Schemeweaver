@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>Umbraco.Community.SchemeWeaver.TypeSafe</PackageId>
+    <Description>Calibrated, typed AI judgments for SchemeWeaver's Schema.org auto-mapper, powered by TypeSafe System One (Jev). No LLM provider, no prompt parsing: the model selects from closed option sets and code owns the rules.</Description>
+    <PackageTags>umbraco-marketplace schema-org ai typesafe</PackageTags>
+    <!-- Major-aligned with the rest of the suite (see Directory.Build.props): ships per
+         Umbraco major (17.x / 18.x via -p:UmbracoMajor) purely because the core package it
+         depends on does. This satellite itself has no Umbraco-version-specific code and no
+         third-party AI framework dependency — only HttpClient. -->
+    <Version>$(SchemeWeaverPackageVersion)</Version>
+    <Authors>Oliver Picton</Authors>
+    <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
+    <PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <RootNamespace>Umbraco.Community.SchemeWeaver.TypeSafe</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="NUGET_README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets the unit-test project see internals (the beam search, the merge policy) without
+         widening the public surface. Same project as every other satellite's tests. -->
+    <InternalsVisibleTo Include="Umbraco.Community.SchemeWeaver.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+
+</Project>

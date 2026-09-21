@@ -26,6 +26,7 @@ Umbraco content types in, Schema.org JSON-LD out. Start with the quick start tha
 
 - [MCP Server](mcp-server.md): sixteen tools and three skills so AI assistants can build better mappings than any heuristic
 - [AI Integration](ai-integration.md): AI-powered schema analysis inside the backoffice
+- [TypeSafe Integration](typesafe-integration.md): calibrated auto-map suggestions from TypeSafe System One, no UI change
 - [uSync](usync.md): mappings as version-controlled config files
 - [Umbraco Deploy](deploy.md): mappings as Deploy artifacts for Umbraco Cloud pipelines
 

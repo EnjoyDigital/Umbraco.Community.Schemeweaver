@@ -76,6 +76,12 @@ public class HeuristicRichCoverageFactory : WebApplicationFactory<Program>, Xuni
                 ["uSync:Settings:ImportOnFirstBoot"] = "true",
                 ["uSync:Settings:FirstBootGroup"] = "All",
                 ["uSync:Settings:ImportAtStartup"] = "None",
+
+                // The TypeSafe satellite is composed into every TestHost boot. It must stay
+                // inert here: this gate scores the HEURISTIC, so a developer's real key in
+                // user-secrets must never change what it sees, and integration hosts make
+                // no network calls.
+                ["SchemeWeaver:TypeSafe:Enabled"] = "false",
             });
         });
 

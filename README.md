@@ -22,7 +22,7 @@ You get a document-type editor UI for configuring mappings, an auto-mapper that 
 
 - **Full Schema.org vocabulary**: every type in [Schema.NET.Pending](https://github.com/RehanSaeed/Schema.NET) (around 800, including pending ones like `RealEstateListing`).
 - **Connected `@graph` output**: site-level Organization and WebSite entities, breadcrumb and page entity in one cross-referenced graph, with a legacy one-script-per-entity mode available.
-- **Auto-mapping with confidence scores**: suggests property mappings via exact, synonym and substring matching.
+- **Auto-mapping with confidence scores**: suggests property mappings via exact, synonym and substring matching. Optional satellites upgrade it: [AI Integration](docs/ai-integration.md) (an LLM via Umbraco.AI) or [TypeSafe Integration](docs/typesafe-integration.md) (calibrated typed judgments, no UI change).
 - **Eight source types**: pull values from the current node, a static value, the parent, an ancestor, a sibling, block content, nested complex types, or a shared graph reference.
 - **Transforms**: strip HTML, convert to an absolute URL, or format dates before output.
 - **Content type generation**: scaffold a new Umbraco document type from any Schema.org type.
@@ -60,6 +60,8 @@ The command is identical for both: each build's `Umbraco.Cms` dependency range i
 To sync mappings between environments, add the optional [uSync](https://jumoo.co.uk/usync/) addon (`dotnet add package Umbraco.Community.SchemeWeaver.uSync`), which follows the same major-aligned scheme. See [uSync Integration](docs/usync.md).
 
 Using [Umbraco Deploy](https://umbraco.com/products/add-ons/deploy/) or Umbraco Cloud instead? Add the optional Deploy addon (`dotnet add package Umbraco.Community.SchemeWeaver.Deploy`) and mappings deploy as `.uda` artifacts alongside your document types. See [Umbraco Deploy Integration](docs/deploy.md).
+
+Want better auto-map suggestions than name matching? Two optional satellites, both major-aligned: `Umbraco.Community.SchemeWeaver.AI` uses an LLM through Umbraco.AI and adds AI entity actions to the backoffice ([AI Integration](docs/ai-integration.md)); `Umbraco.Community.SchemeWeaver.TypeSafe` uses [TypeSafe](https://typesafe.ai) System One for calibrated, typed judgments behind the existing auto-map button, with only an API key to configure ([TypeSafe Integration](docs/typesafe-integration.md)).
 
 ## Quick start
 
@@ -155,7 +157,7 @@ The full index lives at **[docs/README.md](docs/README.md)**. Highlights:
 - [The JSON-LD Output Model](docs/json-ld-output.md): the `@graph`, site settings node, `@id` templates
 - [Language Variants](docs/language-variants.md) and [Delivery API](docs/delivery-api.md)
 - [Content Type Generation](docs/content-type-generation.md), [Extending](docs/extending.md), [API Reference](docs/api-reference.md)
-- [uSync](docs/usync.md), [Umbraco Deploy](docs/deploy.md), [AI Integration](docs/ai-integration.md), [MCP Server](docs/mcp-server.md)
+- [uSync](docs/usync.md), [Umbraco Deploy](docs/deploy.md), [AI Integration](docs/ai-integration.md), [TypeSafe Integration](docs/typesafe-integration.md), [MCP Server](docs/mcp-server.md)
 - [Advanced](docs/advanced.md): validation and suggestions, configuration, troubleshooting
 
 ## Notes

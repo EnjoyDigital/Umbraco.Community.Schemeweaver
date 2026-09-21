@@ -36,6 +36,19 @@
   </ItemGroup>
 
   <!--
+    SchemeWeaver.TypeSafe satellite: calibrated typed judgments from the TypeSafe System
+    One API over raw HttpClient (no AI framework, no provider package), so it ships for
+    BOTH majors and the TestHost includes it unconditionally. It boots inert without an
+    API key: supply one with `dotnet user-secrets set "SchemeWeaver:TypeSafe:ApiKey" "..."`
+    from this directory (see the SchemeWeaver:TypeSafe block in appsettings.Development.json).
+    With the AI satellite also referenced above, whichever composer runs last supplies
+    auto-map; the "SchemeWeaver TypeSafe: active/inert" startup log line says which.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver.TypeSafe\Umbraco.Community.SchemeWeaver.TypeSafe.csproj" />
+  </ItemGroup>
+
+  <!--
     Umbraco Deploy is licensed and OPT-IN for manual/E2E testing only:
       dotnet run -p:SchemeWeaverIncludeDeploy=true
     Keep it off for the default dev loop (no licence banners, no umbraco/Deploy

@@ -12,7 +12,7 @@ namespace Umbraco.Community.SchemeWeaver.AI;
 /// <see cref="ISchemaAutoMapper"/> wins — the last registration takes precedence.
 /// </summary>
 [ComposeAfter(typeof(Umbraco.Community.SchemeWeaver.Composing.SchemeWeaverComposer))]
-public class SchemeWeaverAIComposer : IComposer
+public class SchemeWeaverAIComposer : Umbraco.Community.SchemeWeaver.Composing.ISchemaAutoMapperReplacingComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {

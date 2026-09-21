@@ -95,6 +95,11 @@ public class SchemeWeaverWebApplicationFactory : WebApplicationFactory<Program>,
                 // content tree.
                 ["uSync:Settings:ImportOnFirstBoot"] = "false",
                 ["uSync:Settings:ImportAtStartup"] = "None",
+                // The TypeSafe satellite is composed into every TestHost boot. It must stay
+                // inert here: a developer's real key in user-secrets must never change what
+                // the heuristic assertions see, and integration hosts make no network calls.
+                // (TypeSafeDecoratedHostFactory re-enables it with a canned in-process client.)
+                ["SchemeWeaver:TypeSafe:Enabled"] = "false",
             });
         });
 
