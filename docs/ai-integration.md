@@ -39,6 +39,8 @@ You also need Umbraco.AI itself and a provider. Two things commonly trip people 
 
 No additional SchemeWeaver configuration is needed. The `SchemeWeaverAIComposer` registers the AI services and controller automatically. The frontend detects the AI package by calling `GET /ai/status` and shows AI buttons only when it returns successfully.
 
+If the [TypeSafe satellite](typesafe-integration.md) is installed as well, the two form a fixed cascade for property auto-mapping: TypeSafe answers first, this package's AI mapper is its fallback, and the heuristic is the AI mapper's fallback. The order is deterministic because `SchemeWeaverAIComposer` implements the core marker `ISchemaAutoMapperReplacingComposer` and the TypeSafe composer is declared to run after every composer that does. The AI entity actions (AI Analyse, AI Analyse All) and the Copilot tools are unaffected.
+
 ---
 
 ## Features
@@ -120,6 +122,8 @@ The `AISchemaMapper` service orchestrates all AI operations:
 4. **Merge strategy** for property mapping always retrieves heuristic suggestions as a baseline (they are fed to the AI as context), then treats the AI's suggestions as authoritative: the heuristic only fills schema properties the AI left unmapped
 
 The architecture ensures reliability: if the AI call fails or produces nothing usable, the heuristic baseline is returned unchanged.
+
+Note that this package REPLACES the `ISchemaAutoMapper` registration outright (the composer registers the interface again and the last registration wins), which is why it implements `ISchemaAutoMapperReplacingComposer`: any package that wants to wrap the seam rather than replace it, such as the TypeSafe satellite, orders itself after that marker.
 
 ---
 
