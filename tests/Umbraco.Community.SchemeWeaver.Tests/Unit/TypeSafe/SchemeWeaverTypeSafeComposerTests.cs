@@ -12,6 +12,7 @@ using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Client;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Composing;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Configuration;
@@ -62,6 +63,8 @@ public class SchemeWeaverTypeSafeComposerTests
         services.AddSingleton(Substitute.For<ISchemaTypeRegistry>());
         services.RemoveAll<IContentTypeService>();
         services.AddSingleton(Substitute.For<IContentTypeService>());
+        // The core composer (not run here) registers the value-schema service the v2 mapper injects.
+        services.AddSingleton(Substitute.For<IPropertyValueSchemaService>());
         registerSeam(services);
 
         new SchemeWeaverTypeSafeComposer().Compose(builder);
@@ -225,6 +228,102 @@ public class SchemeWeaverTypeSafeComposerTests
             act.Should().NotThrow("a local test double or dev proxy on loopback must not stop the site booting");
         else
             act.Should().Throw<OptionsValidationException>().WithMessage("*Endpoint*");
+    }
+
+    /// <summary>
+    /// v2 option ranges. Each is one value outside its documented range (both ends where a lower
+    /// bound exists) and the failure must name the option, so a misconfigured site fails at
+    /// startup with a message that says which key to fix.
+    /// </summary>
+    [Theory]
+    [InlineData("SecondaryBindingMinProbability", "1.5")]
+    [InlineData("SecondaryBindingMinProbability", "-0.1")]
+    [InlineData("MaxStateCharacters", "0")]
+    [InlineData("MaxStateCharacters", "-1")]
+    [InlineData("MaxAncestorDepth", "0")]
+    [InlineData("MaxAncestorDepth", "7")]
+    [InlineData("MaxNeighbourTypes", "0")]
+    [InlineData("MaxNeighbourTypes", "41")]
+    [InlineData("MaxPropertiesPerNeighbour", "0")]
+    [InlineData("MaxPropertiesPerNeighbour", "101")]
+    [InlineData("MaxNeighbourProperties", "0")]
+    [InlineData("MaxNeighbourProperties", "255")]
+    [InlineData("MaxSampledNodes", "0")]
+    [InlineData("MaxSampledNodes", "201")]
+    [InlineData("MinObservedShare", "-0.1")]
+    [InlineData("MinObservedShare", "1.1")]
+    [InlineData("MaxCrossNodeQuestions", "-1")]
+    [InlineData("MaxCrossNodeQuestions", "101")]
+    [InlineData("MinCrossNodeConfidence", "-1")]
+    [InlineData("MinCrossNodeConfidence", "101")]
+    [InlineData("MaxBlockRouteDepth", "0")]
+    [InlineData("MaxBlockRouteDepth", "4")]
+    public void Options_V2Ranges_AreValidated(string option, string value)
+    {
+        var services = Compose(
+            s => s.AddScoped<ISchemaAutoMapper, StubAutoMapper>(),
+            new Dictionary<string, string?> { [$"SchemeWeaver:TypeSafe:{option}"] = value });
+
+        using var provider = services.BuildServiceProvider();
+        var act = () => provider.GetRequiredService<IOptions<TypeSafeOptions>>().Value;
+
+        act.Should().Throw<OptionsValidationException>().WithMessage($"*{option}*");
+    }
+
+    [Theory]
+    [InlineData("MaxNeighbourProperties", "254")]
+    [InlineData("MaxBlockRouteDepth", "3")]
+    [InlineData("MaxAncestorDepth", "6")]
+    [InlineData("MaxCrossNodeQuestions", "0")]
+    [InlineData("MinObservedShare", "0")]
+    [InlineData("SecondaryBindingMinProbability", "1")]
+    [InlineData("MaxStateCharacters", "1")]
+    public void Options_V2Ranges_AcceptTheirBoundaries(string option, string value)
+    {
+        var services = Compose(
+            s => s.AddScoped<ISchemaAutoMapper, StubAutoMapper>(),
+            new Dictionary<string, string?> { [$"SchemeWeaver:TypeSafe:{option}"] = value });
+
+        using var provider = services.BuildServiceProvider();
+        var act = () => provider.GetRequiredService<IOptions<TypeSafeOptions>>().Value;
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Options_V2Defaults_BindAndEnumsParse()
+    {
+        var services = Compose(
+            s => s.AddScoped<ISchemaAutoMapper, StubAutoMapper>(),
+            new Dictionary<string, string?>
+            {
+                ["SchemeWeaver:TypeSafe:RoutesMode"] = "Always",
+                ["SchemeWeaver:TypeSafe:NeighbourhoodDiscovery"] = "Observed",
+            });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<TypeSafeOptions>>().Value;
+
+        options.RoutesMode.Should().Be(TypeSafeRoutesMode.Always);
+        options.NeighbourhoodDiscovery.Should().Be(TypeSafeNeighbourhoodDiscovery.Observed);
+
+        var defaults = new TypeSafeOptions();
+        defaults.SecondaryBindingMinProbability.Should().Be(0.30);
+        defaults.IncludeSampleValues.Should().BeFalse("sample values are customer content and leave the site: opt-in");
+        defaults.MaxStateCharacters.Should().Be(100_000, "roughly 25k tokens at four characters a token, under the 32k state cap");
+        defaults.EnableCrossNodeSources.Should().BeTrue();
+        defaults.NeighbourhoodDiscovery.Should().Be(TypeSafeNeighbourhoodDiscovery.Both);
+        defaults.MaxAncestorDepth.Should().Be(3);
+        defaults.MaxNeighbourTypes.Should().Be(12);
+        defaults.MaxPropertiesPerNeighbour.Should().Be(30);
+        defaults.MaxNeighbourProperties.Should().Be(120);
+        defaults.MaxSampledNodes.Should().Be(25);
+        defaults.MinObservedShare.Should().Be(0.5);
+        defaults.MaxCrossNodeQuestions.Should().Be(12);
+        defaults.MinCrossNodeConfidence.Should().Be(60, "the core's show bar: cross-node rows are offered like any other suggestion");
+        defaults.RoutesMode.Should().Be(TypeSafeRoutesMode.Auto);
+        defaults.MaxBlockRouteDepth.Should().Be(3);
+        defaults.ToString().Should().Contain("RoutesMode=Auto").And.Contain("MinCrossNodeConfidence=60");
     }
 
     [Fact]

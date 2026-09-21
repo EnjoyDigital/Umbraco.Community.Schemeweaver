@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Client;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Configuration;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Services.Judgments;
@@ -36,6 +37,17 @@ namespace Umbraco.Community.SchemeWeaver.TypeSafe.Services;
 /// Everything else is code: which source types are structurally possible, the declared range,
 /// media never becoming a complexType shell, claim collisions, resolver-config assembly, and
 /// the merge with the heuristic's priors.
+/// <para>
+/// v2 removes the four limits v1 shipped with (strict F1 0.714 against the heuristic's 0.561
+/// on the repository's eval harness, measured with them in place): a content property can
+/// feed two schema properties (the bind answer's runner-up, plus the Headline/Name rule);
+/// nested Block List rows are planned per element type and per depth by
+/// <see cref="BlockRoutePlanner"/> and emitted as the core's <c>routes</c> config when the v1
+/// single-type shape cannot express them; unbound schema properties are offered the page's
+/// neighbours by <see cref="CrossNodeBinder"/> (<c>parent</c>/<c>ancestor</c>/<c>sibling</c>
+/// rows); and the state carries each property's value schema. None of it changes a question
+/// the v1 rounds ask.
+/// </para>
 /// </remarks>
 public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
 {
@@ -55,6 +67,7 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
     private readonly ISchemaTypeGraph _graph;
     private readonly ISchemaTypeRegistry _registry;
     private readonly IContentTypeService _contentTypeService;
+    private readonly IPropertyValueSchemaService _valueSchemaService;
     private readonly IServiceProvider _serviceProvider;
     private readonly TypeSafeOptions _options;
     private readonly SchemaAutoMapperOptions _autoMapperOptions;
@@ -65,6 +78,7 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
         ISchemaTypeGraph graph,
         ISchemaTypeRegistry registry,
         IContentTypeService contentTypeService,
+        IPropertyValueSchemaService valueSchemaService,
         IServiceProvider serviceProvider,
         IOptions<TypeSafeOptions> options,
         IOptions<SchemaAutoMapperOptions> autoMapperOptions,
@@ -74,6 +88,7 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
         _graph = graph;
         _registry = registry;
         _contentTypeService = contentTypeService;
+        _valueSchemaService = valueSchemaService;
         _serviceProvider = serviceProvider;
         _options = options.Value;
         _autoMapperOptions = autoMapperOptions.Value;
@@ -90,7 +105,7 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
         priors ??= [];
 
         var snapshot = await ContentTypeSnapshot
-            .BuildAsync(_contentTypeService, _serviceProvider, contentTypeAlias, _logger, cancellationToken)
+            .BuildAsync(_contentTypeService, _serviceProvider, _valueSchemaService, _options, contentTypeAlias, _logger, cancellationToken)
             .ConfigureAwait(false);
         if (snapshot is null)
         {
@@ -102,23 +117,29 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
         if (schemaProperties.Count == 0)
         {
             _logger.LogDebug("TypeSafe mapper: schema type {SchemaType} has no properties in the registry", schemaTypeName);
-            return MergeWithPriors(priors, []);
+            return MergeWithPriors(priors, [], new HashSet<PropertyMappingSuggestion>(ReferenceEqualityComparer.Instance));
         }
 
         var session = new JudgmentSession(_client, _options.MaxQuestionsPerRequest, _logger);
         var state = snapshot.ToState(schemaTypeName);
 
-        var rows = await BindAsync(session, state, snapshot, schemaTypeName, schemaProperties, cancellationToken).ConfigureAwait(false);
+        var bind = await BindAsync(session, state, snapshot, schemaTypeName, schemaProperties, cancellationToken).ConfigureAwait(false);
+        var rows = bind.Rows;
         await ShapeAsync(session, state, rows, schemaTypeName, cancellationToken).ConfigureAwait(false);
+        await PlanRoutesAsync(session, state, snapshot, rows, schemaTypeName, cancellationToken).ConfigureAwait(false);
         await DescendAsync(session, state, rows, schemaTypeName, cancellationToken).ConfigureAwait(false);
         var innerAnswers = await AskInnerAsync(session, state, rows, schemaTypeName, cancellationToken).ConfigureAwait(false);
+        var crossNodeRows = await BindCrossNodeAsync(session, snapshot, schemaTypeName, schemaProperties, bind.ClaimedLocally, cancellationToken).ConfigureAwait(false);
 
-        var typeSafeRows = Assemble(rows, innerAnswers);
-        var result = MergeWithPriors(priors, typeSafeRows);
+        var secondaryRows = new HashSet<PropertyMappingSuggestion>(ReferenceEqualityComparer.Instance);
+        var typeSafeRows = Assemble(rows, innerAnswers, secondaryRows);
+        var routesRows = rows.Count(r => r.UseRoutes && r.RoutePlan is { Routes.Count: > 0 });
+        typeSafeRows.AddRange(crossNodeRows);
+        var result = MergeWithPriors(priors, typeSafeRows, secondaryRows);
 
         _logger.LogInformation(
-            "TypeSafe mapped {ContentType} to {SchemaType}: {Rows} row(s) emitted ({TypeSafeRows} from TypeSafe), {Requests} request(s), {Questions} question(s), {InputTokens} input tokens",
-            contentTypeAlias, schemaTypeName, result.Count, typeSafeRows.Count, session.Requests, session.Questions, session.InputTokens);
+            "TypeSafe mapped {ContentType} to {SchemaType}: {Rows} row(s) emitted ({TypeSafeRows} from TypeSafe, {CrossNodeRows} cross-node, {RoutesRows} with routes), {Requests} request(s), {Questions} question(s), {InputTokens} input tokens",
+            contentTypeAlias, schemaTypeName, result.Count, typeSafeRows.Count, crossNodeRows.Count, routesRows, session.Requests, session.Questions, session.InputTokens);
 
         return result;
     }
@@ -127,7 +148,15 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
     // Round 1 — bind each content property to a schema property (or none)
     // ---------------------------------------------------------------------------
 
-    private async Task<List<MappingRow>> BindAsync(
+    /// <summary>
+    /// One Choice per content property, then the claims. Beyond v1: a runner-up in the answer's
+    /// distribution at or above <see cref="TypeSafeOptions.SecondaryBindingMinProbability"/>
+    /// becomes a second claim when no primary took that schema property (costs no question), and
+    /// the Headline/Name rule fills whichever of the pair the model left empty. The result also
+    /// carries every schema property claimed at ANY confidence, which the cross-node round
+    /// treats as "supplied by the page itself" even when the bind floor dropped the row.
+    /// </summary>
+    private async Task<BindResult> BindAsync(
         JudgmentSession session,
         object state,
         ContentTypeSnapshot snapshot,
@@ -167,14 +196,20 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
         // schema property (case-insensitive) -> claimants, most confident first.
         var claims = new Dictionary<string, List<Claimant>>(StringComparer.OrdinalIgnoreCase);
         var claimOrder = new List<string>();
+        var claimedLocally = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var chosen = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in snapshot.Properties)
         {
             var id = idByAlias[property.Alias];
             var choice = JudgmentSession.Choice(answers, id, allowed);
+            chosen[property.Alias] = choice;
             if (choice is null)
                 continue;
 
+            claimedLocally.Add(choice);
             var confidence = JudgmentSession.Confidence(answers, id, choice);
+            if (property.IsBlock)
+                confidence = ContainerFamilyConfidence(answers.TryGetValue(id, out var blockAnswer) ? blockAnswer : null, choice, confidence, allowed);
             if (ToPercent(confidence) < _options.MinBindingConfidence)
                 continue;
 
@@ -187,40 +222,156 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
             claimants.Add(new Claimant(property, confidence));
         }
 
+        // RULE, not judgment: Headline and Name are the same string on every page type that
+        // declares both, and a hand-written mapping always fills both. When the model bound
+        // exactly one of them from a page property, the other gets the same source at the
+        // same confidence. Runs BEFORE the runner-up pass: a 30-50% runner-up on the other of
+        // the pair (exactly where the model spreads its probability) would otherwise pre-empt
+        // the rule with a weaker, unticked row. Block claims are excluded: a block list is
+        // never a headline.
+        var headline = schemaProperties.FirstOrDefault(p => string.Equals(p.Name, "Headline", StringComparison.OrdinalIgnoreCase));
+        var name = schemaProperties.FirstOrDefault(p => string.Equals(p.Name, "Name", StringComparison.OrdinalIgnoreCase));
+        if (headline is not null && name is not null)
+        {
+            var hasHeadline = claims.ContainsKey(headline.Name);
+            var hasName = claims.ContainsKey(name.Name);
+            string? boundName = null;
+            SchemaPropertyInfo? missing = null;
+            if (hasHeadline && !hasName)
+                (boundName, missing) = (headline.Name, name);
+            else if (!hasHeadline && hasName)
+                (boundName, missing) = (name.Name, headline);
+
+            if (boundName is not null && missing is not null)
+            {
+                var source = claims[boundName].OrderByDescending(c => c.Confidence).First();
+                if (!source.Property.IsBlock)
+                {
+                    claimedLocally.Add(missing.Name);
+                    claims[missing.Name] = [new Claimant(source.Property, source.Confidence)];
+                    claimOrder.Add(missing.Name);
+                    _logger.LogDebug("TypeSafe bind: {Missing} filled from {Bound}'s source `{Alias}` by the Headline/Name rule",
+                        missing.Name, boundName, source.Property.Alias);
+                }
+            }
+        }
+
+        // Secondary claims: the answer's runner-up for a schema property no primary took. This
+        // is how `title` reaches both `headline` and `name`, which v1 could not express (one
+        // target per content property was a documented limit). Read from the distribution the
+        // Choice already returned, so it costs nothing; gated by its own probability floor and
+        // never allowed to displace a primary claim.
+        var secondaries = new List<(string SchemaProperty, Claimant Claimant)>();
+        foreach (var property in snapshot.Properties)
+        {
+            // Never for a Block List: a runner-up block row would run the whole route planner
+            // (root/skip, descent, inner questions) for a row that is only ever offered unticked.
+            if (property.IsBlock)
+                continue;
+
+            if (!answers.TryGetValue(idByAlias[property.Alias], out var answer) || answer.Probabilities is not { Count: > 0 } probabilities)
+                continue;
+
+            var primaryChoice = chosen[property.Alias];
+            foreach (var (option, p) in probabilities)
+            {
+                if (string.Equals(option, JudgmentSession.None, StringComparison.Ordinal)
+                    || string.Equals(option, primaryChoice, StringComparison.Ordinal)
+                    || !allowed.Contains(option, StringComparer.Ordinal)
+                    || double.IsNaN(p) || p < _options.SecondaryBindingMinProbability || p > 1
+                    || ToPercent(p) < _options.MinBindingConfidence
+                    || claims.ContainsKey(option))
+                {
+                    continue;
+                }
+
+                secondaries.Add((option, new Claimant(property, p)));
+            }
+        }
+
+        foreach (var (schemaProp, claimant) in secondaries)
+        {
+            claimedLocally.Add(schemaProp);
+            if (!claims.TryGetValue(schemaProp, out var claimants))
+            {
+                claims[schemaProp] = claimants = [];
+                claimOrder.Add(schemaProp);
+            }
+
+            claimants.Add(claimant);
+        }
+
+        // A schema property whose only claimants are runner-ups is a secondary row: offered on
+        // its own floor and never pre-ticked (see MergeWithPriors). By construction a runner-up
+        // is only recorded for a schema property no primary claimed, so the set is exact.
+        var secondaryProps = new HashSet<string>(secondaries.Select(s => s.SchemaProperty), StringComparer.OrdinalIgnoreCase);
+
         var rows = new List<MappingRow>();
         foreach (var schemaProp in claimOrder)
         {
             var reg = schemaProperties.First(p => string.Equals(p.Name, schemaProp, StringComparison.OrdinalIgnoreCase));
             var claimants = claims[schemaProp].OrderByDescending(c => c.Confidence).ToList();
-            var primary = claimants[0];
-            var isBlock = primary.Property.IsBlock;
-            var innerProps = isBlock ? snapshot.BlockInnerProperties(primary.Property.Alias) : [];
-
-            // RULE, not judgment: a media property resolves to a fully-populated ImageObject
-            // through the media resolver, so it must stay `property` — wrapping it produces an
-            // empty shell (the trap documented on SchemaAutoMapper's *.logo popular default).
-            // A content picker likewise resolves to the picked node's own entity through the
-            // picked-content ladder, which the heuristic also keeps as `property`.
-            var canBeComplex = !isBlock
-                && !primary.Property.IsMedia
-                && !primary.Property.IsContentPicker
-                && reg.IsComplexType
-                && _graph.RangeOf(schemaTypeName, reg.Name).Count > 0;
-
-            rows.Add(new MappingRow(reg, primary, isBlock, innerProps, canBeComplex)
-            {
-                // Several content properties can legitimately assemble ONE nested entity
-                // (locationName + locationAddress -> Place). For a scalar target only the most
-                // confident claim survives; for a nested entity they are all source fields.
-                Claimants = canBeComplex || isBlock ? claimants : [primary],
-                SourceType = isBlock ? SchemeWeaverConstants.SourceTypes.BlockContent : SchemeWeaverConstants.SourceTypes.Property,
-            });
+            var row = CreateRow(snapshot, schemaTypeName, reg, claimants);
+            row.IsSecondary = secondaryProps.Contains(schemaProp);
+            rows.Add(row);
         }
 
-        _logger.LogDebug("TypeSafe bind: {Bound} of {Total} content properties bound to {Distinct} schema properties",
-            claims.Values.Sum(c => c.Count), snapshot.Properties.Count, rows.Count);
+        _logger.LogDebug("TypeSafe bind: {Bound} of {Total} content properties bound to {Distinct} schema properties ({Secondary} secondary claim(s))",
+            claims.Values.Sum(c => c.Count), snapshot.Properties.Count, rows.Count, secondaries.Count);
 
-        return rows;
+        return new BindResult(rows, claimedLocally);
+    }
+
+    /// <summary>
+    /// RULE, not judgment: a Block List belongs on SOME collection property of the page, and WHICH
+    /// one (mainEntity, hasPart, about, itemListElement, mainContentOfPage) is a secondary choice
+    /// the model spreads its probability across. Judged by the winner alone, a list whose
+    /// containers split the mass is dropped: the live measurement gated a fully planned routes
+    /// row on a 0.40/0.35 hasPart/mainEntity split. A block bound to a container therefore
+    /// carries the family's mass (capped at 1), and the row keeps the winner as its target.
+    /// </summary>
+    private static double ContainerFamilyConfidence(SystemOneAnswer? answer, string choice, double confidence, IReadOnlyCollection<string> allowed)
+    {
+        if (answer?.Probabilities is not { Count: > 0 } probabilities
+            || !BlockRoutePlanner.CollectionTargets.Contains(choice, StringComparer.OrdinalIgnoreCase))
+        {
+            return confidence;
+        }
+
+        var family = probabilities
+            .Where(kv => BlockRoutePlanner.CollectionTargets.Contains(kv.Key, StringComparer.OrdinalIgnoreCase)
+                && allowed.Contains(kv.Key, StringComparer.Ordinal)
+                && !double.IsNaN(kv.Value))
+            .Sum(kv => kv.Value);
+        return Math.Max(confidence, Math.Min(1.0, family));
+    }
+
+    /// <summary>A row for one claimed schema property from its claimants, most confident first.</summary>
+    private MappingRow CreateRow(ContentTypeSnapshot snapshot, string schemaTypeName, SchemaPropertyInfo reg, List<Claimant> claimants)
+    {
+        var primary = claimants[0];
+        var isBlock = primary.Property.IsBlock;
+        var innerProps = isBlock ? snapshot.BlockInnerProperties(primary.Property.Alias) : [];
+
+        // RULE, not judgment: a media property resolves to a fully-populated ImageObject
+        // through the media resolver, so it must stay `property` — wrapping it produces an
+        // empty shell (the trap documented on SchemaAutoMapper's *.logo popular default).
+        // A content picker likewise resolves to the picked node's own entity through the
+        // picked-content ladder, which the heuristic also keeps as `property`.
+        var canBeComplex = !isBlock
+            && !primary.Property.IsMedia
+            && !primary.Property.IsContentPicker
+            && reg.IsComplexType
+            && _graph.RangeOf(schemaTypeName, reg.Name).Count > 0;
+
+        return new MappingRow(reg, primary, isBlock, innerProps, canBeComplex)
+        {
+            // Several content properties can legitimately assemble ONE nested entity
+            // (locationName + locationAddress -> Place). For a scalar target only the most
+            // confident claim survives; for a nested entity they are all source fields.
+            Claimants = canBeComplex || isBlock ? claimants : [primary],
+            SourceType = isBlock ? SchemeWeaverConstants.SourceTypes.BlockContent : SchemeWeaverConstants.SourceTypes.Property,
+        };
     }
 
     // ---------------------------------------------------------------------------
@@ -303,6 +454,62 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
                 row.SourceType = SchemeWeaverConstants.SourceTypes.ComplexType;
                 row.NeedsNestedType = true;
             }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Round 2a — nested Block List rows planned per element type (v2 routes)
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Hands every nested-shaped block row with a usable range to <see cref="BlockRoutePlanner"/>
+    /// unless <see cref="TypeSafeOptions.RoutesMode"/> is <see cref="TypeSafeRoutesMode.Off"/>,
+    /// and takes the planned rows out of the v1 descent and inner rounds. A block row with no
+    /// element types, or whose property has no entity range, stays on the v1 path (a plain
+    /// blockContent row, or the string-list fallback) exactly as before.
+    /// </summary>
+    private async Task PlanRoutesAsync(
+        JudgmentSession session,
+        object state,
+        ContentTypeSnapshot snapshot,
+        List<MappingRow> rows,
+        string schemaTypeName,
+        CancellationToken cancellationToken)
+    {
+        if (_options.RoutesMode == TypeSafeRoutesMode.Off)
+            return;
+
+        var subjects = new List<(MappingRow Row, BlockListSubject Subject)>();
+        foreach (var row in rows)
+        {
+            if (!row.IsBlock || row.Shape != Nested || !row.NeedsNestedType)
+                continue;
+
+            var elements = snapshot.BlockElementTypes(row.Primary.Property.Alias);
+            if (elements.Count == 0 || _graph.RangeOf(schemaTypeName, row.SchemaProperty.Name).Count == 0)
+                continue;
+
+            subjects.Add((row, new BlockListSubject(row.SchemaProperty.Name, row.Primary.Property.Alias, schemaTypeName, row.SchemaProperty.Name, elements)));
+        }
+
+        if (subjects.Count == 0)
+            return;
+
+        var planner = new BlockRoutePlanner(session, _graph, NestedTargets, _options, _logger);
+        var plans = await planner.PlanAsync(state, subjects.Select(s => s.Subject).ToList(), cancellationToken).ConfigureAwait(false);
+
+        foreach (var (row, subject) in subjects)
+        {
+            if (!plans.TryGetValue(subject.Key, out var plan))
+                continue;
+
+            row.RoutePlan = plan;
+            row.NeedsNestedType = false;
+            row.UseRoutes = _options.RoutesMode == TypeSafeRoutesMode.Always || plan.RequiresRoutes;
+            row.NestedType = row.UseRoutes ? null : plan.NestedType;
+
+            _logger.LogDebug("TypeSafe routes {Property}: {Kept} element type(s) kept, {Skipped} skipped, {Routes} route(s); emitted as {Shape}",
+                row.SchemaProperty.Name, plan.KeptElements, plan.SkippedElements, plan.Routes.Count, row.UseRoutes ? "routes" : "v1 nestedMappings");
         }
     }
 
@@ -425,7 +632,8 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
 
         foreach (var row in rows)
         {
-            if (row.SourceType == SchemeWeaverConstants.SourceTypes.BlockContent && row.Shape == Nested && row.NestedType is not null)
+            // A planned block row already has its field bindings from the route planner.
+            if (row.SourceType == SchemeWeaverConstants.SourceTypes.BlockContent && row.Shape == Nested && row.NestedType is not null && row.RoutePlan is null)
             {
                 var targets = NestedTargets(row.NestedType);
                 inner.NestedAllowed[row] = targets.Select(t => t.Name).ToList();
@@ -480,12 +688,58 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
     }
 
     // ---------------------------------------------------------------------------
+    // Round 4 — cross-node sources (parent / ancestor / sibling)
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// The cross-node round, only when enabled and the snapshot found neighbours. It is an
+    /// additive round over a second state, so a failure inside it is caught here by policy
+    /// and logged rather than allowed to discard the local mapping the earlier rounds built;
+    /// the v1 rounds keep v1's behaviour (an API failure propagates to the decorator's fallback).
+    /// </summary>
+    private async Task<List<PropertyMappingSuggestion>> BindCrossNodeAsync(
+        JudgmentSession session,
+        ContentTypeSnapshot snapshot,
+        string schemaTypeName,
+        List<SchemaPropertyInfo> schemaProperties,
+        IReadOnlySet<string> claimedLocally,
+        CancellationToken cancellationToken)
+    {
+        if (!_options.EnableCrossNodeSources || snapshot.Neighbourhood.IsEmpty)
+            return [];
+
+        try
+        {
+            var ranked = Heuristic().RankSchemaProperties(schemaTypeName).Select(p => p.Name).ToList();
+            var binder = new CrossNodeBinder(session, _graph, _options, _logger);
+            return await binder
+                .BindAsync(snapshot, schemaTypeName, schemaProperties, claimedLocally, ranked, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "TypeSafe cross-node round for {ContentType} -> {SchemaType} failed; keeping the local mapping without cross-node rows",
+                snapshot.Alias, schemaTypeName);
+            return [];
+        }
+    }
+
+    // ---------------------------------------------------------------------------
     // Assembly
     // ---------------------------------------------------------------------------
 
-    private List<PropertyMappingSuggestion> Assemble(List<MappingRow> rows, InnerAnswers inner)
+    private List<PropertyMappingSuggestion> Assemble(List<MappingRow> rows, InnerAnswers inner, HashSet<PropertyMappingSuggestion> secondaryRows)
     {
         var suggestions = new List<PropertyMappingSuggestion>();
+
+        // Every emitted suggestion goes through here so a secondary row's identity reaches the
+        // gate in MergeWithPriors whichever branch below produced it.
+        void Emit(MappingRow row, PropertyMappingSuggestion suggestion)
+        {
+            suggestions.Add(suggestion);
+            if (row.IsSecondary)
+                secondaryRows.Add(suggestion);
+        }
         foreach (var row in rows)
         {
             var suggestion = new PropertyMappingSuggestion
@@ -501,6 +755,33 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
                 Confidence = ToPercent(row.Primary.Confidence),
             };
 
+            if (row.RoutePlan is { } plan)
+            {
+                // Planned per element type. Routes when the list needs them (or always, by
+                // option); otherwise the v1 shape, byte-identical for a single-element list.
+                // A plan with nothing bound is dropped, as v1 dropped a list with no inner
+                // bindings.
+                if (row.UseRoutes)
+                {
+                    if (plan.Routes.Count == 0)
+                        continue;
+
+                    suggestion.SuggestedNestedSchemaTypeName = null;
+                    suggestion.SuggestedResolverConfig = RouteConfigWriter.WriteRoutes(plan.Routes);
+                }
+                else
+                {
+                    if (plan.NestedMappings.Count == 0 || plan.NestedType is null)
+                        continue;
+
+                    suggestion.SuggestedNestedSchemaTypeName = plan.NestedType;
+                    suggestion.SuggestedResolverConfig = RouteConfigWriter.WriteNestedMappings(plan.NestedMappings);
+                }
+
+                Emit(row, suggestion);
+                continue;
+            }
+
             if (row.SourceType == SchemeWeaverConstants.SourceTypes.BlockContent && row.InnerProps.Count == 0)
             {
                 // The model bound the block but its element types could not be introspected
@@ -510,7 +791,7 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
                 // heuristic emits in the same situation. Dropping it would lose a binding the
                 // model made.
                 suggestion.SuggestedNestedSchemaTypeName = null;
-                suggestions.Add(suggestion);
+                Emit(row, suggestion);
                 continue;
             }
 
@@ -546,6 +827,14 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
                 var nestedMappings = new List<object>();
                 foreach (var ip in row.InnerProps)
                 {
+                    // A field that is itself a Block List cannot be a flat nested mapping: the core
+                    // resolver re-enters with no routes and no nested type, warns, and drops it. v1
+                    // emitted exactly that dead mapping (with a wrapInType of "Thing"); on the v2
+                    // paths the route planner handles such fields, and under RoutesMode.Off they
+                    // are simply left out rather than emitted dead.
+                    if (SchemeWeaverConstants.PropertyEditors.BlockEditorAliases.Contains(ip.EditorAlias))
+                        continue;
+
                     var choice = inner.Ids.TryGetValue((row, ip.Alias), out var id) ? JudgmentSession.Choice(inner.Answers, id, allowed) : null;
                     if (choice is null)
                         continue;
@@ -599,7 +888,7 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
                 suggestion.SuggestedResolverConfig = JsonSerializer.Serialize(new { complexTypeMappings }, ConfigJson);
             }
 
-            suggestions.Add(suggestion);
+            Emit(row, suggestion);
         }
 
         return suggestions;
@@ -611,8 +900,10 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
 
     /// <summary>
     /// Combines TypeSafe's rows with the heuristic's suggestions (the priors) according to
-    /// <see cref="TypeSafeOptions.PriorsMode"/>, then gates exactly as the heuristic does
-    /// (<c>IsAutoMapped</c> at the auto-apply bar, rows below the show bar dropped).
+    /// <see cref="TypeSafeOptions.PriorsMode"/>, then gates as the heuristic does
+    /// (<c>IsAutoMapped</c> at the auto-apply bar, rows below the show bar dropped), with one
+    /// exception: a secondary (runner-up) row is kept at or above
+    /// <see cref="TypeSafeOptions.SecondaryBindingMinProbability"/> and is never auto-mapped.
     /// </summary>
     /// <remarks>
     /// This is a design decision that was MEASURED, not an eval finding: the harness scores
@@ -632,23 +923,38 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
     /// </remarks>
     private List<PropertyMappingSuggestion> MergeWithPriors(
         IReadOnlyList<PropertyMappingSuggestion> priors,
-        IReadOnlyList<PropertyMappingSuggestion> typeSafeRows)
+        IReadOnlyList<PropertyMappingSuggestion> typeSafeRows,
+        HashSet<PropertyMappingSuggestion> secondaryRows)
     {
         var autoApply = _autoMapperOptions.AutoApplyConfidenceThreshold;
         var show = _autoMapperOptions.ShowConfidenceThreshold;
+
+        // A secondary (runner-up) row can never reach the show bar: the chosen option holds
+        // most of the distribution, so a runner-up tops out around 50 and the default bar is
+        // 60. It is offered on its own floor (SecondaryBindingMinProbability) as a
+        // click-to-accept alternative and is never pre-ticked, which is exactly what a
+        // plausible second target should look like to an editor.
+        var secondaryFloor = ToPercent(_options.SecondaryBindingMinProbability);
 
         var merged = typeSafeRows.OrderByDescending(r => r.Confidence).ToList();
         var filled = 0;
 
         if (_options.PriorsMode == TypeSafePriorsMode.GapFill)
         {
-            var bound = new HashSet<string>(merged.Select(r => r.SchemaPropertyName), StringComparer.OrdinalIgnoreCase);
+            // A secondary row does not count as bound: a rule-driven prior is something the
+            // heuristic is sure of, a runner-up is not, so the prior fills the gap and the
+            // secondary for the same schema property gives way to it.
+            var bound = new HashSet<string>(
+                merged.Where(r => !secondaryRows.Contains(r)).Select(r => r.SchemaPropertyName),
+                StringComparer.OrdinalIgnoreCase);
             foreach (var prior in priors)
             {
                 var ruleShaped = !string.Equals(prior.SuggestedSourceType, SchemeWeaverConstants.SourceTypes.Property, StringComparison.OrdinalIgnoreCase)
                     || prior.Confidence == 100;
                 if (ruleShaped && bound.Add(prior.SchemaPropertyName))
                 {
+                    merged.RemoveAll(r => secondaryRows.Contains(r)
+                        && string.Equals(r.SchemaPropertyName, prior.SchemaPropertyName, StringComparison.OrdinalIgnoreCase));
                     merged.Add(prior);
                     filled++;
                 }
@@ -656,9 +962,11 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
         }
 
         foreach (var suggestion in merged)
-            suggestion.IsAutoMapped = suggestion.Confidence >= autoApply;
+            suggestion.IsAutoMapped = suggestion.Confidence >= autoApply && !secondaryRows.Contains(suggestion);
 
-        var result = merged.Where(s => s.Confidence >= show).ToList();
+        var result = merged
+            .Where(s => s.Confidence >= show || (secondaryRows.Contains(s) && s.Confidence >= secondaryFloor))
+            .ToList();
 
         _logger.LogDebug("TypeSafe merge ({Mode}): {TypeSafe} TypeSafe row(s), {Filled} prior(s) gap-filled of {Priors}, {Result} after gating",
             _options.PriorsMode, typeSafeRows.Count, filled, priors.Count, result.Count);
@@ -791,7 +1099,22 @@ public sealed class TypeSafePropertyMapper : ITypeSafePropertyMapper
         public string? NestedType { get; set; }
 
         public bool NeedsNestedType { get; set; }
+
+        /// <summary>The per-element-type plan for a nested block row (v2); null on the v1 path.</summary>
+        public BlockRoutePlan? RoutePlan { get; set; }
+
+        /// <summary>Whether the plan is emitted as <c>routes</c> (true) or the v1 <c>nestedMappings</c> shape.</summary>
+        public bool UseRoutes { get; set; }
+
+        /// <summary>
+        /// The row exists only because of a bind answer's runner-up (no content property chose
+        /// this schema property outright). Gated on its own floor and never pre-ticked.
+        /// </summary>
+        public bool IsSecondary { get; set; }
     }
+
+    /// <summary>The bind round's rows, plus every schema property a page property claimed at any confidence.</summary>
+    private sealed record BindResult(List<MappingRow> Rows, IReadOnlySet<string> ClaimedLocally);
 
     private sealed class InnerAnswers
     {

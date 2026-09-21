@@ -210,15 +210,25 @@ export function rowsToPropertyMappingDtos(rows: PropertyMappingRow[]): PropertyM
     }));
 }
 
-/** Convert PropertyMappingSuggestion to UI row model */
+/**
+ * Convert PropertyMappingSuggestion to UI row model.
+ *
+ * A cross-node suggestion (parent / ancestor / sibling) names the related
+ * content type in `suggestedSourceContentTypeAlias`; it lands on the row as
+ * `sourceContentTypeAlias`, the field the save path persists, so the type the
+ * mapper chose survives from the API to the stored row. The related type's
+ * property list and document-type key need a round-trip and are hydrated
+ * separately (`enrichRelatedSourceRows`). A static suggestion likewise carries
+ * its literal in `staticValue`, which is the only thing that makes it a row.
+ */
 export function suggestionToRow(s: PropertyMappingSuggestion): PropertyMappingRow {
   return {
     schemaPropertyName: s.schemaPropertyName,
     schemaPropertyType: s.schemaPropertyType || '',
     sourceType: s.suggestedSourceType,
     contentTypePropertyAlias: s.suggestedContentTypePropertyAlias || '',
-    sourceContentTypeAlias: '',
-    staticValue: '',
+    sourceContentTypeAlias: s.suggestedSourceContentTypeAlias || '',
+    staticValue: s.staticValue || '',
     confidence: s.confidence,
     editorAlias: s.editorAlias || '',
     nestedSchemaTypeName: s.suggestedNestedSchemaTypeName || '',
@@ -270,13 +280,16 @@ export function mergeAutoMapSuggestions(
       rowMap.set(key, { ...existing, confidence: suggestion.confidence });
     } else if (
       suggestion.suggestedContentTypePropertyAlias ||
+      (suggestion.suggestedSourceType === SourceType.Static && suggestion.staticValue) ||
       (suggestion.suggestedSourceType === SourceType.Reference && suggestion.suggestedTargetPieceKey) ||
       (suggestion.isComplexType && suggestion.suggestedNestedSchemaTypeName && suggestion.confidence > 0)
     ) {
-      // Only add suggestions that have an actual property match, reference a
-      // graph piece, or are complex types the auto-mapper actually matched
-      // (confidence > 0). Zero-confidence unmatched properties can be added
-      // on-demand via the "Add property" combobox.
+      // Only add suggestions that have an actual property match (a cross-node
+      // parent/ancestor/sibling row counts: it names a property of the related
+      // type), carry a static literal, reference a graph piece, or are complex
+      // types the auto-mapper actually matched (confidence > 0). Zero-confidence
+      // unmatched properties can be added on-demand via the "Add property"
+      // combobox.
       rowMap.set(key, suggestionToRow(suggestion));
     }
   }

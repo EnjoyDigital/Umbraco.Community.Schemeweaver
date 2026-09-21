@@ -1,6 +1,16 @@
 // The TypeSafe leg of the eval harness: produce a property mapping for one content
 // type out of small typed judgments instead of one free-form LLM completion.
 //
+// STATUS: FROZEN v1 SPECIFICATION
+// -------------------------------
+// This file is the executable specification the C# port (TypeSafePropertyMapper in
+// src/Umbraco.Community.SchemeWeaver.TypeSafe) was written from, and it stays at v1 so the
+// oracle ceiling (eval/oracle.mjs: rich 11/12, strict F1 0.906) and the cached-context
+// runs (eval/run-typesafe.mjs) remain a stable reference. v2 (cross-node parent/ancestor/
+// sibling sources, per-block-type `routes` for nested blocks, multiple schema targets per
+// content property, value schema in the state) lives ONLY in the C# package and is
+// measured live against the TestHost by eval/run-typesafe-live.mjs. Do not port v2 here.
+//
 // SHAPE OF THE APPROACH
 // ---------------------
 // Code owns the workflow, the rules and the vocabulary; Jev only supplies the semantic

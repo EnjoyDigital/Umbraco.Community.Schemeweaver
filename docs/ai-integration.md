@@ -84,6 +84,8 @@ When mapping properties (either from the bulk flow or the individual mapping mod
 
 This strategy means AI enhances accuracy without sacrificing reliability.
 
+A suggestion for a `parent`, `ancestor` or `sibling` source can now carry the related content type it means (`suggestedSourceContentTypeAlias` on the suggestion DTO, mirroring `sourceContentTypeAlias` on a saved row). Previously the suggestion DTO had no field for it, so an AI row such as `publisher` from the `homePage` ancestor's `organisationName` reached the modal without its type and, once saved, resolved against the nearest ancestor of any type. The prompt already asks the model for `sourceContentTypeAlias`; the suggestion can now carry it through.
+
 ### Umbraco Copilot Tools
 
 The AI package registers four tools under the `schemeweaver-mapping` scope for use with Umbraco's AI Copilot:

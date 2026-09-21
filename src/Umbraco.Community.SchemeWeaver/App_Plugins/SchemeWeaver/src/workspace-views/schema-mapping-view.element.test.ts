@@ -4,7 +4,9 @@ import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { __mockContextRegistry } from '../__mocks__/context-api.js';
 import { startMockServiceWorker, stopMockServiceWorker, worker } from '../mocks/setup.js';
 import { serverErrorHandlers } from '../mocks/handlers.js';
+import { http, HttpResponse } from 'msw';
 import type { SchemaMappingDto } from '../api/types.js';
+import { rowsToPropertyMappingDtos } from '../utils/mapping-converters.js';
 import { SchemeWeaverMappingChangedEvent } from '../utils/mapping-changed-event.js';
 import './schema-mapping-view.element.js';
 
@@ -839,6 +841,79 @@ describe('SchemaMappingViewElement', () => {
 
       expect(el._mapping.schemaTypeName, 'the superseded run must not win').to.equal('FAQPage');
       expect(el._loading, 'the superseded run must not clear loading either').to.be.false;
+    });
+  });
+
+  // A mapper can now suggest a parent/ancestor/sibling row (TypeSafe v2, the AI
+  // satellite). The suggestion names the related type only, so the view must
+  // hydrate it the way it hydrates a SAVED cross-node row — otherwise the row
+  // rendered an empty document-type picker and no property dropdown even though
+  // the alias it needed was already on it.
+  describe('auto-mapping a cross-node suggestion', () => {
+    const HOME_PAGE_KEY = '00000000-0000-0000-0000-000000000007';
+
+    /** Article.sourceOrganization <- ancestor homePage.organisationName. */
+    const crossNodeSuggestion = {
+      schemaPropertyName: 'sourceOrganization',
+      schemaPropertyType: 'Organization',
+      suggestedContentTypePropertyAlias: 'organisationName',
+      suggestedSourceType: 'ancestor',
+      suggestedSourceContentTypeAlias: 'homePage',
+      confidence: 85,
+      isAutoMapped: true,
+      editorAlias: 'Umbraco.TextBox',
+      acceptedTypes: ['Organization'],
+      isComplexType: true,
+    };
+
+    afterEach(() => worker.resetHandlers());
+
+    async function mountAndAutoMap(): Promise<any> {
+      const el = await fixture(html`<schemeweaver-schema-mapping-view></schemeweaver-schema-mapping-view>`) as any;
+      el._contentTypeAlias = 'blogArticle';
+      await el._fetchMapping();
+      await el._handleAutoMap();
+      await el.updateComplete;
+      return el;
+    }
+
+    it('renders the row with its related type and property list, and saves with the alias intact', async () => {
+      worker.use(http.post(`${BASE}/mappings/:alias/auto-map`, () => HttpResponse.json([crossNodeSuggestion])));
+      const el = await mountAndAutoMap();
+
+      const row = el._rows.find((r: any) => r.schemaPropertyName === 'sourceOrganization');
+      expect(row, 'the cross-node suggestion becomes a row').to.exist;
+      expect(row.sourceType).to.equal('ancestor');
+      expect(row.sourceContentTypeAlias).to.equal('homePage');
+      expect(row.contentTypePropertyAlias).to.equal('organisationName');
+      // Hydrated: the picker shows the type and the dropdown lists its properties.
+      expect(row.sourceDocumentTypeUnique).to.equal(HOME_PAGE_KEY);
+      expect(row.sourceContentTypeProperties).to.include('organisationName');
+
+      const dto = rowsToPropertyMappingDtos(el._rows).find((d) => d.schemaPropertyName === 'sourceOrganization');
+      expect(dto, 'the row passes the save filter').to.exist;
+      expect(dto!.sourceType).to.equal('ancestor');
+      expect(dto!.sourceContentTypeAlias).to.equal('homePage');
+      expect(dto!.contentTypePropertyAlias).to.equal('organisationName');
+    });
+
+    it('keeps the alias and finishes loading when the related type cannot be read', async () => {
+      worker.use(
+        http.post(`${BASE}/mappings/:alias/auto-map`, () => HttpResponse.json([crossNodeSuggestion])),
+        http.get(`${BASE}/content-types/homePage/properties`, () =>
+          HttpResponse.json({ error: 'Not found' }, { status: 404 })),
+      );
+      const el = await mountAndAutoMap();
+
+      const row = el._rows.find((r: any) => r.schemaPropertyName === 'sourceOrganization');
+      expect(row).to.exist;
+      // The mapping is intact; only the dropdown is empty. The key still resolves
+      // from the content-type listing, so the picker shows the type.
+      expect(row.sourceContentTypeAlias).to.equal('homePage');
+      expect(row.contentTypePropertyAlias).to.equal('organisationName');
+      expect(row.sourceContentTypeProperties).to.deep.equal([]);
+      expect(row.sourceDocumentTypeUnique).to.equal(HOME_PAGE_KEY);
+      expect(el._loading).to.be.false;
     });
   });
 });

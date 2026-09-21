@@ -29,4 +29,13 @@ public class PropertyMappingSuggestion
     /// points at (e.g. <c>"organization"</c>). Null for every other source type.
     /// </summary>
     public string? SuggestedTargetPieceKey { get; set; }
+
+    /// <summary>
+    /// For the <c>parent</c>, <c>ancestor</c> and <c>sibling</c> source types: the alias of the
+    /// related content type whose property <see cref="SuggestedContentTypePropertyAlias"/> names
+    /// (e.g. <c>"homePage"</c> for <c>publisher &lt;- ancestor:organisationName</c>). Null for every
+    /// other source type. Mirrors <see cref="PropertyMappingDto.SourceContentTypeAlias"/> so a
+    /// suggestion can become a saved row without losing the source type.
+    /// </summary>
+    public string? SuggestedSourceContentTypeAlias { get; set; }
 }

@@ -19,7 +19,7 @@ import {
 } from "@umbraco-cms/mcp-server-sdk";
 import { z } from "zod";
 import type { getSchemeWeaverManagementAPI } from "../../../api/generated/schemeWeaverApi.js";
-import { getSchemeweaverMappingsByContentTypeAliasResponse } from "../../../api/generated/schemeWeaverApi.zod.js";
+import { GetSchemeweaverMappingsByContentTypeAliasResponse } from "../../../api/generated/schemeWeaverApi.zod.js";
 
 type SchemeWeaverApiClient = ReturnType<typeof getSchemeWeaverManagementAPI>;
 
@@ -211,7 +211,7 @@ const validateMappingTool: ToolDefinition<typeof inputSchema, typeof outputSchem
       });
     }
 
-    const mapping = getSchemeweaverMappingsByContentTypeAliasResponse.parse(response.data);
+    const mapping = GetSchemeweaverMappingsByContentTypeAliasResponse.parse(response.data);
     return createToolResult(buildValidationChecklist(mapping));
   },
 };

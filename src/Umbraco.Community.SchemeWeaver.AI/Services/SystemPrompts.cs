@@ -57,7 +57,7 @@ internal static class SystemPrompts
             (c) routes — when blocks are NESTED (a block contains another Block List) or different block aliases need different target types, route per block alias (recurses):
                 {"routes":[{"blockAlias":"<block alias>","nestedSchemaType":"<Type>","propertyMappings":[{"schemaProperty":"name","contentProperty":"<alias>"},{"schemaProperty":"<prop>","contentProperty":"<nested block alias>","routes":[{"blockAlias":"<inner alias>","nestedSchemaType":"<Type>","propertyMappings":[...]}]}]}]}
           CONTAINER/LAYOUT BLOCKS: a Block List/Grid holding the page's body sections (aliases like contentGrid, sections, blocks, rows, modules, components) IS the page's structural content. Map it to a structural schema property — "mainEntity" (the page's primary content) or "hasPart" — as blockContent with nestedSchemaType "WebPageElement" (or, when its blocks nest further, use routes). Never leave such a container unmapped.
-        - "ancestor" / "parent" / "sibling": value comes from a related node up/around the tree; set sourceContentTypeAlias. Use when given that related type's properties — OR, for a grouping property such as "category" that names the section/listing the node lives under and has no local content property, map it from the parent: sourceType "parent", contentProperty "title" (the parent's name).
+        - "ancestor" / "parent" / "sibling": value comes from a related node up/around the tree; set suggestedSourceContentTypeAlias to that related content type's alias. Use when given that related type's properties — OR, for a grouping property such as "category" that names the section/listing the node lives under and has no local content property, map it from the parent: sourceType "parent", contentProperty "title" (the parent's name).
         - "reference": points at a shared graph piece; set suggestedTargetPieceKey.
 
         BUILT-INS always available as "property": __name, __url, __createDate, __updateDate.
@@ -78,7 +78,7 @@ internal static class SystemPrompts
 
         OUTPUT
         Return ONLY a JSON array, no prose, no code fences. Each element:
-        {"schemaPropertyName": string, "suggestedContentTypePropertyAlias": string|null, "suggestedSourceType": string, "suggestedNestedSchemaTypeName": string|null, "suggestedResolverConfig": string|null, "staticValue": string|null, "confidence": number}
+        {"schemaPropertyName": string, "suggestedContentTypePropertyAlias": string|null, "suggestedSourceType": string, "suggestedNestedSchemaTypeName": string|null, "suggestedResolverConfig": string|null, "staticValue": string|null, "suggestedSourceContentTypeAlias": string|null, "confidence": number}
         Only include schema properties you are actually mapping (omit the ones you can't support). suggestedResolverConfig must be a JSON STRING (escaped), not an object.
         """";
 }

@@ -6,7 +6,16 @@
 //   - strict  F1  : schemaProp + contentProp + sourceType (+ nestedType for rich) match
 //   - rich        : of the gold's self-contained rich mappings, how many were reproduced
 //                   at STRICT level — THE PRIMARY METRIC (where AI must beat the heuristic)
-//   - crossNode   : same idea for ancestor/sibling/parent (stretch)
+//   - crossNode   : same idea for ancestor/sibling/parent (stretch). A strict cross-node
+//                   match also requires the SOURCE CONTENT TYPE (v2): at runtime an ancestor
+//                   or sibling row reads the nearest node OF THAT TYPE, so a row naming the
+//                   wrong type reads the wrong node, not just the wrong string.
+//
+// blockContent gold rows whose resolver carries per-block `routes` (blocks inside blocks,
+// Block Grid areas, one type per block alias) are compared route by route, recursively
+// (see routesCover). A candidate with no routes never satisfies a routes gold row; a
+// candidate that emits routes CAN satisfy a legacy nestedMappings gold row when every route
+// lands on the gold nested type and the union of its bindings covers the gold bindings.
 
 const norm = (s) => (s == null ? null : String(s).toLowerCase());
 
@@ -69,6 +78,12 @@ export function normaliseSuggestion(s) {
     resolver: parseResolver(
       s.suggestedResolverConfig ?? s.resolverConfig ?? s.ResolverConfig ?? s.SuggestedResolverConfig,
     ),
+    sourceContentType: norm(
+      s.suggestedSourceContentTypeAlias ??
+        s.sourceContentTypeAlias ??
+        s.SourceContentTypeAlias ??
+        s.SuggestedSourceContentTypeAlias,
+    ),
     confidence: s.confidence ?? s.Confidence ?? null,
   };
 }
@@ -82,10 +97,89 @@ function goldTargets(gold) {
       contentProp: norm(m.contentProp),
       sourceType: norm(m.sourceType),
       nestedType: norm(m.nestedType),
+      sourceContentType: norm(m.sourceContentType),
       resolver: m.resolverConfig ?? null,
       isSelfContainedRich: m.isSelfContainedRich,
       isCrossNodeRich: m.isCrossNodeRich,
     }));
+}
+
+const CROSS_NODE = new Set(['parent', 'ancestor', 'sibling']);
+
+/** The `routes` list of a resolver config, case-insensitive on the key like the core parser. */
+function routesOf(resolver) {
+  const r = resolver?.routes ?? resolver?.Routes;
+  return Array.isArray(r) ? r : null;
+}
+const propertyMappingsOf = (route) => {
+  const p = route?.propertyMappings ?? route?.PropertyMappings;
+  return Array.isArray(p) ? p : [];
+};
+const field = (obj, ...names) => {
+  for (const n of names) if (obj?.[n] != null) return obj[n];
+  return null;
+};
+
+/**
+ * One nested binding (a propertyMappings entry) reproduced: same schemaProperty ->
+ * contentProperty, and, when gold goes deeper on that field, the same deeper shape: nested
+ * routes compared recursively, or extractAs stringList with the same nestedContentProperty.
+ * Extra candidate detail (wrapInType, transforms, requiredProperties) is not compared: the
+ * core infers wrapInProperty at render time and gold does not always spell it out.
+ */
+function bindingCovered(candBindings, gb) {
+  const sp = norm(field(gb, 'schemaProperty', 'SchemaProperty'));
+  const cp = norm(field(gb, 'contentProperty', 'ContentProperty'));
+  const cb = candBindings.find(
+    (b) =>
+      norm(field(b, 'schemaProperty', 'SchemaProperty')) === sp &&
+      norm(field(b, 'contentProperty', 'ContentProperty')) === cp,
+  );
+  if (!cb) return false;
+
+  const goldInner = routesOf(gb);
+  if (goldInner) return routesCover(routesOf(cb), goldInner);
+
+  if (norm(field(gb, 'extractAs', 'ExtractAs')) === 'stringlist') {
+    return (
+      norm(field(cb, 'extractAs', 'ExtractAs')) === 'stringlist' &&
+      norm(field(cb, 'nestedContentProperty', 'NestedContentProperty')) ===
+        norm(field(gb, 'nestedContentProperty', 'NestedContentProperty'))
+    );
+  }
+  return true;
+}
+
+/**
+ * Every gold route reproduced by a candidate route for the same block alias: nested type
+ * equal (case-insensitive) and every gold binding covered (extra candidate routes and extra
+ * bindings allowed, as for the flat shapes). A missing candidate routes list never covers.
+ */
+function routesCover(candRoutes, goldRoutes) {
+  if (!Array.isArray(candRoutes)) return false;
+  return goldRoutes.every((gr) => {
+    const alias = norm(field(gr, 'blockAlias', 'BlockAlias'));
+    const cr = candRoutes.find((r) => norm(field(r, 'blockAlias', 'BlockAlias')) === alias);
+    if (!cr) return false;
+    if (norm(field(cr, 'nestedSchemaType', 'NestedSchemaType')) !== norm(field(gr, 'nestedSchemaType', 'NestedSchemaType')))
+      return false;
+    const candBindings = propertyMappingsOf(cr);
+    return propertyMappingsOf(gr).every((gb) => bindingCovered(candBindings, gb));
+  });
+}
+
+/**
+ * A legacy nestedMappings gold row satisfied by a routes candidate: every route lands on
+ * the gold nested type (the core applies a legacy list to every block, so a per-block
+ * split is only equivalent when the types agree) and the union of the routes' bindings
+ * covers the gold bindings.
+ */
+function routesCoverLegacy(candRoutes, goldNestedType, goldResolver) {
+  if (!Array.isArray(candRoutes) || candRoutes.length === 0) return false;
+  if (!candRoutes.every((r) => norm(field(r, 'nestedSchemaType', 'NestedSchemaType')) === goldNestedType)) return false;
+  const union = {};
+  for (const r of candRoutes) Object.assign(union, bindings({ nestedMappings: propertyMappingsOf(r) }, 'nestedMappings'));
+  return coversBindings(union, bindings(goldResolver, 'nestedMappings'));
 }
 
 function lenientEq(a, b) {
@@ -113,7 +207,15 @@ function strictEq(a, b) {
       if (a.nestedType) return false;
       return stringListProp(a.resolver) === goldStr;
     }
-    // nested object shape: nestedType + inner nestedMappings must be reproduced
+    // per-block routes (v2): compared route by route, recursively; a candidate without
+    // routes cannot satisfy them (the core ignores the mapping-level nested type once
+    // routes are present, so there is no flat equivalent)
+    const goldRoutes = routesOf(b.resolver);
+    if (goldRoutes) return routesCover(routesOf(a.resolver), goldRoutes);
+    // nested object shape: nestedType + inner nestedMappings must be reproduced, or a
+    // routes candidate whose routes all land on that type and jointly cover the bindings
+    const candRoutes = routesOf(a.resolver);
+    if (candRoutes) return routesCoverLegacy(candRoutes, norm(b.nestedType), b.resolver);
     if (norm(a.nestedType) !== norm(b.nestedType)) return false;
     return coversBindings(bindings(a.resolver, 'nestedMappings'), bindings(b.resolver, 'nestedMappings'));
   }
@@ -122,6 +224,10 @@ function strictEq(a, b) {
   if (a.contentProp !== b.contentProp) return false;
   if (a.sourceType !== b.sourceType) return false;
   if (b.nestedType && a.nestedType !== b.nestedType) return false;
+  // cross-node (v2): the source content type is load-bearing too. `parent` ignores it at
+  // runtime (it reads whichever node is the actual parent), but a suggestion naming the
+  // wrong type is still a wrong suggestion, so every relation is held to the same bar.
+  if (CROSS_NODE.has(b.sourceType) && b.sourceContentType && a.sourceContentType !== b.sourceContentType) return false;
   return true;
 }
 
@@ -158,6 +264,9 @@ export function scoreOne(gold, rawSuggestions) {
 
   const crossGold = targets.filter((g) => g.isCrossNodeRich);
   const crossHit = crossGold.filter((g) => candUnique.some((c) => strictEq(c, g)));
+  const crossMissed = crossGold
+    .filter((g) => !candUnique.some((c) => strictEq(c, g)))
+    .map((g) => `${g.schemaProp}<-${g.sourceType}:${g.sourceContentType ?? '*'}.${g.contentProp}`);
 
   return {
     alias: gold.alias,
@@ -165,7 +274,7 @@ export function scoreOne(gold, rawSuggestions) {
     lenient: prf(lenientTP, candUnique.length, targets.length),
     strict: prf(strictTP, candUnique.length, targets.length),
     rich: { goldCount: richGold.length, hit: richHit.length, missed: richMissed },
-    crossNode: { goldCount: crossGold.length, hit: crossHit.length },
+    crossNode: { goldCount: crossGold.length, hit: crossHit.length, missed: crossMissed },
   };
 }
 

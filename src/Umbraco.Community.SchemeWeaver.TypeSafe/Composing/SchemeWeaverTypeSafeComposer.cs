@@ -75,6 +75,42 @@ public class SchemeWeaverTypeSafeComposer : IComposer
             .Validate(
                 o => o.Timeout > TimeSpan.Zero,
                 "SchemeWeaver:TypeSafe:Timeout must be a positive duration.")
+            // v2 ranges. The neighbourhood caps are bounded by the Choice limit (255 options,
+            // one reserved for "none of these"); the depth caps by what the core discovers
+            // (three levels of blocks) and by how far up a tree a value is still about the page.
+            .Validate(
+                o => o.SecondaryBindingMinProbability is >= 0 and <= 1,
+                "SchemeWeaver:TypeSafe:SecondaryBindingMinProbability must be between 0 and 1.")
+            .Validate(
+                o => o.MaxStateCharacters > 0,
+                "SchemeWeaver:TypeSafe:MaxStateCharacters must be greater than 0.")
+            .Validate(
+                o => o.MaxAncestorDepth is >= 1 and <= 6,
+                "SchemeWeaver:TypeSafe:MaxAncestorDepth must be between 1 and 6.")
+            .Validate(
+                o => o.MaxNeighbourTypes is >= 1 and <= 40,
+                "SchemeWeaver:TypeSafe:MaxNeighbourTypes must be between 1 and 40.")
+            .Validate(
+                o => o.MaxPropertiesPerNeighbour is >= 1 and <= 100,
+                "SchemeWeaver:TypeSafe:MaxPropertiesPerNeighbour must be between 1 and 100.")
+            .Validate(
+                o => o.MaxNeighbourProperties is >= 1 and <= 254,
+                "SchemeWeaver:TypeSafe:MaxNeighbourProperties must be between 1 and 254 (the API allows 255 options and one slot is reserved for the \"none of these\" option).")
+            .Validate(
+                o => o.MaxSampledNodes is >= 1 and <= 200,
+                "SchemeWeaver:TypeSafe:MaxSampledNodes must be between 1 and 200.")
+            .Validate(
+                o => o.MinObservedShare is >= 0 and <= 1,
+                "SchemeWeaver:TypeSafe:MinObservedShare must be between 0 and 1.")
+            .Validate(
+                o => o.MaxCrossNodeQuestions is >= 0 and <= 100,
+                "SchemeWeaver:TypeSafe:MaxCrossNodeQuestions must be between 0 and 100.")
+            .Validate(
+                o => o.MinCrossNodeConfidence is >= 0 and <= 100,
+                "SchemeWeaver:TypeSafe:MinCrossNodeConfidence must be between 0 and 100.")
+            .Validate(
+                o => o.MaxBlockRouteDepth is >= 1 and <= 3,
+                "SchemeWeaver:TypeSafe:MaxBlockRouteDepth must be between 1 and 3 (the core discovers three levels of nested blocks).")
             // https, or plain http on the loopback interface only: the option's own summary
             // invites pointing it at a local test double (WireMock, a dev proxy), and a
             // mapping-assist satellite must not refuse to boot the whole site over that.

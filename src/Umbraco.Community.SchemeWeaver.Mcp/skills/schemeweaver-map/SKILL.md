@@ -34,7 +34,12 @@ Work one content type at a time, top to bottom, then loop the last steps until c
 4. **Get the heuristic baseline** — `suggest-property-mappings`. Treat it as a
    FLOOR, not the answer: keep its correct rows, fix the wrong ones, and ADD the
    mappings it cannot express (it only does flat name matches — no meaning, units,
-   nested objects or block structure).
+   nested objects or block structure). When the site runs the TypeSafe or AI
+   satellite the same tool returns richer rows: a `parent`/`ancestor`/`sibling`
+   row also carries `suggestedSourceContentTypeAlias`; copy it into the saved
+   row's `sourceContentTypeAlias` (never drop it, it is what the ancestor and
+   sibling resolvers match on), and a `blockContent` row may carry a ready
+   `suggestedResolverConfig` with `routes`, which you can save as-is.
 5. **Draft a rich mapping** using the source-type catalogue and worked examples
    below. Reason semantically: `strapline -> alternativeName`, `intro`/`standfirst
    -> description`, `bodyText -> articleBody`, `heroImage -> image` even when the
@@ -103,7 +108,9 @@ Choosing the right `sourceType` is where you beat the heuristic.
     `hasPart` as `blockContent` with `nestedSchemaTypeName` `WebPageElement` (or
     `routes` when its blocks nest further). Never leave such a container unmapped.
 - **`parent` / `ancestor` / `sibling`** — value from a related node up/around the
-  tree; set `sourceContentTypeAlias` (for ancestor/sibling). For a grouping prop
+  tree; set `sourceContentTypeAlias` (for ancestor/sibling; `parent` reads the
+  actual parent whatever its type, so when a page type sits under several parent
+  types prefer `ancestor` with the alias). For a grouping prop
   like `category` that names the section the node lives under and has no local
   property, map it from the parent: `sourceType "parent"`, `contentTypePropertyAlias
   "title"` (the parent's name). Also valid as `complexTypeMappings` sub-rows, where

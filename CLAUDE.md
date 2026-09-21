@@ -82,10 +82,16 @@ It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugi
   declares `[ComposeAfter]` on that interface (weak, satisfied when absent), so the cascade is
   always TypeSafe, then AI, then heuristic. Any new composer that REPLACES the seam must
   implement the marker. This wiring means the property-mapping modal and the MCP
-  `suggest-property-mappings` tool get TypeSafe results with no UI change. Four rounds of
-  closed-set judgments (bind, shape, beam-search nested-type descent from the declared
-  range, inner bind); heuristic popular-defaults rows are kept as priors; media pickers are
-  never wrapped; cross-node sources and nested-block routes stay with the prior mapper.
+  `suggest-property-mappings` tool get TypeSafe results with no UI change. Closed-set
+  judgments in rounds (bind, shape, beam-search nested-type descent from the declared
+  range, inner bind, then v2's cross-node round over the discovered neighbourhood and a
+  per-block-type routes round for nested blocks); `PriorsMode` decides what the heuristic's
+  rows do (default `None`); media pickers are never wrapped; cross-node
+  parent/ancestor/sibling rows name the source content type (`NeighbourhoodDiscovery`
+  finds neighbours from declared structure and/or sampled pages) and nested-block `routes`
+  are emitted per `RoutesMode` (default `Auto`), so neither is left to the prior mapper any
+  more; a bind answer's runner-up can become a second, never pre-ticked target for the same
+  content property (gated on `SecondaryBindingMinProbability`, not the show threshold).
   Inert without `SchemeWeaver:TypeSafe:ApiKey` (user-secrets / env var, never appsettings)
   and on any API failure; one startup log line says active/inert and what it wraps; Health
   Check "SchemeWeaver TypeSafe". Ships per-major like the rest of the suite purely because
@@ -153,10 +159,14 @@ TypeSafe satellite unit tests (`Unit/TypeSafe/`) never hit the network: they use
 `ITypeSafeClient` and the gold-oracle pattern from `eval/oracle.mjs` (a stub that answers
 every question the way gold implies, so the harness ceiling, not the model, is under test).
 
-The eval harness for the satellite is `eval/run-typesafe.mjs` (scores Jev vs heuristic vs
-gold; needs a TypeSafe key) and `eval/oracle.mjs` (no key, no network; prints the ceiling).
-Both read `eval/cache/schema-types.json`, which `eval/SchemaTypeDump` (a C# console app
-that instantiates the production `SchemaTypeRegistry` directly, no Umbraco boot) generates.
+The eval harness for the satellite is `eval/run-typesafe.mjs` (scores the JS mapper vs
+heuristic vs gold from the cached context; needs a TypeSafe key), `eval/oracle.mjs` (no key,
+no network; prints the v1 ceiling and answers the v2 question kinds for unit tests), and
+`eval/run-typesafe-live.mjs` (scores the C# package LIVE through the TestHost's auto-map
+endpoint; this is where v2's cross-node rows and routes are measured, since
+`eval/typesafe-mapper.mjs` is the frozen v1 specification and must not grow v2). The first
+two read `eval/cache/schema-types.json`, which `eval/SchemaTypeDump` (a C# console app that
+instantiates the production `SchemaTypeRegistry` directly, no Umbraco boot) generates.
 
 The Mocked Backoffice tier currently requires the user to apply a
 one-line patch to their local Umbraco-CMS clone, because Umbraco v17.2.2

@@ -12,6 +12,7 @@ import { parseResolverConfig, legacyConfigToRoutes } from '../components/block-r
 import { SCHEMEWEAVER_COMPLEX_TYPE_MAPPING_MODAL } from './complex-type-mapping-modal.token.js';
 import { SCHEMEWEAVER_SOURCE_ORIGIN_PICKER_MODAL } from './source-origin-picker-modal.token.js';
 import { mergeAutoMapSuggestions, applySourceTypeChange, rowsToPropertyMappingDtos, pickedComplexConfigToResolverConfig } from '../utils/mapping-converters.js';
+import { enrichRelatedSourceRows } from '../utils/related-source-rows.js';
 
 import type { SchemaPropertyInfo } from '../api/types.js';
 import { SourceType } from '../constants/source-type.js';
@@ -84,7 +85,12 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
         this.data?.schemaType || '',
       );
       if (suggestions && Array.isArray(suggestions)) {
-        this._mappings = mergeAutoMapSuggestions(this._mappings, suggestions);
+        // A cross-node suggestion carries only the related type's alias; hydrate
+        // it so the row renders its type and property list (never throws).
+        this._mappings = await enrichRelatedSourceRows(
+          mergeAutoMapSuggestions(this._mappings, suggestions),
+          this.#repository,
+        );
       }
     } catch {
       this.#notificationContext?.peek('danger', {
@@ -105,7 +111,13 @@ export class PropertyMappingModalElement extends UmbModalBaseElement<PropertyMap
       );
 
       if (suggestions && Array.isArray(suggestions)) {
-        this._mappings = mergeAutoMapSuggestions(this._mappings, suggestions);
+        // Same hydration as the workspace view's load and auto-map paths, so an
+        // auto-mapped parent/ancestor/sibling row opens with its type shown and
+        // its property dropdown populated.
+        this._mappings = await enrichRelatedSourceRows(
+          mergeAutoMapSuggestions(this._mappings, suggestions),
+          this.#repository,
+        );
       }
 
       const [props, schemaProps] = await Promise.all([

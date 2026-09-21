@@ -2,7 +2,7 @@ import { expect } from '@open-wc/testing';
 import type { PropertyMappingDto, PropertyMappingSuggestion, ValidationIssue } from '../api/types.js';
 import type { PropertyMappingRow } from '../components/property-mapping-table.element.js';
 import { SourceType } from '../constants/source-type.js';
-import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows, drillConfigToResolverConfig, isRowConfigured, rowsToPropertyMappingDtos, reconcileRowsForSchemaType, parsePickedComplexConfig, pickedComplexConfigToResolverConfig } from './mapping-converters.js';
+import { sortMappingRows, mergeAutoMapSuggestions, dtoToRow, rowsInPersistenceOrder, applySourceTypeChange, applyWarningsToRows, drillConfigToResolverConfig, isRowConfigured, rowsToPropertyMappingDtos, reconcileRowsForSchemaType, parsePickedComplexConfig, pickedComplexConfigToResolverConfig, suggestionToRow } from './mapping-converters.js';
 import type { RankedSchemaPropertyInfo } from '../api/types.js';
 
 /** Helper to create a minimal RankedSchemaPropertyInfo as the ranked endpoint returns it */
@@ -322,6 +322,125 @@ describe('mergeAutoMapSuggestions', () => {
     const result = mergeAutoMapSuggestions(existing, suggestions);
     expect(result.length).to.equal(1);
     expect(result[0].schemaPropertyName).to.equal('headline');
+  });
+});
+
+// A cross-node suggestion (TypeSafe v2, the AI satellite) names the related
+// content type in suggestedSourceContentTypeAlias. The row used to hard-code
+// sourceContentTypeAlias to '', so the type the mapper chose was dropped between
+// the API and the saved row and the user had to re-browse it by hand.
+describe('cross-node suggestions (parent / ancestor / sibling)', () => {
+  const RELATED = [SourceType.Parent, SourceType.Ancestor, SourceType.Sibling] as const;
+
+  it('suggestionToRow sets sourceType, contentTypePropertyAlias AND sourceContentTypeAlias for every related source type', () => {
+    for (const sourceType of RELATED) {
+      const row = suggestionToRow(makeSuggestion({
+        schemaPropertyName: 'publisher',
+        suggestedSourceType: sourceType,
+        suggestedContentTypePropertyAlias: 'organisationName',
+        suggestedSourceContentTypeAlias: 'homePage',
+        confidence: 85,
+      }));
+      expect(row.sourceType, sourceType).to.equal(sourceType);
+      expect(row.contentTypePropertyAlias, sourceType).to.equal('organisationName');
+      expect(row.sourceContentTypeAlias, sourceType).to.equal('homePage');
+      // Hydration is a separate round-trip; the converter never invents it.
+      expect(row.sourceContentTypeProperties).to.deep.equal([]);
+      expect(row.sourceDocumentTypeUnique).to.equal(undefined);
+    }
+  });
+
+  it('suggestionToRow yields an empty alias when the field is absent or null (older backends)', () => {
+    const absent = suggestionToRow(makeSuggestion({
+      schemaPropertyName: 'category',
+      suggestedSourceType: SourceType.Parent,
+      suggestedContentTypePropertyAlias: 'title',
+      confidence: 80,
+    }));
+    expect(absent.sourceContentTypeAlias).to.equal('');
+
+    const nulled = suggestionToRow(makeSuggestion({
+      schemaPropertyName: 'category',
+      suggestedSourceType: SourceType.Parent,
+      suggestedContentTypePropertyAlias: 'title',
+      suggestedSourceContentTypeAlias: null,
+      confidence: 80,
+    }));
+    expect(nulled.sourceContentTypeAlias).to.equal('');
+  });
+
+  it('mergeAutoMapSuggestions admits a cross-node suggestion and the alias reaches the saved DTO intact', () => {
+    const result = mergeAutoMapSuggestions([], [makeSuggestion({
+      schemaPropertyName: 'publisher',
+      suggestedSourceType: SourceType.Ancestor,
+      suggestedContentTypePropertyAlias: 'organisationName',
+      suggestedSourceContentTypeAlias: 'homePage',
+      confidence: 85,
+    })]);
+
+    const publisher = result.find((r) => r.schemaPropertyName === 'publisher');
+    expect(publisher, 'a related-node suggestion with a property alias is admitted').to.exist;
+    expect(publisher!.sourceType).to.equal(SourceType.Ancestor);
+    expect(publisher!.sourceContentTypeAlias).to.equal('homePage');
+    expect(isRowConfigured(publisher!)).to.be.true;
+
+    const dto = rowsToPropertyMappingDtos(result).find((d) => d.schemaPropertyName === 'publisher');
+    expect(dto).to.exist;
+    expect(dto!.sourceType).to.equal(SourceType.Ancestor);
+    expect(dto!.contentTypePropertyAlias).to.equal('organisationName');
+    expect(dto!.sourceContentTypeAlias).to.equal('homePage');
+  });
+
+  it('a cross-node suggestion never overrides a row the user already configured', () => {
+    const existing = [makeRow({
+      schemaPropertyName: 'publisher',
+      sourceType: SourceType.Reference,
+      targetPieceKey: 'organization',
+    })];
+    const result = mergeAutoMapSuggestions(existing, [makeSuggestion({
+      schemaPropertyName: 'publisher',
+      suggestedSourceType: SourceType.Ancestor,
+      suggestedContentTypePropertyAlias: 'organisationName',
+      suggestedSourceContentTypeAlias: 'homePage',
+      confidence: 85,
+    })]);
+    const publisher = result.find((r) => r.schemaPropertyName === 'publisher')!;
+    expect(publisher.sourceType).to.equal(SourceType.Reference);
+    expect(publisher.sourceContentTypeAlias).to.equal('');
+    expect(publisher.confidence).to.equal(85);
+  });
+});
+
+describe('static suggestions', () => {
+  it('suggestionToRow carries staticValue, and the merge admits a static suggestion that has one', () => {
+    const row = suggestionToRow(makeSuggestion({
+      schemaPropertyName: 'inLanguage',
+      suggestedSourceType: SourceType.Static,
+      staticValue: 'en-GB',
+      confidence: 70,
+    }));
+    expect(row.staticValue).to.equal('en-GB');
+    expect(row.contentTypePropertyAlias).to.equal('');
+
+    const result = mergeAutoMapSuggestions([], [makeSuggestion({
+      schemaPropertyName: 'inLanguage',
+      suggestedSourceType: SourceType.Static,
+      staticValue: 'en-GB',
+      confidence: 70,
+    })]);
+    const inLanguage = result.find((r) => r.schemaPropertyName === 'inLanguage');
+    expect(inLanguage).to.exist;
+    expect(isRowConfigured(inLanguage!)).to.be.true;
+    expect(rowsToPropertyMappingDtos(result)[0].staticValue).to.equal('en-GB');
+  });
+
+  it('a static suggestion without a literal is still not admitted', () => {
+    const result = mergeAutoMapSuggestions([], [makeSuggestion({
+      schemaPropertyName: 'inLanguage',
+      suggestedSourceType: SourceType.Static,
+      confidence: 70,
+    })]);
+    expect(result).to.be.empty;
   });
 });
 

@@ -104,11 +104,8 @@ public sealed class SchemaTypeGraph : ISchemaTypeGraph
         // The registry can list a name more than once (it indexes interface aliases too), so
         // de-duplicate by name before anything else.
         var canonical = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var info in _registry.GetAllTypes())
-        {
-            if (!string.IsNullOrEmpty(info.Name))
-                canonical.TryAdd(info.Name, info.Name);
-        }
+        foreach (var info in _registry.GetAllTypes().Where(i => !string.IsNullOrEmpty(i.Name)))
+            canonical.TryAdd(info.Name, info.Name);
 
         var supertypes = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         foreach (var name in canonical.Values)
@@ -117,9 +114,8 @@ public sealed class SchemaTypeGraph : ISchemaTypeGraph
             var clr = _registry.GetClrType(name);
             if (clr is not null)
             {
-                foreach (var iface in clr.GetInterfaces())
+                foreach (var ifaceName in clr.GetInterfaces().Select(i => i.Name))
                 {
-                    var ifaceName = iface.Name;
                     if (ifaceName.Length < 2 || ifaceName[0] != 'I' || !char.IsUpper(ifaceName[1]))
                         continue;
 
@@ -142,18 +138,10 @@ public sealed class SchemaTypeGraph : ISchemaTypeGraph
             var direct = new List<string>();
             foreach (var p in all)
             {
-                var implied = false;
-                foreach (var q in all)
-                {
-                    if (ReferenceEquals(p, q) || string.Equals(p, q, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    if (supertypes.TryGetValue(q, out var qSupers) && qSupers.Contains(p))
-                    {
-                        implied = true;
-                        break;
-                    }
-                }
+                var implied = all.Any(q => !ReferenceEquals(p, q)
+                    && !string.Equals(p, q, StringComparison.OrdinalIgnoreCase)
+                    && supertypes.TryGetValue(q, out var qSupers)
+                    && qSupers.Contains(p));
 
                 if (!implied)
                     direct.Add(p);

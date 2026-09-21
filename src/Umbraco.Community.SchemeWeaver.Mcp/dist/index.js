@@ -38592,11 +38592,12 @@ var getSchemeWeaverManagementAPI = () => {
       options
     );
   };
-  const postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest = (contentTypeAlias, propertyAlias, options) => {
+  const postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest = (contentTypeAlias, propertyAlias, params, options) => {
     return customInstance(
       {
         url: `/umbraco/management/api/v1/schemeweaver/content-types/${contentTypeAlias}/properties/${propertyAlias}/block-suggest`,
-        method: "POST"
+        method: "POST",
+        params
       },
       options
     );
@@ -38688,13 +38689,13 @@ var getSchemeWeaverManagementAPI = () => {
       options
     );
   };
-  const postSchemeweaverMappingsExport = (postSchemeweaverMappingsExportBody2, options) => {
+  const postSchemeweaverMappingsExport = (nullMappingExportRequest, options) => {
     return customInstance(
       {
         url: `/umbraco/management/api/v1/schemeweaver/mappings/export`,
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        data: postSchemeweaverMappingsExportBody2
+        data: nullMappingExportRequest
       },
       options
     );
@@ -38730,8 +38731,6 @@ var getSchemeWeaverManagementAPI = () => {
   };
   return { getSchemeweaverContentTypes, getSchemeweaverContentTypesByAliasProperties, postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest, getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypes, postSchemeweaverGenerateContentType, getSchemeweaverMappings, postSchemeweaverMappings, getSchemeweaverMappingsByContentTypeAlias, deleteSchemeweaverMappingsByContentTypeAlias, postSchemeweaverMappingsByContentTypeAliasAutoMap, postSchemeweaverMappingsByContentTypeAliasPreview, getSchemeweaverMappingsDrift, postSchemeweaverMappingsExport, getSchemeweaverSchemaTypes, getSchemeweaverSchemaTypesByNameProperties, getSchemeweaverServerContext };
 };
-
-// src/umbraco-api/api/generated/schemeWeaverApi.zod.ts
 object2({
   "alias": string2()
 });
@@ -38740,17 +38739,22 @@ object2({
   "propertyAlias": string2()
 });
 object2({
+  "targetSchemaProperty": string2().optional()
+});
+object2({
   "schemaProperty": string2(),
-  "confidence": number2(),
+  "confidence": int(),
   "routes": array(object2({
     "blockAlias": string2(),
     "nestedSchemaType": string2(),
-    "confidence": number2(),
+    "confidence": int(),
+    "fitsTarget": boolean2().nullish(),
     "propertyMappings": array(object2({
       "schemaProperty": string2(),
       "contentProperty": string2(),
       "wrapInType": string2().nullish(),
       "wrapInProperty": string2().nullish(),
+      "transformType": string2().nullish(),
       "routes": array(unknown()).nullish()
     }))
   }))
@@ -38767,6 +38771,7 @@ object2({
     "alias": string2(),
     "name": string2(),
     "editorAlias": string2(),
+    "valueSchema": string2().nullish(),
     "nestedBlockElementTypes": array(unknown())
   }))
 });
@@ -38777,7 +38782,7 @@ object2({
   "selectedProperties": array(string2()),
   "propertyGroupName": string2()
 });
-var getSchemeweaverMappingsResponseItem = object2({
+var GetSchemeweaverMappingsResponseItem = object2({
   "contentTypeAlias": string2(),
   "contentTypeKey": uuid2(),
   "schemaTypeName": string2(),
@@ -38837,7 +38842,7 @@ object2({
   "driftStatus": string2().nullish(),
   "persistedTo": string2().nullish()
 });
-var postSchemeweaverMappingsResponse = object2({
+var PostSchemeweaverMappingsResponse = object2({
   "contentTypeAlias": string2(),
   "contentTypeKey": uuid2(),
   "schemaTypeName": string2(),
@@ -38867,10 +38872,10 @@ var postSchemeweaverMappingsResponse = object2({
   "driftStatus": string2().nullish(),
   "persistedTo": string2().nullish()
 });
-var getSchemeweaverMappingsByContentTypeAliasParams = object2({
+var GetSchemeweaverMappingsByContentTypeAliasParams = object2({
   "contentTypeAlias": string2()
 });
-var getSchemeweaverMappingsByContentTypeAliasResponse = object2({
+var GetSchemeweaverMappingsByContentTypeAliasResponse = object2({
   "contentTypeAlias": string2(),
   "contentTypeKey": uuid2(),
   "schemaTypeName": string2(),
@@ -38909,21 +38914,23 @@ object2({
 object2({
   "schemaTypeName": string2().optional()
 });
-var postSchemeweaverMappingsByContentTypeAliasAutoMapResponseItem = object2({
+var PostSchemeweaverMappingsByContentTypeAliasAutoMapResponseItem = object2({
   "schemaPropertyName": string2(),
   "schemaPropertyType": string2().nullish(),
   "suggestedContentTypePropertyAlias": string2().nullish(),
   "suggestedSourceType": string2(),
-  "confidence": number2(),
+  "confidence": int(),
   "isAutoMapped": boolean2(),
   "editorAlias": string2().nullish(),
   "acceptedTypes": array(string2()),
   "isComplexType": boolean2(),
   "suggestedNestedSchemaTypeName": string2().nullish(),
   "suggestedResolverConfig": string2().nullish(),
-  "suggestedTargetPieceKey": string2().nullish()
+  "staticValue": string2().nullish(),
+  "suggestedTargetPieceKey": string2().nullish(),
+  "suggestedSourceContentTypeAlias": string2().nullish()
 });
-var postSchemeweaverMappingsByContentTypeAliasAutoMapResponse = array(postSchemeweaverMappingsByContentTypeAliasAutoMapResponseItem);
+var PostSchemeweaverMappingsByContentTypeAliasAutoMapResponse = array(PostSchemeweaverMappingsByContentTypeAliasAutoMapResponseItem);
 object2({
   "contentTypeAlias": string2()
 });
@@ -38932,7 +38939,7 @@ object2({
   "blockInstanceKey": uuid2().optional(),
   "culture": string2().optional()
 });
-var postSchemeweaverMappingsByContentTypeAliasPreviewResponse = object2({
+var PostSchemeweaverMappingsByContentTypeAliasPreviewResponse = object2({
   "jsonLd": string2(),
   "isValid": boolean2(),
   "errors": array(string2()),
@@ -38967,21 +38974,22 @@ object2({
 object2({
   "search": string2().optional()
 });
-var getSchemeweaverSchemaTypesResponseItem = object2({
+var GetSchemeweaverSchemaTypesResponseItem = object2({
   "name": string2(),
   "description": string2().nullish(),
   "parentTypeName": string2().nullish(),
-  "propertyCount": number2()
+  "propertyCount": int()
 });
-var getSchemeweaverSchemaTypesResponse = array(getSchemeweaverSchemaTypesResponseItem);
+var GetSchemeweaverSchemaTypesResponse = array(GetSchemeweaverSchemaTypesResponseItem);
 object2({
   "name": string2()
 });
+var getSchemeweaverSchemaTypesByNamePropertiesQueryRankedDefault = false;
 object2({
-  "ranked": boolean2().optional()
+  "ranked": boolean2().default(getSchemeweaverSchemaTypesByNamePropertiesQueryRankedDefault)
 });
-var getSchemeweaverSchemaTypesByNamePropertiesResponseItem = object2({
-  "confidence": number2(),
+var GetSchemeweaverSchemaTypesByNamePropertiesResponseItem = object2({
+  "confidence": int(),
   "isPopular": boolean2(),
   "name": string2(),
   "propertyType": string2(),
@@ -38989,7 +38997,7 @@ var getSchemeweaverSchemaTypesByNamePropertiesResponseItem = object2({
   "acceptedTypes": array(string2()),
   "isComplexType": boolean2()
 });
-var getSchemeweaverSchemaTypesByNamePropertiesResponse = array(getSchemeweaverSchemaTypesByNamePropertiesResponseItem);
+var GetSchemeweaverSchemaTypesByNamePropertiesResponse = array(GetSchemeweaverSchemaTypesByNamePropertiesResponseItem);
 object2({
   "hasPublishedContent": boolean2(),
   "isTestHost": boolean2()
@@ -39001,7 +39009,7 @@ var inputSchema = {
     "Optional search text matched against Schema.org type names and descriptions. Omit to list every available type (~800)."
   )
 };
-var outputSchema = external_exports.object({ items: getSchemeweaverSchemaTypesResponse });
+var outputSchema = external_exports.object({ items: GetSchemeweaverSchemaTypesResponse });
 var searchSchemaTypesTool = {
   name: "search-schema-types",
   description: "Searches the Schema.org vocabulary types available for mapping (e.g. Article, Product, Event, Recipe, LocalBusiness). Each result includes the type name, description, parent type and property count. Use this first to choose the most specific Schema.org type that fits an Umbraco content type \u2014 prefer a specific subtype (e.g. BlogPosting over Article over CreativeWork) when the content clearly matches it, as specific types unlock richer Google rich results.",
@@ -39026,7 +39034,7 @@ var inputSchema2 = {
     "When true, results are ranked by real-world importance: 'confidence' (0-100) and 'isPopular' (confidence >= 60) reflect how commonly the property is used in structured data and rich results. Recommended for choosing which properties to map."
   )
 };
-var outputSchema2 = external_exports.object({ items: getSchemeweaverSchemaTypesByNamePropertiesResponse });
+var outputSchema2 = external_exports.object({ items: GetSchemeweaverSchemaTypesByNamePropertiesResponse });
 var getSchemaTypePropertiesTool = {
   name: "get-schema-type-properties",
   description: "Gets the Schema.org properties of a type, including inherited ones (e.g. Article includes headline, author, datePublished from itself and its ancestors). Each property has: name, propertyType, acceptedTypes (the Schema.org types the value may take), isComplexType (true when the value is itself a structured object like Person or Organization, which needs a nested mapping via nestedSchemaTypeName), and with ranked=true a popularity confidence score. Names are returned in PascalCase (e.g. 'Headline'); use camelCase ('headline') in save-schema-mapping property names \u2014 matching is case-insensitive. With ranked=true, map the high-confidence/isPopular/required properties FIRST \u2014 these are what Google rich results require/recommend \u2014 and don't pad with obscure low-ranked ones. Use this together with get-content-type-properties to decide which Umbraco property best supplies each schema property, and which sourceType fits: a scalar/media prop -> 'property' (the simplest valid choice \u2014 don't wrap a lone scalar like 'brand' in a Brand object); a property flagged isComplexType (a named entity like Person/Organization/Place) -> 'complexType' with nestedSchemaTypeName, even from a single field (e.g. author -> Person); a Block List/Grid property -> 'blockContent'. Example: for BlogPosting, ranked surfaces headline/image/author/datePublished at the top \u2014 map those before wordCount or thumbnailUrl.",
@@ -39157,7 +39165,7 @@ var get_block_element_types_default = withStandardDecorators(getBlockElementType
 
 // src/umbraco-api/tools/schemeweaver/get/get-all-schema-mappings.ts
 var outputSchema6 = external_exports.object({
-  items: external_exports.array(getSchemeweaverMappingsResponseItem)
+  items: external_exports.array(GetSchemeweaverMappingsResponseItem)
 });
 var getAllSchemaMappingsTool = {
   name: "get-all-schema-mappings",
@@ -39176,8 +39184,8 @@ var getAllSchemaMappingsTool = {
 var get_all_schema_mappings_default = withStandardDecorators(getAllSchemaMappingsTool);
 
 // src/umbraco-api/tools/schemeweaver/get/get-schema-mapping.ts
-var inputSchema5 = getSchemeweaverMappingsByContentTypeAliasParams.shape;
-var outputSchema7 = getSchemeweaverMappingsByContentTypeAliasResponse;
+var inputSchema5 = GetSchemeweaverMappingsByContentTypeAliasParams.shape;
+var outputSchema7 = GetSchemeweaverMappingsByContentTypeAliasResponse;
 var getSchemaMappingTool = {
   name: "get-schema-mapping",
   description: "Gets the SchemeWeaver mapping for one Umbraco content type (404 if none exists). Returns the mapped Schema.org type, enabled/inherited flags, optional @id override template and the full list of property mappings. Also returns `reachability` (routed-page emits on its own URL; composed-from-block only emits inside a containing page's block mapping) and `warnings` (properties mapped outside their Schema.org range that would be silently dropped from the JSON-LD). Call this before save-schema-mapping when changing an existing mapping, so unchanged property mappings are preserved \u2014 saving replaces the whole mapping, it does not merge.",
@@ -39307,7 +39315,7 @@ var validateMappingTool = {
         ]
       });
     }
-    const mapping = getSchemeweaverMappingsByContentTypeAliasResponse.parse(response.data);
+    const mapping = GetSchemeweaverMappingsByContentTypeAliasResponse.parse(response.data);
     return createToolResult(buildValidationChecklist(mapping));
   }
 };
@@ -39462,7 +39470,7 @@ var inputSchema8 = {
   schemaTypeName: external_exports.string().describe("Schema.org type name to map to, e.g. 'Article'")
 };
 var outputSchema11 = external_exports.object({
-  items: postSchemeweaverMappingsByContentTypeAliasAutoMapResponse
+  items: PostSchemeweaverMappingsByContentTypeAliasAutoMapResponse
 });
 var suggestPropertyMappingsTool = {
   name: "suggest-property-mappings",
@@ -39527,7 +39535,7 @@ var inputSchema9 = {
     "The complete set of property mappings. Saving REPLACES the existing mapping wholesale \u2014 include every mapping you want to keep, not just the changed ones."
   )
 };
-var outputSchema12 = postSchemeweaverMappingsResponse;
+var outputSchema12 = PostSchemeweaverMappingsResponse;
 var saveSchemaMappingTool = {
   name: "save-schema-mapping",
   description: `Creates or replaces the SchemeWeaver mapping for an Umbraco content type, defining how its content is expressed as Schema.org JSON-LD. Recommended workflow: (1) get-content-type-properties and get-schema-type-properties (ranked=true) to understand both sides, (2) suggest-property-mappings for the heuristic baseline, (3) reason about each schema property semantically \u2014 correct bad suggestions, add mappings the heuristic missed, use nested types for complex values \u2014 then save with this tool, and (4) verify with preview-json-ld + validate-mapping and LOOP fixing until allClear. Worked rows: a single 'authorName' text prop under BlogPosting.author -> {sourceType:'complexType', nestedSchemaTypeName:'Person', resolverConfig:'{"complexTypeMappings":[{"schemaProperty":"Name","sourceType":"property","contentTypePropertyAlias":"authorName"}]}'}; an 'ingredients' Block List of one-field blocks under Recipe.recipeIngredient -> {sourceType:'blockContent', resolverConfig:'{"extractAs":"stringList","contentProperty":"ingredient"}'}; a plain 'brand' scalar under Vehicle.brand -> {sourceType:'property', contentTypePropertyAlias:'brand'} (NOT a Brand object). IMPORTANT: inspect the \`warnings\` array on the response \u2014 it flags properties mapped outside their Schema.org range that will be SILENTLY DROPPED from the JSON-LD (e.g. a non-CreativeWork type under hasPart); re-home those to a property like about/mainEntity. Also check \`reachability\`: composed-from-block means this type only emits inside a containing page's block mapping, never on its own URL. The response reports \`persistedTo\`: by default a save lands in the DATABASE ONLY (\`database\`) \u2014 to reproduce it as config-as-code, run export-mappings-to-usync (or check get-usync-drift). \`database+usync\` means export-on-save is enabled and it also reached disk. Note: this REPLACES any existing mapping for the content type; fetch it first with get-schema-mapping if you are amending.`,
@@ -39557,7 +39565,7 @@ var inputSchema10 = {
   ),
   culture: external_exports.string().optional().describe("Optional culture code (e.g. 'en-US', 'de-DE') for language-variant content")
 };
-var outputSchema13 = postSchemeweaverMappingsByContentTypeAliasPreviewResponse;
+var outputSchema13 = PostSchemeweaverMappingsByContentTypeAliasPreviewResponse;
 var previewJsonLdTool = {
   name: "preview-json-ld",
   description: "Generates the JSON-LD a content node would emit with the saved mapping, plus Rich Results validation. This is the feedback loop after save-schema-mapping: check isValid and the issues array (each issue has severity, schemaType, path and message \u2014 e.g. missing required/recommended properties for Google rich results) and refine the mapping until the output is clean. Pass a contentKey of a real published node for a realistic preview; without one you get placeholder values that only prove the structure. This is a BACKOFFICE-CONTEXT preview: URL/@id resolution can differ from the live render because the resolved base URL is the management host, not the public site. isValid here reflects backoffice-context structural validity ONLY \u2014 it does NOT imply the live structured data is valid. For authoritative live output use get-rendered-json-ld. The response reports context ('backoffice-preview') and resolvedBaseUrl (base URL actually used). To preview a single nested block in isolation, pass contentKey (the page) AND blockInstanceKey (the block's GUID Key) \u2014 the response renders that block's real values and an info issue naming the page node it resolved from.",

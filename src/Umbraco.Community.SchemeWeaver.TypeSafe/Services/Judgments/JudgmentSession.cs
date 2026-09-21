@@ -50,6 +50,21 @@ internal sealed class JudgmentSession
         => Unsafe.Replace(string.Join("__", parts), "_");
 
     /// <summary>
+    /// As <see cref="Id"/>, made unique within <paramref name="questions"/>: two aliases can
+    /// sanitise to the same id (<c>main-text</c> and <c>main_text</c>), and a duplicate key
+    /// would silently overwrite the first question. A colliding id gets a <c>_2</c>, <c>_3</c>
+    /// suffix, the rule the mapper applies to its own rounds.
+    /// </summary>
+    public static string UniqueId(IReadOnlyDictionary<string, SystemOneQuestion> questions, params string[] parts)
+    {
+        var id = Id(parts);
+        var candidate = id;
+        for (var n = 2; questions.ContainsKey(candidate); n++)
+            candidate = $"{id}_{n}";
+        return candidate;
+    }
+
+    /// <summary>
     /// Sends <paramref name="questions"/> in chunks that all share <paramref name="state"/>,
     /// sequentially (the harness measured no latency pressure and sequential stays well
     /// inside the rate limits). Throws <see cref="TypeSafeApiException"/> on a failed request.

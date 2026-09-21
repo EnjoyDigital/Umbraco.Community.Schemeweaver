@@ -8,6 +8,7 @@ using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Umbraco.Community.SchemeWeaver.Tests.Unit.TypeSafe.TestSupport;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Client;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Configuration;
@@ -28,6 +29,7 @@ public class TypeSafePropertyMapperTests
 {
     private readonly IContentTypeService _contentTypes = Substitute.For<IContentTypeService>();
     private readonly ISchemeWeaverService _schemeWeaver = Substitute.For<ISchemeWeaverService>();
+    private readonly IPropertyValueSchemaService _valueSchemas = Substitute.For<IPropertyValueSchemaService>();
     private readonly IServiceProvider _provider = Substitute.For<IServiceProvider>();
     private readonly TypeSafeOptions _options = new() { ApiKey = "test-key" };
     private readonly SchemaAutoMapperOptions _autoMapperOptions = new();
@@ -37,6 +39,8 @@ public class TypeSafePropertyMapperTests
     {
         // Block element types are resolved lazily through the provider (a DI cycle otherwise).
         _provider.GetService(typeof(ISchemeWeaverService)).Returns(_schemeWeaver);
+        // v2 injects the value-schema service; "no schema" (a host below 17.4) is the default here.
+        _valueSchemas.GetDataTypeValueSchemaAsync(Arg.Any<Guid>()).Returns(Task.FromResult<string?>(null));
     }
 
     private TypeSafePropertyMapper CreateMapper(ITypeSafeClient client) => new(
@@ -44,6 +48,7 @@ public class TypeSafePropertyMapperTests
         SharedSchemaRegistry.Graph,
         SharedSchemaRegistry.Registry,
         _contentTypes,
+        _valueSchemas,
         _provider,
         Options.Create(_options),
         Options.Create(_autoMapperOptions),
@@ -264,8 +269,12 @@ public class TypeSafePropertyMapperTests
         var rows = await CreateMapper(oracle).MapAsync("faqPage", "FAQPage", priors);
 
         rows.Should().NotContain(r => r.SchemaPropertyName == "Publisher", "PriorsMode.None emits TypeSafe's rows only");
-        rows.Should().NotContain(r => r.SchemaPropertyName == "Name");
-        rows.Select(r => r.SchemaPropertyName).Should().BeEquivalentTo(["MainEntity", "Headline"]);
+        // v2: Name IS a TypeSafe row here, filled from Headline's source by the Headline/Name
+        // rule; the prior's own Name row (alias "name", 100) is still never added.
+        var name = Row(rows, "Name");
+        name.SuggestedContentTypePropertyAlias.Should().Be("title", "the rule copies Headline's source; the prior's alias is not used");
+        name.Confidence.Should().Be(91, "the rule copies Headline's calibrated confidence, not the prior's 100");
+        rows.Select(r => r.SchemaPropertyName).Should().BeEquivalentTo(["MainEntity", "Headline", "Name"]);
     }
 
     [Fact]
@@ -279,8 +288,10 @@ public class TypeSafePropertyMapperTests
             new() { SchemaPropertyName = "MainEntity", SuggestedContentTypePropertyAlias = "faqs", SuggestedSourceType = "blockContent", Confidence = 100, SuggestedResolverConfig = """{"prior":true}""" },
             // Unbound and rule-shaped (a cross-piece reference TypeSafe cannot express): added.
             new() { SchemaPropertyName = "Publisher", SuggestedSourceType = "reference", SuggestedTargetPieceKey = "organization", Confidence = 90 },
-            // Unbound exact-alias match: added.
+            // Exact-alias match for a property the Headline/Name rule binds (v2): NOT added.
             new() { SchemaPropertyName = "Name", SuggestedContentTypePropertyAlias = "name", SuggestedSourceType = "property", Confidence = 100 },
+            // Unbound exact-alias match: added.
+            new() { SchemaPropertyName = "Keywords", SuggestedContentTypePropertyAlias = "keywords", SuggestedSourceType = "property", Confidence = 100 },
             // Unbound synonym-tier name guess: not a rule, not added.
             new() { SchemaPropertyName = "Description", SuggestedContentTypePropertyAlias = "title", SuggestedSourceType = "property", Confidence = 80 },
             // Unbound and rule-shaped but below the show threshold: gated out like any other row.
@@ -292,7 +303,11 @@ public class TypeSafePropertyMapperTests
         Row(rows, "MainEntity").SuggestedResolverConfig.Should().NotBe("""{"prior":true}""");
         Row(rows, "Publisher").SuggestedTargetPieceKey.Should().Be("organization");
         Row(rows, "Publisher").IsAutoMapped.Should().BeTrue("gap-filled rows are gated by the same thresholds");
-        Row(rows, "Name").Confidence.Should().Be(100);
+        // v2: Name is bound by the Headline/Name rule (title, 91), so the exact-alias prior for
+        // it (100) is a prior for a BOUND property and must not override.
+        Row(rows, "Name").Confidence.Should().Be(91, "a prior never overrides a TypeSafe row, even one filled by rule");
+        Row(rows, "Name").SuggestedContentTypePropertyAlias.Should().Be("title");
+        Row(rows, "Keywords").Confidence.Should().Be(100, "an unbound exact-alias prior is gap-filled");
         rows.Should().NotContain(r => r.SchemaPropertyName == "Description");
         rows.Should().NotContain(r => r.SchemaPropertyName == "About");
         rows.Take(2).Select(r => r.SchemaPropertyName).Should().Equal(

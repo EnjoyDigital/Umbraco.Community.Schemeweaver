@@ -96,12 +96,141 @@ public class TypeSafeOptions
     /// </summary>
     public TypeSafePriorsMode PriorsMode { get; set; } = TypeSafePriorsMode.None;
 
+    // ---- v2: multiple targets per content property ----
+
+    /// <summary>
+    /// A content property's bind answer carries a probability per schema property. A runner-up
+    /// at or above this probability whose schema property nobody else claimed becomes a second
+    /// row (the way a hand-written mapping sends <c>title</c> to both <c>headline</c> and
+    /// <c>name</c>). Such a row is shown at or above this probability regardless of the core's
+    /// show threshold (a runner-up rarely holds more than half of the distribution), is never
+    /// pre-ticked, and is never created for a Block List property. Costs no extra questions.
+    /// Default <c>0.30</c>.
+    /// </summary>
+    public double SecondaryBindingMinProbability { get; set; } = 0.30;
+
+    // ---- v2: what the model sees ----
+
+    /// <summary>
+    /// Opt-in: describe each scalar property with a short, HTML-stripped sample value taken
+    /// from one published node of the type, so the model can tell a "code" textbox holding
+    /// an ISBN from one holding a coupon. Default <c>false</c>: sample values are customer
+    /// content and leave the site in the request. The value schema (the shape of the stored
+    /// value) is always included and carries no content.
+    /// </summary>
+    public bool IncludeSampleValues { get; set; }
+
+    /// <summary>
+    /// Budget, in characters of JSON, for the shared request state: the content type's
+    /// properties with their value schemas, sample values and nested block structure (the
+    /// neighbourhood attached to the cross-node round is not counted). A request is capped at
+    /// 64k tokens, 32k of them for the state, and one over the cap is refused with a 4xx that
+    /// is never retried, after which the whole mapping falls back to the prior mapper. So while
+    /// the state is over budget detail is dropped in a fixed order until it fits: block-field
+    /// value schemas, then nested block levels beyond the first, then the properties' own value
+    /// schemas, then sample values, each step logged at Debug with sizes only. Default
+    /// <c>100000</c>, roughly 25k tokens at four characters a token, which leaves the questions
+    /// their share of the request.
+    /// </summary>
+    public int MaxStateCharacters { get; set; } = 100_000;
+
+    // ---- v2: cross-node sources (parent / ancestor / sibling) ----
+
+    /// <summary>Master switch for the cross-node round. Default <c>true</c>.</summary>
+    public bool EnableCrossNodeSources { get; set; } = true;
+
+    /// <summary>
+    /// How the content type's neighbourhood (which types sit above and beside it) is found.
+    /// <see cref="TypeSafeNeighbourhoodDiscovery.Structure"/> reads the document types' allowed
+    /// children; <see cref="TypeSafeNeighbourhoodDiscovery.Observed"/> samples real nodes of the
+    /// type and reads their actual parents, ancestors and siblings, which is what works on
+    /// sites whose structures are loose (most of them). Default <see cref="TypeSafeNeighbourhoodDiscovery.Both"/>.
+    /// </summary>
+    public TypeSafeNeighbourhoodDiscovery NeighbourhoodDiscovery { get; set; } = TypeSafeNeighbourhoodDiscovery.Both;
+
+    /// <summary>How far above the type ancestors are collected (1 = parents only). Default <c>3</c>.</summary>
+    public int MaxAncestorDepth { get; set; } = 3;
+
+    /// <summary>Neighbour types offered, parents first, then ancestors nearest-first, then siblings. Default <c>12</c>.</summary>
+    public int MaxNeighbourTypes { get; set; } = 12;
+
+    /// <summary>Properties listed per neighbour type. Default <c>30</c>.</summary>
+    public int MaxPropertiesPerNeighbour { get; set; } = 30;
+
+    /// <summary>Neighbour properties offered in one cross-node Choice in total (the API allows 255 options). Default <c>120</c>.</summary>
+    public int MaxNeighbourProperties { get; set; } = 120;
+
+    /// <summary>Nodes of the type sampled for observed-tree discovery. Default <c>25</c>.</summary>
+    public int MaxSampledNodes { get; set; } = 25;
+
+    /// <summary>Share of sampled nodes a parent, ancestor or sibling type must appear in to count; an observed sibling type is also dropped when any sampled parent holds more than one page of it. Default <c>0.5</c>.</summary>
+    public double MinObservedShare { get; set; } = 0.5;
+
+    /// <summary>Unbound schema properties asked about in the cross-node round, most cross-node-prone first. Default <c>12</c>.</summary>
+    public int MaxCrossNodeQuestions { get; set; } = 12;
+
+    /// <summary>
+    /// Minimum calibrated confidence (0 to 100) for a cross-node row. The default is the core's
+    /// show bar, so a cross-node row is offered exactly like any other suggestion and auto-applied
+    /// only at the core's auto-apply bar. The first v2 cut used 80 here, and the live measurement
+    /// showed the rows an editor would want to see (a department's location from a sibling contact
+    /// page, a shop's parent organisation) sitting at 60 to 79 and never reaching the screen.
+    /// Default <c>60</c>.
+    /// </summary>
+    public int MinCrossNodeConfidence { get; set; } = 60;
+
+    // ---- v2: nested-block routes ----
+
+    /// <summary>
+    /// When a Block List row is emitted as per-block-type <c>routes</c> rather than one nested
+    /// type for the whole list. <see cref="TypeSafeRoutesMode.Auto"/> (default) uses routes only
+    /// when the block types land on different Schema.org types, when a block contains a nested
+    /// Block List, or when one block type was judged not to belong; otherwise the v1 shapes are
+    /// emitted unchanged.
+    /// </summary>
+    public TypeSafeRoutesMode RoutesMode { get; set; } = TypeSafeRoutesMode.Auto;
+
+    /// <summary>How many levels of blocks-inside-blocks are planned (the core discovers three). Default <c>3</c>.</summary>
+    public int MaxBlockRouteDepth { get; set; } = 3;
+
     /// <summary>Every option except the key, which is reported only as set or unset.</summary>
     public override string ToString()
         => $"TypeSafeOptions(Enabled={Enabled}, ApiKey={(string.IsNullOrWhiteSpace(ApiKey) ? "unset" : "set")}, "
            + $"Endpoint={Endpoint}, Model={Model}, Timeout={Timeout}, MaxRetries={MaxRetries}, "
            + $"MaxQuestionsPerRequest={MaxQuestionsPerRequest}, BeamWidth={BeamWidth}, MaxDescentDepth={MaxDescentDepth}, "
-           + $"MaxOptionsPerChoice={MaxOptionsPerChoice}, MinBindingConfidence={MinBindingConfidence}, PriorsMode={PriorsMode})";
+           + $"MaxOptionsPerChoice={MaxOptionsPerChoice}, MinBindingConfidence={MinBindingConfidence}, PriorsMode={PriorsMode}, "
+           + $"SecondaryBindingMinProbability={SecondaryBindingMinProbability}, IncludeSampleValues={IncludeSampleValues}, MaxStateCharacters={MaxStateCharacters}, "
+           + $"EnableCrossNodeSources={EnableCrossNodeSources}, NeighbourhoodDiscovery={NeighbourhoodDiscovery}, "
+           + $"MaxAncestorDepth={MaxAncestorDepth}, MaxNeighbourTypes={MaxNeighbourTypes}, MaxPropertiesPerNeighbour={MaxPropertiesPerNeighbour}, "
+           + $"MaxNeighbourProperties={MaxNeighbourProperties}, MaxSampledNodes={MaxSampledNodes}, MinObservedShare={MinObservedShare}, "
+           + $"MaxCrossNodeQuestions={MaxCrossNodeQuestions}, MinCrossNodeConfidence={MinCrossNodeConfidence}, "
+           + $"RoutesMode={RoutesMode}, MaxBlockRouteDepth={MaxBlockRouteDepth})";
+}
+
+/// <summary>How a content type's neighbourhood is discovered for cross-node sources. See <see cref="TypeSafeOptions.NeighbourhoodDiscovery"/>.</summary>
+public enum TypeSafeNeighbourhoodDiscovery
+{
+    /// <summary>From the document types' allowed-children declarations only.</summary>
+    Structure,
+
+    /// <summary>From the actual parents, ancestors and siblings of sampled nodes only.</summary>
+    Observed,
+
+    /// <summary>Both, merged (structure first). The default.</summary>
+    Both,
+}
+
+/// <summary>When Block List rows use per-block-type routes. See <see cref="TypeSafeOptions.RoutesMode"/>.</summary>
+public enum TypeSafeRoutesMode
+{
+    /// <summary>Never: the v1 shapes (a string list, or one nested type for the whole list) only.</summary>
+    Off,
+
+    /// <summary>Only when the list needs them (different types per block, nested blocks, a skipped block type). The default.</summary>
+    Auto,
+
+    /// <summary>Whenever a list is emitted as nested objects.</summary>
+    Always,
 }
 
 /// <summary>How the heuristic auto-mapper's suggestions are combined with TypeSafe's. See <see cref="TypeSafeOptions.PriorsMode"/>.</summary>

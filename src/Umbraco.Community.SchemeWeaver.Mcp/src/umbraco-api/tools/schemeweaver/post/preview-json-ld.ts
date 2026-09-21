@@ -10,7 +10,7 @@ import {
 } from "@umbraco-cms/mcp-server-sdk";
 import { z } from "zod";
 import type { getSchemeWeaverManagementAPI } from "../../../api/generated/schemeWeaverApi.js";
-import { postSchemeweaverMappingsByContentTypeAliasPreviewResponse } from "../../../api/generated/schemeWeaverApi.zod.js";
+import { PostSchemeweaverMappingsByContentTypeAliasPreviewResponse } from "../../../api/generated/schemeWeaverApi.zod.js";
 
 type SchemeWeaverApiClient = ReturnType<typeof getSchemeWeaverManagementAPI>;
 
@@ -41,7 +41,7 @@ const inputSchema = {
 
 // The generated schema (regenerated from the C# DTO) already carries context and
 // resolvedBaseUrl, so no shim is needed — use it directly.
-export const outputSchema = postSchemeweaverMappingsByContentTypeAliasPreviewResponse;
+export const outputSchema = PostSchemeweaverMappingsByContentTypeAliasPreviewResponse;
 
 const previewJsonLdTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "preview-json-ld",

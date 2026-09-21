@@ -10,7 +10,7 @@ import {
 } from "@umbraco-cms/mcp-server-sdk";
 import { z } from "zod";
 import type { getSchemeWeaverManagementAPI } from "../../../api/generated/schemeWeaverApi.js";
-import { getSchemeweaverSchemaTypesResponse } from "../../../api/generated/schemeWeaverApi.zod.js";
+import { GetSchemeweaverSchemaTypesResponse } from "../../../api/generated/schemeWeaverApi.zod.js";
 
 type SchemeWeaverApiClient = ReturnType<typeof getSchemeWeaverManagementAPI>;
 
@@ -23,7 +23,7 @@ const inputSchema = {
     ),
 };
 
-const outputSchema = z.object({ items: getSchemeweaverSchemaTypesResponse });
+const outputSchema = z.object({ items: GetSchemeweaverSchemaTypesResponse });
 
 const searchSchemaTypesTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "search-schema-types",

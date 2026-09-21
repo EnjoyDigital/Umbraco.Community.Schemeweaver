@@ -21,6 +21,7 @@ import type { SchemaMappingDto, ContentTypeProperty, RankedSchemaPropertyInfo } 
 import { SourceType } from '../constants/source-type.js';
 
 import { dtoToRow, mergeAutoMapSuggestions, sortMappingRows, rowsToPropertyMappingDtos, applySourceTypeChange, applyWarningsToRows, pickedComplexConfigToResolverConfig } from '../utils/mapping-converters.js';
+import { enrichRelatedSourceRows } from '../utils/related-source-rows.js';
 import { changeSchemaType } from '../utils/change-schema-type.js';
 import { SchemeWeaverMappingChangedEvent } from '../utils/mapping-changed-event.js';
 
@@ -290,39 +291,13 @@ export class SchemaMappingViewElement extends UmbLitElement {
         });
       }
 
-      // Fetch properties for any existing parent/ancestor/sibling source content types
-      const sourceAliases = [...new Set(
-        this._rows
-          .filter((r) => r.sourceContentTypeAlias && [SourceType.Parent, SourceType.Ancestor, SourceType.Sibling].includes(r.sourceType))
-          .map((r) => r.sourceContentTypeAlias)
-      )];
-
-      if (sourceAliases.length > 0) {
-        const sourcePropsMap = new Map<string, string[]>();
-        await Promise.all(
-          sourceAliases.map(async (alias) => {
-            const sourceProps = await this.#context?.requestContentTypeProperties(alias);
-            if (sourceProps) {
-              sourcePropsMap.set(alias, sourceProps.map((p) => p.alias));
-            }
-          })
-        );
-
-        // Fetch content types to reconstruct sourceDocumentTypeUnique from alias
-        const contentTypes = await this.#context?.requestContentTypes();
+      // Hydrate parent/ancestor/sibling rows with their related type's property
+      // list and document-type key. Shared with both auto-map paths, so a
+      // cross-node suggestion renders exactly as a saved cross-node row does.
+      if (this.#context) {
+        const hydrated = await enrichRelatedSourceRows(this._rows, this.#context);
         if (superseded()) return;
-
-        this._rows = this._rows.map((row) => {
-          if (row.sourceContentTypeAlias && sourcePropsMap.has(row.sourceContentTypeAlias)) {
-            const ctMatch = contentTypes?.find((ct) => ct.alias === row.sourceContentTypeAlias);
-            return {
-              ...row,
-              sourceContentTypeProperties: sourcePropsMap.get(row.sourceContentTypeAlias)!,
-              sourceDocumentTypeUnique: ctMatch?.key,
-            };
-          }
-          return row;
-        });
+        this._rows = hydrated;
       }
     } catch (error) {
       this.#notificationContext?.peek('danger', {
@@ -418,7 +393,10 @@ export class SchemaMappingViewElement extends UmbLitElement {
       );
 
       if (suggestions && Array.isArray(suggestions)) {
-        this._rows = mergeAutoMapSuggestions(this._rows, suggestions);
+        const merged = mergeAutoMapSuggestions(this._rows, suggestions);
+        // A cross-node suggestion carries only the related type's alias; hydrate
+        // it now so the row shows its type and property list without a re-browse.
+        this._rows = this.#context ? await enrichRelatedSourceRows(merged, this.#context) : merged;
       }
     } catch (error) {
       this.#notificationContext?.peek('danger', {

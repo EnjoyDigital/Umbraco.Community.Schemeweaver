@@ -105,6 +105,16 @@ export interface PropertyMappingSuggestion {
   suggestedResolverConfig?: string;
   /** For `reference` source-type suggestions: the piece key (e.g. "organization") to ref. */
   suggestedTargetPieceKey?: string;
+  /** For `static` source-type suggestions: the fixed literal to emit (C# StaticValue). */
+  staticValue?: string | null;
+  /**
+   * For `parent` / `ancestor` / `sibling` source-type suggestions: the alias of the
+   * related content type whose property `suggestedContentTypePropertyAlias` names
+   * (e.g. "homePage" for publisher <- ancestor:organisationName). Mirrors
+   * `PropertyMappingDto.sourceContentTypeAlias` so an auto-mapped cross-node row
+   * saves with its source type intact. May be omitted by older backends.
+   */
+  suggestedSourceContentTypeAlias?: string | null;
 }
 
 /** Matches C# BlockElementPropertyInfo — a single property on a block element type. */

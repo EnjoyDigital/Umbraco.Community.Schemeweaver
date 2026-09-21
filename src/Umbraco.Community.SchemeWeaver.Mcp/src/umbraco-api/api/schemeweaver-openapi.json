@@ -80,6 +80,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "targetSchemaProperty",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -792,6 +799,12 @@
           "editorAlias": {
             "type": "string"
           },
+          "valueSchema": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "nestedBlockElementTypes": {
             "type": "array",
             "items": {
@@ -877,6 +890,12 @@
               "string"
             ]
           },
+          "transformType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "routes": {
             "type": [
               "null",
@@ -906,6 +925,12 @@
           "confidence": {
             "type": "integer",
             "format": "int32"
+          },
+          "fitsTarget": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "propertyMappings": {
             "type": "array",
@@ -1231,7 +1256,19 @@
               "string"
             ]
           },
+          "staticValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "suggestedTargetPieceKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestedSourceContentTypeAlias": {
             "type": [
               "null",
               "string"

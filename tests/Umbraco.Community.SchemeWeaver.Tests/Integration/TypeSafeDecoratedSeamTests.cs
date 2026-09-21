@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Services;
+using Umbraco.Community.SchemeWeaver.Services.ValueSchemas;
 using Umbraco.Community.SchemeWeaver.Tests.Integration.Fixtures;
 using Umbraco.Community.SchemeWeaver.Tests.Unit.TypeSafe.TestSupport;
 using Umbraco.Community.SchemeWeaver.TypeSafe.Client;
@@ -60,6 +61,7 @@ public class TypeSafeDecoratedSeamTests : UmbracoIntegrationTestBase
             services.GetRequiredService<ISchemaTypeGraph>(),
             services.GetRequiredService<ISchemaTypeRegistry>(),
             services.GetRequiredService<IContentTypeService>(),
+            services.GetRequiredService<IPropertyValueSchemaService>(),
             services,
             options,
             services.GetRequiredService<IOptions<SchemaAutoMapperOptions>>(),

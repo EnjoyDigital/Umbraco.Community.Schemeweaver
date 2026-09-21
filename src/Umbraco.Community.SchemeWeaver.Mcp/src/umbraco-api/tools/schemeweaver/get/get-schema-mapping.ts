@@ -10,17 +10,17 @@ import {
 } from "@umbraco-cms/mcp-server-sdk";
 import type { getSchemeWeaverManagementAPI } from "../../../api/generated/schemeWeaverApi.js";
 import {
-  getSchemeweaverMappingsByContentTypeAliasParams,
-  getSchemeweaverMappingsByContentTypeAliasResponse,
+  GetSchemeweaverMappingsByContentTypeAliasParams,
+  GetSchemeweaverMappingsByContentTypeAliasResponse,
 } from "../../../api/generated/schemeWeaverApi.zod.js";
 
 type SchemeWeaverApiClient = ReturnType<typeof getSchemeWeaverManagementAPI>;
 
-const inputSchema = getSchemeweaverMappingsByContentTypeAliasParams.shape;
+const inputSchema = GetSchemeweaverMappingsByContentTypeAliasParams.shape;
 
 // The generated schema (regenerated from the C# DTO) already carries reachability,
 // warnings and driftStatus, so no shim is needed — use it directly.
-export const outputSchema = getSchemeweaverMappingsByContentTypeAliasResponse;
+export const outputSchema = GetSchemeweaverMappingsByContentTypeAliasResponse;
 
 const getSchemaMappingTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "get-schema-mapping",

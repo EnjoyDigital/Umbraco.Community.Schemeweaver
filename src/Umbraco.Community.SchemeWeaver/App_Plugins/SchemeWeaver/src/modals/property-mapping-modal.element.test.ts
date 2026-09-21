@@ -1,7 +1,10 @@
 import { expect, waitUntil } from '@open-wc/testing';
 import { startMockServiceWorker, stopMockServiceWorker } from '../mocks/setup.js';
 import type { SetupWorker } from 'msw/browser';
+import { http, HttpResponse } from 'msw';
 import './property-mapping-modal.element.js';
+
+const BASE = '/umbraco/management/api/v1/schemeweaver';
 
 async function waitForLoad(el: any): Promise<void> {
   await el.updateComplete;
@@ -156,5 +159,57 @@ describe('PropertyMappingModalElement', () => {
     expect(mentions.contentTypePropertyAlias).to.equal('reviews');
     expect(mentions.resolverConfig).to.equal(fanOutConfig);
     expect(mentions.confidence).to.equal(null);
+  });
+
+  // The modal is the other place suggestions become rows: its initial auto-map
+  // and the AI auto-map. Both must hydrate a cross-node row exactly as the
+  // workspace view does, or the row opens with an empty document-type picker
+  // and no property dropdown although the alias the mapper chose is on it.
+  describe('cross-node suggestions', () => {
+    const HOME_PAGE_KEY = '00000000-0000-0000-0000-000000000007';
+
+    /** Article.sourceOrganization <- ancestor homePage.organisationName. */
+    const crossNodeSuggestion = {
+      schemaPropertyName: 'sourceOrganization',
+      schemaPropertyType: 'Organization',
+      suggestedContentTypePropertyAlias: 'organisationName',
+      suggestedSourceType: 'ancestor',
+      suggestedSourceContentTypeAlias: 'homePage',
+      confidence: 85,
+      isAutoMapped: true,
+      editorAlias: 'Umbraco.TextBox',
+      acceptedTypes: ['Organization'],
+      isComplexType: true,
+    };
+
+    afterEach(() => worker.resetHandlers());
+
+    function expectHydrated(row: any) {
+      expect(row, 'the cross-node suggestion becomes a row').to.exist;
+      expect(row.sourceType).to.equal('ancestor');
+      expect(row.sourceContentTypeAlias).to.equal('homePage');
+      expect(row.contentTypePropertyAlias).to.equal('organisationName');
+      expect(row.sourceDocumentTypeUnique).to.equal(HOME_PAGE_KEY);
+      expect(row.sourceContentTypeProperties).to.include('organisationName');
+    }
+
+    it('the initial auto-map hydrates a cross-node row with its related type', async () => {
+      worker.use(http.post(`${BASE}/mappings/:alias/auto-map`, () => HttpResponse.json([crossNodeSuggestion])));
+      const el = createElement('blogArticle', 'Article');
+      await waitForLoad(el);
+
+      expectHydrated(el._mappings.find((r: any) => r.schemaPropertyName === 'sourceOrganization'));
+    });
+
+    it('the AI auto-map hydrates a cross-node row with its related type', async () => {
+      worker.use(http.post(`${BASE}/ai/ai-auto-map/:alias`, () => HttpResponse.json([crossNodeSuggestion])));
+      const el = createElement('blogArticle', 'Article');
+      await waitForLoad(el);
+
+      await el._handleAIAutoMap();
+      await el.updateComplete;
+
+      expectHydrated(el._mappings.find((r: any) => r.schemaPropertyName === 'sourceOrganization'));
+    });
   });
 });
