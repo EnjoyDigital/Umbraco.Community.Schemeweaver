@@ -91,3 +91,6 @@ appsettings-schema.Umbraco.Deploy.json
 appsettings-schema.Umbraco.Licenses.json
 appsettings-schema.usync.json
 TriggerDeploy.ps1
+
+# Local secrets (TypeSafe API key for the eval harness) — never commit
+.env.local
