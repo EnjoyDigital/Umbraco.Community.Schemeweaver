@@ -31,6 +31,7 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
     // one go. A global CTS covers "invalidate everything" (schema-mapping writes).
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _perContentTokens = new();
     private CancellationTokenSource _globalToken = new();
+    private readonly object _globalTokenLock = new();
 
     public JsonLdBlocksProvider(
         IServiceScopeFactory scopeFactory,
@@ -115,7 +116,15 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
 
     public void InvalidateAll()
     {
-        var previous = Interlocked.Exchange(ref _globalToken, new CancellationTokenSource());
+        // Retire the current global source and start a fresh one. The swap runs under a lock
+        // so two concurrent invalidations retire distinct sources; the new source belongs to
+        // the field from here on and is retired by the next swap or by Dispose().
+        CancellationTokenSource previous;
+        lock (_globalTokenLock)
+        {
+            previous = _globalToken;
+            _globalToken = new CancellationTokenSource();
+        }
         try { previous.Cancel(); }
         catch (ObjectDisposedException) { /* already evicted */ }
         previous.Dispose();

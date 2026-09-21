@@ -35,7 +35,7 @@ var dump = registry.GetAllTypes()
 // build location so the tool works from any working directory.
 var outPath = args.Length > 0
     ? args[0]
-    : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "cache", "schema-types.json"));
+    : Path.GetFullPath(Path.Join(AppContext.BaseDirectory, "..", "..", "..", "..", "cache", "schema-types.json"));
 
 Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
 File.WriteAllText(outPath, JsonSerializer.Serialize(dump, new JsonSerializerOptions { WriteIndented = false }));
