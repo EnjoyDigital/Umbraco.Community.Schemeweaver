@@ -19,14 +19,16 @@
   "license": "MIT",
   "devDependencies": {
     "@umbraco-cms/backoffice": "18.0.0",
-    "@types/node": "^22.20.1",
+    "@types/node": "^22.20.4",
     "typescript": "^5.3.3",
-    "vite": "^8.1.5"
+    "vite": "^8.3.0"
   },
   "overrides": {
     "monaco-editor": {
-      "dompurify": "^3.4.12"
+      "dompurify": "^3.4.13"
     },
-    "js-yaml": "^4.3.0"
+    "@hey-api/json-schema-ref-parser": {
+      "js-yaml": "^4.3.2"
+    }
   }
 }
