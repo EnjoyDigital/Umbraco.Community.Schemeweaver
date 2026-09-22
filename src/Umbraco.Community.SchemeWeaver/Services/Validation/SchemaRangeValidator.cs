@@ -65,7 +65,6 @@ public class SchemaRangeValidator : ISchemaRangeValidator
         if (schemaProps.Count == 0)
             return issues;
 
-        // codeql[cs/linq/missed-where] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
         foreach (var pm in mapping.PropertyMappings)
         {
             // reference: the type lives in another graph piece (TargetPieceKey);

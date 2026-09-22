@@ -108,7 +108,6 @@ public class JsonLdGeneratorTests
     private void StubUnfilteredResolution(params IPublishedContent[] nodes)
     {
 #pragma warning disable CS0618 // Unfiltered is Umbraco-internal-deprecated; mocked, not used for functionality
-        // codeql[cs/call-to-obsolete-method] The test stubs the internally deprecated member the production code still has to call.
         _publishedStatusFilteringService
             .Unfiltered(Arg.Any<IEnumerable<Guid>>())
             .Returns(callInfo =>

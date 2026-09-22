@@ -129,7 +129,6 @@ public sealed class GraphGenerator : IGraphGenerator
                 ids[piece.Key] = id;
                 needed.Add(piece);
             }
-            // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
             catch (Exception ex)
             {
                 _logger.LogWarning(ex,
@@ -176,7 +175,6 @@ public sealed class GraphGenerator : IGraphGenerator
                 if (node is not null)
                     nodes.Add(node);
             }
-            // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
             catch (Exception ex)
             {
                 _logger.LogWarning(ex,

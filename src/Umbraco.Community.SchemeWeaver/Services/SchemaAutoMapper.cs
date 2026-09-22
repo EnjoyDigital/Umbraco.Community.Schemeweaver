@@ -967,7 +967,6 @@ public class SchemaAutoMapper : ISchemaAutoMapper
         {
             dataType = _dataTypeService.GetAsync(property.DataTypeKey).GetAwaiter().GetResult();
         }
-        // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
         catch (Exception ex)
         {
             _logger?.LogDebug(ex,
@@ -1023,7 +1022,6 @@ public class SchemaAutoMapper : ISchemaAutoMapper
             if (doc.RootElement.ValueKind != JsonValueKind.Array)
                 return keys;
 
-            // codeql[cs/linq/missed-where] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
             foreach (var block in doc.RootElement.EnumerateArray())
             {
                 if (block.TryGetProperty("contentElementTypeKey", out var keyProp)

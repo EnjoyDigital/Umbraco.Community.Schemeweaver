@@ -128,7 +128,6 @@ internal static class JsonLdCacheInvalidator
                 .Any(p => SchemeWeaverConstants.SourceTypes.IsCrossNode(p.SourceType)
                     || IsPickedContentRow(p));
         }
-        // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to inspect mappings for cross-node dependencies; rippling JSON-LD invalidation.");
