@@ -127,6 +127,7 @@ public sealed class WebSitePiece : IGraphPiece
                     return settings.Name!;
             }
         }
+        // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "WebSitePiece: failed to read site name from settings node");

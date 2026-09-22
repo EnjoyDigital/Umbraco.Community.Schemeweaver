@@ -120,6 +120,7 @@ public static class UmbracoLogTail
                     Environment.NewLine + "  --- and ---" + Environment.NewLine,
                     found.TakeLast(maxErrors));
         }
+        // codeql[cs/catch-of-all-exceptions] Best-effort helper in a test fixture; any failure here is ignored on purpose.
         catch (Exception)
         {
             // Diagnostics must never fail a test.
