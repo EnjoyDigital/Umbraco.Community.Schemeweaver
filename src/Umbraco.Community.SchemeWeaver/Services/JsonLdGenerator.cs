@@ -145,6 +145,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
                     == PropertyMappingOutcome.SetExplicitId)
                     hasExplicitId = true;
             }
+            // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to map property {Property} for content {ContentId}",
@@ -300,6 +301,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
                 current = current.Parent<IPublishedContent>(_navigationQueryService, _publishedStatusFilteringService);
             }
         }
+        // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to walk parent chain for breadcrumb generation on content {ContentId}", content.Id);
@@ -419,6 +421,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
 
     private IPublishedElement? FindBlockInstanceCore(IPublishedContent page, Guid blockInstanceKey, string? culture)
     {
+        // codeql[cs/linq/missed-select] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
         foreach (var property in page.Properties
             .Where(p => p.PropertyType?.EditorAlias is "Umbraco.BlockList" or "Umbraco.BlockGrid"))
         {
@@ -537,6 +540,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
             return (null, null);
 
         BlockRoute? wildcard = null;
+        // codeql[cs/linq/missed-where] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
         foreach (var route in routes)
         {
             if (string.IsNullOrEmpty(route.NestedSchemaType))
@@ -1124,6 +1128,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
                 return null;
             }
         }
+        // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
@@ -1225,6 +1230,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
             }
         }
 
+        // codeql[cs/linq/missed-select] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
         foreach (var property in content.Properties
             .Where(p => p.PropertyType?.EditorAlias is "Umbraco.BlockList" or "Umbraco.BlockGrid")
             .Where(p => !explicitBlockProperties.Contains(p.Alias)))
@@ -1237,6 +1243,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
             // blocks nested inside a block's own Block List/Grid properties — so a nested
             // block that carries its own mapping still emits a standalone JSON-LD script.
             var visited = new HashSet<Guid>();
+            // codeql[cs/linq/missed-where] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
             foreach (var element in EnumerateNestedBlockElements(value, culture, 0, visited))
             {
                 if (!allMappings.TryGetValue(element.ContentType.Alias, out var mapping))
@@ -1282,6 +1289,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
         if (items is null)
             yield break;
 
+        // codeql[cs/linq/missed-where] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
         foreach (var element in items)
         {
             if (!visited.Add(element.Key))
@@ -1289,6 +1297,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
 
             yield return element;
 
+            // codeql[cs/linq/missed-select] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
             foreach (var nestedProperty in element.Properties
                 .Where(p => p.PropertyType?.EditorAlias is "Umbraco.BlockList" or "Umbraco.BlockGrid"))
             {
@@ -1357,6 +1366,7 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
 
                 SchemaPropertySetter.SetPropertyValue(instance, propMapping.SchemaPropertyName, value);
             }
+            // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to map property {Property} for block element {ElementType}",

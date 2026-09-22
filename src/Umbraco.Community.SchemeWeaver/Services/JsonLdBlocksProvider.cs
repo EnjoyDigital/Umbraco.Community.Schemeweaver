@@ -141,9 +141,11 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
     {
         foreach (var cts in _perContentTokens.Values)
         {
+            // codeql[cs/catch-of-all-exceptions] Disposing an already evicted token source is harmless; best effort by design.
             try { cts.Dispose(); } catch { /* best effort */ }
         }
         _perContentTokens.Clear();
+        // codeql[cs/catch-of-all-exceptions] Disposing an already evicted token source is harmless; best effort by design.
         try { _globalToken.Dispose(); } catch { /* best effort */ }
     }
 
@@ -195,6 +197,7 @@ public sealed class JsonLdBlocksProvider : IJsonLdBlocksProvider, IDisposable
 
             return all.ToArray();
         }
+        // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to generate JSON-LD for content {ContentKey}", content.Key);

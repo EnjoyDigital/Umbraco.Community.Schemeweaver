@@ -117,6 +117,7 @@ public sealed class BreadcrumbListPiece : IGraphPiece
                     _publishedStatusFilteringService);
             }
         }
+        // codeql[cs/catch-of-all-exceptions] Deliberate log-and-degrade boundary: JSON-LD output must never break the host page (error-handling policy in CLAUDE.md).
         catch (Exception ex)
         {
             _logger.LogWarning(ex,

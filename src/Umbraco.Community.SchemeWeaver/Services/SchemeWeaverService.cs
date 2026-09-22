@@ -512,6 +512,7 @@ public class SchemeWeaverService : ISchemeWeaverService
     {
         var result = new List<BlockElementTypeInfo>();
 
+        // codeql[cs/linq/missed-where] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
         foreach (var key in elementTypeKeys)
         {
             // Cycle guard: skip an element type already open on the current branch.
@@ -598,6 +599,7 @@ public class SchemeWeaverService : ISchemeWeaverService
                 return keys;
 
             using var doc = JsonDocument.Parse(blocksJson);
+            // codeql[cs/linq/missed-where] The loop carries early exits, yields, out-variables or side-effecting filters that a Where/Select would hide.
             foreach (var block in doc.RootElement.EnumerateArray())
             {
                 if (block.TryGetProperty("contentElementTypeKey", out var keyProp) &&
