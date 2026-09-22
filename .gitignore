@@ -94,3 +94,6 @@ TriggerDeploy.ps1
 
 # Local secrets (TypeSafe API key for the eval harness) — never commit
 .env.local
+
+# Playwright run artefacts (E2E)
+src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/test-results/
