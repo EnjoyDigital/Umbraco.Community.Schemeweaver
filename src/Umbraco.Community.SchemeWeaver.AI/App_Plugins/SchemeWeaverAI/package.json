@@ -19,9 +19,9 @@
   "license": "MIT",
   "devDependencies": {
     "@umbraco-cms/backoffice": "18.0.0",
-    "@types/node": "^22.20.4",
+    "@types/node": "^22.20.5",
     "typescript": "^5.3.3",
-    "vite": "^8.3.0"
+    "vite": "^8.3.2"
   },
   "overrides": {
     "monaco-editor": {
