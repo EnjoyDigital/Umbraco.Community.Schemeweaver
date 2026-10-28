@@ -46,18 +46,31 @@ public sealed class MainEntityPiece : IGraphPiece
     public string? ResolveId(GraphPieceContext ctx)
     {
         var thing = GetOrBuild(ctx);
-        return thing?.Id?.ToString();
+        if (thing is null || IsSiteOrganization(thing, ctx))
+            return null;
+
+        return thing.Id?.ToString();
     }
 
     public Thing? Build(GraphPieceContext ctx)
     {
         var thing = GetOrBuild(ctx);
-        if (thing is null)
+        if (thing is null || IsSiteOrganization(thing, ctx))
             return null;
 
         AutoWirePageReferences(thing, ctx);
         return thing;
     }
+
+    // On the site settings node itself, an Organization mapping is the node the
+    // Organization piece already emits; emitting it again would put a second
+    // node with the same @id into the graph. Only skipped while that piece is
+    // contributing, so excluding it still leaves the Organization on the page.
+    private static bool IsSiteOrganization(Thing thing, GraphPieceContext ctx) =>
+        ctx.SiteSettings is not null
+        && ctx.SiteSettings.Key == ctx.Content.Key
+        && thing is IOrganization
+        && ctx.IdFor("organization") is not null;
 
     private Thing? GetOrBuild(GraphPieceContext ctx)
     {
