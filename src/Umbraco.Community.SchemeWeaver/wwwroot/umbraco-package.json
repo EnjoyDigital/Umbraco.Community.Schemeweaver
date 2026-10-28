@@ -7,7 +7,7 @@
       "type": "bundle",
       "name": "Umbraco Community SchemeWeaver WebComponents",
       "alias": "Umbraco.Community.SchemeWeaver.WebComponents",
-      "js": "/App_Plugins/SchemeWeaver/dist/index.js?v=8ffe269b"
+      "js": "/App_Plugins/SchemeWeaver/dist/index.js?v=f9c2d02e"
     }
   ]
 }

@@ -49,9 +49,23 @@ export default defineConfig({
       testMatch: '**/*.spec.ts',
       // Project-level testIgnore replaces (does not merge with) the top-level
       // one, so screenshots.spec.ts must be repeated here alongside the
-      // model-mutating spec that is deferred to the e2e-mutating project.
-      testIgnore: ['**/screenshots.spec.ts', '**/generate-doctype.spec.ts'],
+      // model-mutating spec that is deferred to the e2e-mutating project and
+      // the SEO spec that is deferred to the e2e-seo project.
+      testIgnore: ['**/screenshots.spec.ts', '**/generate-doctype.spec.ts', '**/seo-section.spec.ts'],
       dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        ignoreHTTPSErrors: true,
+        storageState: STORAGE_STATE,
+      },
+    },
+    {
+      // The SEO satellite spec rewrites (and restores) the mapping of a seeded,
+      // published page type through its set-up wizard. Run it after the main
+      // suite so a parallel rendering spec never observes the swapped mapping.
+      name: 'e2e-seo',
+      testMatch: '**/seo-section.spec.ts',
+      dependencies: ['e2e'],
       use: {
         ...devices['Desktop Chrome'],
         ignoreHTTPSErrors: true,
@@ -65,7 +79,7 @@ export default defineConfig({
       // published page may run after them without a host restart.
       name: 'e2e-mutating',
       testMatch: '**/generate-doctype.spec.ts',
-      dependencies: ['e2e'],
+      dependencies: ['e2e-seo'],
       use: {
         ...devices['Desktop Chrome'],
         ignoreHTTPSErrors: true,

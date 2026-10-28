@@ -84,17 +84,23 @@ async function getAuthHeaders(host: UmbControllerHost): Promise<Record<string, s
   }
 }
 
-async function fetchApi<T>(
+/**
+ * Authenticated JSON fetch against the SchemeWeaver management API. Exported so satellite
+ * bundles (the SEO section) share one session-expiry and error-toast behaviour: a `path`
+ * starting with `/umbraco/` is treated as absolute, anything else is relative to the core API.
+ */
+export async function fetchApi<T>(
   host: UmbControllerHost,
   path: string,
   options: RequestInit = {},
   expect404?: boolean,
 ): Promise<T | undefined> {
+  const url = path.startsWith('/umbraco/') ? path : `${API_BASE}${path}`;
   const { data, error } = await tryExecute(
     host,
     (async () => {
       const authHeaders = await getAuthHeaders(host);
-      const response = await fetch(`${API_BASE}${path}`, {
+      const response = await fetch(url, {
         ...options,
         headers: {
           ...authHeaders,
