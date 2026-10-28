@@ -24,13 +24,18 @@ Schema** section to your user group. Then:
 ### 1. Say who the site represents
 
 Open **SEO Schema › Site identity**. Choose organisation or person, enter the name, add the logo
-and your social profile links, and save. This becomes the publisher of every page and powers the
+and your social profile links, and save.
+
+![Site identity](images/seo-site-identity.png)
+ This becomes the publisher of every page and powers the
 organisation panel in search results. If you run a local business, switch on **This is a local
 business** and add the address and opening hours.
 
 ### 2. Set up each page type
 
 Open **SEO Schema › Content types**. Each row is a page type with a status. Select **Set up** and:
+
+![Content types](images/seo-content-types.png)
 
 1. **Kind**: pick what a page of this type is. Be specific (a blog post rather than a web page);
    specific kinds unlock specific rich results. Kinds Google no longer rewards are hidden behind
@@ -39,6 +44,12 @@ Open **SEO Schema › Content types**. Each row is a page type with a status. Se
    we pre-fill what we can and show how confident we are. Pick a field, a fixed value, or the site
    identity (for publisher, organiser, employer and so on).
 3. **Check**: save, then see exactly what a real page emits and what Google would say about it.
+
+![Choosing a kind](images/seo-wizard-kind.png)
+
+![Confirming the fields, with confidence tags](images/seo-wizard-fields.png)
+
+![Checking a real page against Google's rules](images/seo-wizard-check.png)
 
 The status column tells you what is left: **Set up**, **Needs attention** (a required field is
 empty, or the kind is retired) or **Not set up**.
@@ -50,10 +61,14 @@ itself in plain language, the validation checklist and the raw JSON-LD, with a b
 live page in Google's Rich Results Test. Switch **Page type** to a more precise kind (an article
 that is really a news article) or **Exclude this page** when it should carry no structured data.
 
+![The Schema tab on a page](images/seo-page-schema-tab.png)
+
 ### 4. Keep an eye on the site
 
 **SEO Schema › Overview** lists what is set up, what needs attention and runs a site health
 check: one page of every set-up type is rendered and checked against Google's rules.
+
+![Overview and site health](images/seo-overview.png)
 
 ## Without the SEO Schema section
 

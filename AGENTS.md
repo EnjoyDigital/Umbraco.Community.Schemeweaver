@@ -46,7 +46,7 @@ npm run build                   # Vite build → ../../wwwroot/dist/ (+ cache-bu
 npm test                        # core-bridge guard + Web Test Runner (MSW-backed context/view tests)
 npm run test:msw
 ```
-E2E coverage for the SEO section lives in the core suite (`tests/e2e/seo-section.spec.ts`).
+E2E coverage for the SEO section lives in the core suite (`tests/e2e/seo-section.spec.ts` and the docs screenshot spec `seo-docs-screenshots.spec.ts`, both in the `e2e-seo` Playwright project; run them with `--project setup --project e2e-seo --no-deps`). The SEO bundle also has its own mocked-backoffice tier (`tests/mocked-backoffice/`, composite core+SEO mirror; same pinned Umbraco-CMS clone and patch as the core tier).
 
 ### MCP Server (in src/Umbraco.Community.SchemeWeaver.Mcp/)
 ```bash
@@ -56,7 +56,7 @@ npm run build                   # tsup → dist/ (the entry point .mcp.json poin
 npm test                        # Integration tests against the running TestHost
 ```
 
-TypeScript MCP server on `@umbraco-cms/mcp-server-sdk` exposing 16 SchemeWeaver tools (schema type search, content type inspection, heuristic suggest, save/delete mapping, JSON-LD preview, validation, uSync drift/export, live Delivery-API render verification, doc type generation) plus a `get-server-info` smoke-test tool from the base SDK, so AI assistants can build better mappings than the heuristic auto-mapper. Ships three end-user skills (`schemeweaver-setup`, `schemeweaver-map`, `schemeweaver-audit`) from its `skills/` directory. Registered in `.mcp.json` as `schemeweaver-mcp`; authenticates as an Umbraco API user (client credentials in the project's gitignored `.env`; `scripts/setup-api-user.mjs` creates the user in a fresh TestHost DB).
+TypeScript MCP server on `@umbraco-cms/mcp-server-sdk` exposing 16 SchemeWeaver tools (schema type search, content type inspection, heuristic suggest, save/delete mapping, JSON-LD preview, validation, uSync drift/export, live Delivery-API render verification, doc type generation), 10 SchemeWeaver SEO tools (`tools/schemeweaver-seo/`: content kinds, per-type status, kind set-up + save, site identity, page summary/override, health check; `scripts/extract-openapi.mjs` keeps both the `SchemeWeaver` and `SchemeWeaverSeo` OpenAPI tags) plus a `get-server-info` smoke-test tool from the base SDK, so AI assistants can build better mappings than the heuristic auto-mapper. Ships three end-user skills (`schemeweaver-setup`, `schemeweaver-map`, `schemeweaver-audit`) from its `skills/` directory. Registered in `.mcp.json` as `schemeweaver-mcp`; authenticates as an Umbraco API user (client credentials in the project's gitignored `.env`; `scripts/setup-api-user.mjs` creates the user in a fresh TestHost DB).
 
 It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugin/marketplace.json` lists the `schemeweaver-mcp` plugin (`src/Umbraco.Community.SchemeWeaver.Mcp/.claude-plugin/plugin.json`), which registers the server via `mcpServers` running the committed, self-contained `dist/index.js` from `${CLAUDE_PLUGIN_ROOT}` and collects Umbraco credentials via `userConfig`. End-users install with `/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver` then `/plugin install schemeweaver-mcp@schemeweaver`. The bundled `dist/index.js` is committed (tsup `noExternal` makes it standalone) and **must be rebuilt and re-committed** whenever the server changes. See the project's own README/AGENTS.md for details.
 

@@ -25,7 +25,7 @@ Umbraco content types in, Schema.org JSON-LD out. Start with the quick start tha
 ## Integrations
 
 - [SchemeWeaver SEO](seo-edition.md): the Yoast-style SEO Schema section for non-developers: curated kinds, site identity, per-page overrides
-- [MCP Server](mcp-server.md): sixteen tools and three skills so AI assistants can build better mappings than any heuristic
+- [MCP Server](mcp-server.md): sixteen mapping tools, ten SEO-edition tools and three skills so AI assistants can build better mappings than any heuristic
 - [AI Integration](ai-integration.md): AI-powered schema analysis inside the backoffice
 - [TypeSafe Integration](typesafe-integration.md): calibrated auto-map suggestions from TypeSafe System One, no UI change
 - [uSync](usync.md): mappings as version-controlled config files

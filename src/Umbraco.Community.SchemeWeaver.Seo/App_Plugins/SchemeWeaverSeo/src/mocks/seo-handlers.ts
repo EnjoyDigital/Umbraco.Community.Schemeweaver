@@ -5,7 +5,37 @@ import type { SeoMappingSaveRequest, SeoPageOverrideRequest, SeoSetupRequest, Si
 const SEO = '/umbraco/management/api/v1/schemeweaver-seo';
 const CORE = '/umbraco/management/api/v1/schemeweaver';
 
+/**
+ * The Umbraco mock backoffice user has a fixed list of allowed sections; add ours so the
+ * section and tab conditions pass in the mocked-backoffice tier. Registered last so it wins
+ * over Umbraco's own handler (runtime handlers are prepended).
+ */
+const currentUserHandler = http.get('/umbraco/management/api/v1/user/current', async () => {
+  const sections = ['Umb.Section.Content', 'Umb.Section.Media', 'Umb.Section.Settings', 'Umb.Section.Users', 'Umb.Section.Members', 'Umb.Section.Packages', 'SchemeWeaver.Seo.Section'];
+  return HttpResponse.json({
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'seo@example.com',
+    userName: 'seo@example.com',
+    name: 'SEO Editor',
+    userGroupIds: [],
+    languageIsoCode: 'en-US',
+    documentStartNodeIds: [],
+    hasDocumentRootAccess: true,
+    mediaStartNodeIds: [],
+    hasMediaRootAccess: true,
+    avatarUrls: [],
+    languages: [],
+    hasAccessToAllLanguages: true,
+    hasAccessToSensitiveData: true,
+    fallbackPermissions: [],
+    permissions: [],
+    allowedSections: sections,
+    isAdmin: true,
+  });
+});
+
 export const seoHandlers = [
+  currentUserHandler,
   http.get(`${SEO}/templates`, () => HttpResponse.json(seoDb.getCatalogue())),
   http.get(`${SEO}/server-context`, () => HttpResponse.json(seoDb.getServerContext())),
   http.get(`${SEO}/site-identity`, () => HttpResponse.json(seoDb.getSiteIdentity())),

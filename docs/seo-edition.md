@@ -17,6 +17,8 @@ Yoast SEO handles structured data in WordPress:
 It needs no document-type changes, no uSync and no code. The developer package keeps working
 alongside it on the very same mappings.
 
+![The SEO Schema section's Content types view with status per page type](images/seo-content-types.png)
+
 ## Installation
 
 ```bash
@@ -58,6 +60,8 @@ Two small seams in the core make the per-page and identity features possible:
 
 ## The curated kinds
 
+![Step one of the wizard: choosing a kind](images/seo-wizard-kind.png)
+
 The catalogue ships inside the package as `Templates/catalogue.json`. Each kind lists its
 required and recommended slots; the required slots are kept identical to the Critical checks
 of the core's Google rich-result rules by a unit test, so the wizard never calls a field
@@ -83,6 +87,8 @@ WebSite, BreadcrumbList and the primary image are emitted automatically and need
 
 ## Site identity
 
+![The Site identity form](images/seo-site-identity.png)
+
 The identity is stored as JSON in Umbraco's key-value store (`umbracoKeyValue`), not as content,
 so it needs no document type and is editable by anyone with the section. When set, it takes
 precedence over the `schemaSiteSettings` content-node convention described in
@@ -98,6 +104,8 @@ embedded in each page's graph.
 
 ## Per-page overrides
 
+![The Schema tab on a content item](images/seo-page-schema-tab.png)
+
 The Schema tab stores one row per content node in `SchemeWeaverSeoPageOverride`:
 
 - **Page type**: one of the kind's variants. The emitted `@type` changes, the property rows do
@@ -111,6 +119,8 @@ the mapping's type (a developer changed the kind) is ignored with a warning. The
 `schemaOrg` field refreshes only when the page is next published.
 
 ## Site health
+
+![The Overview with a site health report](images/seo-overview.png)
 
 The Overview's **Run check** renders the most recently published page of every set-up page
 type through the core validator and lists the critical and recommended findings per type. The
@@ -140,6 +150,12 @@ asking for `Off` or `Seed` instead.
 
 `HideDeveloperJsonLdTab` replaces the core's developer "JSON-LD" tab on content items with the
 SEO "Schema" tab; set it to `false` to show both.
+
+## AI assistants (MCP)
+
+The [MCP server](mcp-server.md) ships ten SEO-edition tools (kinds, per-type status, set-up and save,
+site identity, page summary and overrides, health check) so an assistant can run the same workflow
+the section offers. The API user's group needs the SEO Schema section.
 
 ## API
 
