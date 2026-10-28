@@ -147,23 +147,12 @@ public sealed class SeoSlotProjector : ISeoSlotProjector
         foreach (var entry in config.ComplexTypeMappings ?? [])
         {
             var subSlot = slot.FindSubSlot(entry.SchemaProperty);
-            // A sub-row the slot does not know, or a nested shape the simple model cannot show:
-            // the whole row stays advanced so nothing is lost on save.
-            if (subSlot is null || !string.IsNullOrWhiteSpace(entry.ResolverConfig) || !string.IsNullOrWhiteSpace(entry.SourceContentTypeAlias))
+            // A sub-row the slot does not know, or a shape the simple model cannot show: the
+            // whole row stays advanced so nothing is lost on save.
+            if (subSlot is null || !string.IsNullOrWhiteSpace(entry.SourceContentTypeAlias))
                 return false;
 
-            var sub = entry.SourceType switch
-            {
-                SchemeWeaverConstants.SourceTypes.Static => new SeoSlotValueDto { Kind = SlotValueKinds.Fixed, FixedValue = entry.StaticValue },
-                SchemeWeaverConstants.SourceTypes.Property when !string.IsNullOrWhiteSpace(entry.ContentTypePropertyAlias) =>
-                    new SeoSlotValueDto
-                    {
-                        Kind = SlotValueKinds.Property,
-                        PropertyAlias = entry.ContentTypePropertyAlias,
-                        EditorAlias = EditorOf(editors, entry.ContentTypePropertyAlias),
-                    },
-                _ => null,
-            };
+            var sub = ClassifyEntry(subSlot, entry, editors);
             if (sub is null)
                 return false;
 
@@ -171,6 +160,57 @@ public sealed class SeoSlotProjector : ISeoSlotProjector
         }
 
         return true;
+    }
+
+    /// <summary>One complex-type entry → a sub-slot value; a nested entity (Place.address → PostalAddress) recurses one level.</summary>
+    private static SeoSlotValueDto? ClassifyEntry(SeoSlot subSlot, ComplexTypeMappingEntry entry, IReadOnlyDictionary<string, string>? editors)
+    {
+        switch (entry.SourceType)
+        {
+            case SchemeWeaverConstants.SourceTypes.Static when string.IsNullOrWhiteSpace(entry.ResolverConfig):
+                return new SeoSlotValueDto { Kind = SlotValueKinds.Fixed, FixedValue = entry.StaticValue };
+
+            case SchemeWeaverConstants.SourceTypes.Property when !string.IsNullOrWhiteSpace(entry.ContentTypePropertyAlias) && string.IsNullOrWhiteSpace(entry.ResolverConfig):
+                return new SeoSlotValueDto
+                {
+                    Kind = SlotValueKinds.Property,
+                    PropertyAlias = entry.ContentTypePropertyAlias,
+                    EditorAlias = EditorOf(editors, entry.ContentTypePropertyAlias),
+                };
+
+            case SchemeWeaverConstants.SourceTypes.ComplexType when subSlot.Nested is not null && !string.IsNullOrWhiteSpace(entry.ResolverConfig):
+            {
+                ComplexTypeConfigModel? config;
+                try
+                {
+                    config = JsonSerializer.Deserialize<ComplexTypeConfigModel>(entry.ResolverConfig, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch (JsonException)
+                {
+                    return null;
+                }
+
+                if (config is null || !string.Equals(config.SelectedSubType, subSlot.Nested.SchemaType, StringComparison.OrdinalIgnoreCase))
+                    return null;
+
+                var nested = new SeoSlotValueDto { Kind = SlotValueKinds.Nested };
+                foreach (var inner in config.ComplexTypeMappings ?? [])
+                {
+                    var innerSlot = subSlot.FindSubSlot(inner.SchemaProperty);
+                    if (innerSlot is null || !string.IsNullOrWhiteSpace(inner.SourceContentTypeAlias))
+                        return null;
+                    var innerValue = ClassifyEntry(innerSlot, inner, editors);
+                    if (innerValue is null)
+                        return null;
+                    nested.Nested[innerSlot.SchemaProperty] = innerValue;
+                }
+
+                return nested;
+            }
+
+            default:
+                return null;
+        }
     }
 
     private static SeoSlotValueDto? FromSuggestion(SeoSlot slot, IReadOnlyList<PropertyMappingSuggestion>? suggestions, IReadOnlyDictionary<string, string>? editors)
@@ -265,7 +305,7 @@ public sealed class SeoSlotProjector : ISeoSlotProjector
             ContentTypeAlias = contentTypeAlias,
             ContentTypeKey = existing?.ContentTypeKey is { } k && k != Guid.Empty ? k : contentTypeKey,
             SchemaTypeName = schemaTypeName,
-            IsEnabled = true,
+            IsEnabled = existing?.IsEnabled ?? true,
             IsInherited = existing?.IsInherited ?? false,
             IdOverride = existing?.IdOverride,
             PropertyMappings = rows,
@@ -350,35 +390,7 @@ public sealed class SeoSlotProjector : ISeoSlotProjector
                 if (slot.Nested is null)
                     return null;
 
-                var entries = new List<ComplexTypeMappingEntry>();
-                foreach (var subSlot in slot.Nested.Slots)
-                {
-                    if (!value!.Nested.TryGetValue(subSlot.SchemaProperty, out var sub) || sub is null)
-                        continue;
-
-                    switch (sub.Kind)
-                    {
-                        case SlotValueKinds.Fixed:
-                            entries.Add(new ComplexTypeMappingEntry
-                            {
-                                SchemaProperty = subSlot.SchemaProperty,
-                                SourceType = SchemeWeaverConstants.SourceTypes.Static,
-                                StaticValue = sub.FixedValue ?? string.Empty,
-                            });
-                            break;
-                        case SlotValueKinds.Property when !string.IsNullOrWhiteSpace(sub.PropertyAlias):
-                            var subEditor = sub.EditorAlias ?? EditorOf(editors, sub.PropertyAlias);
-                            entries.Add(new ComplexTypeMappingEntry
-                            {
-                                SchemaProperty = subSlot.SchemaProperty,
-                                SourceType = SchemeWeaverConstants.SourceTypes.Property,
-                                ContentTypePropertyAlias = sub.PropertyAlias.Trim(),
-                                TransformType = subSlot.Kind == "text" && NeedsStripHtml(subEditor) ? "stripHtml" : null,
-                            });
-                            break;
-                    }
-                }
-
+                var entries = BuildEntries(slot.Nested, value!.Nested, editors);
                 if (entries.Count == 0)
                     return null;
 
@@ -394,6 +406,52 @@ public sealed class SeoSlotProjector : ISeoSlotProjector
             default:
                 return current;
         }
+    }
+
+    /// <summary>Sub-slot values → complex-type entries; a nested entity sub-value becomes an entry with its own config (one more level).</summary>
+    private static List<ComplexTypeMappingEntry> BuildEntries(SeoNestedTemplate nested, IReadOnlyDictionary<string, SeoSlotValueDto> values, IReadOnlyDictionary<string, string>? editors)
+    {
+        var entries = new List<ComplexTypeMappingEntry>();
+        foreach (var subSlot in nested.Slots)
+        {
+            if (!values.TryGetValue(subSlot.SchemaProperty, out var sub) || sub is null)
+                continue;
+
+            switch (sub.Kind)
+            {
+                case SlotValueKinds.Fixed:
+                    entries.Add(new ComplexTypeMappingEntry
+                    {
+                        SchemaProperty = subSlot.SchemaProperty,
+                        SourceType = SchemeWeaverConstants.SourceTypes.Static,
+                        StaticValue = sub.FixedValue ?? string.Empty,
+                    });
+                    break;
+                case SlotValueKinds.Property when !string.IsNullOrWhiteSpace(sub.PropertyAlias):
+                    var subEditor = sub.EditorAlias ?? EditorOf(editors, sub.PropertyAlias);
+                    entries.Add(new ComplexTypeMappingEntry
+                    {
+                        SchemaProperty = subSlot.SchemaProperty,
+                        SourceType = SchemeWeaverConstants.SourceTypes.Property,
+                        ContentTypePropertyAlias = sub.PropertyAlias.Trim(),
+                        TransformType = subSlot.Kind == "text" && NeedsStripHtml(subEditor) ? "stripHtml" : null,
+                    });
+                    break;
+                case SlotValueKinds.Nested when subSlot.Nested is not null:
+                    var inner = BuildEntries(subSlot.Nested, sub.Nested, editors);
+                    if (inner.Count == 0)
+                        break;
+                    entries.Add(new ComplexTypeMappingEntry
+                    {
+                        SchemaProperty = subSlot.SchemaProperty,
+                        SourceType = SchemeWeaverConstants.SourceTypes.ComplexType,
+                        ResolverConfig = JsonSerializer.Serialize(new ComplexTypeConfigModel { SelectedSubType = subSlot.Nested.SchemaType, ComplexTypeMappings = inner }, ConfigJson),
+                    });
+                    break;
+            }
+        }
+
+        return entries;
     }
 
     // ------------------------------------------------------------------ Summarise

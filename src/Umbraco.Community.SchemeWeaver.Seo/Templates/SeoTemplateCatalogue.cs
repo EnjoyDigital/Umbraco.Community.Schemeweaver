@@ -152,17 +152,29 @@ public sealed class SeoTemplateCatalogue : ISeoTemplateCatalogue
                     throw new InvalidOperationException($"Catalogue variant '{variant.SchemaType}' is not a subtype of '{template.SchemaType}' ('{template.Id}').");
             }
 
-            foreach (var slot in template.Slots.SelectMany(Flatten))
-            {
-                if (string.IsNullOrWhiteSpace(slot.SchemaProperty))
-                    throw new InvalidOperationException($"Template '{template.Id}' has a slot without a schemaProperty.");
-                if (slot.Nested is not null)
-                    RequireType(slot.Nested.SchemaType, $"slot '{slot.SchemaProperty}' of '{template.Id}'");
-            }
+            ValidateSlots(template.Id, template.SchemaType, template.Slots);
         }
 
         foreach (var businessType in document.BusinessTypes)
             RequireType(businessType.SchemaType, "businessTypes");
+    }
+
+    /// <summary>Every slot must name a real property of its owning type; nested slots are checked against the nested type.</summary>
+    private void ValidateSlots(string templateId, string ownerType, IEnumerable<SeoSlot> slots)
+    {
+        var known = new HashSet<string>(_registry.GetProperties(ownerType).Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+        foreach (var slot in slots)
+        {
+            if (string.IsNullOrWhiteSpace(slot.SchemaProperty))
+                throw new InvalidOperationException($"Template '{templateId}' has a slot without a schemaProperty.");
+            if (known.Count > 0 && !known.Contains(slot.SchemaProperty))
+                throw new InvalidOperationException($"Template '{templateId}': '{ownerType}' has no property '{slot.SchemaProperty}'.");
+            if (slot.Nested is not null)
+            {
+                RequireType(slot.Nested.SchemaType, $"slot '{slot.SchemaProperty}' of '{templateId}'");
+                ValidateSlots(templateId, slot.Nested.SchemaType, slot.Nested.Slots);
+            }
+        }
     }
 
     private Type RequireType(string schemaType, string where) =>

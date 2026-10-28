@@ -113,6 +113,13 @@ export async function fetchApi<T>(
         return { data: undefined as T };
       }
 
+      // Forbidden: the user lacks a section/permission the endpoint needs (satellite APIs
+      // such as the SEO section). Not a session problem, so no toast: the caller gets
+      // `undefined` and renders its empty state.
+      if (response.status === 403) {
+        return { data: undefined as T };
+      }
+
       // When the backoffice session times out the request is answered with the
       // HTML login page (often via a redirect) or a 401 rather than our JSON.
       // Detect that *before* parsing so we can show a clear "session expired"

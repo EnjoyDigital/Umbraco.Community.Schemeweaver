@@ -140,7 +140,13 @@
         { "schemaProperty": "startDate", "label": "Start", "help": "Date and time the event starts.", "importance": "required", "kind": "date" },
         { "schemaProperty": "location", "label": "Venue", "help": "Where it happens. Online events can use a URL.", "importance": "required", "kind": "entity", "nested": { "schemaType": "Place", "slots": [
           { "schemaProperty": "name", "label": "Venue name", "help": "", "importance": "required", "kind": "text" },
-          { "schemaProperty": "address", "label": "Address", "help": "", "importance": "recommended", "kind": "text" }
+          { "schemaProperty": "address", "label": "Address", "help": "Google needs a structured address with at least the country.", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "PostalAddress", "slots": [
+            { "schemaProperty": "streetAddress", "label": "Street", "help": "", "importance": "recommended", "kind": "text" },
+            { "schemaProperty": "addressLocality", "label": "Town or city", "help": "", "importance": "recommended", "kind": "text" },
+            { "schemaProperty": "addressRegion", "label": "County or region", "help": "", "importance": "optional", "kind": "text" },
+            { "schemaProperty": "postalCode", "label": "Postcode", "help": "", "importance": "recommended", "kind": "text" },
+            { "schemaProperty": "addressCountry", "label": "Country", "help": "Two-letter code, e.g. GB.", "importance": "required", "kind": "enum", "fixedValueOptions": [ { "value": "GB", "label": "United Kingdom" }, { "value": "IE", "label": "Ireland" }, { "value": "US", "label": "United States" }, { "value": "DE", "label": "Germany" }, { "value": "FR", "label": "France" }, { "value": "NL", "label": "Netherlands" }, { "value": "AU", "label": "Australia" } ] }
+          ] } }
         ] } },
         { "schemaProperty": "endDate", "label": "End", "help": "", "importance": "recommended", "kind": "date" },
         { "schemaProperty": "description", "label": "Description", "help": "", "importance": "recommended", "kind": "text" },
@@ -212,7 +218,13 @@
         ] } },
         { "schemaProperty": "jobLocation", "label": "Location", "help": "Where the job is based.", "importance": "required", "kind": "entity", "nested": { "schemaType": "Place", "slots": [
           { "schemaProperty": "name", "label": "Location name", "help": "", "importance": "recommended", "kind": "text" },
-          { "schemaProperty": "address", "label": "Address", "help": "", "importance": "required", "kind": "text" }
+          { "schemaProperty": "address", "label": "Address", "help": "Google needs a structured address with at least the country.", "importance": "required", "kind": "entity", "nested": { "schemaType": "PostalAddress", "slots": [
+            { "schemaProperty": "streetAddress", "label": "Street", "help": "", "importance": "recommended", "kind": "text" },
+            { "schemaProperty": "addressLocality", "label": "Town or city", "help": "", "importance": "recommended", "kind": "text" },
+            { "schemaProperty": "addressRegion", "label": "County or region", "help": "", "importance": "optional", "kind": "text" },
+            { "schemaProperty": "postalCode", "label": "Postcode", "help": "", "importance": "recommended", "kind": "text" },
+            { "schemaProperty": "addressCountry", "label": "Country", "help": "Two-letter code, e.g. GB.", "importance": "required", "kind": "enum", "fixedValueOptions": [ { "value": "GB", "label": "United Kingdom" }, { "value": "IE", "label": "Ireland" }, { "value": "US", "label": "United States" }, { "value": "DE", "label": "Germany" }, { "value": "FR", "label": "France" }, { "value": "NL", "label": "Netherlands" }, { "value": "AU", "label": "Australia" } ] }
+          ] } }
         ] } },
         { "schemaProperty": "employmentType", "label": "Employment type", "help": "", "importance": "recommended", "kind": "enum", "fixedValueOptions": [ { "value": "FULL_TIME", "label": "Full time" }, { "value": "PART_TIME", "label": "Part time" }, { "value": "CONTRACTOR", "label": "Contract" }, { "value": "TEMPORARY", "label": "Temporary" }, { "value": "INTERN", "label": "Internship" }, { "value": "VOLUNTEER", "label": "Volunteer" } ] },
         { "schemaProperty": "baseSalary", "label": "Salary", "help": "", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "MonetaryAmount", "slots": [

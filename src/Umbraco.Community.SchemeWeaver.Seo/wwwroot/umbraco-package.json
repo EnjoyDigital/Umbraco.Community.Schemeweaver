@@ -9,7 +9,7 @@
       "type": "bundle",
       "alias": "SchemeWeaver.Seo.Bundle",
       "name": "SchemeWeaver SEO Bundle",
-      "js": "/App_Plugins/SchemeWeaverSeo/dist/index.js?v=5e50d0fc"
+      "js": "/App_Plugins/SchemeWeaverSeo/dist/index.js?v=0279ffee"
     }
   ]
 }

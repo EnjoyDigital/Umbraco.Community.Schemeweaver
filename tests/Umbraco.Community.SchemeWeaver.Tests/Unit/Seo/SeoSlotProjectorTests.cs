@@ -231,6 +231,64 @@ public class SeoSlotProjectorTests
         _sut.Summarise(product, mapping).MissingRequired.Should().ContainSingle(m => m.Contains("offers"));
     }
 
+    [Fact]
+    public void ToMappingDto_NestedAddressInsideJobLocation_RoundTrips_AsNestedComplexConfig()
+    {
+        var job = SeoTestSupport.Catalogue.Get("job-posting")!;
+        var request = new SeoMappingSaveRequest
+        {
+            TemplateId = "job-posting",
+            Slots =
+            {
+                ["title"] = new SeoSlotValueDto { Kind = SlotValueKinds.Property, PropertyAlias = "__name" },
+                ["jobLocation"] = new SeoSlotValueDto
+                {
+                    Kind = SlotValueKinds.Nested,
+                    Nested =
+                    {
+                        ["name"] = new SeoSlotValueDto { Kind = SlotValueKinds.Property, PropertyAlias = "title" },
+                        ["address"] = new SeoSlotValueDto
+                        {
+                            Kind = SlotValueKinds.Nested,
+                            Nested =
+                            {
+                                ["addressLocality"] = new SeoSlotValueDto { Kind = SlotValueKinds.Property, PropertyAlias = "title" },
+                                ["addressCountry"] = new SeoSlotValueDto { Kind = SlotValueKinds.Fixed, FixedValue = "GB" },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        var dto = _sut.ToMappingDto(job, "job", Guid.NewGuid(), "JobPosting", request, null, Editors);
+
+        var location = Row(dto, "jobLocation");
+        location.SourceType.Should().Be("complexType");
+        location.NestedSchemaTypeName.Should().Be("Place");
+        var outer = JsonSerializer.Deserialize<Services.Resolvers.ComplexTypeConfigModel>(location.ResolverConfig!, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        var address = outer.ComplexTypeMappings!.Single(e => e.SchemaProperty == "address");
+        address.SourceType.Should().Be("complexType");
+        var inner = JsonSerializer.Deserialize<Services.Resolvers.ComplexTypeConfigModel>(address.ResolverConfig!, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        inner.SelectedSubType.Should().Be("PostalAddress");
+        inner.ComplexTypeMappings.Should().Contain(e => e.SchemaProperty == "addressCountry" && e.StaticValue == "GB");
+
+        // And it projects back without turning into an advanced row.
+        var projection = _sut.Project(job, "JobPosting", dto, null, Editors, siteIdentityConfigured: false);
+        var value = Value(projection, "jobLocation");
+        value.Kind.Should().Be(SlotValueKinds.Nested);
+        value.Nested["address"].Kind.Should().Be(SlotValueKinds.Nested);
+        value.Nested["address"].Nested["addressCountry"].FixedValue.Should().Be("GB");
+    }
+
+    [Fact]
+    public void ToMappingDto_PreservesADisabledMapping()
+    {
+        var existing = new SchemaMappingDto { ContentTypeAlias = "blogPost", SchemaTypeName = "Article", IsEnabled = false };
+        var dto = _sut.ToMappingDto(_article, "blogPost", Guid.NewGuid(), "Article", new SeoMappingSaveRequest { TemplateId = "article" }, existing, Editors);
+        dto.IsEnabled.Should().BeFalse("a developer-disabled mapping is not silently re-enabled");
+    }
+
     private static SeoSlotValueDto Value(SeoProjectionDto projection, string property) =>
         projection.Slots.Single(s => s.Slot.SchemaProperty == property).Value;
 

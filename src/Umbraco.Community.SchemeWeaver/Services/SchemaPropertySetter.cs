@@ -611,10 +611,48 @@ public static class SchemaPropertySetter
             && TrySetViaImplicit(property, instance, targetType, directUri))
             return true;
 
+        // Schema.org enumerations (OneOrMany<ItemAvailability?>, OneOrMany<EventStatusType?>, …):
+        // a mapped string such as "https://schema.org/InStock" or "InStock" becomes the enum member.
+        if (value is string enumText && TryParseSchemaEnum(innerType, enumText, out var enumValue))
+        {
+            try
+            {
+                property.SetValue(instance, Activator.CreateInstance(targetType, enumValue));
+                return true;
+            }
+            catch (Exception ex) when (ex is MissingMethodException or TargetInvocationException or ArgumentException)
+            {
+                // Fall through to the generic paths below.
+            }
+        }
+
         // General fallback: try converting value directly to OneOrMany<T> via T
         var directConverted = TryConvertViaImplicit(innerType, value);
         return directConverted is not null
                && TrySetViaImplicit(property, instance, targetType, directConverted);
+    }
+
+    /// <summary>
+    /// Parses a Schema.org enumeration member from text. Accepts the bare member name
+    /// (<c>InStock</c>) or the canonical URL (<c>https://schema.org/InStock</c>), case-insensitively.
+    /// </summary>
+    internal static bool TryParseSchemaEnum(Type innerType, string text, out object? value)
+    {
+        value = null;
+        var enumType = Nullable.GetUnderlyingType(innerType) ?? innerType;
+        if (!enumType.IsEnum || string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var name = text.Trim();
+        var slash = name.LastIndexOf('/');
+        if (slash >= 0 && name.Contains("schema.org", StringComparison.OrdinalIgnoreCase))
+            name = name[(slash + 1)..];
+
+        if (!Enum.TryParse(enumType, name, ignoreCase: true, out var parsed))
+            return false;
+
+        value = parsed;
+        return true;
     }
 
     /// <summary>

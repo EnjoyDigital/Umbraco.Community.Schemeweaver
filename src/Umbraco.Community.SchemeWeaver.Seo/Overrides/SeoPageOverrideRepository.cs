@@ -40,22 +40,27 @@ public sealed class SeoPageOverrideRepository : ISeoPageOverrideRepository
 
     public SeoPageOverride Upsert(SeoPageOverride @override)
     {
-        using var scope = _scopeProvider.CreateScope();
-        var existing = scope.Database.FirstOrDefault<SeoPageOverride>(
-            "WHERE ContentKey = @0", @override.ContentKey);
-
-        @override.UpdatedDate = DateTime.UtcNow;
-        if (existing is null)
+        // The scope commits on Dispose, so the snapshot is evicted only after the using block;
+        // evicting earlier would let a concurrent read repopulate it from pre-commit rows.
+        using (var scope = _scopeProvider.CreateScope())
         {
-            scope.Database.Insert(@override);
-        }
-        else
-        {
-            @override.Id = existing.Id;
-            scope.Database.Update(@override);
+            var existing = scope.Database.FirstOrDefault<SeoPageOverride>(
+                "WHERE ContentKey = @0", @override.ContentKey);
+
+            @override.UpdatedDate = DateTime.UtcNow;
+            if (existing is null)
+            {
+                scope.Database.Insert(@override);
+            }
+            else
+            {
+                @override.Id = existing.Id;
+                scope.Database.Update(@override);
+            }
+
+            scope.Complete();
         }
 
-        scope.Complete();
         ClearCache();
         return @override.Clone();
     }
@@ -68,14 +73,17 @@ public sealed class SeoPageOverrideRepository : ISeoPageOverrideRepository
         if (keys.Count == 0)
             return;
 
-        using var scope = _scopeProvider.CreateScope();
-        foreach (var key in keys)
+        using (var scope = _scopeProvider.CreateScope())
         {
-            scope.Database.Execute(
-                $"DELETE FROM {SchemeWeaverSeoConstants.Tables.PageOverride} WHERE ContentKey = @0", key);
+            foreach (var key in keys)
+            {
+                scope.Database.Execute(
+                    $"DELETE FROM {SchemeWeaverSeoConstants.Tables.PageOverride} WHERE ContentKey = @0", key);
+            }
+
+            scope.Complete();
         }
 
-        scope.Complete();
         ClearCache();
     }
 

@@ -344,8 +344,10 @@ public class SchemeWeaverSeoApiController : ControllerBase
         var template = mapping is null ? null : _catalogue.FindForSchemaType(mapping.SchemaTypeName);
         var row = _overrides.Get(contentKey);
         var excluded = row?.IsExcluded == true;
-        var effective = row?.SchemaTypeName is { Length: > 0 } t && template is not null
-                        && _catalogue.AllowedPageTypes(template).Any(v => string.Equals(v.SchemaType, t, StringComparison.OrdinalIgnoreCase))
+        // Same rule as SeoContentMappingOverrideProvider: an override counts when it is still a
+        // subtype of what the mapping emits.
+        var effective = row?.SchemaTypeName is { Length: > 0 } t && mapping is not null
+                        && _rangeChecker.IsInRange(t, [mapping.SchemaTypeName])
             ? t
             : mapping?.SchemaTypeName;
 

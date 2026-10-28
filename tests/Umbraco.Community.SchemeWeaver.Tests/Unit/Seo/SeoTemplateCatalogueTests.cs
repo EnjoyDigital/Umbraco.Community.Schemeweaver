@@ -77,6 +77,27 @@ public class SeoTemplateCatalogueTests
     }
 
     [Fact]
+    public void Validation_RejectsASlotNamingAPropertyTheTypeDoesNotHave()
+    {
+        var document = new SeoCatalogueDocument
+        {
+            SlotKinds = { ["text"] = new SeoSlotKindDefaults() },
+            Templates =
+            {
+                new SeoTemplate
+                {
+                    Id = "bad",
+                    SchemaType = "Article",
+                    Slots = [new SeoSlot { SchemaProperty = "notAProperty", Kind = "text" }],
+                },
+            },
+        };
+
+        var act = () => new SeoTemplateCatalogue(SeoTestSupport.Registry, document, NullLogger<SeoTemplateCatalogue>.Instance);
+        act.Should().Throw<InvalidOperationException>().WithMessage("*notAProperty*");
+    }
+
+    [Fact]
     public void Validation_RejectsAVariantThatIsNotASubtype()
     {
         var document = new SeoCatalogueDocument

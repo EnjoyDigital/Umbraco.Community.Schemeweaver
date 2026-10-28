@@ -87,7 +87,7 @@ export class SeoSetupWizardModalElement extends UmbModalBaseElement<SeoSetupWiza
   async #next() {
     if (this._step === 0) {
       await this.#loadProjection();
-      this._step = 1;
+      if (this._projection) this._step = 1;
     } else if (this._step === 1) {
       this._step = 2;
     }

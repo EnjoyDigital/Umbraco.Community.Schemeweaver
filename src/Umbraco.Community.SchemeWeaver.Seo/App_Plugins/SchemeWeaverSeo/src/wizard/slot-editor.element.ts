@@ -84,7 +84,7 @@ export class SeoSlotEditorElement extends UmbLitElement {
     if (this.definition.siteIdentityPieceKey && this.siteIdentityConfigured) {
       options.push({ name: t('wizardSourceIdentity'), value: 'siteIdentity', selected: current === 'siteIdentity' });
     }
-    if (this.definition.nested && !this.nestedLevel) {
+    if (this.definition.nested) {
       options.push({ name: t('wizardSourceNested'), value: 'nested', selected: current === 'nested' });
     }
     return options;

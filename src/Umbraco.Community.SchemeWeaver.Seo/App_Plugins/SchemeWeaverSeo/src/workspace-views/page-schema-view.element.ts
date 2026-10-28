@@ -34,6 +34,7 @@ export class SeoPageSchemaViewElement extends UmbLitElement {
   @state() private _summary?: SeoPageSummary;
   @state() private _loading = true;
   @state() private _saving = false;
+  @state() private _loaded = false;
 
   @query('schemeweaver-jsonld-preview')
   private _previewEl?: JsonLdPreviewElement;
@@ -58,7 +59,10 @@ export class SeoPageSchemaViewElement extends UmbLitElement {
       }
       this._contentKey = workspace.getUnique() ?? '';
       this.observe(workspace.splitView.activeVariantByIndex(0), (variant) => {
-        this._culture = variant?.culture ?? undefined;
+        const culture = variant?.culture ?? undefined;
+        if (culture === this._culture) return;
+        this._culture = culture;
+        void this.#load();
       }, '_variant');
       void this.#load();
     } catch {
@@ -71,6 +75,7 @@ export class SeoPageSchemaViewElement extends UmbLitElement {
     this._loading = true;
     try {
       this._summary = await this.#context.getPageSummary(this._contentKey, this._culture);
+      this._loaded = true;
     } finally {
       this._loading = false;
     }
@@ -88,8 +93,10 @@ export class SeoPageSchemaViewElement extends UmbLitElement {
       const saved = await this.#context.savePageOverride(this._contentKey, request);
       if (saved) {
         this.#notifications?.peek('positive', { data: { message: this.localize.term('schemeWeaverSeo_pageOverrideSaved') } });
-        await this.#load();
+      } else {
+        this.#notifications?.peek('danger', { data: { message: this.localize.term('schemeWeaverSeo_pageOverrideFailed') } });
       }
+      await this.#load();
     } finally {
       this._saving = false;
     }
@@ -146,11 +153,13 @@ export class SeoPageSchemaViewElement extends UmbLitElement {
     }
     const s = this._summary;
     if (!s || !s.hasMapping) {
+      // A summary that 404s after loading means the node has not been saved yet.
+      const unsaved = !s && this._loaded;
       return html`<umb-body-layout>
-        <uui-box data-mark="schemeweaver-seo:page-not-set-up">
+        <uui-box data-mark=${unsaved ? 'schemeweaver-seo:page-unsaved' : 'schemeweaver-seo:page-not-set-up'}>
           <div class="empty"><uui-icon name="icon-globe"></uui-icon>
-            <strong>${t('pageNotSetUp')}</strong>
-            <span class="muted">${t('pageNotSetUpHint')}</span>
+            <strong>${t(unsaved ? 'pageUnsaved' : 'pageNotSetUp')}</strong>
+            ${unsaved ? nothing : html`<span class="muted">${t('pageNotSetUpHint')}</span>`}
           </div>
         </uui-box>
       </umb-body-layout>`;
