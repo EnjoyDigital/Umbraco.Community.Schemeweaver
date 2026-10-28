@@ -34,7 +34,15 @@
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<PackageReference Include="Schema.NET.Pending" Version="13.0.0" />
-		<PackageReference Include="Umbraco.Cms" Version="$(SchemeWeaverUmbracoCmsRange)" />
+		<!-- Depend on the narrower Umbraco packages this library actually compiles against, NOT the
+		     Umbraco.Cms metapackage. The metapackage drags Umbraco.Cms.Targets (plus the persistence,
+		     imaging and static-asset packages) into every consumer, and those targets are meant for the
+		     web project only: in a class library they copy appsettings-schema*.json /
+		     umbraco-package-schema.json into the library and `dotnet publish` of the web project then
+		     fails with NETSDK1152 (duplicate publish output). See issue #112. Web.Common carries Core and
+		     Infrastructure transitively; Api.Common is needed for the MapToApi / backoffice API filters. -->
+		<PackageReference Include="Umbraco.Cms.Web.Common" Version="$(SchemeWeaverUmbracoCmsRange)" />
+		<PackageReference Include="Umbraco.Cms.Api.Common" Version="$(SchemeWeaverUmbracoCmsRange)" />
 	</ItemGroup>
 
 	<ItemGroup>
