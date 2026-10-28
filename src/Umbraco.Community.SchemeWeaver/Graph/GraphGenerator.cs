@@ -30,6 +30,7 @@ public sealed class GraphGenerator : IGraphGenerator
 {
     private readonly IReadOnlyList<IGraphPiece> _pieces;
     private readonly ISiteSettingsResolver _siteSettingsResolver;
+    private readonly ISiteIdentityProvider _siteIdentityProvider;
     private readonly ISiteOriginResolver _originResolver;
     private readonly IPublishedUrlProvider _urlProvider;
     private readonly ILogger<GraphGenerator> _logger;
@@ -62,7 +63,8 @@ public sealed class GraphGenerator : IGraphGenerator
         ISiteSettingsResolver siteSettingsResolver,
         ISiteOriginResolver originResolver,
         IPublishedUrlProvider urlProvider,
-        ILogger<GraphGenerator> logger)
+        ILogger<GraphGenerator> logger,
+        ISiteIdentityProvider? siteIdentityProvider = null)
     {
         // Stable ordering: declared Order first, then Key alphabetically. Keeps
         // generated graphs diff-friendly across runs.
@@ -74,6 +76,7 @@ public sealed class GraphGenerator : IGraphGenerator
         _originResolver = originResolver;
         _urlProvider = urlProvider;
         _logger = logger;
+        _siteIdentityProvider = siteIdentityProvider ?? NullSiteIdentityProvider.Instance;
     }
 
     public string? GenerateGraphJson(
@@ -106,6 +109,7 @@ public sealed class GraphGenerator : IGraphGenerator
         {
             Content = content,
             SiteSettings = _siteSettingsResolver.Resolve(),
+            SiteIdentity = ResolveSiteIdentity(),
             Culture = culture,
             SiteUrl = siteUrl,
             PageUrl = pageUrl,
@@ -147,6 +151,7 @@ public sealed class GraphGenerator : IGraphGenerator
         {
             Content = probeContext.Content,
             SiteSettings = probeContext.SiteSettings,
+            SiteIdentity = probeContext.SiteIdentity,
             Culture = probeContext.Culture,
             SiteUrl = probeContext.SiteUrl,
             PageUrl = probeContext.PageUrl,
@@ -301,6 +306,23 @@ public sealed class GraphGenerator : IGraphGenerator
             writer.WriteEndObject();
         }
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    /// <summary>
+    /// Identity lookup is a satellite seam: a throwing provider must degrade to "no identity"
+    /// (settings-node convention) rather than take the whole graph down.
+    /// </summary>
+    private SiteIdentity? ResolveSiteIdentity()
+    {
+        try
+        {
+            return _siteIdentityProvider.Resolve();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ISiteIdentityProvider threw — falling back to the site settings node");
+            return null;
+        }
     }
 
     private Uri? ResolveSiteUrl() => _originResolver.ResolveOrigin();

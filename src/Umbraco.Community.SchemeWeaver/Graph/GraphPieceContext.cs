@@ -21,6 +21,13 @@ public sealed class GraphPieceContext
     /// </summary>
     public IPublishedContent? SiteSettings { get; init; }
 
+    /// <summary>
+    /// Backoffice- or code-managed site identity resolved once per request via
+    /// <see cref="ISiteIdentityProvider"/>. Null when none is configured — the Organization and
+    /// WebSite pieces then use the <see cref="SiteSettings"/> node convention exactly as before.
+    /// </summary>
+    public SiteIdentity? SiteIdentity { get; init; }
+
     /// <summary>Requested culture, or null for invariant.</summary>
     public string? Culture { get; init; }
 

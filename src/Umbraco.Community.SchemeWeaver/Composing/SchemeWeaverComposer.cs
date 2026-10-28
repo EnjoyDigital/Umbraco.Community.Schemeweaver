@@ -68,6 +68,12 @@ public class SchemeWeaverComposer : IComposer
         builder.Services.AddScoped<IMappingDriftReporter, NullMappingDriftReporter>();
         builder.Services.AddScoped<IMappingExporter, NullMappingExporter>();
 
+        // Satellite seams consumed by the generator and the graph pieces. Null defaults keep
+        // core behaviour identical; the SchemeWeaver SEO composer (or a site's own composer)
+        // registers real implementations via [ComposeAfter] so its later registration wins.
+        builder.Services.AddScoped<IContentMappingOverrideProvider, NullContentMappingOverrideProvider>();
+        builder.Services.AddScoped<ISiteIdentityProvider, NullSiteIdentityProvider>();
+
         // JSON-LD blocks are cached in-process, keyed on (contentKey, culture). Singleton
         // so the per-content CancellationTokenSource dictionary persists across requests;
         // the generator itself is resolved per-call via IServiceScopeFactory because it's

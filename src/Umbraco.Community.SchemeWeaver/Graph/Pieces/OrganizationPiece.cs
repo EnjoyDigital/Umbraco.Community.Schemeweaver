@@ -46,7 +46,7 @@ public sealed class OrganizationPiece : IGraphPiece
     public string? ResolveId(GraphPieceContext ctx)
     {
         var thing = GetOrBuild(ctx);
-        if (thing is null || !IsOrganizationType(thing.GetType()))
+        if (thing is null || !IsPublisherType(thing.GetType()))
             return null;
 
         // Thing.Id is populated by the generator. If for any reason it's absent,
@@ -65,6 +65,26 @@ public sealed class OrganizationPiece : IGraphPiece
             return _cached;
 
         _built = true;
+
+        // A backoffice- or code-managed identity (ISiteIdentityProvider) wins over the
+        // settings-node convention. It may be a Person (site represents an individual).
+        if (ctx.SiteIdentity is { } identity)
+        {
+            try
+            {
+                var fromIdentity = SiteIdentityThingBuilder.BuildPublisher(identity, ctx.SiteUrl, _registry);
+                if (fromIdentity is not null)
+                {
+                    _cached = fromIdentity;
+                    return fromIdentity;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "OrganizationPiece failed to build from the site identity — falling back to the settings node");
+            }
+        }
 
         if (ctx.SiteSettings is null)
             return null;
@@ -103,6 +123,11 @@ public sealed class OrganizationPiece : IGraphPiece
             return null;
         }
     }
+
+    // A Person publisher only ever arrives via the identity path; the settings-node path keeps
+    // its stricter Organization-only guard above.
+    private static bool IsPublisherType(Type t) =>
+        IsOrganizationType(t) || typeof(Person).IsAssignableFrom(t);
 
     private static bool IsOrganizationType(Type t) =>
         // Schema.NET models Schema.org's multi-inheritance via interfaces:

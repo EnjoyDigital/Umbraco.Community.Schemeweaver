@@ -1,5 +1,11 @@
 import type { UmbEntryPointOnInit } from '@umbraco-cms/backoffice/extension-api';
 import { SchemeWeaverContext } from './context/schemeweaver.context.js';
+// Shared element contract: the JSON-LD preview and validation panel are rendered by other
+// SchemeWeaver bundles (the SEO satellite's section views and page tab) which only
+// `import type` them. Define the tags eagerly at boot so they exist before any satellite view
+// renders, rather than only once a core workspace-view chunk happens to load.
+import './components/jsonld-preview.element.js';
+import './components/validation-panel.element.js';
 
 /**
  * Backoffice entry point — constructs a single `SchemeWeaverContext` mounted

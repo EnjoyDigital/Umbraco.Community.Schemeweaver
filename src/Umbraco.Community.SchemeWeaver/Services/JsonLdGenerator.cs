@@ -25,6 +25,7 @@ namespace Umbraco.Community.SchemeWeaver.Services;
 public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
 {
     private readonly ISchemaMappingRepository _repository;
+    private readonly IContentMappingOverrideProvider _overrides;
     private readonly ISchemaTypeRegistry _registry;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IDocumentNavigationQueryService _navigationQueryService;
@@ -75,8 +76,10 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
         ISiteOriginResolver originResolver,
         IVariationContextAccessor variationContextAccessor,
         ILogger<JsonLdGenerator> logger,
-        IOptions<SchemeWeaverOptions> options)
+        IOptions<SchemeWeaverOptions> options,
+        IContentMappingOverrideProvider? overrideProvider = null)
     {
+        _overrides = overrideProvider ?? NullContentMappingOverrideProvider.Instance;
         _repository = repository;
         _registry = registry;
         _httpContextAccessor = httpContextAccessor;
@@ -114,6 +117,20 @@ public partial class JsonLdGenerator : IJsonLdGenerator, IComplexTypeBuilder
         var mapping = _repository.GetByContentTypeAlias(content.ContentType.Alias);
         if (mapping is not { IsEnabled: true })
             return null;
+
+        // Per-content override seam (SEO satellite): drop this page's main entity, or swap the
+        // schema type for a subtype while keeping the type's property mappings (same mapping.Id,
+        // so GetPropertyMappings below is unaffected and the default @id picks up the new type).
+        var overrideResult = _overrides.Resolve(content, mapping, culture);
+        switch (overrideResult.Kind)
+        {
+            case MappingOverrideKind.Excluded:
+                _logger.LogDebug("Content {ContentKey} is excluded from structured data by override", content.Key);
+                return null;
+            case MappingOverrideKind.Retyped when overrideResult.Mapping is { } retyped:
+                mapping = retyped;
+                break;
+        }
 
         var clrType = _registry.GetClrType(mapping.SchemaTypeName);
         if (clrType is null)

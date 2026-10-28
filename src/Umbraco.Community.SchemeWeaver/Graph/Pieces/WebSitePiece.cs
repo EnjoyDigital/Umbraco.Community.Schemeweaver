@@ -40,23 +40,29 @@ public sealed class WebSitePiece : IGraphPiece
         if (ctx.SiteUrl is null)
             return null;
 
+        var identity = ctx.SiteIdentity;
         var site = new WebSite
         {
             Url = ctx.SiteUrl,
-            Name = ResolveSiteName(ctx)
+            Name = identity?.Name is { Length: > 0 } identityName ? identityName : ResolveSiteName(ctx)
         };
 
-        // publisher → Organization cross-ref (by @id only).
+        if (identity?.AlternateName is { Length: > 0 } alternateName)
+            site.AlternateName = alternateName;
+
+        // publisher → Organization (or Person) cross-ref (by @id only).
         if (ctx.IdFor("organization") is { } orgId
             && Uri.TryCreate(orgId, UriKind.Absolute, out var orgUri))
         {
-            site.Publisher = new Organization { Id = orgUri };
+            site.Publisher = identity?.Kind == SiteIdentityKind.Person
+                ? new Person { Id = orgUri }
+                : new Organization { Id = orgUri };
         }
 
         if (!string.IsNullOrWhiteSpace(ctx.Culture))
             site.InLanguage = ctx.Culture;
 
-        ApplySiteSearchAction(site);
+        ApplySiteSearchAction(site, identity);
 
         return site;
     }
@@ -68,16 +74,23 @@ public sealed class WebSitePiece : IGraphPiece
     /// when unconfigured. A template missing its <c>{placeholder}</c> is still
     /// emitted (Google tolerates it) but logged as a warning.
     /// </summary>
-    private void ApplySiteSearchAction(WebSite site)
+    private void ApplySiteSearchAction(WebSite site, SiteIdentity? identity)
     {
+        // An identity-supplied search template (SEO satellite's Site identity form) takes
+        // precedence over appsettings; either source may be absent.
         var search = _options.SiteSearch;
-        if (string.IsNullOrWhiteSpace(search?.UrlTemplate))
+        var template = identity?.SearchUrlTemplate is { Length: > 0 } fromIdentity
+            ? fromIdentity
+            : search?.UrlTemplate;
+        if (string.IsNullOrWhiteSpace(template))
             return;
 
-        var template = search.UrlTemplate;
-        var inputName = string.IsNullOrWhiteSpace(search.QueryInputName)
+        var configuredInputName = identity?.SearchUrlTemplate is { Length: > 0 }
+            ? identity.SearchQueryInputName
+            : search?.QueryInputName;
+        var inputName = string.IsNullOrWhiteSpace(configuredInputName)
             ? "search_term_string"
-            : search.QueryInputName;
+            : configuredInputName;
 
         var placeholder = $"{{{inputName}}}";
         if (!template.Contains(placeholder, StringComparison.Ordinal))
