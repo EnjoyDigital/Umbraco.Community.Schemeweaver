@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Instructions for coding agents (Claude Code, Codex, Copilot, Cursor and friends) working in this repository. Claude Code 2.1.277+ reads this file directly; older builds need a local, uncommitted `CLAUDE.md` containing `@AGENTS.md`.
 
 ## Project Overview
 
@@ -48,7 +48,7 @@ npm test                        # Integration tests against the running TestHost
 
 TypeScript MCP server on `@umbraco-cms/mcp-server-sdk` exposing 16 SchemeWeaver tools (schema type search, content type inspection, heuristic suggest, save/delete mapping, JSON-LD preview, validation, uSync drift/export, live Delivery-API render verification, doc type generation) plus a `get-server-info` smoke-test tool from the base SDK, so AI assistants can build better mappings than the heuristic auto-mapper. Ships three end-user skills (`schemeweaver-setup`, `schemeweaver-map`, `schemeweaver-audit`) from its `skills/` directory. Registered in `.mcp.json` as `schemeweaver-mcp`; authenticates as an Umbraco API user (client credentials in the project's gitignored `.env`; `scripts/setup-api-user.mjs` creates the user in a fresh TestHost DB).
 
-It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugin/marketplace.json` lists the `schemeweaver-mcp` plugin (`src/Umbraco.Community.SchemeWeaver.Mcp/.claude-plugin/plugin.json`), which registers the server via `mcpServers` running the committed, self-contained `dist/index.js` from `${CLAUDE_PLUGIN_ROOT}` and collects Umbraco credentials via `userConfig`. End-users install with `/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver` then `/plugin install schemeweaver-mcp@schemeweaver`. The bundled `dist/index.js` is committed (tsup `noExternal` makes it standalone) and **must be rebuilt and re-committed** whenever the server changes. See the project's own README/CLAUDE.md for details.
+It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugin/marketplace.json` lists the `schemeweaver-mcp` plugin (`src/Umbraco.Community.SchemeWeaver.Mcp/.claude-plugin/plugin.json`), which registers the server via `mcpServers` running the committed, self-contained `dist/index.js` from `${CLAUDE_PLUGIN_ROOT}` and collects Umbraco credentials via `userConfig`. End-users install with `/plugin marketplace add EnjoyDigital/Umbraco.Community.Schemeweaver` then `/plugin install schemeweaver-mcp@schemeweaver`. The bundled `dist/index.js` is committed (tsup `noExternal` makes it standalone) and **must be rebuilt and re-committed** whenever the server changes. See the project's own README/AGENTS.md for details.
 
 ## Architecture
 

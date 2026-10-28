@@ -167,7 +167,7 @@ The full index lives at **[docs/README.md](docs/README.md)**. Highlights:
 
 ## Contributing
 
-Contributions are very welcome: bug reports, fixes, docs, new property resolvers, extra auto-mapper synonyms, whole features. Small PRs are fine. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get set up, run the tests, and use an AI assistant, and [`CLAUDE.md`](CLAUDE.md) for architecture and conventions.
+Contributions are very welcome: bug reports, fixes, docs, new property resolvers, extra auto-mapper synonyms, whole features. Small PRs are fine. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get set up, run the tests, and use an AI assistant, and [`AGENTS.md`](AGENTS.md) for architecture and conventions.
 
 ## Licence
 

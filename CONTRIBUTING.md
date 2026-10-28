@@ -32,7 +32,7 @@ dotnet run --project src/Umbraco.Community.SchemeWeaver.TestHost
 
 > The TestHost is purely for testing schema mappings and structured data generation. It is not intended as a base site or starter kit.
 
-Read [`CLAUDE.md`](CLAUDE.md) for architecture, DI wiring, and naming conventions.
+Read [`AGENTS.md`](AGENTS.md) for architecture, DI wiring, and naming conventions.
 
 ## Tests
 
@@ -51,6 +51,8 @@ For backoffice UI changes, `npm run test:mocked-backoffice` verifies manifest wi
 ## Using an AI assistant
 
 AI tools (Claude, Codex, Copilot, Cursor, etc.) are welcome to help. The rules are short:
+
+- **Read `AGENTS.md` first.** It is the instruction file for every coding agent (architecture, conventions, test layout). Claude Code 2.1.277+ loads it automatically; on an older build add a local, uncommitted `CLAUDE.md` containing just `@AGENTS.md`. The MCP server project has its own `src/Umbraco.Community.SchemeWeaver.Mcp/AGENTS.md`.
 
 - **You review it.** Read every line before committing. You're accountable for the PR, not the assistant.
 - **MIT-compatible only.** Don't submit code copied from incompatible sources.

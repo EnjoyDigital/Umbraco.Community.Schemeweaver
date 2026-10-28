@@ -98,3 +98,7 @@ TriggerDeploy.ps1
 # Playwright run artefacts (E2E)
 src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/test-results/
 test-results/
+
+# Agent instructions live in AGENTS.md; local CLAUDE.md shims (`@AGENTS.md`) are personal
+CLAUDE.md
+CLAUDE.local.md

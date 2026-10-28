@@ -28,7 +28,7 @@ namespace Umbraco.Community.SchemeWeaver.TypeSafe.Services;
 /// mapper, not here.
 /// </para>
 /// <para>
-/// The catch-all in <see cref="SuggestMappingsAsync"/> is by policy (CLAUDE.md, error
+/// The catch-all in <see cref="SuggestMappingsAsync"/> is by policy (AGENTS.md, error
 /// handling): an auto-map suggestion is a convenience and a failed API call must degrade to
 /// the prior's answer, never to an error in the backoffice modal. The sync
 /// <see cref="SuggestMappings"/> and <see cref="RankSchemaProperties"/> paths never involve
