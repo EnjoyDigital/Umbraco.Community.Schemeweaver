@@ -19,7 +19,7 @@ public sealed class WebPageRule : ITypeRule
 {
     private static readonly HashSet<string> Matches = new(StringComparer.OrdinalIgnoreCase)
     {
-        "WebPage", "CollectionPage", "ContactPage",
+        "WebPage", "CollectionPage", "ContactPage", "ItemPage",
     };
 
     public bool AppliesTo(string schemaType) => Matches.Contains(schemaType);

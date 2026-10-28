@@ -1,0 +1,407 @@
+{
+  "$comment": "SchemeWeaver SEO content-kind catalogue. required slots mirror the Critical checks of the core ITypeRule for the kind's schema type (enforced by SeoCatalogueRuleParityTests); recommended slots mirror its Warning checks plus Google's documented recommendations. Google feature status reflects the Search Central gallery as of October 2026.",
+  "slotKinds": {
+    "text": { "acceptedEditorAliases": ["Umbraco.TextBox", "Umbraco.TextArea", "Umbraco.RichText", "Umbraco.TinyMCE", "Umbraco.MarkdownEditor"], "builtIns": ["__name"] },
+    "image": { "acceptedEditorAliases": ["Umbraco.MediaPicker3", "Umbraco.MediaPicker", "Umbraco.ImageCropper", "Umbraco.UploadField"], "builtIns": [] },
+    "date": { "acceptedEditorAliases": ["Umbraco.DateTime"], "builtIns": ["__createDate", "__updateDate"] },
+    "url": { "acceptedEditorAliases": ["Umbraco.MultiUrlPicker", "Umbraco.TextBox"], "builtIns": ["__url"] },
+    "number": { "acceptedEditorAliases": ["Umbraco.Integer", "Umbraco.Decimal", "Umbraco.Slider", "Umbraco.TextBox"], "builtIns": [] },
+    "boolean": { "acceptedEditorAliases": ["Umbraco.TrueFalse"], "builtIns": [] },
+    "duration": { "acceptedEditorAliases": ["Umbraco.TextBox"], "builtIns": [] },
+    "enum": { "acceptedEditorAliases": ["Umbraco.DropDown.Flexible", "Umbraco.TextBox"], "builtIns": [] },
+    "list": { "acceptedEditorAliases": ["Umbraco.BlockList", "Umbraco.BlockGrid", "Umbraco.MultipleTextstring", "Umbraco.Tags", "Umbraco.TextArea"], "builtIns": [] },
+    "entity": { "acceptedEditorAliases": ["Umbraco.ContentPicker", "Umbraco.MultiNodeTreePicker", "Umbraco.TextBox"], "builtIns": [] }
+  },
+  "templates": [
+    {
+      "id": "article",
+      "label": "Article or blog post",
+      "description": "News articles, blog posts and editorial content. Unlocks Google's article rich results and Top Stories eligibility.",
+      "family": "content",
+      "icon": "icon-article",
+      "schemaType": "Article",
+      "variants": [
+        { "schemaType": "Article", "label": "Article", "hint": "General editorial content" },
+        { "schemaType": "BlogPosting", "label": "Blog post", "hint": "Posts on a blog" },
+        { "schemaType": "NewsArticle", "label": "News article", "hint": "Time-sensitive news reporting" },
+        { "schemaType": "TechArticle", "label": "Technical article", "hint": "How-to or reference material for a technical audience" }
+      ],
+      "googleFeature": { "name": "Article", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/article", "status": "rich-result" },
+      "aliasHints": ["article", "blog", "news", "post", "story", "insight"],
+      "slots": [
+        { "schemaProperty": "headline", "label": "Headline", "help": "The article title. Keep it under 110 characters for best display.", "importance": "required", "kind": "text" },
+        { "schemaProperty": "image", "label": "Main image", "help": "At least one image; Google prefers 16:9, 4:3 and 1:1 variants at 1200px wide or more.", "importance": "required", "kind": "image" },
+        { "schemaProperty": "datePublished", "label": "Published date", "help": "When the article was first published.", "importance": "required", "kind": "date", "defaultSource": { "sourceType": "property", "alias": "__createDate" } },
+        { "schemaProperty": "author", "label": "Author", "help": "Who wrote it: a person or an organisation.", "importance": "required", "kind": "entity", "nested": { "schemaType": "Person", "slots": [
+          { "schemaProperty": "name", "label": "Author name", "help": "", "importance": "required", "kind": "text" },
+          { "schemaProperty": "url", "label": "Author profile URL", "help": "", "importance": "recommended", "kind": "url" }
+        ] } },
+        { "schemaProperty": "dateModified", "label": "Last updated", "help": "Helps Google show freshness.", "importance": "recommended", "kind": "date", "defaultSource": { "sourceType": "property", "alias": "__updateDate" } },
+        { "schemaProperty": "publisher", "label": "Publisher", "help": "Normally your site identity.", "importance": "recommended", "kind": "entity", "siteIdentityPieceKey": "organization", "defaultSource": { "sourceType": "reference", "targetPieceKey": "organization" }, "nested": { "schemaType": "Organization", "slots": [
+          { "schemaProperty": "name", "label": "Publisher name", "help": "", "importance": "required", "kind": "text" }
+        ] } },
+        { "schemaProperty": "description", "label": "Summary", "help": "A short standfirst or summary.", "importance": "recommended", "kind": "text" }
+      ]
+    },
+    {
+      "id": "web-page",
+      "label": "Web page",
+      "description": "Standard pages: about, contact, landing and listing pages. Adds the WebPage node Google uses to understand the page, with breadcrumbs and site links wired automatically.",
+      "family": "content",
+      "icon": "icon-document",
+      "schemaType": "WebPage",
+      "variants": [
+        { "schemaType": "WebPage", "label": "Web page", "hint": "Any page" },
+        { "schemaType": "AboutPage", "label": "About page", "hint": "About the organisation" },
+        { "schemaType": "ContactPage", "label": "Contact page", "hint": "Contact details" },
+        { "schemaType": "CollectionPage", "label": "Listing page", "hint": "A page that lists other things" },
+        { "schemaType": "ItemPage", "label": "Item page", "hint": "A page about a single thing" }
+      ],
+      "googleFeature": { "name": "Web page (foundation)", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data", "status": "foundation" },
+      "aliasHints": ["page", "about", "contact", "landing", "home", "listing", "overview", "section"],
+      "slots": [
+        { "schemaProperty": "name", "label": "Page title", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "url", "label": "Page URL", "help": "", "importance": "required", "kind": "url", "defaultSource": { "sourceType": "property", "alias": "__url" } },
+        { "schemaProperty": "description", "label": "Summary", "help": "", "importance": "recommended", "kind": "text" }
+      ]
+    },
+    {
+      "id": "profile-page",
+      "label": "Person profile",
+      "description": "Team members, authors and speaker profiles. Unlocks Google's profile page result.",
+      "family": "content",
+      "icon": "icon-user",
+      "schemaType": "ProfilePage",
+      "variants": [],
+      "googleFeature": { "name": "Profile page", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/profile-page", "status": "rich-result" },
+      "aliasHints": ["person", "profile", "author", "team", "staff", "speaker", "member"],
+      "slots": [
+        { "schemaProperty": "mainEntity", "label": "The person", "help": "Who this page is about.", "importance": "required", "kind": "entity", "nested": { "schemaType": "Person", "slots": [
+          { "schemaProperty": "name", "label": "Name", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+          { "schemaProperty": "image", "label": "Photo", "help": "", "importance": "recommended", "kind": "image" },
+          { "schemaProperty": "jobTitle", "label": "Job title", "help": "", "importance": "recommended", "kind": "text" },
+          { "schemaProperty": "description", "label": "Bio", "help": "", "importance": "recommended", "kind": "text" },
+          { "schemaProperty": "sameAs", "label": "Social profiles", "help": "Links to their profiles elsewhere.", "importance": "recommended", "kind": "list" }
+        ] } },
+        { "schemaProperty": "dateModified", "label": "Last updated", "help": "", "importance": "recommended", "kind": "date", "defaultSource": { "sourceType": "property", "alias": "__updateDate" } }
+      ]
+    },
+    {
+      "id": "product",
+      "label": "Product",
+      "description": "Products with a price. Unlocks price, availability and star ratings in Google results.",
+      "family": "commerce",
+      "icon": "icon-shopping-basket",
+      "schemaType": "Product",
+      "variants": [],
+      "googleFeature": { "name": "Product snippet / merchant listing", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/product", "status": "rich-result" },
+      "aliasHints": ["product", "item", "sku", "shop"],
+      "slots": [
+        { "schemaProperty": "name", "label": "Product name", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "offers", "label": "Price and availability", "help": "Google needs a price, or a review or rating, to show a product result.", "importance": "required", "kind": "entity", "anyOfGroup": "eligibility", "nested": { "schemaType": "Offer", "slots": [
+          { "schemaProperty": "price", "label": "Price", "help": "Numbers only, e.g. 19.99.", "importance": "required", "kind": "number" },
+          { "schemaProperty": "priceCurrency", "label": "Currency", "help": "Three-letter code, e.g. GBP.", "importance": "required", "kind": "enum", "fixedValueOptions": [ { "value": "GBP", "label": "GBP" }, { "value": "EUR", "label": "EUR" }, { "value": "USD", "label": "USD" } ] },
+          { "schemaProperty": "availability", "label": "Availability", "help": "", "importance": "recommended", "kind": "enum", "fixedValueOptions": [ { "value": "https://schema.org/InStock", "label": "In stock" }, { "value": "https://schema.org/OutOfStock", "label": "Out of stock" }, { "value": "https://schema.org/PreOrder", "label": "Pre-order" } ] },
+          { "schemaProperty": "url", "label": "Offer URL", "help": "", "importance": "optional", "kind": "url", "defaultSource": { "sourceType": "property", "alias": "__url" } }
+        ] } },
+        { "schemaProperty": "aggregateRating", "label": "Average rating", "help": "", "importance": "optional", "kind": "entity", "anyOfGroup": "eligibility", "nested": { "schemaType": "AggregateRating", "slots": [
+          { "schemaProperty": "ratingValue", "label": "Rating value", "help": "", "importance": "required", "kind": "number" },
+          { "schemaProperty": "reviewCount", "label": "Number of reviews", "help": "", "importance": "required", "kind": "number" }
+        ] } },
+        { "schemaProperty": "review", "label": "Reviews", "help": "A block list of reviews.", "importance": "optional", "kind": "list", "anyOfGroup": "eligibility" },
+        { "schemaProperty": "image", "label": "Product image", "help": "", "importance": "recommended", "kind": "image" },
+        { "schemaProperty": "description", "label": "Description", "help": "", "importance": "recommended", "kind": "text" },
+        { "schemaProperty": "brand", "label": "Brand", "help": "", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "Brand", "slots": [
+          { "schemaProperty": "name", "label": "Brand name", "help": "", "importance": "required", "kind": "text" }
+        ] } },
+        { "schemaProperty": "sku", "label": "SKU", "help": "", "importance": "optional", "kind": "text" },
+        { "schemaProperty": "gtin", "label": "GTIN / barcode", "help": "", "importance": "optional", "kind": "text" }
+      ]
+    },
+    {
+      "id": "event",
+      "label": "Event",
+      "description": "Conferences, concerts, classes and other dated happenings. Unlocks Google's event listings.",
+      "family": "events",
+      "icon": "icon-calendar",
+      "schemaType": "Event",
+      "variants": [
+        { "schemaType": "Event", "label": "Event", "hint": "Any event" },
+        { "schemaType": "BusinessEvent", "label": "Business event", "hint": "Conferences, trade shows" },
+        { "schemaType": "EducationEvent", "label": "Education event", "hint": "Classes, workshops" },
+        { "schemaType": "MusicEvent", "label": "Music event", "hint": "Concerts, gigs" },
+        { "schemaType": "SportsEvent", "label": "Sports event", "hint": "Matches, races" },
+        { "schemaType": "Festival", "label": "Festival", "hint": "" }
+      ],
+      "googleFeature": { "name": "Event", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/event", "status": "rich-result" },
+      "aliasHints": ["event", "webinar", "conference", "workshop", "course-date", "gig", "show"],
+      "slots": [
+        { "schemaProperty": "name", "label": "Event name", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "startDate", "label": "Start", "help": "Date and time the event starts.", "importance": "required", "kind": "date" },
+        { "schemaProperty": "location", "label": "Venue", "help": "Where it happens. Online events can use a URL.", "importance": "required", "kind": "entity", "nested": { "schemaType": "Place", "slots": [
+          { "schemaProperty": "name", "label": "Venue name", "help": "", "importance": "required", "kind": "text" },
+          { "schemaProperty": "address", "label": "Address", "help": "", "importance": "recommended", "kind": "text" }
+        ] } },
+        { "schemaProperty": "endDate", "label": "End", "help": "", "importance": "recommended", "kind": "date" },
+        { "schemaProperty": "description", "label": "Description", "help": "", "importance": "recommended", "kind": "text" },
+        { "schemaProperty": "image", "label": "Image", "help": "", "importance": "recommended", "kind": "image" },
+        { "schemaProperty": "offers", "label": "Tickets", "help": "", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "Offer", "slots": [
+          { "schemaProperty": "price", "label": "Price", "help": "", "importance": "required", "kind": "number" },
+          { "schemaProperty": "priceCurrency", "label": "Currency", "help": "", "importance": "required", "kind": "enum", "fixedValueOptions": [ { "value": "GBP", "label": "GBP" }, { "value": "EUR", "label": "EUR" }, { "value": "USD", "label": "USD" } ] },
+          { "schemaProperty": "url", "label": "Ticket URL", "help": "", "importance": "recommended", "kind": "url" },
+          { "schemaProperty": "availability", "label": "Availability", "help": "", "importance": "optional", "kind": "enum", "fixedValueOptions": [ { "value": "https://schema.org/InStock", "label": "Available" }, { "value": "https://schema.org/SoldOut", "label": "Sold out" } ] }
+        ] } },
+        { "schemaProperty": "performer", "label": "Performer", "help": "", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "Person", "slots": [
+          { "schemaProperty": "name", "label": "Performer name", "help": "", "importance": "required", "kind": "text" }
+        ] } },
+        { "schemaProperty": "organizer", "label": "Organiser", "help": "Normally your site identity.", "importance": "recommended", "kind": "entity", "siteIdentityPieceKey": "organization", "defaultSource": { "sourceType": "reference", "targetPieceKey": "organization" }, "nested": { "schemaType": "Organization", "slots": [
+          { "schemaProperty": "name", "label": "Organiser name", "help": "", "importance": "required", "kind": "text" }
+        ] } },
+        { "schemaProperty": "eventStatus", "label": "Status", "help": "", "importance": "optional", "kind": "enum", "fixedValueOptions": [ { "value": "https://schema.org/EventScheduled", "label": "Scheduled" }, { "value": "https://schema.org/EventCancelled", "label": "Cancelled" }, { "value": "https://schema.org/EventPostponed", "label": "Postponed" }, { "value": "https://schema.org/EventRescheduled", "label": "Rescheduled" }, { "value": "https://schema.org/EventMovedOnline", "label": "Moved online" } ] },
+        { "schemaProperty": "eventAttendanceMode", "label": "Attendance", "help": "", "importance": "optional", "kind": "enum", "fixedValueOptions": [ { "value": "https://schema.org/OfflineEventAttendanceMode", "label": "In person" }, { "value": "https://schema.org/OnlineEventAttendanceMode", "label": "Online" }, { "value": "https://schema.org/MixedEventAttendanceMode", "label": "Hybrid" } ] }
+      ]
+    },
+    {
+      "id": "local-business",
+      "label": "Local business or branch",
+      "description": "Shops, offices, clinics, restaurants and branch pages with an address. Unlocks Google's local business panel details.",
+      "family": "business",
+      "icon": "icon-store",
+      "schemaType": "LocalBusiness",
+      "variants": [],
+      "useBusinessTypes": true,
+      "googleFeature": { "name": "Local business", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/local-business", "status": "rich-result" },
+      "aliasHints": ["location", "branch", "store", "office", "clinic", "restaurant", "venue", "practice", "dealer"],
+      "slots": [
+        { "schemaProperty": "name", "label": "Business name", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "address", "label": "Address", "help": "The full postal address.", "importance": "required", "kind": "entity", "nested": { "schemaType": "PostalAddress", "slots": [
+          { "schemaProperty": "streetAddress", "label": "Street", "help": "", "importance": "required", "kind": "text" },
+          { "schemaProperty": "addressLocality", "label": "Town or city", "help": "", "importance": "required", "kind": "text" },
+          { "schemaProperty": "postalCode", "label": "Postcode", "help": "", "importance": "required", "kind": "text" },
+          { "schemaProperty": "addressRegion", "label": "County or region", "help": "", "importance": "optional", "kind": "text" },
+          { "schemaProperty": "addressCountry", "label": "Country", "help": "Two-letter code, e.g. GB.", "importance": "recommended", "kind": "text" }
+        ] } },
+        { "schemaProperty": "telephone", "label": "Telephone", "help": "", "importance": "recommended", "kind": "text" },
+        { "schemaProperty": "url", "label": "Page URL", "help": "", "importance": "recommended", "kind": "url", "defaultSource": { "sourceType": "property", "alias": "__url" } },
+        { "schemaProperty": "image", "label": "Photo", "help": "", "importance": "recommended", "kind": "image" },
+        { "schemaProperty": "priceRange", "label": "Price range", "help": "e.g. ££", "importance": "recommended", "kind": "text" },
+        { "schemaProperty": "geo", "label": "Map location", "help": "", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "GeoCoordinates", "slots": [
+          { "schemaProperty": "latitude", "label": "Latitude", "help": "", "importance": "required", "kind": "number" },
+          { "schemaProperty": "longitude", "label": "Longitude", "help": "", "importance": "required", "kind": "number" }
+        ] } },
+        { "schemaProperty": "openingHoursSpecification", "label": "Opening hours", "help": "A block list of opening times.", "importance": "recommended", "kind": "list" }
+      ]
+    },
+    {
+      "id": "job-posting",
+      "label": "Job vacancy",
+      "description": "Job adverts. Unlocks Google for Jobs.",
+      "family": "business",
+      "icon": "icon-briefcase",
+      "schemaType": "JobPosting",
+      "variants": [],
+      "googleFeature": { "name": "Job posting", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/job-posting", "status": "rich-result" },
+      "aliasHints": ["job", "vacancy", "career", "role", "position"],
+      "slots": [
+        { "schemaProperty": "title", "label": "Job title", "help": "The role title only, no location or salary.", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "description", "label": "Description", "help": "The full job description (formatting is kept).", "importance": "required", "kind": "text" },
+        { "schemaProperty": "datePosted", "label": "Date posted", "help": "", "importance": "required", "kind": "date", "defaultSource": { "sourceType": "property", "alias": "__createDate" } },
+        { "schemaProperty": "validThrough", "label": "Closing date", "help": "", "importance": "required", "kind": "date" },
+        { "schemaProperty": "hiringOrganization", "label": "Employer", "help": "Normally your site identity.", "importance": "required", "kind": "entity", "siteIdentityPieceKey": "organization", "defaultSource": { "sourceType": "reference", "targetPieceKey": "organization" }, "nested": { "schemaType": "Organization", "slots": [
+          { "schemaProperty": "name", "label": "Employer name", "help": "", "importance": "required", "kind": "text" }
+        ] } },
+        { "schemaProperty": "jobLocation", "label": "Location", "help": "Where the job is based.", "importance": "required", "kind": "entity", "nested": { "schemaType": "Place", "slots": [
+          { "schemaProperty": "name", "label": "Location name", "help": "", "importance": "recommended", "kind": "text" },
+          { "schemaProperty": "address", "label": "Address", "help": "", "importance": "required", "kind": "text" }
+        ] } },
+        { "schemaProperty": "employmentType", "label": "Employment type", "help": "", "importance": "recommended", "kind": "enum", "fixedValueOptions": [ { "value": "FULL_TIME", "label": "Full time" }, { "value": "PART_TIME", "label": "Part time" }, { "value": "CONTRACTOR", "label": "Contract" }, { "value": "TEMPORARY", "label": "Temporary" }, { "value": "INTERN", "label": "Internship" }, { "value": "VOLUNTEER", "label": "Volunteer" } ] },
+        { "schemaProperty": "baseSalary", "label": "Salary", "help": "", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "MonetaryAmount", "slots": [
+          { "schemaProperty": "value", "label": "Amount", "help": "", "importance": "required", "kind": "number" },
+          { "schemaProperty": "currency", "label": "Currency", "help": "", "importance": "required", "kind": "enum", "fixedValueOptions": [ { "value": "GBP", "label": "GBP" }, { "value": "EUR", "label": "EUR" }, { "value": "USD", "label": "USD" } ] }
+        ] } },
+        { "schemaProperty": "identifier", "label": "Reference", "help": "Your internal job reference.", "importance": "optional", "kind": "text" }
+      ]
+    },
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "description": "Recipes. Unlocks recipe cards with image, rating and cooking time.",
+      "family": "content",
+      "icon": "icon-food",
+      "schemaType": "Recipe",
+      "variants": [],
+      "googleFeature": { "name": "Recipe", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/recipe", "status": "rich-result" },
+      "aliasHints": ["recipe", "dish", "meal"],
+      "slots": [
+        { "schemaProperty": "name", "label": "Recipe name", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "image", "label": "Photo", "help": "", "importance": "required", "kind": "image" },
+        { "schemaProperty": "author", "label": "Author", "help": "", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "Person", "slots": [
+          { "schemaProperty": "name", "label": "Author name", "help": "", "importance": "required", "kind": "text" }
+        ] } },
+        { "schemaProperty": "datePublished", "label": "Published date", "help": "", "importance": "recommended", "kind": "date", "defaultSource": { "sourceType": "property", "alias": "__createDate" } },
+        { "schemaProperty": "description", "label": "Description", "help": "", "importance": "recommended", "kind": "text" },
+        { "schemaProperty": "prepTime", "label": "Preparation time", "help": "ISO 8601 duration, e.g. PT20M.", "importance": "recommended", "kind": "duration" },
+        { "schemaProperty": "cookTime", "label": "Cooking time", "help": "ISO 8601 duration, e.g. PT1H.", "importance": "recommended", "kind": "duration" },
+        { "schemaProperty": "totalTime", "label": "Total time", "help": "", "importance": "recommended", "kind": "duration" },
+        { "schemaProperty": "recipeYield", "label": "Serves", "help": "", "importance": "recommended", "kind": "text" },
+        { "schemaProperty": "recipeIngredient", "label": "Ingredients", "help": "A list of ingredients.", "importance": "recommended", "kind": "list" },
+        { "schemaProperty": "recipeInstructions", "label": "Method", "help": "The steps.", "importance": "recommended", "kind": "list" },
+        { "schemaProperty": "recipeCategory", "label": "Course", "help": "e.g. Dessert", "importance": "optional", "kind": "text" },
+        { "schemaProperty": "recipeCuisine", "label": "Cuisine", "help": "e.g. Italian", "importance": "optional", "kind": "text" },
+        { "schemaProperty": "keywords", "label": "Keywords", "help": "", "importance": "optional", "kind": "list" }
+      ]
+    },
+    {
+      "id": "course",
+      "label": "Course",
+      "description": "Training courses and programmes. Unlocks Google's course list.",
+      "family": "learning",
+      "icon": "icon-graduation",
+      "schemaType": "Course",
+      "variants": [],
+      "googleFeature": { "name": "Course list", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/course", "status": "rich-result" },
+      "aliasHints": ["course", "training", "programme", "module", "class"],
+      "slots": [
+        { "schemaProperty": "name", "label": "Course name", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "description", "label": "Description", "help": "", "importance": "required", "kind": "text" },
+        { "schemaProperty": "provider", "label": "Provider", "help": "Normally your site identity.", "importance": "required", "kind": "entity", "siteIdentityPieceKey": "organization", "defaultSource": { "sourceType": "reference", "targetPieceKey": "organization" }, "nested": { "schemaType": "Organization", "slots": [
+          { "schemaProperty": "name", "label": "Provider name", "help": "", "importance": "required", "kind": "text" }
+        ] } },
+        { "schemaProperty": "offers", "label": "Price", "help": "", "importance": "recommended", "kind": "entity", "nested": { "schemaType": "Offer", "slots": [
+          { "schemaProperty": "price", "label": "Price", "help": "", "importance": "required", "kind": "number" },
+          { "schemaProperty": "priceCurrency", "label": "Currency", "help": "", "importance": "required", "kind": "enum", "fixedValueOptions": [ { "value": "GBP", "label": "GBP" }, { "value": "EUR", "label": "EUR" }, { "value": "USD", "label": "USD" } ] }
+        ] } },
+        { "schemaProperty": "hasCourseInstance", "label": "Dates and formats", "help": "A block list of scheduled runs.", "importance": "recommended", "kind": "list" },
+        { "schemaProperty": "image", "label": "Image", "help": "", "importance": "optional", "kind": "image" }
+      ]
+    },
+    {
+      "id": "video",
+      "label": "Video",
+      "description": "Pages built around a video. Unlocks video rich results and key moments.",
+      "family": "media",
+      "icon": "icon-video",
+      "schemaType": "VideoObject",
+      "variants": [],
+      "googleFeature": { "name": "Video", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/video", "status": "rich-result" },
+      "aliasHints": ["video", "webinar-recording", "film", "clip"],
+      "slots": [
+        { "schemaProperty": "name", "label": "Video title", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "description", "label": "Description", "help": "", "importance": "required", "kind": "text" },
+        { "schemaProperty": "thumbnailUrl", "label": "Thumbnail", "help": "", "importance": "required", "kind": "image" },
+        { "schemaProperty": "uploadDate", "label": "Upload date", "help": "", "importance": "required", "kind": "date", "defaultSource": { "sourceType": "property", "alias": "__createDate" } },
+        { "schemaProperty": "duration", "label": "Duration", "help": "ISO 8601 duration, e.g. PT3M20S.", "importance": "recommended", "kind": "duration" },
+        { "schemaProperty": "contentUrl", "label": "Video file URL", "help": "", "importance": "recommended", "kind": "url" },
+        { "schemaProperty": "embedUrl", "label": "Embed URL", "help": "e.g. the YouTube embed link.", "importance": "recommended", "kind": "url" },
+        { "schemaProperty": "expires", "label": "Expiry date", "help": "", "importance": "optional", "kind": "date" }
+      ]
+    },
+    {
+      "id": "software-app",
+      "label": "Software or app",
+      "description": "Apps and software products. Unlocks Google's software app result.",
+      "family": "commerce",
+      "icon": "icon-app",
+      "schemaType": "SoftwareApplication",
+      "variants": [
+        { "schemaType": "SoftwareApplication", "label": "Software", "hint": "" },
+        { "schemaType": "MobileApplication", "label": "Mobile app", "hint": "" },
+        { "schemaType": "WebApplication", "label": "Web app", "hint": "" }
+      ],
+      "googleFeature": { "name": "Software app", "docUrl": "https://developers.google.com/search/docs/appearance/structured-data/software-app", "status": "rich-result" },
+      "aliasHints": ["app", "software", "tool", "plugin"],
+      "slots": [
+        { "schemaProperty": "name", "label": "App name", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "offers", "label": "Price", "help": "Use 0 for free apps.", "importance": "required", "kind": "entity", "nested": { "schemaType": "Offer", "slots": [
+          { "schemaProperty": "price", "label": "Price", "help": "", "importance": "required", "kind": "number" },
+          { "schemaProperty": "priceCurrency", "label": "Currency", "help": "", "importance": "required", "kind": "enum", "fixedValueOptions": [ { "value": "GBP", "label": "GBP" }, { "value": "EUR", "label": "EUR" }, { "value": "USD", "label": "USD" } ] }
+        ] } },
+        { "schemaProperty": "aggregateRating", "label": "Average rating", "help": "Google needs a rating or a review.", "importance": "recommended", "kind": "entity", "anyOfGroup": "rating", "nested": { "schemaType": "AggregateRating", "slots": [
+          { "schemaProperty": "ratingValue", "label": "Rating value", "help": "", "importance": "required", "kind": "number" },
+          { "schemaProperty": "ratingCount", "label": "Number of ratings", "help": "", "importance": "required", "kind": "number" }
+        ] } },
+        { "schemaProperty": "review", "label": "Reviews", "help": "", "importance": "optional", "kind": "list", "anyOfGroup": "rating" },
+        { "schemaProperty": "applicationCategory", "label": "Category", "help": "", "importance": "recommended", "kind": "enum", "fixedValueOptions": [ { "value": "BusinessApplication", "label": "Business" }, { "value": "GameApplication", "label": "Game" }, { "value": "EducationalApplication", "label": "Education" }, { "value": "LifestyleApplication", "label": "Lifestyle" }, { "value": "UtilitiesApplication", "label": "Utilities" }, { "value": "DeveloperApplication", "label": "Developer tools" }, { "value": "FinanceApplication", "label": "Finance" }, { "value": "HealthApplication", "label": "Health" }, { "value": "MultimediaApplication", "label": "Multimedia" } ] },
+        { "schemaProperty": "operatingSystem", "label": "Operating system", "help": "e.g. iOS, Android, Windows", "importance": "recommended", "kind": "text" },
+        { "schemaProperty": "image", "label": "Icon or image", "help": "", "importance": "optional", "kind": "image" },
+        { "schemaProperty": "description", "label": "Description", "help": "", "importance": "optional", "kind": "text" },
+        { "schemaProperty": "screenshot", "label": "Screenshot", "help": "", "importance": "optional", "kind": "image" }
+      ]
+    },
+    {
+      "id": "faq",
+      "label": "FAQ page",
+      "description": "Question-and-answer pages. Google stopped showing FAQ rich results in May 2026; the markup still helps assistants and other engines understand the page.",
+      "family": "content",
+      "icon": "icon-help-alt",
+      "schemaType": "FAQPage",
+      "variants": [],
+      "googleFeature": { "name": "FAQ (retired by Google, May 2026)", "docUrl": "https://developers.google.com/search/blog/2025/06/simplifying-search-results", "status": "retired" },
+      "aliasHints": ["faq", "questions"],
+      "slots": [
+        { "schemaProperty": "mainEntity", "label": "Questions and answers", "help": "A block list of question/answer pairs.", "importance": "required", "kind": "list" }
+      ]
+    },
+    {
+      "id": "how-to",
+      "label": "How-to guide",
+      "description": "Step-by-step instructions. Google retired how-to rich results in 2023; the markup still describes the page accurately.",
+      "family": "content",
+      "icon": "icon-ordered-list",
+      "schemaType": "HowTo",
+      "variants": [],
+      "googleFeature": { "name": "How-to (retired by Google, 2023)", "docUrl": "https://developers.google.com/search/blog/2023/08/howto-faq-changes", "status": "retired" },
+      "aliasHints": ["howto", "how-to", "guide", "tutorial", "steps"],
+      "slots": [
+        { "schemaProperty": "name", "label": "Title", "help": "", "importance": "required", "kind": "text", "defaultSource": { "sourceType": "property", "alias": "__name" } },
+        { "schemaProperty": "step", "label": "Steps", "help": "A block list of steps.", "importance": "required", "kind": "list" },
+        { "schemaProperty": "image", "label": "Image", "help": "", "importance": "recommended", "kind": "image" },
+        { "schemaProperty": "totalTime", "label": "Total time", "help": "ISO 8601 duration.", "importance": "recommended", "kind": "duration" },
+        { "schemaProperty": "tool", "label": "Tools", "help": "", "importance": "optional", "kind": "list" },
+        { "schemaProperty": "supply", "label": "Supplies", "help": "", "importance": "optional", "kind": "list" }
+      ]
+    }
+  ],
+  "retired": [
+    { "schemaType": "FAQPage", "name": "FAQ rich results", "retiredOn": "2026-05", "docUrl": "https://developers.google.com/search/blog/2025/06/simplifying-search-results" },
+    { "schemaType": "HowTo", "name": "How-to rich results", "retiredOn": "2023-09", "docUrl": "https://developers.google.com/search/blog/2023/08/howto-faq-changes" },
+    { "schemaType": "SearchAction", "name": "Sitelinks search box", "retiredOn": "2024-11", "docUrl": "https://developers.google.com/search/blog/2024/10/sitelinks-search-box" },
+    { "schemaType": "ClaimReview", "name": "Fact check", "retiredOn": "2025-06", "docUrl": "https://developers.google.com/search/blog/2025/06/simplifying-search-results" },
+    { "schemaType": "Occupation", "name": "Estimated salary", "retiredOn": "2025-06", "docUrl": "https://developers.google.com/search/blog/2025/06/simplifying-search-results" },
+    { "schemaType": "LearningResource", "name": "Learning video", "retiredOn": "2025-06", "docUrl": "https://developers.google.com/search/blog/2025/06/simplifying-search-results" },
+    { "schemaType": "SpecialAnnouncement", "name": "Special announcement", "retiredOn": "2025-06", "docUrl": "https://developers.google.com/search/blog/2025/06/simplifying-search-results" },
+    { "schemaType": "Vehicle", "name": "Vehicle listing", "retiredOn": "2025-06", "docUrl": "https://developers.google.com/search/blog/2025/06/simplifying-search-results" },
+    { "schemaType": "Quiz", "name": "Practice problems", "retiredOn": "2026-01", "docUrl": "https://developers.google.com/search/blog/2025/06/simplifying-search-results" }
+  ],
+  "deferred": ["Dataset", "QAPage", "Organization (as a page kind)", "Movie", "Speakable", "Paywalled content", "VacationRental", "DiscussionForumPosting", "EmployerAggregateRating"],
+  "businessTypes": [
+    { "schemaType": "LocalBusiness", "label": "Other local business" },
+    { "schemaType": "Restaurant", "label": "Restaurant" },
+    { "schemaType": "CafeOrCoffeeShop", "label": "Café or coffee shop" },
+    { "schemaType": "Bakery", "label": "Bakery" },
+    { "schemaType": "BarOrPub", "label": "Bar or pub" },
+    { "schemaType": "Store", "label": "Shop" },
+    { "schemaType": "Dentist", "label": "Dentist" },
+    { "schemaType": "Physician", "label": "Doctor or GP" },
+    { "schemaType": "MedicalClinic", "label": "Clinic" },
+    { "schemaType": "LegalService", "label": "Legal services" },
+    { "schemaType": "AccountingService", "label": "Accountancy" },
+    { "schemaType": "FinancialService", "label": "Financial services" },
+    { "schemaType": "RealEstateAgent", "label": "Estate or letting agent" },
+    { "schemaType": "ProfessionalService", "label": "Professional services" },
+    { "schemaType": "Plumber", "label": "Plumber" },
+    { "schemaType": "Electrician", "label": "Electrician" },
+    { "schemaType": "RoofingContractor", "label": "Roofer" },
+    { "schemaType": "HomeAndConstructionBusiness", "label": "Builder or trades" },
+    { "schemaType": "AutoRepair", "label": "Garage or vehicle repair" },
+    { "schemaType": "AutoDealer", "label": "Car dealer" },
+    { "schemaType": "Hotel", "label": "Hotel" },
+    { "schemaType": "HairSalon", "label": "Hair salon" },
+    { "schemaType": "BeautySalon", "label": "Beauty salon" },
+    { "schemaType": "HealthClub", "label": "Gym or health club" },
+    { "schemaType": "TravelAgency", "label": "Travel agency" },
+    { "schemaType": "ChildCare", "label": "Nursery or childcare" },
+    { "schemaType": "School", "label": "School" },
+    { "schemaType": "VeterinaryCare", "label": "Vet" }
+  ]
+}

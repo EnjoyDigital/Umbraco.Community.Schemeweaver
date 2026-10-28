@@ -1,0 +1,15 @@
+{
+  "$schema": "../umbraco-package-schema.json",
+  "id": "Umbraco.Community.SchemeWeaver.Seo",
+  "name": "SchemeWeaver SEO",
+  "version": "1.0.0",
+  "allowPublicAccess": false,
+  "extensions": [
+    {
+      "type": "bundle",
+      "alias": "SchemeWeaver.Seo.Bundle",
+      "name": "SchemeWeaver SEO Bundle",
+      "js": "/App_Plugins/SchemeWeaverSeo/dist/index.js?v=5e50d0fc"
+    }
+  ]
+}

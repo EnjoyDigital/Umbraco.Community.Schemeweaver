@@ -48,6 +48,11 @@
     <ProjectReference Include="..\Umbraco.Community.SchemeWeaver.TypeSafe\Umbraco.Community.SchemeWeaver.TypeSafe.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- SchemeWeaver SEO satellite: the SEO Schema section, site identity and per-page overrides. -->
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver.Seo\Umbraco.Community.SchemeWeaver.Seo.csproj" />
+  </ItemGroup>
+
   <!--
     Umbraco Deploy is licensed and OPT-IN for manual/E2E testing only:
       dotnet run -p:SchemeWeaverIncludeDeploy=true

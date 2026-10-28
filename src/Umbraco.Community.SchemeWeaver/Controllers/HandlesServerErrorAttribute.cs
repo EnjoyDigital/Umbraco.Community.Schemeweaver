@@ -14,7 +14,7 @@ namespace Umbraco.Community.SchemeWeaver.Controllers;
 /// structured per-request parameters the old per-action catch blocks captured are preserved.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
-internal sealed class HandlesServerErrorAttribute : ExceptionFilterAttribute
+public sealed class HandlesServerErrorAttribute : ExceptionFilterAttribute
 {
     private readonly string _operation;
 

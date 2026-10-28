@@ -153,7 +153,7 @@ public abstract class UmbracoIntegrationTestBase : IAsyncLifetime
         }
     }
 
-    public Task InitializeAsync()
+    public virtual Task InitializeAsync()
     {
         // Ensure a clean slate before every test. Running synchronously is fine —
         // NPoco's scope provider is blocking and ResetSchemeWeaverTables completes

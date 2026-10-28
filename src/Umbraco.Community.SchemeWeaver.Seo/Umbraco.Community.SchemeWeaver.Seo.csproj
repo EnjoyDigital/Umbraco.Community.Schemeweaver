@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>Umbraco.Community.SchemeWeaver.Seo</PackageId>
+    <Title>SchemeWeaver SEO</Title>
+    <Description>SchemeWeaver SEO: a Yoast-style structured data section for the Umbraco backoffice. SEOs and editors choose from a curated set of Google-recognised content kinds, set the site identity and fix individual pages, without touching document types or code. Requires Umbraco.Community.SchemeWeaver.</Description>
+    <PackageTags>umbraco plugin package umbraco-marketplace schema-org json-ld seo structured-data rich-results</PackageTags>
+    <!-- Major-aligned with the rest of the suite (see Directory.Build.props). -->
+    <Version>$(SchemeWeaverPackageVersion)</Version>
+    <Authors>Oliver Picton</Authors>
+    <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Oliver Picton</Copyright>
+    <PackageProjectUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/EnjoyDigital/Umbraco.Community.Schemeweaver</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <RootNamespace>Umbraco.Community.SchemeWeaver.Seo</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!--
+      Static web assets: the Vite build in App_Plugins/SchemeWeaverSeo outputs to wwwroot/dist/,
+      which the Razor SDK serves at /App_Plugins/SchemeWeaverSeo/ (distinct from the core's
+      App_Plugins/SchemeWeaver and the AI satellite's App_Plugins/SchemeWeaverAI).
+    -->
+    <StaticWebAssetBasePath>App_Plugins/SchemeWeaverSeo</StaticWebAssetBasePath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="NUGET_README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+    <!-- The curated content-kind catalogue ships inside the assembly (see Templates/catalogue.json),
+         never as a content file copied into consuming sites. -->
+    <Content Remove="Templates\catalogue.json" />
+    <None Remove="Templates\catalogue.json" />
+    <EmbeddedResource Include="Templates\catalogue.json" LogicalName="Umbraco.Community.SchemeWeaver.Seo.Templates.catalogue.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Umbraco.Community.SchemeWeaver\Umbraco.Community.SchemeWeaver.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Exclude schema files from publish to avoid conflicts with the main project -->
+    <Content Remove="appsettings-schema.json" />
+    <Content Remove="appsettings-schema.Umbraco.Cms.json" />
+    <Content Remove="umbraco-package-schema.json" />
+    <None Remove="appsettings-schema.json" />
+    <None Remove="appsettings-schema.Umbraco.Cms.json" />
+    <None Remove="umbraco-package-schema.json" />
+    <!-- The frontend's own folders are not content of the .NET project. -->
+    <Content Remove="App_Plugins\**" />
+    <None Remove="App_Plugins\**" />
+    <Compile Remove="App_Plugins\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Umbraco.Community.SchemeWeaver.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+
+  <!--
+    Ensure the satellite frontend is built before packing (same pattern as the core and AI
+    packages). Vite outputs to wwwroot/dist/ (served as /App_Plugins/SchemeWeaverSeo/dist/).
+    Set SchemeWeaverSeoSkipFrontendBuild=true to bypass (CI builds the frontend separately).
+  -->
+  <ItemGroup>
+    <_SeoFrontendSourceInputs Include="App_Plugins/SchemeWeaverSeo/src/**/*.ts" Exclude="App_Plugins/SchemeWeaverSeo/src/**/*.test.ts" />
+    <_SeoFrontendSourceInputs Include="App_Plugins/SchemeWeaverSeo/package.json;App_Plugins/SchemeWeaverSeo/package-lock.json;App_Plugins/SchemeWeaverSeo/vite.config.ts;App_Plugins/SchemeWeaverSeo/tsconfig.json" />
+    <!-- Shared core TypeScript is compiled into this bundle too (see App_Plugins/SchemeWeaverSeo/src/core-bridge). -->
+    <_SeoFrontendSourceInputs Include="../Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/**/*.ts" Exclude="../Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/src/**/*.test.ts" />
+    <_SeoFrontendDistOutputs Include="wwwroot/dist/index.js" />
+  </ItemGroup>
+  <Target Name="EnsureSeoFrontendBuiltBeforePack"
+          BeforeTargets="Pack"
+          Condition="'$(Configuration)' == 'Release' AND '$(SchemeWeaverSeoSkipFrontendBuild)' != 'true'"
+          Inputs="@(_SeoFrontendSourceInputs)"
+          Outputs="@(_SeoFrontendDistOutputs)">
+    <Message Text="SEO frontend source is newer than wwwroot/dist — running 'npm run build' in App_Plugins/SchemeWeaverSeo." Importance="high" />
+    <Exec Command="npm install" WorkingDirectory="App_Plugins/SchemeWeaverSeo" />
+    <Exec Command="npm run build" WorkingDirectory="App_Plugins/SchemeWeaverSeo" />
+    <ItemGroup>
+      <_StaleSeoStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/staticwebassets.*.json" />
+      <_StaleSeoStaticAssetsFiles Include="$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/*.dswa.cache.json" />
+    </ItemGroup>
+    <Delete Files="@(_StaleSeoStaticAssetsFiles)" />
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Build" Properties="Configuration=$(Configuration);SchemeWeaverSeoSkipFrontendBuild=true" />
+  </Target>
+
+</Project>
