@@ -282,6 +282,26 @@ public class SeoSlotProjectorTests
     }
 
     [Fact]
+    public void ToMappingDto_MatchesSlotKeysCaseInsensitively_EvenWithADefaultComparerDictionary()
+    {
+        // System.Text.Json rebuilds Slots with the default comparer; keys from a client may be PascalCase.
+        var request = new SeoMappingSaveRequest
+        {
+            TemplateId = "article",
+            Slots = new Dictionary<string, SeoSlotValueDto>
+            {
+                ["Headline"] = new() { Kind = SlotValueKinds.Property, PropertyAlias = "title" },
+                ["Author"] = new() { Kind = SlotValueKinds.Nested, Nested = new Dictionary<string, SeoSlotValueDto> { ["Name"] = new() { Kind = SlotValueKinds.Property, PropertyAlias = "authorName" } } },
+            },
+        };
+
+        var dto = _sut.ToMappingDto(_article, "blogPost", Guid.NewGuid(), "Article", request, null, Editors);
+
+        Row(dto, "headline").ContentTypePropertyAlias.Should().Be("title");
+        Row(dto, "author").ResolverConfig.Should().Contain("authorName");
+    }
+
+    [Fact]
     public void ToMappingDto_PreservesADisabledMapping()
     {
         var existing = new SchemaMappingDto { ContentTypeAlias = "blogPost", SchemaTypeName = "Article", IsEnabled = false };

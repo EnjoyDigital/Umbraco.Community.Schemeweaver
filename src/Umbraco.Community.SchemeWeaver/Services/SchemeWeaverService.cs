@@ -615,7 +615,8 @@ public class SchemeWeaverService : ISchemeWeaverService
         return keys;
     }
 
-    private static SchemaMappingDto ToDto(SchemaMapping mapping, IEnumerable<PropertyMapping> propertyMappings)
+    /// <summary>Entity → DTO projection shared with the SEO satellite (single place to add a column).</summary>
+    internal static SchemaMappingDto ToDto(SchemaMapping mapping, IEnumerable<PropertyMapping> propertyMappings)
         => new()
         {
             ContentTypeAlias = mapping.ContentTypeAlias,

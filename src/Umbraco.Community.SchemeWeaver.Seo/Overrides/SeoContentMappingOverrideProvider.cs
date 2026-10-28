@@ -50,20 +50,41 @@ public sealed class SeoContentMappingOverrideProvider : IContentMappingOverrideP
         if (@override.IsExcluded)
             return MappingOverrideResult.Excluded;
 
-        var type = @override.SchemaTypeName?.Trim();
-        if (string.IsNullOrEmpty(type) || string.Equals(type, mapping.SchemaTypeName, StringComparison.OrdinalIgnoreCase))
-            return MappingOverrideResult.None;
-
-        if (_registry.GetClrType(type) is null || !_rangeChecker.IsInRange(type, [mapping.SchemaTypeName]))
+        var type = ResolveEffectiveType(mapping.SchemaTypeName, @override.SchemaTypeName, out var invalid);
+        if (invalid)
         {
             _logger.LogWarning(
                 "SchemeWeaver SEO page override {Type} on {ContentKey} is not a subtype of the mapped {Base}; ignoring",
-                type, content.Key, mapping.SchemaTypeName);
-            return MappingOverrideResult.None;
+                @override.SchemaTypeName, content.Key, mapping.SchemaTypeName);
         }
+
+        if (type is null)
+            return MappingOverrideResult.None;
 
         var clone = mapping.Clone();
         clone.SchemaTypeName = type;
         return MappingOverrideResult.Retyped(clone);
+    }
+
+    /// <summary>
+    /// The one rule for "does this override change the emitted type": returns the override type
+    /// when it is a known subtype of <paramref name="mappedType"/> and differs from it; null
+    /// otherwise. <paramref name="invalid"/> is true when a non-empty override was rejected.
+    /// Used by the render path above and by the page summary so they can never disagree.
+    /// </summary>
+    public string? ResolveEffectiveType(string mappedType, string? overrideType, out bool invalid)
+    {
+        invalid = false;
+        var type = overrideType?.Trim();
+        if (string.IsNullOrEmpty(type) || string.Equals(type, mappedType, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (_registry.GetClrType(type) is null || !_rangeChecker.IsInRange(type, [mappedType]))
+        {
+            invalid = true;
+            return null;
+        }
+
+        return type;
     }
 }

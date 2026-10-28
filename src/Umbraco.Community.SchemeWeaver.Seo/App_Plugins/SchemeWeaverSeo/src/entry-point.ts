@@ -24,7 +24,8 @@ export const onInit: UmbEntryPointOnInit = (host) => {
         void context
           .loadServerContext()
           .then((serverContext) => {
-            if (serverContext?.hideDeveloperJsonLdTab !== false) {
+            // Only an explicit server answer hides the developer tab; a failed call keeps both.
+            if (serverContext?.hideDeveloperJsonLdTab === true) {
               umbExtensionsRegistry.exclude(CORE_JSONLD_VIEW_ALIAS);
             }
           })

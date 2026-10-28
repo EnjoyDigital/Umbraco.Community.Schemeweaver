@@ -50,7 +50,9 @@ public class SchemeWeaverSeoApiControllerTests : UmbracoIntegrationTestBase
     [Fact]
     public async Task Templates_ReturnsTheCatalogue()
     {
-        var dto = await Client.GetFromJsonAsync<SeoTemplateCatalogueDto>($"{SeoRoute}/templates", Json);
+        var raw = await Client.GetAsync($"{SeoRoute}/templates");
+        raw.StatusCode.Should().Be(HttpStatusCode.OK, await raw.Content.ReadAsStringAsync());
+        var dto = await raw.Content.ReadFromJsonAsync<SeoTemplateCatalogueDto>(Json);
         dto!.Templates.Should().Contain(t => t.Id == "article");
         dto.Retired.Should().NotBeEmpty();
         dto.BusinessTypes.Should().NotBeEmpty();
@@ -59,7 +61,9 @@ public class SchemeWeaverSeoApiControllerTests : UmbracoIntegrationTestBase
     [Fact]
     public async Task ServerContext_ReportsTheSectionAlias_MatchingTheFrontendManifest()
     {
-        var dto = await Client.GetFromJsonAsync<SeoServerContextDto>($"{SeoRoute}/server-context", Json);
+        var raw = await Client.GetAsync($"{SeoRoute}/server-context");
+        raw.StatusCode.Should().Be(HttpStatusCode.OK, await raw.Content.ReadAsStringAsync());
+        var dto = await raw.Content.ReadFromJsonAsync<SeoServerContextDto>(Json);
         dto!.SectionAlias.Should().Be(SchemeWeaverSeoConstants.SectionAlias);
         dto.SiteIdentityConfigured.Should().BeFalse();
 
@@ -89,7 +93,7 @@ public class SchemeWeaverSeoApiControllerTests : UmbracoIntegrationTestBase
             TemplateId = "web-page",
             Slots = { ["name"] = new SeoSlotValueDto { Kind = "property", PropertyAlias = "__name" } },
         }, Json);
-        setup.StatusCode.Should().Be(HttpStatusCode.OK);
+        setup.StatusCode.Should().Be(HttpStatusCode.OK, await setup.Content.ReadAsStringAsync());
 
         var bad = await Client.PutAsJsonAsync($"{SeoRoute}/site-identity", new SiteIdentityDto { Name = "" }, Json);
         bad.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -140,6 +144,11 @@ public class SchemeWeaverSeoApiControllerTests : UmbracoIntegrationTestBase
 
         var invalidVariant = await Client.PostAsJsonAsync($"{SeoRoute}/content-types/{alias}/setup", new SeoSetupRequest { TemplateId = "article", SchemaTypeName = "Recipe" }, Json);
         invalidVariant.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // A subtype the catalogue does not list (a developer's choice) is kept rather than rewritten.
+        var ancestorMatched = await Client.PostAsJsonAsync($"{SeoRoute}/content-types/{alias}/setup", new SeoSetupRequest { TemplateId = "article", SchemaTypeName = "ScholarlyArticle" }, Json);
+        ancestorMatched.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ancestorMatched.Content.ReadFromJsonAsync<SeoProjectionDto>(Json))!.SchemaTypeName.Should().Be("ScholarlyArticle");
 
         var request = new SeoMappingSaveRequest
         {
@@ -223,6 +232,12 @@ public class SchemeWeaverSeoApiControllerTests : UmbracoIntegrationTestBase
         var delivery = await Client.GetStringAsync($"/umbraco/delivery/api/v2/schemeweaver/json-ld?id={key}");
         delivery.Should().Contain("WebSite").And.NotContain("\"Article\"").And.NotContain("NewsArticle");
 
+        // Choosing the mapped type itself is "no override": the stored row is cleared, not kept.
+        var sameType = await Client.PutAsJsonAsync($"{SeoRoute}/pages/{key}", new SeoPageOverrideRequest { SchemaTypeName = "article" }, Json);
+        sameType.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Client.GetAsync($"{SeoRoute}/pages/{key}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        await Client.PutAsJsonAsync($"{SeoRoute}/pages/{key}", new SeoPageOverrideRequest { IsExcluded = true }, Json);
         (await Client.DeleteAsync($"{SeoRoute}/pages/{key}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await Client.GetAsync($"{SeoRoute}/pages/{key}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
         summary = await Client.GetFromJsonAsync<SeoPageSummaryDto>($"{SeoRoute}/pages/{key}/summary", Json);

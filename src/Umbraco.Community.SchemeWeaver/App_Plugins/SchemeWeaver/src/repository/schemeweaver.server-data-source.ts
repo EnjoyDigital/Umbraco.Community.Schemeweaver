@@ -113,10 +113,10 @@ export async function fetchApi<T>(
         return { data: undefined as T };
       }
 
-      // Forbidden: the user lacks a section/permission the endpoint needs (satellite APIs
-      // such as the SEO section). Not a session problem, so no toast: the caller gets
-      // `undefined` and renders its empty state.
-      if (response.status === 403) {
+      // Forbidden on a satellite endpoint (absolute path, e.g. the SEO section's API): the
+      // user simply lacks that section, so no toast — the caller renders its empty state.
+      // Core endpoints keep surfacing a 403 as an error below.
+      if (response.status === 403 && path.startsWith('/umbraco/')) {
         return { data: undefined as T };
       }
 

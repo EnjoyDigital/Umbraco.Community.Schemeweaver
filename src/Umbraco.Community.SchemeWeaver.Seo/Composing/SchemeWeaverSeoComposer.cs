@@ -46,7 +46,8 @@ public class SchemeWeaverSeoComposer : IComposer
         builder.Services.AddScoped<ISeoHealthCheckService, SeoHealthCheckService>();
 
         // Core seams: last registration wins (the core registered Null implementations first).
-        builder.Services.AddScoped<IContentMappingOverrideProvider, SeoContentMappingOverrideProvider>();
+        builder.Services.AddScoped<SeoContentMappingOverrideProvider>();
+        builder.Services.AddScoped<IContentMappingOverrideProvider>(sp => sp.GetRequiredService<SeoContentMappingOverrideProvider>());
         builder.Services.AddScoped<ISiteIdentityProvider, SeoSiteIdentityProvider>();
 
         // Section-access policy for the SEO API. AddAuthorization has already run inside

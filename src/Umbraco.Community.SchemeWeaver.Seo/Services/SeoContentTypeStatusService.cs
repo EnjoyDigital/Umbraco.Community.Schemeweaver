@@ -1,6 +1,7 @@
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Community.SchemeWeaver.Models.Api;
+using Umbraco.Community.SchemeWeaver.Services;
 using Umbraco.Community.SchemeWeaver.Models.Entities;
 using Umbraco.Community.SchemeWeaver.Persistence;
 using Umbraco.Community.SchemeWeaver.Seo.Models.Api;
@@ -94,27 +95,6 @@ public sealed class SeoContentTypeStatusService : ISeoContentTypeStatusService
         };
     }
 
-    internal static SchemaMappingDto ToDto(SchemaMapping mapping, IEnumerable<PropertyMapping> rows) => new()
-    {
-        ContentTypeAlias = mapping.ContentTypeAlias,
-        ContentTypeKey = mapping.ContentTypeKey,
-        SchemaTypeName = mapping.SchemaTypeName,
-        IsEnabled = mapping.IsEnabled,
-        IsInherited = mapping.IsInherited,
-        IdOverride = mapping.IdOverride,
-        PropertyMappings = rows.Select(r => new PropertyMappingDto
-        {
-            SchemaPropertyName = r.SchemaPropertyName,
-            SourceType = r.SourceType,
-            ContentTypePropertyAlias = r.ContentTypePropertyAlias,
-            SourceContentTypeAlias = r.SourceContentTypeAlias,
-            TransformType = r.TransformType,
-            IsAutoMapped = r.IsAutoMapped,
-            StaticValue = r.StaticValue,
-            NestedSchemaTypeName = r.NestedSchemaTypeName,
-            ResolverConfig = r.ResolverConfig,
-            DynamicRootConfig = r.DynamicRootConfig,
-            TargetPieceKey = r.TargetPieceKey,
-        }).ToList(),
-    };
+    internal static SchemaMappingDto ToDto(SchemaMapping mapping, IEnumerable<PropertyMapping> rows) =>
+        SchemeWeaverService.ToDto(mapping, rows);
 }

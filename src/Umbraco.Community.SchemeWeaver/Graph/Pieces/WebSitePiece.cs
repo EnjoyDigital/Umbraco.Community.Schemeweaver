@@ -41,22 +41,24 @@ public sealed class WebSitePiece : IGraphPiece
             return null;
 
         var identity = ctx.SiteIdentity;
+        var siteName = ResolveSiteName(ctx);
         var site = new WebSite
         {
             Url = ctx.SiteUrl,
-            Name = identity?.Name is { Length: > 0 } identityName ? identityName : ResolveSiteName(ctx)
+            Name = siteName
         };
 
-        if (identity?.AlternateName is { Length: > 0 } alternateName)
+        // The identity's alternate name only applies when the identity also supplied the name.
+        if (identity?.AlternateName is { Length: > 0 } alternateName
+            && string.Equals(siteName, identity.Name, StringComparison.Ordinal))
             site.AlternateName = alternateName;
 
-        // publisher → Organization (or Person) cross-ref (by @id only).
+        // publisher → cross-ref by @id only. Pure references collapse to {"@id"} in the
+        // serialised graph, so the Organization shell is correct whatever the publisher's type.
         if (ctx.IdFor("organization") is { } orgId
             && Uri.TryCreate(orgId, UriKind.Absolute, out var orgUri))
         {
-            site.Publisher = identity?.Kind == SiteIdentityKind.Person
-                ? new Person { Id = orgUri }
-                : new Organization { Id = orgUri };
+            site.Publisher = new Organization { Id = orgUri };
         }
 
         if (!string.IsNullOrWhiteSpace(ctx.Culture))
@@ -116,15 +118,18 @@ public sealed class WebSitePiece : IGraphPiece
         //   3. siteSettings.company     (the same convention, unsuffixed)
         //   4. siteSettings.name        (generic name property)
         //   5. siteSettings.brandName   (another common convention)
-        //   6. Umbraco content node Name on the settings node (often editor-set)
-        //   7. Host component of the site URL (last-resort, always defined)
+        //   6. The backoffice/code-managed site identity's name (ISiteIdentityProvider)
+        //   7. Umbraco content node Name on the settings node (often editor-set)
+        //   8. Host component of the site URL (last-resort, always defined)
         //
-        // The node Name deliberately sits BELOW every convention property: settings
-        // singletons are routinely called "Settings" or "Site Config", which is a
-        // worse site name than anything an editor typed into a named field.
+        // A name an editor typed into a named settings field stays the site name even
+        // once an identity exists (a person's blog keeps its title; the person is the
+        // publisher). The node Name sits below both: settings singletons are routinely
+        // called "Settings" or "Site Config".
+        var settings = ctx.SiteSettings;
         try
         {
-            if (ctx.SiteSettings is { } settings)
+            if (settings is not null)
             {
                 if (settings.Value<string>("siteName") is { Length: > 0 } siteName)
                     return siteName;
@@ -136,14 +141,18 @@ public sealed class WebSitePiece : IGraphPiece
                     return nameProp;
                 if (settings.Value<string>("brandName") is { Length: > 0 } brandName)
                     return brandName;
-                if (!string.IsNullOrWhiteSpace(settings.Name))
-                    return settings.Name!;
             }
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "WebSitePiece: failed to read site name from settings node");
         }
+
+        if (ctx.SiteIdentity?.Name is { Length: > 0 } identityName)
+            return identityName;
+
+        if (!string.IsNullOrWhiteSpace(settings?.Name))
+            return settings.Name!;
 
         return ctx.SiteUrl!.Host;
     }

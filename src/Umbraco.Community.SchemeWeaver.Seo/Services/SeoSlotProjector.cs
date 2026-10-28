@@ -286,11 +286,14 @@ public sealed class SeoSlotProjector : ISeoSlotProjector
     {
         var existingRows = existing?.PropertyMappings ?? [];
         var rows = new List<PropertyMappingDto>();
+        // System.Text.Json rebuilds dictionaries with the default comparer; slot keys are matched
+        // case-insensitively (the catalogue says camelCase, clients may not).
+        var requested = CaseInsensitive(request.Slots);
 
         foreach (var slot in template.Slots)
         {
             var current = FindRow(existingRows, slot.SchemaProperty);
-            request.Slots.TryGetValue(slot.SchemaProperty, out var value);
+            requested.TryGetValue(slot.SchemaProperty, out var value);
             var row = BuildRow(slot, value, current, editorAliasesByProperty);
             if (row is not null)
                 rows.Add(row);
@@ -409,8 +412,17 @@ public sealed class SeoSlotProjector : ISeoSlotProjector
     }
 
     /// <summary>Sub-slot values → complex-type entries; a nested entity sub-value becomes an entry with its own config (one more level).</summary>
-    private static List<ComplexTypeMappingEntry> BuildEntries(SeoNestedTemplate nested, IReadOnlyDictionary<string, SeoSlotValueDto> values, IReadOnlyDictionary<string, string>? editors)
+    private static Dictionary<string, SeoSlotValueDto> CaseInsensitive(IReadOnlyDictionary<string, SeoSlotValueDto>? source)
     {
+        var map = new Dictionary<string, SeoSlotValueDto>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in source ?? new Dictionary<string, SeoSlotValueDto>())
+            map[key] = value;
+        return map;
+    }
+
+    private static List<ComplexTypeMappingEntry> BuildEntries(SeoNestedTemplate nested, IReadOnlyDictionary<string, SeoSlotValueDto> rawValues, IReadOnlyDictionary<string, string>? editors)
+    {
+        var values = CaseInsensitive(rawValues);
         var entries = new List<ComplexTypeMappingEntry>();
         foreach (var subSlot in nested.Slots)
         {

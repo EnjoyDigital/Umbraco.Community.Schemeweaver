@@ -51,6 +51,7 @@
 
 	<ItemGroup>
 		<InternalsVisibleTo Include="Umbraco.Community.SchemeWeaver.Tests" />
+		<InternalsVisibleTo Include="Umbraco.Community.SchemeWeaver.Seo" />
 	</ItemGroup>
 
 	<ItemGroup>

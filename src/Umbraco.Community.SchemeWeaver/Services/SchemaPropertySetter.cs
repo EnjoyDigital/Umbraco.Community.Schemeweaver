@@ -648,7 +648,10 @@ public static class SchemaPropertySetter
         if (slash >= 0 && name.Contains("schema.org", StringComparison.OrdinalIgnoreCase))
             name = name[(slash + 1)..];
 
-        if (!Enum.TryParse(enumType, name, ignoreCase: true, out var parsed))
+        // Member names only: Enum.TryParse would also accept "99" and mint an undefined member.
+        if (name.Length == 0 || char.IsDigit(name[0]) || name[0] == '-'
+            || !Enum.TryParse(enumType, name, ignoreCase: true, out var parsed)
+            || parsed is null || !Enum.IsDefined(enumType, parsed))
             return false;
 
         value = parsed;

@@ -53,6 +53,8 @@ public class SchemeWeaverSeoApiController : ControllerBase
     private readonly IMappingExporter _mappingExporter;
     private readonly IJsonLdBlocksProvider _blocksProvider;
     private readonly ISchemaRangeChecker _rangeChecker;
+    private readonly SeoContentMappingOverrideProvider _overrideRules;
+    private readonly ISchemaTypeRegistry _registry;
     private readonly IBackOfficeSecurityAccessor _backOfficeSecurityAccessor;
     private readonly IOptions<SchemeWeaverOptions> _coreOptions;
     private readonly IOptions<SchemeWeaverSeoOptions> _seoOptions;
@@ -75,6 +77,8 @@ public class SchemeWeaverSeoApiController : ControllerBase
         IMappingExporter mappingExporter,
         IJsonLdBlocksProvider blocksProvider,
         ISchemaRangeChecker rangeChecker,
+        SeoContentMappingOverrideProvider overrideRules,
+        ISchemaTypeRegistry registry,
         IBackOfficeSecurityAccessor backOfficeSecurityAccessor,
         IOptions<SchemeWeaverOptions> coreOptions,
         IOptions<SchemeWeaverSeoOptions> seoOptions,
@@ -97,6 +101,8 @@ public class SchemeWeaverSeoApiController : ControllerBase
         _mappingExporter = mappingExporter;
         _blocksProvider = blocksProvider;
         _rangeChecker = rangeChecker;
+        _overrideRules = overrideRules;
+        _registry = registry;
         _backOfficeSecurityAccessor = backOfficeSecurityAccessor;
         _coreOptions = coreOptions;
         _seoOptions = seoOptions;
@@ -286,14 +292,16 @@ public class SchemeWeaverSeoApiController : ControllerBase
         if (mapping is null)
             return NotFound(new { error = $"The page type '{content.ContentType.Alias}' has not been set up for structured data." });
 
-        var type = string.IsNullOrWhiteSpace(request.SchemaTypeName) ? null : request.SchemaTypeName.Trim();
-        if (type is not null && !string.Equals(type, mapping.SchemaTypeName, StringComparison.OrdinalIgnoreCase))
+        // The mapped type itself is not an override: treat it as "no retype".
+        var type = string.IsNullOrWhiteSpace(request.SchemaTypeName)
+                   || string.Equals(request.SchemaTypeName.Trim(), mapping.SchemaTypeName, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : request.SchemaTypeName.Trim();
+        if (type is not null)
         {
             var template = _catalogue.FindForSchemaType(mapping.SchemaTypeName);
-            var allowed = template is null
-                ? _rangeChecker.IsInRange(type, [mapping.SchemaTypeName])
-                : _catalogue.AllowedPageTypes(template).Any(v => string.Equals(v.SchemaType, type, StringComparison.OrdinalIgnoreCase))
-                  && _rangeChecker.IsInRange(type, [mapping.SchemaTypeName]);
+            var allowed = _rangeChecker.IsInRange(type, [mapping.SchemaTypeName])
+                          && (template is null || _catalogue.AllowedPageTypes(template).Any(v => string.Equals(v.SchemaType, type, StringComparison.OrdinalIgnoreCase)));
             if (!allowed)
                 return BadRequest(new { error = $"'{type}' is not an allowed page type for '{mapping.SchemaTypeName}'." });
         }
@@ -344,12 +352,9 @@ public class SchemeWeaverSeoApiController : ControllerBase
         var template = mapping is null ? null : _catalogue.FindForSchemaType(mapping.SchemaTypeName);
         var row = _overrides.Get(contentKey);
         var excluded = row?.IsExcluded == true;
-        // Same rule as SeoContentMappingOverrideProvider: an override counts when it is still a
-        // subtype of what the mapping emits.
-        var effective = row?.SchemaTypeName is { Length: > 0 } t && mapping is not null
-                        && _rangeChecker.IsInRange(t, [mapping.SchemaTypeName])
-            ? t
-            : mapping?.SchemaTypeName;
+        var effective = mapping is null
+            ? null
+            : _overrideRules.ResolveEffectiveType(mapping.SchemaTypeName, row?.SchemaTypeName, out _) ?? mapping.SchemaTypeName;
 
         IPublishedContent? published = null;
         if (_umbracoContextAccessor.TryGetUmbracoContext(out var ctx))
@@ -396,17 +401,27 @@ public class SchemeWeaverSeoApiController : ControllerBase
             return true;
         }
 
+        var wanted = requested.Trim();
         var match = _catalogue.AllowedPageTypes(template)
-            .FirstOrDefault(v => string.Equals(v.SchemaType, requested.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (match is null && !string.Equals(requested.Trim(), template.SchemaType, StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault(v => string.Equals(v.SchemaType, wanted, StringComparison.OrdinalIgnoreCase));
+        if (match is not null)
         {
-            schemaType = template.SchemaType;
-            problem = $"'{requested}' is not a variant of the '{template.Label}' kind.";
-            return false;
+            schemaType = match.SchemaType;
+            return true;
         }
 
-        schemaType = match?.SchemaType ?? template.SchemaType;
-        return true;
+        // A developer may have mapped a subtype the catalogue does not list (ScholarlyArticle,
+        // Pharmacy): keep it rather than silently rewriting the live @type to the kind's default.
+        if (string.Equals(wanted, template.SchemaType, StringComparison.OrdinalIgnoreCase)
+            || _rangeChecker.IsInRange(wanted, [template.SchemaType]))
+        {
+            schemaType = _registry.GetType(wanted)?.Name ?? wanted;
+            return true;
+        }
+
+        schemaType = template.SchemaType;
+        problem = $"'{requested}' is not a subtype of the '{template.Label}' kind ({template.SchemaType}).";
+        return false;
     }
 
     private static IReadOnlyDictionary<string, string> EditorAliases(Umbraco.Cms.Core.Models.IContentType contentType)

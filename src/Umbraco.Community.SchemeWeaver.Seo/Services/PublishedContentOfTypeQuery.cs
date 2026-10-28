@@ -26,21 +26,28 @@ public sealed class PublishedContentOfTypeQuery : IPublishedContentOfTypeQuery
         _cache = cache;
     }
 
-    public int PublishedCount(string contentTypeAlias) =>
-        _cache.GetOrCreate($"schemeweaver:seo:published-count:{contentTypeAlias}", entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = CountCacheDuration;
-            return Published(contentTypeAlias).Count;
-        });
+    public int PublishedCount(string contentTypeAlias) => Snapshot(contentTypeAlias).Count;
 
-    public IPublishedContent? MostRecentlyPublished(string contentTypeAlias) =>
-        RecentlyPublished(contentTypeAlias, 1).FirstOrDefault();
+    public IPublishedContent? MostRecentlyPublished(string contentTypeAlias) => Snapshot(contentTypeAlias).MostRecent;
 
     public IReadOnlyList<IPublishedContent> RecentlyPublished(string contentTypeAlias, int take) =>
-        Published(contentTypeAlias)
-            .OrderByDescending(c => c.UpdateDate)
-            .Take(Math.Max(1, take))
-            .ToList();
+        Snapshot(contentTypeAlias).Recent.Take(Math.Max(1, take)).ToList();
+
+    /// <summary>
+    /// One resolution per alias per minute: the published nodes are walked once and the count,
+    /// the newest node and a short recency list are kept together, so the Content types view
+    /// (one call per type) and the wizard's sample page share the work.
+    /// </summary>
+    private PublishedSnapshot Snapshot(string contentTypeAlias) =>
+        _cache.GetOrCreate($"schemeweaver:seo:published:{contentTypeAlias}", entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CountCacheDuration;
+            var published = Published(contentTypeAlias);
+            var recent = published.OrderByDescending(c => c.UpdateDate).Take(25).ToList();
+            return new PublishedSnapshot(published.Count, recent.FirstOrDefault(), recent);
+        })!;
+
+    private sealed record PublishedSnapshot(int Count, IPublishedContent? MostRecent, IReadOnlyList<IPublishedContent> Recent);
 
     private List<IPublishedContent> Published(string contentTypeAlias)
     {

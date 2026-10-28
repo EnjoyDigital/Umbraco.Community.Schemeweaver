@@ -59,6 +59,19 @@ public class SeoContentMappingOverrideProviderTests
         _sut.Resolve(_content, _mapping, null).Kind.Should().Be(MappingOverrideKind.None);
     }
 
+    [Theory]
+    [InlineData("NewsArticle", "NewsArticle", false)]
+    [InlineData("article", null, false)]   // same type, any case: no retype
+    [InlineData("Recipe", null, true)]
+    [InlineData("", null, false)]
+    [InlineData(null, null, false)]
+    public void ResolveEffectiveType_IsTheSingleRule(string? overrideType, string? expected, bool expectInvalid)
+    {
+        var effective = _sut.ResolveEffectiveType("Article", overrideType, out var invalid);
+        effective.Should().Be(expected);
+        invalid.Should().Be(expectInvalid);
+    }
+
     [Fact]
     public void RepositoryThrows_None()
     {

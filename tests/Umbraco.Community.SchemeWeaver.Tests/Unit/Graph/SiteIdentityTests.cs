@@ -158,14 +158,35 @@ public class SiteIdentityTests
     }
 
     [Fact]
-    public void WebSitePiece_PersonIdentity_PublisherRefIsPerson()
+    public void WebSitePiece_PersonIdentity_PublisherRefPointsAtTheOrganizationId()
     {
         var sut = new WebSitePiece(NullLogger<WebSitePiece>.Instance, Options.Create(new SchemeWeaverOptions()));
         var identity = new SiteIdentity { Kind = SiteIdentityKind.Person, Name = "Jane" };
         var ids = new Dictionary<string, string> { ["organization"] = "https://example.com/#organization" };
 
         var node = Serialise(sut.Build(Context(identity, ids: ids))!);
-        node.GetProperty("publisher").GetProperty("@type").GetString().Should().Be("Person");
+        node.GetProperty("publisher").GetProperty("@id").GetString().Should().Be("https://example.com/#organization");
+        node.GetProperty("name").GetString().Should().Be("Jane");
+    }
+
+    [Fact]
+    public void WebSitePiece_SettingsNodeSiteName_BeatsTheIdentityName()
+    {
+        // A person's blog keeps its title; the person is the publisher, not the site name.
+        Umbraco.Community.SchemeWeaver.Tests.Unit.TestSupport.HermeticStaticServiceProvider.EnsureInstalled();
+        var settings = Substitute.For<IPublishedContent>();
+        settings.Name.Returns("Settings");
+        var property = Substitute.For<IPublishedProperty>();
+        property.Alias.Returns("siteName");
+        property.HasValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns(true);
+        property.GetValue(Arg.Any<string?>(), Arg.Any<string?>()).Returns("Jane's Cooking Blog");
+        settings.GetProperty("siteName").Returns(property);
+        var sut = new WebSitePiece(NullLogger<WebSitePiece>.Instance, Options.Create(new SchemeWeaverOptions()));
+        var identity = new SiteIdentity { Kind = SiteIdentityKind.Person, Name = "Jane Doe", AlternateName = "JD" };
+
+        var node = Serialise(sut.Build(Context(identity, settings))!);
+        node.GetProperty("name").GetString().Should().Be("Jane's Cooking Blog");
+        node.TryGetProperty("alternateName", out _).Should().BeFalse("the identity's alternate name belongs to the publisher, not a differently named site");
     }
 
     [Fact]

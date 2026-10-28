@@ -33,6 +33,17 @@ public class SchemaEnumSetterTests
         json.GetProperty("eventAttendanceMode").GetString().Should().Contain("OnlineEventAttendanceMode");
     }
 
+    [Theory]
+    [InlineData("2")]
+    [InlineData("99")]
+    [InlineData("-1")]
+    public void NumericText_IsNotTreatedAsAnEnumMember(string input)
+    {
+        var offer = new Offer();
+        SchemaPropertySetter.SetPropertyValue(offer, "Availability", input);
+        JsonDocument.Parse(offer.ToString()).RootElement.TryGetProperty("availability", out _).Should().BeFalse();
+    }
+
     [Fact]
     public void UnknownMember_IsIgnoredWithoutThrowing()
     {
