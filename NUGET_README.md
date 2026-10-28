@@ -75,6 +75,8 @@ const { schemaOrg }: { schemaOrg: string[] } = await response.json();
 - **uSync**: sync schema mappings between environments: `Umbraco.Community.SchemeWeaver.uSync`
 - **Umbraco Deploy / Cloud**: deploy schema mappings as `.uda` artifacts: `Umbraco.Community.SchemeWeaver.Deploy`
 - **AI** (Umbraco 17 & 18): AI-powered mapping suggestions via Umbraco.AI: `Umbraco.Community.SchemeWeaver.AI`
+- **TypeSafe**: calibrated auto-map suggestions from TypeSafe System One, no UI change: `Umbraco.Community.SchemeWeaver.TypeSafe`
+- **SEO** (for SEOs and editors): a Yoast-style **SEO Schema** section with curated kinds, site identity and per-page overrides, no document-type changes or code: `Umbraco.Community.SchemeWeaver.Seo`
 
 ## Use it with an AI assistant (MCP)
 

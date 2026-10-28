@@ -110,6 +110,30 @@ updates:
       - dependency-name: 'typescript'
         versions: ['>=6']
 
+  # SEO satellite frontend. Must stay in lockstep with the main frontend's
+  # @umbraco-cms/backoffice (CI asserts it) — same ignores as that block.
+  - package-ecosystem: npm
+    directory: /src/Umbraco.Community.SchemeWeaver.Seo/App_Plugins/SchemeWeaverSeo
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: build(deps)
+      prefix-development: build(deps-dev)
+    groups:
+      seo-frontend:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: '@umbraco-cms/backoffice'
+      - dependency-name: '@types/node'
+        versions: ['>=23']
+      - dependency-name: 'typescript'
+        versions: ['>=6']
+
   # Workflow actions (actions/checkout, setup-node, setup-dotnet, ...).
   - package-ecosystem: github-actions
     directory: /

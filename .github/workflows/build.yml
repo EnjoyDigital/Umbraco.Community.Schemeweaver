@@ -38,6 +38,54 @@ jobs:
       - name: Unit & component tests (MSW)
         run: npm run test:msw
 
+  frontend-seo:
+    name: SEO frontend unit & component
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Umbraco.Community.SchemeWeaver.Seo/App_Plugins/SchemeWeaverSeo
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/package-lock.json
+            src/Umbraco.Community.SchemeWeaver.Seo/App_Plugins/SchemeWeaverSeo/package-lock.json
+
+      # The SEO bundle compiles a few of the core plugin's source modules (src/core-bridge),
+      # and those resolve @umbraco-cms/backoffice from the core's own node_modules.
+      - name: Install core frontend dependencies
+        working-directory: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
+        run: npm ci
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Backoffice version lockstep
+        run: |
+          core=$(node -p "require('../../../Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/package.json').devDependencies['@umbraco-cms/backoffice']")
+          seo=$(node -p "require('./package.json').devDependencies['@umbraco-cms/backoffice']")
+          test "$core" = "$seo" || { echo "::error::@umbraco-cms/backoffice differs: core $core, seo $seo"; exit 1; }
+
+      - name: Install Playwright browsers (for web-test-runner)
+        run: npx playwright install chromium
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Unit & component tests
+        run: npm test
+
+      - name: Unit & component tests (MSW)
+        run: npm run test:msw
+
   # The MCP server had no CI at all until now: `npm run compile` and its Jest
   # suite only ever ran on a maintainer's machine, so every MCP dependency PR
   # merged on the strength of unrelated checks. This job type-checks and bundles
@@ -107,7 +155,9 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/package-lock.json
+          cache-dependency-path: |
+            src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver/package-lock.json
+            src/Umbraco.Community.SchemeWeaver.Seo/App_Plugins/SchemeWeaverSeo/package-lock.json
 
       # The backend package embeds dist/ as static web assets, so it has
       # to exist before `dotnet build` or the SchemeWeaver csproj won't
@@ -118,6 +168,14 @@ jobs:
 
       - name: Build frontend
         working-directory: src/Umbraco.Community.SchemeWeaver/App_Plugins/SchemeWeaver
+        run: npm run build
+
+      - name: Install SEO frontend dependencies
+        working-directory: src/Umbraco.Community.SchemeWeaver.Seo/App_Plugins/SchemeWeaverSeo
+        run: npm ci
+
+      - name: Build SEO frontend
+        working-directory: src/Umbraco.Community.SchemeWeaver.Seo/App_Plugins/SchemeWeaverSeo
         run: npm run build
 
       - name: Restore
@@ -160,13 +218,14 @@ jobs:
       # EnsureAIFrontendBuiltBeforePack target must be free to run npm and rebuild after
       # the AI frontend (wwwroot/) lands — that output is not committed. The TypeSafe
       # satellite has no frontend, so it packs --no-build like uSync and Deploy.
-      - name: Pack (SchemeWeaver + uSync + Deploy + AI + TypeSafe addons)
+      - name: Pack (SchemeWeaver + uSync + Deploy + AI + TypeSafe + SEO addons)
         run: |
           dotnet pack src/Umbraco.Community.SchemeWeaver/Umbraco.Community.SchemeWeaver.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.uSync/Umbraco.Community.SchemeWeaver.uSync.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.Deploy/Umbraco.Community.SchemeWeaver.Deploy.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.AI/Umbraco.Community.SchemeWeaver.AI.csproj --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
           dotnet pack src/Umbraco.Community.SchemeWeaver.TypeSafe/Umbraco.Community.SchemeWeaver.TypeSafe.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} --output ./artifacts
+          dotnet pack src/Umbraco.Community.SchemeWeaver.Seo/Umbraco.Community.SchemeWeaver.Seo.csproj --no-build --configuration Release -p:UmbracoMajor=${{ matrix.umbraco }} -p:SchemeWeaverSeoSkipFrontendBuild=true --output ./artifacts
 
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v7

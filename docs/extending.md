@@ -190,6 +190,42 @@ Because a piece may return a null `@id` to decline, the graph degrades gracefull
 
 ---
 
+## Satellite Seams
+
+Two small interfaces let a package (or your own composer) shape the graph per site and per page
+without replacing the generator. Both have inert default registrations in the core, and the
+SchemeWeaver SEO package registers its own implementations after the core composer.
+
+### ISiteIdentityProvider
+
+Returns a `SiteIdentity` (organisation or person: name, logo as an `ImageObject`, `sameAs`,
+contact details, an optional LocalBusiness subtype with address, geo and opening hours, and an
+optional site-search template) or `null`. `GraphGenerator` resolves it once per request and
+hands it to every piece through `GraphPieceContext.SiteIdentity`. When it is non-null the
+Organization piece builds the publisher from it under the usual `{siteUrl}#organization` @id
+(a `Person` when the identity is a person) and the WebSite piece takes its name and search
+action from it; when null, both fall back to the `schemaSiteSettings` content-node convention.
+
+```csharp
+public sealed class CodeFirstIdentity : ISiteIdentityProvider
+{
+    public SiteIdentity? Resolve() => new() { Name = "Acme Ltd", Url = new Uri("https://acme.example") };
+}
+
+builder.Services.AddScoped<ISiteIdentityProvider, CodeFirstIdentity>(); // after SchemeWeaverComposer
+```
+
+### IContentMappingOverrideProvider
+
+Consulted by `JsonLdGenerator` immediately after the content type's mapping is loaded and
+found enabled. Return `MappingOverrideResult.None` to keep the mapping, `Excluded` to emit no
+main entity for that content (site-level pieces still render), or `Retyped(clone)` with a
+`SchemaMapping.Clone()` whose `SchemaTypeName` is a subtype, to change the emitted `@type`
+while keeping the type's property rows. The hook runs for every node, culture and block, so
+implementations must serve from memory and must never mutate the mapping they are given.
+
+---
+
 ## Replacing the Auto-Mapper
 
 The `ISchemaAutoMapper` controls how property mapping suggestions are generated when a user clicks "Auto-map".

@@ -5,7 +5,7 @@ Umbraco content types in, Schema.org JSON-LD out. Start with the quick start tha
 ## Quick starts
 
 - **[Quick Start for Developers](quickstart-developer.md)**: install, render, map, verify, in about fifteen minutes
-- **[Quick Start for SEOs](quickstart-seo.md)**: no code needed; map page types in the backoffice and win rich results
+- **[Quick Start for SEOs](quickstart-seo.md)**: no code needed; set page types up from the SEO Schema section (or Settings) and win rich results
 
 ## Using SchemeWeaver
 
@@ -24,6 +24,7 @@ Umbraco content types in, Schema.org JSON-LD out. Start with the quick start tha
 
 ## Integrations
 
+- [SchemeWeaver SEO](seo-edition.md): the Yoast-style SEO Schema section for non-developers: curated kinds, site identity, per-page overrides
 - [MCP Server](mcp-server.md): sixteen tools and three skills so AI assistants can build better mappings than any heuristic
 - [AI Integration](ai-integration.md): AI-powered schema analysis inside the backoffice
 - [TypeSafe Integration](typesafe-integration.md): calibrated auto-map suggestions from TypeSafe System One, no UI change

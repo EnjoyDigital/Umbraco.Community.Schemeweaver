@@ -38,6 +38,16 @@ npm run test:e2e:ui             # Playwright UI mode
 
 E2E tests require `.env` with `UMBRACO_URL`, `UMBRACO_USER_LOGIN`, `UMBRACO_USER_PASSWORD`.
 
+### SEO frontend (in src/Umbraco.Community.SchemeWeaver.Seo/App_Plugins/SchemeWeaverSeo/)
+```bash
+npm install                     # needs the core frontend's node_modules too (shared source resolves from there)
+npm run typecheck               # tsc --noEmit (the only place the SEO TS is type-checked)
+npm run build                   # Vite build → ../../wwwroot/dist/ (+ cache-bust stamp)
+npm test                        # core-bridge guard + Web Test Runner (MSW-backed context/view tests)
+npm run test:msw
+```
+E2E coverage for the SEO section lives in the core suite (`tests/e2e/seo-section.spec.ts`).
+
 ### MCP Server (in src/Umbraco.Community.SchemeWeaver.Mcp/)
 ```bash
 npm install
@@ -96,6 +106,33 @@ It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugi
   and on any API failure; one startup log line says active/inert and what it wraps; Health
   Check "SchemeWeaver TypeSafe". Ships per-major like the rest of the suite purely because
   the core does. Tests live under `tests/Umbraco.Community.SchemeWeaver.Tests/Unit/TypeSafe/`.
+- **SEO satellite** (`src/Umbraco.Community.SchemeWeaver.Seo/`): the Yoast-style edition for
+  non-developers. Adds an **SEO Schema** backoffice section (alias `SchemeWeaver.Seo.Section`,
+  a wire contract between `SchemeWeaverSeoConstants.SectionAlias` and the frontend
+  `constants.ts`; an integration test asserts they match), a `Templates/catalogue.json` of
+  curated "kinds" (Schema.org type + slots = Google's required/recommended properties; the
+  `SeoCatalogueRuleParityTests` keep required slots identical to the core `ITypeRule` Critical
+  checks), a site identity stored as JSON in `IKeyValueService`, a per-page override table
+  (`SchemeWeaverSeoPageOverride`, own `PackageMigrationPlan` "SchemeWeaver.Seo") and a
+  controller at `/umbraco/management/api/v1/schemeweaver-seo` guarded by the
+  `SchemeWeaverSeoSectionAccess` policy (section access read from `IUser.AllowedSections`).
+  **The SEO edition has no model of its own**: `SeoSlotProjector` projects slots ↔ ordinary
+  `PropertyMappingDto` rows server-side and saves through the core `ISchemeWeaverService`, so
+  both UIs, the generator, the validator and the MCP always see the same mapping; rows a kind
+  does not own are preserved. It plugs into two core seams, both inert by default:
+  `ISiteIdentityProvider` (Organization/WebSite pieces consult it before the
+  `schemaSiteSettings` node) and `IContentMappingOverrideProvider` (consulted by
+  `JsonLdGenerator` right after the mapping loads: Excluded / Retyped clone). The section is
+  granted to Administrators once on first start (`GrantSeoSectionToAdministrators`, key-value
+  flag). Never references uSync. Frontend: own Vite bundle (`App_Plugins/SchemeWeaverSeo`),
+  section + four `sectionView`s + wizard modal + a `workspaceView` "Schema" tab on documents;
+  the entry point calls `umbExtensionsRegistry.exclude` on the core JSON-LD tab unless
+  `SchemeWeaver:Seo:HideDeveloperJsonLdTab=false`. Shares core TS only through
+  `src/core-bridge/` (relative imports into the core `src/`, pure modules only; the
+  `scripts/check-core-bridge.mjs` guard runs before `npm test`); the core defines the shared
+  `schemeweaver-jsonld-preview` / `schemeweaver-validation-panel` elements eagerly in its entry
+  point for that reason. Tests: `Unit/Seo/`, `Integration/Seo/` (shared host; `ProbeContent`
+  fixture publishes real content), WTR in the SEO folder, `tests/e2e/seo-section.spec.ts`.
 - **Services/** — `SchemaTypeRegistry` (singleton, scans Schema.NET assembly), `JsonLdGenerator`, `SchemaAutoMapper`, `ContentTypeGenerator`
 - **Persistence/** — `SchemaMappingRepository` using NPoco (two tables: `SchemeWeaverSchemaMapping`, `SchemeWeaverPropertyMapping`)
 - **Models/Api/** — DTOs serialised as camelCase JSON: `SchemaMappingDto`, `PropertyMappingDto`, `SchemaTypeInfo`, `PropertyMappingSuggestion`, `JsonLdPreviewResponse`, `ContentTypeGenerationRequest`
@@ -122,6 +159,8 @@ It is also distributed as a **Claude Code plugin**: the repo-root `.claude-plugi
 - Source type values are lowercase strings matching C#: `property`, `static`, `parent`, `ancestor`, `sibling`
 - Confidence is integer 0–100 from C# auto-mapper (thresholds: ≥80 High, ≥50 Medium)
 - Frontend builds to `wwwroot/dist/` which gets included as static web assets in the NuGet package
+- Core satellite seams: `ISiteIdentityProvider` + `IContentMappingOverrideProvider` (see the SEO satellite). Core constructors gain seams only as optional trailing parameters so the unit tests that `new` them keep compiling.
+- The core `fetchApi` (`repository/schemeweaver.server-data-source.ts`) is exported and accepts absolute `/umbraco/...` paths so satellite bundles share its session-expiry and error-toast behaviour
 
 ### Language Variants (Culture Support)
 - `JsonLdGenerator.GenerateJsonLd(content, culture)` accepts an optional `string? culture`. When set, it pushes a `VariationContext(culture)` scope onto `IVariationContextAccessor` for the duration of the call, fixing URL generation and all transitive `GetValue()` calls.
@@ -146,12 +185,14 @@ All under `/umbraco/management/api/v1/schemeweaver`, backoffice-authenticated:
 - `POST /mappings/{alias}/preview?contentKey=X` — generate JSON-LD preview
 - `POST /generate-content-type` — create Umbraco doc type from schema
 
+SEO satellite, under `/umbraco/management/api/v1/schemeweaver-seo` (section-access policy): `GET templates`, `GET server-context`, `GET/PUT/DELETE site-identity`, `GET content-types`, `POST content-types/{alias}/setup`, `PUT|DELETE content-types/{alias}/mapping`, `GET content-types/{alias}/sample-pages`, `GET/PUT/DELETE pages/{key}`, `GET pages/{key}/summary`, `POST health-check`. See `docs/seo-edition.md`.
+
 ## Testing Pyramid
 | Layer | Framework | Location |
 |---|---|---|
 | C# Unit | xUnit + NSubstitute + FluentAssertions | tests/Umbraco.Community.SchemeWeaver.Tests/Unit/ |
 | C# Integration | xUnit + Microsoft.AspNetCore.Mvc.Testing (`WebApplicationFactory<Program>` against the SchemeWeaver TestHost, shared via xUnit collection fixture + temp SQLite) | tests/Umbraco.Community.SchemeWeaver.Tests/Integration/ |
-| TS Unit/Component | @open-wc/testing + MSW | App_Plugins/SchemeWeaver/src/**/*.test.ts |
+| TS Unit/Component | @open-wc/testing + MSW | App_Plugins/SchemeWeaver/src/**/*.test.ts and App_Plugins/SchemeWeaverSeo/src/**/*.test.ts (served from the repo `src/` root so the shared core modules resolve) |
 | Mocked Backoffice | Playwright + the real Umbraco-CMS backoffice via `VITE_EXAMPLE_PATH`, all HTTP served by SchemeWeaver's own MSW handlers. Needs a local Umbraco-CMS clone and a tiny `addMockHandlers` patch — see `App_Plugins/SchemeWeaver/tests/mocked-backoffice/README.md` | App_Plugins/SchemeWeaver/tests/mocked-backoffice/ |
 | E2E | Playwright + @umbraco/playwright-testhelpers | App_Plugins/SchemeWeaver/tests/e2e/ |
 

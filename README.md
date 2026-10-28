@@ -61,6 +61,8 @@ To sync mappings between environments, add the optional [uSync](https://jumoo.co
 
 Using [Umbraco Deploy](https://umbraco.com/products/add-ons/deploy/) or Umbraco Cloud instead? Add the optional Deploy addon (`dotnet add package Umbraco.Community.SchemeWeaver.Deploy`) and mappings deploy as `.uda` artifacts alongside your document types. See [Umbraco Deploy Integration](docs/deploy.md).
 
+Not a developer? `Umbraco.Community.SchemeWeaver.Seo` adds a Yoast-style **SEO Schema** section: curated kinds Google rewards, a three-step wizard, the site identity and a per-page Schema tab, all without document-type changes or code ([SchemeWeaver SEO](docs/seo-edition.md)).
+
 Want better auto-map suggestions than name matching? Two optional satellites, both major-aligned: `Umbraco.Community.SchemeWeaver.AI` uses an LLM through Umbraco.AI and adds AI entity actions to the backoffice ([AI Integration](docs/ai-integration.md)); `Umbraco.Community.SchemeWeaver.TypeSafe` uses [TypeSafe](https://typesafe.ai) System One for calibrated, typed judgments behind the existing auto-map button, with only an API key to configure ([TypeSafe Integration](docs/typesafe-integration.md)).
 
 ## Quick start
@@ -157,7 +159,7 @@ The full index lives at **[docs/README.md](docs/README.md)**. Highlights:
 - [The JSON-LD Output Model](docs/json-ld-output.md): the `@graph`, site settings node, `@id` templates
 - [Language Variants](docs/language-variants.md) and [Delivery API](docs/delivery-api.md)
 - [Content Type Generation](docs/content-type-generation.md), [Extending](docs/extending.md), [API Reference](docs/api-reference.md)
-- [uSync](docs/usync.md), [Umbraco Deploy](docs/deploy.md), [AI Integration](docs/ai-integration.md), [TypeSafe Integration](docs/typesafe-integration.md), [MCP Server](docs/mcp-server.md)
+- [SchemeWeaver SEO](docs/seo-edition.md), [uSync](docs/usync.md), [Umbraco Deploy](docs/deploy.md), [AI Integration](docs/ai-integration.md), [TypeSafe Integration](docs/typesafe-integration.md), [MCP Server](docs/mcp-server.md)
 - [Advanced](docs/advanced.md): validation and suggestions, configuration, troubleshooting
 
 ## Notes
