@@ -21,7 +21,7 @@ function ensureRootContext() {
 
 export async function startMockServiceWorker() {
   await worker.start({
-    onUnhandledRequest: 'bypass',
+    onUnhandledFrame: 'bypass',
     quiet: true,
   });
   ensureRootContext();
@@ -29,5 +29,5 @@ export async function startMockServiceWorker() {
 }
 
 export async function stopMockServiceWorker() {
-  worker.stop();
+  await worker.stop();
 }

@@ -4,7 +4,10 @@ import { playwrightLauncher } from '@web/test-runner-playwright';
 
 export default {
   files: 'src/**/*.test.ts',
-  nodeResolve: true,
+  // msw 3's @mswjs/interceptors picks its browser build via the `browser` export condition;
+  // without it the Node build (node:http et al.) is served to Chromium and every msw-importing
+  // test file fails with "Failed to fetch dynamically imported module".
+  nodeResolve: { browser: true, exportConditions: ['browser', 'development'] },
   // The modal test files load most of the component graph and sat at ~113s of the
   // default 120s budget on a mid-range machine — any module growth tipped whole
   // files into "did not finish" timeouts with zero real failures. Give file runs
