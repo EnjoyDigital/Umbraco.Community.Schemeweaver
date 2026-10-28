@@ -69,8 +69,13 @@
          name their source type (PropertyMappingSuggestion.SuggestedSourceContentTypeAlias,
          hydrated in the backoffice), per-block-type routes for nested blocks, a second
          target per content property, value schemas in the model's state, and the
-         regenerated MCP client (1.7.0). -->
-    <SchemeWeaverPackageVersion>17.19.0</SchemeWeaverPackageVersion>
+         regenerated MCP client (1.7.0). 17.19.1 depends on Umbraco.Cms.Web.Common +
+         Umbraco.Cms.Api.Common instead of the Umbraco.Cms metapackage, so referencing
+         SchemeWeaver from a class library no longer drags Umbraco.Cms.Targets in and breaks
+         `dotnet publish` with NETSDK1152 (issue #112); stops MainEntityPiece emitting a second
+         Organization node on the site settings page (PR #115); and clears the open npm
+         security alerts across the three frontends (MCP 1.7.1 rebuilt). -->
+    <SchemeWeaverPackageVersion>17.19.1</SchemeWeaverPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
@@ -90,10 +95,10 @@
     <SchemeWeaverUmbracoAiHost>18.2.0</SchemeWeaverUmbracoAiHost>
     <SchemeWeaverUmbracoAiAnthropicHost>18.0.2</SchemeWeaverUmbracoAiAnthropicHost>
     <!-- Major-aligned stable package version for the Umbraco 18 line (see the 17
-         leg for what 18.14.0 adds). Its [18.0.0, 19.0.0) Umbraco.Cms range is
+         leg for what 18.14.1 adds). Its [18.0.0, 19.0.0) Umbraco.Cms range is
          mutually exclusive with the 17 leg's [17.4.0, 18.0.0), so NuGet only ever
          resolves one of the two per consumer. -->
-    <SchemeWeaverPackageVersion>18.14.0</SchemeWeaverPackageVersion>
+    <SchemeWeaverPackageVersion>18.14.1</SchemeWeaverPackageVersion>
     <DefineConstants>$(DefineConstants);UMBRACO18</DefineConstants>
   </PropertyGroup>
 </Project>
