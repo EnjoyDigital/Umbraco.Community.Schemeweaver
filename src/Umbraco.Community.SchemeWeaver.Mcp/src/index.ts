@@ -26,6 +26,7 @@ import { getSchemeWeaverManagementAPI } from "./umbraco-api/api/generated/scheme
 
 // Import tool collections
 import schemeWeaverCollection from "./umbraco-api/tools/schemeweaver/index.js";
+import schemeWeaverSeoCollection from "./umbraco-api/tools/schemeweaver-seo/index.js";
 import umbracoServerCollection from "./umbraco-api/tools/umbraco-server/index.js";
 
 // Import registries for tool filtering
@@ -96,7 +97,13 @@ const server = new McpServer(
       "Built-ins always available as 'property': __name, __url, __createDate, __updateDate. " +
       "Inspect blocks with get-block-element-types — its propertyInfos[].nestedBlockElementTypes surfaces blocks-within-blocks. " +
       "The schemeweaver-map skill carries the full source-type catalogue and worked examples; " +
-      "schemeweaver-setup covers connection/auth problems and schemeweaver-audit drives a site-wide coverage audit.",
+      "schemeweaver-setup covers connection/auth problems and schemeweaver-audit drives a site-wide coverage audit. " +
+      "SEO EDITION — when the site has Umbraco.Community.SchemeWeaver.Seo installed, prefer its kind-based tools for " +
+      "SEO-led work: get-seo-content-type-status (what is set up / needs attention), get-seo-content-kinds (the curated " +
+      "Google-rewarded kinds and their slots), setup-seo-content-type then save-seo-mapping (writes the same ordinary " +
+      "mapping rows the core tools read), get-site-identity/set-site-identity (the publisher), " +
+      "get-seo-page-summary/set-seo-page-override (retype or exclude one page) and run-seo-health-check (one validated " +
+      "render per set-up type). Those tools answer 403/404 when the Seo package or the SEO Schema section permission is absent.",
   }
 );
 
@@ -124,7 +131,7 @@ const filterConfig: CollectionConfiguration = configLoader.loadFromConfig(server
 // CLI Introspection (runs before server start, exits immediately)
 // ============================================================================
 
-const collections = [schemeWeaverCollection, umbracoServerCollection];
+const collections = [schemeWeaverCollection, schemeWeaverSeoCollection, umbracoServerCollection];
 
 // handleCliCommands checks --list-tools, --describe-tool, --generate-context, --call.
 // If any flag is set it prints output and calls process.exit(0).

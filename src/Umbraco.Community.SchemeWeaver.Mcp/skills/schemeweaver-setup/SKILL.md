@@ -109,3 +109,11 @@ Declare the connection working only when rungs 2 AND 3 both pass.
 Setup is complete when `get-server-info` returns server information AND
 `list-content-types` returns the site's content types. Report both results to
 the user, then stop — mapping work belongs to `schemeweaver-map`, not here.
+
+## SEO edition tools answering 403
+
+The `get-seo-*` / `save-seo-mapping` / `set-site-identity` / `run-seo-health-check` tools
+belong to `Umbraco.Community.SchemeWeaver.Seo`. A 403 from them (while the core tools
+work) means the API user's group lacks the **SEO Schema** section: grant it under
+Users › User Groups, or set `SchemeWeaver:Seo:GrantSectionToAdministrators=true` (the
+default) and restart once. A 404 on every SEO route means the package is not installed.

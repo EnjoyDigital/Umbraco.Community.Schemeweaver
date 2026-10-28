@@ -13,6 +13,19 @@ most Google rich results next. It produces two things, in order: a fixed-format
 Requires a working `schemeweaver` MCP connection — if the tools are missing or
 failing auth, run the `schemeweaver-setup` skill first.
 
+## Phase 0 — is the SEO edition installed?
+
+Call **`get-seo-content-type-status`** first. If it answers (not 403/404), the site
+runs the SchemeWeaver SEO edition: use its view of the site as the backbone of the
+audit — `status` per page type (`not-set-up`, `needs-attention` with
+`missingRequired`, `set-up`, `developer-managed`), `publishedCount`, and
+**`run-seo-health-check`** for one validated render per set-up type. Fix
+`not-set-up`/`needs-attention` page types with `get-seo-content-kinds` →
+`setup-seo-content-type` → `save-seo-mapping` (kinds write the same ordinary
+mappings the core tools read, so Phases 1–5 below still apply to
+`developer-managed` types and to anything a kind cannot express). Check
+`get-site-identity` is configured: without it every page lacks a publisher.
+
 ## Phase 1 — inventory sweep
 
 1. **`get-all-schema-mappings`** — for every mapping record: content type alias,

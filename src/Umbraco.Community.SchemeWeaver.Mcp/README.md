@@ -24,8 +24,25 @@ The idea: SchemeWeaver's built-in auto-mapper is a name-matching heuristic. An L
 | `export-mappings-to-usync` | Export mappings to uSync files |
 | `get-usync-drift` | Report drift between the live mappings and the uSync files on disk |
 
+### SEO edition tools
+
+Available when [`Umbraco.Community.SchemeWeaver.Seo`](../../docs/seo-edition.md) is installed and the API user's
+group has the **SEO Schema** section (otherwise they answer 403/404). They write the same ordinary mappings the
+core tools read.
+
+| Tool | Purpose |
+|---|---|
+| `get-seo-content-kinds` | The curated kinds (article, product, event, local business…) with their Google-required/recommended slots |
+| `get-seo-content-type-status` | Every content type with its SEO status (not-set-up / needs-attention / set-up / developer-managed) and missing required slots |
+| `setup-seo-content-type` | Pre-filled slot values for a kind (auto-mapper, then slot defaults), nothing saved |
+| `save-seo-mapping` | Persist slot values as a mapping; developer-added rows are preserved |
+| `get-site-identity` / `set-site-identity` | The organisation or person every page is published by |
+| `get-seo-page-summary` | What one page emits: kind, effective type, allowed page types, override, preview + validation |
+| `set-seo-page-override` / `clear-seo-page-override` | Retype one page to a subtype, or exclude it |
+| `run-seo-health-check` | One validated render per set-up type, with site totals |
+
 The base SDK also registers a `get-server-info` tool (server version/runtime + the configured base
-URL, handy as an auth smoke test), so `--list-tools` reports 17 in total (16 SchemeWeaver + the base tool).
+URL, handy as an auth smoke test), so `--list-tools` reports 27 in total (16 SchemeWeaver + 10 SchemeWeaver SEO + the base tool).
 
 The recommended AI workflow (also sent to clients as server `instructions`): inspect both sides → heuristic baseline → reason semantically → save → preview → fix validation issues.
 

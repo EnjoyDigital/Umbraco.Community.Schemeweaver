@@ -36314,24 +36314,24 @@ var McpServer = class {
       }
     });
     this.server.setRequestHandler(ListToolsRequestSchema, () => ({
-      tools: Object.entries(this._registeredTools).filter(([, tool]) => tool.enabled).map(([name, tool]) => {
+      tools: Object.entries(this._registeredTools).filter(([, tool11]) => tool11.enabled).map(([name, tool11]) => {
         const toolDefinition = {
           name,
-          title: tool.title,
-          description: tool.description,
+          title: tool11.title,
+          description: tool11.description,
           inputSchema: (() => {
-            const obj = normalizeObjectSchema(tool.inputSchema);
+            const obj = normalizeObjectSchema(tool11.inputSchema);
             return obj ? toJsonSchemaCompat(obj, {
               strictUnions: true,
               pipeStrategy: "input"
             }) : EMPTY_OBJECT_JSON_SCHEMA;
           })(),
-          annotations: tool.annotations,
-          execution: tool.execution,
-          _meta: tool._meta
+          annotations: tool11.annotations,
+          execution: tool11.execution,
+          _meta: tool11._meta
         };
-        if (tool.outputSchema) {
-          const obj = normalizeObjectSchema(tool.outputSchema);
+        if (tool11.outputSchema) {
+          const obj = normalizeObjectSchema(tool11.outputSchema);
           if (obj) {
             toolDefinition.outputSchema = toJsonSchemaCompat(obj, {
               strictUnions: true,
@@ -36344,16 +36344,16 @@ var McpServer = class {
     }));
     this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       try {
-        const tool = this._registeredTools[request.params.name];
-        if (!tool) {
+        const tool11 = this._registeredTools[request.params.name];
+        if (!tool11) {
           throw new McpError(ErrorCode.InvalidParams, `Tool ${request.params.name} not found`);
         }
-        if (!tool.enabled) {
+        if (!tool11.enabled) {
           throw new McpError(ErrorCode.InvalidParams, `Tool ${request.params.name} disabled`);
         }
         const isTaskRequest = !!request.params.task;
-        const taskSupport = tool.execution?.taskSupport;
-        const isTaskHandler = "createTask" in tool.handler;
+        const taskSupport = tool11.execution?.taskSupport;
+        const isTaskHandler = "createTask" in tool11.handler;
         if ((taskSupport === "required" || taskSupport === "optional") && !isTaskHandler) {
           throw new McpError(ErrorCode.InternalError, `Tool ${request.params.name} has taskSupport '${taskSupport}' but was not registered with registerToolTask`);
         }
@@ -36361,14 +36361,14 @@ var McpServer = class {
           throw new McpError(ErrorCode.MethodNotFound, `Tool ${request.params.name} requires task augmentation (taskSupport: 'required')`);
         }
         if (taskSupport === "optional" && !isTaskRequest && isTaskHandler) {
-          return await this.handleAutomaticTaskPolling(tool, request, extra);
+          return await this.handleAutomaticTaskPolling(tool11, request, extra);
         }
-        const args = await this.validateToolInput(tool, request.params.arguments, request.params.name);
-        const result = await this.executeToolHandler(tool, args, extra);
+        const args = await this.validateToolInput(tool11, request.params.arguments, request.params.name);
+        const result = await this.executeToolHandler(tool11, args, extra);
         if (isTaskRequest) {
           return result;
         }
-        await this.validateToolOutput(tool, result, request.params.name);
+        await this.validateToolOutput(tool11, result, request.params.name);
         return result;
       } catch (error62) {
         if (error62 instanceof McpError) {
@@ -36401,15 +36401,15 @@ var McpServer = class {
   /**
    * Validates tool input arguments against the tool's input schema.
    */
-  async validateToolInput(tool, args, toolName) {
+  async validateToolInput(tool11, args, toolName) {
     if (this._maxToolInputElements !== void 0 && toolInputElementCount(args, this._maxToolInputElements) > this._maxToolInputElements) {
       throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for tool ${toolName}: arguments contain more than the maximum of ${this._maxToolInputElements} elements`);
     }
-    if (!tool.inputSchema) {
+    if (!tool11.inputSchema) {
       return void 0;
     }
-    const inputObj = normalizeObjectSchema(tool.inputSchema);
-    const schemaToParse = inputObj ?? tool.inputSchema;
+    const inputObj = normalizeObjectSchema(tool11.inputSchema);
+    const schemaToParse = inputObj ?? tool11.inputSchema;
     const parseResult = await safeParseAsync2(schemaToParse, args ?? {});
     if (!parseResult.success) {
       const error62 = "error" in parseResult ? parseResult.error : "Unknown error";
@@ -36421,8 +36421,8 @@ var McpServer = class {
   /**
    * Validates tool output against the tool's output schema.
    */
-  async validateToolOutput(tool, result, toolName) {
-    if (!tool.outputSchema) {
+  async validateToolOutput(tool11, result, toolName) {
+    if (!tool11.outputSchema) {
       return;
     }
     if (!("content" in result)) {
@@ -36434,7 +36434,7 @@ var McpServer = class {
     if (!result.structuredContent) {
       throw new McpError(ErrorCode.InvalidParams, `Output validation error: Tool ${toolName} has an output schema but no structured content was provided`);
     }
-    const outputObj = normalizeObjectSchema(tool.outputSchema);
+    const outputObj = normalizeObjectSchema(tool11.outputSchema);
     const parseResult = await safeParseAsync2(outputObj, result.structuredContent);
     if (!parseResult.success) {
       const error62 = "error" in parseResult ? parseResult.error : "Unknown error";
@@ -36445,15 +36445,15 @@ var McpServer = class {
   /**
    * Executes a tool handler (either regular or task-based).
    */
-  async executeToolHandler(tool, args, extra) {
-    const handler = tool.handler;
+  async executeToolHandler(tool11, args, extra) {
+    const handler = tool11.handler;
     const isTaskHandler = "createTask" in handler;
     if (isTaskHandler) {
       if (!extra.taskStore) {
         throw new Error("No task store provided.");
       }
       const taskExtra = { ...extra, taskStore: extra.taskStore };
-      if (tool.inputSchema) {
+      if (tool11.inputSchema) {
         const typedHandler = handler;
         return await Promise.resolve(typedHandler.createTask(args, taskExtra));
       } else {
@@ -36461,7 +36461,7 @@ var McpServer = class {
         return await Promise.resolve(typedHandler.createTask(taskExtra));
       }
     }
-    if (tool.inputSchema) {
+    if (tool11.inputSchema) {
       const typedHandler = handler;
       return await Promise.resolve(typedHandler(args, extra));
     } else {
@@ -36472,12 +36472,12 @@ var McpServer = class {
   /**
    * Handles automatic task polling for tools with taskSupport 'optional'.
    */
-  async handleAutomaticTaskPolling(tool, request, extra) {
+  async handleAutomaticTaskPolling(tool11, request, extra) {
     if (!extra.taskStore) {
       throw new Error("No task store provided for task-capable tool.");
     }
-    const args = await this.validateToolInput(tool, request.params.arguments, request.params.name);
-    const handler = tool.handler;
+    const args = await this.validateToolInput(tool11, request.params.arguments, request.params.name);
+    const handler = tool11.handler;
     const taskExtra = { ...extra, taskStore: extra.taskStore };
     const createTaskResult = args ? await Promise.resolve(handler.createTask(args, taskExtra)) : (
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36817,13 +36817,13 @@ var McpServer = class {
     }
     return registeredPrompt;
   }
-  _createRegisteredTool(name, title, description, inputSchema14, outputSchema16, annotations, execution, _meta, handler) {
+  _createRegisteredTool(name, title, description, inputSchema22, outputSchema25, annotations, execution, _meta, handler) {
     validateAndWarnToolName(name);
     const registeredTool = {
       title,
       description,
-      inputSchema: getZodSchemaObject(inputSchema14),
-      outputSchema: getZodSchemaObject(outputSchema16),
+      inputSchema: getZodSchemaObject(inputSchema22),
+      outputSchema: getZodSchemaObject(outputSchema25),
       annotations,
       execution,
       _meta,
@@ -36873,8 +36873,8 @@ var McpServer = class {
       throw new Error(`Tool ${name} is already registered`);
     }
     let description;
-    let inputSchema14;
-    let outputSchema16;
+    let inputSchema22;
+    let outputSchema25;
     let annotations;
     if (typeof rest[0] === "string") {
       description = rest.shift();
@@ -36882,7 +36882,7 @@ var McpServer = class {
     if (rest.length > 1) {
       const firstArg = rest[0];
       if (isZodRawShapeCompat(firstArg)) {
-        inputSchema14 = rest.shift();
+        inputSchema22 = rest.shift();
         if (rest.length > 1 && typeof rest[0] === "object" && rest[0] !== null && !isZodRawShapeCompat(rest[0])) {
           annotations = rest.shift();
         }
@@ -36894,7 +36894,7 @@ var McpServer = class {
       }
     }
     const callback = rest[0];
-    return this._createRegisteredTool(name, void 0, description, inputSchema14, outputSchema16, annotations, { taskSupport: "forbidden" }, void 0, callback);
+    return this._createRegisteredTool(name, void 0, description, inputSchema22, outputSchema25, annotations, { taskSupport: "forbidden" }, void 0, callback);
   }
   /**
    * Registers a tool with a config object and callback.
@@ -36903,8 +36903,8 @@ var McpServer = class {
     if (this._registeredTools[name]) {
       throw new Error(`Tool ${name} is already registered`);
     }
-    const { title, description, inputSchema: inputSchema14, outputSchema: outputSchema16, annotations, _meta } = config3;
-    return this._createRegisteredTool(name, title, description, inputSchema14, outputSchema16, annotations, { taskSupport: "forbidden" }, _meta, cb);
+    const { title, description, inputSchema: inputSchema22, outputSchema: outputSchema25, annotations, _meta } = config3;
+    return this._createRegisteredTool(name, title, description, inputSchema22, outputSchema25, annotations, { taskSupport: "forbidden" }, _meta, cb);
   }
   prompt(name, ...rest) {
     if (this._registeredPrompts[name]) {
@@ -37057,7 +37057,7 @@ var EMPTY_COMPLETION_RESULT = {
 
 // package.json
 var package_default = {
-  version: "1.7.1"};
+  version: "1.8.0"};
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var STDIO_DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
@@ -37343,26 +37343,26 @@ var init_api_call_helpers = __esm({
     };
   }
 });
-function shouldIncludeTool(tool, context) {
+function shouldIncludeTool(tool11, context) {
   const { collectionName, config: config3, availableChainedTools } = context;
   if (config3.readOnly) {
-    const isReadOnly = tool.annotations?.readOnlyHint || tool.isReadOnly;
+    const isReadOnly = tool11.annotations?.readOnlyHint || tool11.isReadOnly;
     if (!isReadOnly) return false;
   }
-  if (config3.disabledTools.length > 0 && config3.disabledTools.includes(tool.name)) {
+  if (config3.disabledTools.length > 0 && config3.disabledTools.includes(tool11.name)) {
     return false;
   }
   if (config3.enabledTools.length > 0) {
-    return config3.enabledTools.includes(tool.name);
+    return config3.enabledTools.includes(tool11.name);
   }
   if (config3.disabledSlices.length > 0) {
-    const toolSlices = tool.slices || [];
+    const toolSlices = tool11.slices || [];
     if (toolSlices.some((slice) => config3.disabledSlices.includes(slice))) {
       return false;
     }
   }
   if (config3.enabledSlices.length > 0) {
-    const toolSlices = tool.slices || [];
+    const toolSlices = tool11.slices || [];
     if (toolSlices.length === 0) {
       return config3.enabledSlices.includes("other");
     }
@@ -37376,8 +37376,8 @@ function shouldIncludeTool(tool, context) {
   if (config3.enabledCollections.length > 0) {
     return config3.enabledCollections.includes(collectionName);
   }
-  if (availableChainedTools && tool.chainedDeps && tool.chainedDeps.length > 0) {
-    for (const dep of tool.chainedDeps) {
+  if (availableChainedTools && tool11.chainedDeps && tool11.chainedDeps.length > 0) {
+    for (const dep of tool11.chainedDeps) {
       if (!availableChainedTools.has(dep)) return false;
     }
   }
@@ -37434,8 +37434,8 @@ function expandModesToCollections(modeNames, modeRegistry) {
     if (!mode) {
       continue;
     }
-    for (const collection3 of mode.collections) {
-      collections2.add(collection3);
+    for (const collection4 of mode.collections) {
+      collections2.add(collection4);
     }
   }
   return Array.from(collections2);
@@ -37531,19 +37531,19 @@ var init_in_process_connection = __esm({
       async listTools() {
         const tools = this.getFilteredTools();
         return {
-          tools: tools.map(({ tool }) => ({
-            name: tool.name,
-            description: tool.description,
-            inputSchema: tool.inputSchema ? external_exports.toJSONSchema(external_exports.object(tool.inputSchema)) : { type: "object", properties: {} }
+          tools: tools.map(({ tool: tool11 }) => ({
+            name: tool11.name,
+            description: tool11.description,
+            inputSchema: tool11.inputSchema ? external_exports.toJSONSchema(external_exports.object(tool11.inputSchema)) : { type: "object", properties: {} }
           }))
         };
       }
       async callTool(name, args) {
         const tools = this.getFilteredTools();
-        const match = tools.find(({ tool }) => tool.name === name);
+        const match = tools.find(({ tool: tool11 }) => tool11.name === name);
         if (!match) {
           throw new Error(
-            `Tool not found: ${name}. Available tools: ${tools.map(({ tool }) => tool.name).join(", ")}`
+            `Tool not found: ${name}. Available tools: ${tools.map(({ tool: tool11 }) => tool11.name).join(", ")}`
           );
         }
         const extra = {
@@ -37580,14 +37580,14 @@ var init_in_process_connection = __esm({
         }
         const collectionConfig = this.buildCollectionConfig();
         const allTools = [];
-        for (const collection3 of this.config.collections) {
-          const tools = collection3.tools(this.config.user);
-          for (const tool of tools) {
-            if (shouldIncludeTool(tool, {
-              collectionName: collection3.metadata.name,
+        for (const collection4 of this.config.collections) {
+          const tools = collection4.tools(this.config.user);
+          for (const tool11 of tools) {
+            if (shouldIncludeTool(tool11, {
+              collectionName: collection4.metadata.name,
               config: collectionConfig
             })) {
-              allTools.push({ tool, collectionName: collection3.metadata.name });
+              allTools.push({ tool: tool11, collectionName: collection4.metadata.name });
             }
           }
         }
@@ -37806,13 +37806,13 @@ function sanitizeAgainstSchema(value, schema, fieldPath) {
     `withInputSanitization: unsupported schema kind '${tag}' for field '${fieldPath}'. Sanitiser walks z.object()/z.array()/z.record()/z.union() and primitives; other containers (z.tuple, z.lazy, z.intersection, z.map, z.set, \u2026) would silently bypass sanitisation on nested strings. Mark the field '.describe("[raw]")' if you don't validate its shape, or restructure as a supported kind.`
   );
 }
-function withInputSanitization(tool) {
-  const originalHandler = tool.handler;
+function withInputSanitization(tool11) {
+  const originalHandler = tool11.handler;
   return {
-    ...tool,
+    ...tool11,
     handler: ((args, context) => {
-      if (args && typeof args === "object" && tool.inputSchema) {
-        const schema = tool.inputSchema;
+      if (args && typeof args === "object" && tool11.inputSchema) {
+        const schema = tool11.inputSchema;
         for (const [key, value] of Object.entries(args)) {
           if (Object.prototype.hasOwnProperty.call(schema, key)) {
             sanitizeAgainstSchema(value, schema[key], key);
@@ -37830,27 +37830,27 @@ var dryRunEnabled = false;
 function configureDryRunMode(enabled) {
   dryRunEnabled = enabled;
 }
-function withDryRun(tool) {
-  const originalHandler = tool.handler;
+function withDryRun(tool11) {
+  const originalHandler = tool11.handler;
   return {
-    ...tool,
+    ...tool11,
     handler: ((args, context) => {
       if (!dryRunEnabled) {
         return originalHandler(args, context);
       }
-      const isReadOnly = tool.annotations?.readOnlyHint === true;
+      const isReadOnly = tool11.annotations?.readOnlyHint === true;
       if (isReadOnly) {
         return originalHandler(args, context);
       }
       return createToolResult({
         dryRun: true,
-        toolName: tool.name,
+        toolName: tool11.name,
         wouldExecute: true,
         inputReceived: args ?? {},
         annotations: {
-          readOnlyHint: tool.annotations?.readOnlyHint ?? false,
-          destructiveHint: tool.annotations?.destructiveHint ?? false,
-          idempotentHint: tool.annotations?.idempotentHint ?? false
+          readOnlyHint: tool11.annotations?.readOnlyHint ?? false,
+          destructiveHint: tool11.annotations?.destructiveHint ?? false,
+          idempotentHint: tool11.annotations?.idempotentHint ?? false
         }
       });
     })
@@ -37892,13 +37892,13 @@ function extractZodDefault(schema) {
   }
   return void 0;
 }
-function withCursorPagination(tool, options) {
-  if (!tool.inputSchema || !("skip" in tool.inputSchema) || !("take" in tool.inputSchema)) {
-    return tool;
+function withCursorPagination(tool11, options) {
+  if (!tool11.inputSchema || !("skip" in tool11.inputSchema) || !("take" in tool11.inputSchema)) {
+    return tool11;
   }
   const defaultPageSize = DEFAULT_PAGE_SIZE;
-  const toolPageSize = tool.pageSize ?? extractZodDefault(tool.inputSchema.take) ?? defaultPageSize;
-  const { skip: _skip, take: _take, ...restInput } = tool.inputSchema;
+  const toolPageSize = tool11.pageSize ?? extractZodDefault(tool11.inputSchema.take) ?? defaultPageSize;
+  const { skip: _skip, take: _take, ...restInput } = tool11.inputSchema;
   const newInputSchema = {
     ...restInput,
     cursor: external_exports.string().optional().describe(
@@ -37908,22 +37908,22 @@ function withCursorPagination(tool, options) {
   const nextCursorSchema = external_exports.string().nullish().describe(
     "Cursor for the next page. Pass as the cursor parameter to fetch more results. Absent when on the last page."
   );
-  let newOutputSchema = tool.outputSchema;
-  if (tool.outputSchema && typeof tool.outputSchema === "object") {
-    if ("_def" in tool.outputSchema) {
-      const zodObj = tool.outputSchema;
+  let newOutputSchema = tool11.outputSchema;
+  if (tool11.outputSchema && typeof tool11.outputSchema === "object") {
+    if ("_def" in tool11.outputSchema) {
+      const zodObj = tool11.outputSchema;
       if (typeof zodObj.extend === "function") {
         newOutputSchema = zodObj.extend({ nextCursor: nextCursorSchema });
       }
     } else {
       newOutputSchema = {
-        ...tool.outputSchema,
+        ...tool11.outputSchema,
         nextCursor: nextCursorSchema
       };
     }
   }
   return {
-    ...tool,
+    ...tool11,
     inputSchema: newInputSchema,
     outputSchema: newOutputSchema,
     handler: (async (args, extra) => {
@@ -37944,7 +37944,7 @@ function withCursorPagination(tool, options) {
           });
         }
       }
-      const result = await tool.handler(
+      const result = await tool11.handler(
         { ...restArgs, skip: skipVal, take: takeVal },
         extra
       );
@@ -37989,15 +37989,15 @@ function withCursorPagination(tool, options) {
 }
 init_tool_result();
 init_api_call_helpers();
-function withErrorHandling(tool) {
-  const originalHandler = tool.handler;
+function withErrorHandling(tool11) {
+  const originalHandler = tool11.handler;
   return {
-    ...tool,
+    ...tool11,
     handler: (async (args, context) => {
       try {
         return await originalHandler(args, context);
       } catch (error62) {
-        console.error(`Error in tool ${tool.name}:`, error62);
+        console.error(`Error in tool ${tool11.name}:`, error62);
         let errorResult;
         if (error62 instanceof ToolValidationError) {
           errorResult = createToolResultError(error62.toProblemDetails());
@@ -38025,20 +38025,20 @@ function withErrorHandling(tool) {
     })
   };
 }
-function withPreExecutionCheck(tool) {
-  const originalHandler = tool.handler;
+function withPreExecutionCheck(tool11) {
+  const originalHandler = tool11.handler;
   return {
-    ...tool,
+    ...tool11,
     handler: (async (args, context) => {
       return await originalHandler(args, context);
     })
   };
 }
 function compose(...decorators) {
-  return (tool) => decorators.reduceRight((decorated, decorator) => decorator(decorated), tool);
+  return (tool11) => decorators.reduceRight((decorated, decorator) => decorator(decorated), tool11);
 }
-function createToolAnnotations(tool) {
-  const toolAnnotations = tool.annotations || {};
+function createToolAnnotations(tool11) {
+  const toolAnnotations = tool11.annotations || {};
   return {
     readOnlyHint: toolAnnotations.readOnlyHint ?? false,
     // Default to false if not specified
@@ -38052,8 +38052,8 @@ function createToolAnnotations(tool) {
     // Include title if provided
   };
 }
-function withStandardDecorators(tool) {
-  const decorated = compose(withInputSanitization, withDryRun, withPreExecutionCheck)(tool);
+function withStandardDecorators(tool11) {
+  const decorated = compose(withInputSanitization, withDryRun, withPreExecutionCheck)(tool11);
   const paginated = withCursorPagination(decorated);
   return withErrorHandling(paginated);
 }
@@ -38062,8 +38062,8 @@ init_response_trimmer();
 function normalizeBaseUrl(url2) {
   return url2.replace(/\/+$/, "");
 }
-function toolToJsonSchema(tool) {
-  const schema = tool.inputSchema;
+function toolToJsonSchema(tool11) {
+  const schema = tool11.inputSchema;
   if (!schema) {
     return { type: "object", properties: {} };
   }
@@ -38125,14 +38125,14 @@ function zodFieldToJsonSchema(field) {
   }
   return { schema, isRequired };
 }
-function toolToSummary(tool, collectionName) {
+function toolToSummary(tool11, collectionName) {
   return {
-    name: tool.name,
+    name: tool11.name,
     collection: collectionName,
-    description: tool.description.length > 80 ? tool.description.substring(0, 77) + "..." : tool.description,
-    slices: tool.slices,
-    readOnly: tool.annotations?.readOnlyHint ?? false,
-    destructive: tool.annotations?.destructiveHint ?? false
+    description: tool11.description.length > 80 ? tool11.description.substring(0, 77) + "..." : tool11.description,
+    slices: tool11.slices,
+    readOnly: tool11.annotations?.readOnlyHint ?? false,
+    destructive: tool11.annotations?.destructiveHint ?? false
   };
 }
 function formatToolTable(summaries) {
@@ -38177,17 +38177,17 @@ function generateContextFile(collections2, options) {
     "## Collections",
     ""
   ];
-  for (const collection3 of collections2) {
-    const meta3 = collection3.metadata;
+  for (const collection4 of collections2) {
+    const meta3 = collection4.metadata;
     let tools;
     try {
-      tools = collection3.tools(options?.user);
+      tools = collection4.tools(options?.user);
     } catch {
       tools = [];
     }
     if (options?.filterConfig) {
       tools = tools.filter(
-        (tool) => shouldIncludeTool(tool, { collectionName: meta3.name, config: options.filterConfig })
+        (tool11) => shouldIncludeTool(tool11, { collectionName: meta3.name, config: options.filterConfig })
       );
     }
     if (tools.length === 0) continue;
@@ -38197,12 +38197,12 @@ function generateContextFile(collections2, options) {
       lines.push(meta3.description);
       lines.push("");
     }
-    for (const tool of tools) {
-      lines.push(`#### \`${tool.name}\``);
+    for (const tool11 of tools) {
+      lines.push(`#### \`${tool11.name}\``);
       lines.push("");
-      lines.push(tool.description);
+      lines.push(tool11.description);
       lines.push("");
-      const jsonSchema = toolToJsonSchema(tool);
+      const jsonSchema = toolToJsonSchema(tool11);
       const properties = jsonSchema.properties;
       if (properties && Object.keys(properties).length > 0) {
         lines.push("**Parameters:**");
@@ -38216,7 +38216,7 @@ function generateContextFile(collections2, options) {
         }
         lines.push("");
       }
-      const ann = tool.annotations;
+      const ann = tool11.annotations;
       if (ann) {
         const hints = [];
         if (ann.readOnlyHint) hints.push("read-only");
@@ -38227,8 +38227,8 @@ function generateContextFile(collections2, options) {
           lines.push("");
         }
       }
-      if (tool.slices.length > 0) {
-        lines.push(`**Slices:** ${tool.slices.join(", ")}`);
+      if (tool11.slices.length > 0) {
+        lines.push(`**Slices:** ${tool11.slices.join(", ")}`);
         lines.push("");
       }
     }
@@ -38291,7 +38291,7 @@ async function handleCliCommands(collections2, options) {
   }
   if (cliFlags?.listTools) {
     const summaries = collections2.flatMap(
-      (col) => getToolsForCli(col, user).filter((tool) => !filterConfig2 || shouldIncludeTool(tool, { collectionName: col.metadata.name, config: filterConfig2 })).map((tool) => toolToSummary(tool, col.metadata.name))
+      (col) => getToolsForCli(col, user).filter((tool11) => !filterConfig2 || shouldIncludeTool(tool11, { collectionName: col.metadata.name, config: filterConfig2 })).map((tool11) => toolToSummary(tool11, col.metadata.name))
     );
     console.log(formatToolTable(summaries));
     process.exit(0);
@@ -38299,20 +38299,20 @@ async function handleCliCommands(collections2, options) {
   if (cliFlags?.describeTool) {
     const toolName = cliFlags.describeTool;
     for (const col of collections2) {
-      const tool = getToolsForCli(col, user).find((t) => t.name === toolName);
-      if (tool) {
-        if (filterConfig2 && !shouldIncludeTool(tool, { collectionName: col.metadata.name, config: filterConfig2 })) {
+      const tool11 = getToolsForCli(col, user).find((t) => t.name === toolName);
+      if (tool11) {
+        if (filterConfig2 && !shouldIncludeTool(tool11, { collectionName: col.metadata.name, config: filterConfig2 })) {
           break;
         }
-        const schema = toolToJsonSchema(tool);
+        const schema = toolToJsonSchema(tool11);
         console.log(
           JSON.stringify(
             {
-              name: tool.name,
+              name: tool11.name,
               collection: col.metadata.name,
-              description: tool.description,
-              slices: tool.slices,
-              annotations: tool.annotations ?? {},
+              description: tool11.description,
+              slices: tool11.slices,
+              annotations: tool11.annotations ?? {},
               inputSchema: schema
             },
             null,
@@ -38340,9 +38340,9 @@ async function handleCliCommands(collections2, options) {
   if (cliFlags?.callTool) {
     const toolName = cliFlags.callTool;
     for (const col of collections2) {
-      const tool = getToolsForCli(col, user).find((t) => t.name === toolName);
-      if (tool) {
-        if (filterConfig2 && !shouldIncludeTool(tool, { collectionName: col.metadata.name, config: filterConfig2 })) {
+      const tool11 = getToolsForCli(col, user).find((t) => t.name === toolName);
+      if (tool11) {
+        if (filterConfig2 && !shouldIncludeTool(tool11, { collectionName: col.metadata.name, config: filterConfig2 })) {
           break;
         }
         let args = {};
@@ -38357,7 +38357,7 @@ async function handleCliCommands(collections2, options) {
         const extra = { signal: new AbortController().signal };
         let result;
         try {
-          result = await Promise.resolve(tool.handler(args, extra));
+          result = await Promise.resolve(tool11.handler(args, extra));
         } catch (error62) {
           console.error(`Tool '${toolName}' failed: ${error62.message}`);
           process.exit(1);
@@ -38927,7 +38927,162 @@ var getSchemeWeaverManagementAPI = () => {
       options
     );
   };
-  return { getSchemeweaverContentTypes, getSchemeweaverContentTypesByAliasProperties, postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest, getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypes, postSchemeweaverGenerateContentType, getSchemeweaverMappings, postSchemeweaverMappings, getSchemeweaverMappingsByContentTypeAlias, deleteSchemeweaverMappingsByContentTypeAlias, postSchemeweaverMappingsByContentTypeAliasAutoMap, postSchemeweaverMappingsByContentTypeAliasPreview, getSchemeweaverMappingsDrift, postSchemeweaverMappingsExport, getSchemeweaverSchemaTypes, getSchemeweaverSchemaTypesByNameProperties, getSchemeweaverServerContext };
+  const getSchemeweaverSeoContentTypes = (options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/content-types`,
+        method: "GET"
+      },
+      options
+    );
+  };
+  const getSchemeweaverSeoContentTypesByAlias = (alias, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/content-types/${alias}`,
+        method: "GET"
+      },
+      options
+    );
+  };
+  const putSchemeweaverSeoContentTypesByAliasMapping = (alias, seoMappingSaveRequest, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/content-types/${alias}/mapping`,
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        data: seoMappingSaveRequest
+      },
+      options
+    );
+  };
+  const deleteSchemeweaverSeoContentTypesByAliasMapping = (alias, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/content-types/${alias}/mapping`,
+        method: "DELETE"
+      },
+      options
+    );
+  };
+  const getSchemeweaverSeoContentTypesByAliasSamplePages = (alias, params, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/content-types/${alias}/sample-pages`,
+        method: "GET",
+        params
+      },
+      options
+    );
+  };
+  const postSchemeweaverSeoContentTypesByAliasSetup = (alias, seoSetupRequest, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/content-types/${alias}/setup`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        data: seoSetupRequest
+      },
+      options
+    );
+  };
+  const postSchemeweaverSeoHealthCheck = (params, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/health-check`,
+        method: "POST",
+        params
+      },
+      options
+    );
+  };
+  const getSchemeweaverSeoPagesByContentKey = (contentKey, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/pages/${contentKey}`,
+        method: "GET"
+      },
+      options
+    );
+  };
+  const putSchemeweaverSeoPagesByContentKey = (contentKey, seoPageOverrideRequest, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/pages/${contentKey}`,
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        data: seoPageOverrideRequest
+      },
+      options
+    );
+  };
+  const deleteSchemeweaverSeoPagesByContentKey = (contentKey, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/pages/${contentKey}`,
+        method: "DELETE"
+      },
+      options
+    );
+  };
+  const getSchemeweaverSeoPagesByContentKeySummary = (contentKey, params, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/pages/${contentKey}/summary`,
+        method: "GET",
+        params
+      },
+      options
+    );
+  };
+  const getSchemeweaverSeoServerContext = (options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/server-context`,
+        method: "GET"
+      },
+      options
+    );
+  };
+  const getSchemeweaverSeoSiteIdentity = (options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/site-identity`,
+        method: "GET"
+      },
+      options
+    );
+  };
+  const putSchemeweaverSeoSiteIdentity = (siteIdentityDto, options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/site-identity`,
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        data: siteIdentityDto
+      },
+      options
+    );
+  };
+  const deleteSchemeweaverSeoSiteIdentity = (options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/site-identity`,
+        method: "DELETE"
+      },
+      options
+    );
+  };
+  const getSchemeweaverSeoTemplates = (options) => {
+    return customInstance(
+      {
+        url: `/umbraco/management/api/v1/schemeweaver-seo/templates`,
+        method: "GET"
+      },
+      options
+    );
+  };
+  return { getSchemeweaverContentTypes, getSchemeweaverContentTypesByAliasProperties, postSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockSuggest, getSchemeweaverContentTypesByContentTypeAliasPropertiesByPropertyAliasBlockTypes, postSchemeweaverGenerateContentType, getSchemeweaverMappings, postSchemeweaverMappings, getSchemeweaverMappingsByContentTypeAlias, deleteSchemeweaverMappingsByContentTypeAlias, postSchemeweaverMappingsByContentTypeAliasAutoMap, postSchemeweaverMappingsByContentTypeAliasPreview, getSchemeweaverMappingsDrift, postSchemeweaverMappingsExport, getSchemeweaverSchemaTypes, getSchemeweaverSchemaTypesByNameProperties, getSchemeweaverServerContext, getSchemeweaverSeoContentTypes, getSchemeweaverSeoContentTypesByAlias, putSchemeweaverSeoContentTypesByAliasMapping, deleteSchemeweaverSeoContentTypesByAliasMapping, getSchemeweaverSeoContentTypesByAliasSamplePages, postSchemeweaverSeoContentTypesByAliasSetup, postSchemeweaverSeoHealthCheck, getSchemeweaverSeoPagesByContentKey, putSchemeweaverSeoPagesByContentKey, deleteSchemeweaverSeoPagesByContentKey, getSchemeweaverSeoPagesByContentKeySummary, getSchemeweaverSeoServerContext, getSchemeweaverSeoSiteIdentity, putSchemeweaverSeoSiteIdentity, deleteSchemeweaverSeoSiteIdentity, getSchemeweaverSeoTemplates };
 };
 object2({
   "alias": string2()
@@ -39199,6 +39354,103 @@ var GetSchemeweaverSchemaTypesByNamePropertiesResponse = array(GetSchemeweaverSc
 object2({
   "hasPublishedContent": boolean2(),
   "isTestHost": boolean2()
+});
+object2({
+  "alias": string2()
+});
+object2({
+  "alias": string2()
+});
+object2({
+  "templateId": string2(),
+  "schemaTypeName": string2().nullish(),
+  "slots": record(string2(), object2({
+    "kind": string2(),
+    "propertyAlias": string2().nullish(),
+    "editorAlias": string2().nullish(),
+    "fixedValue": string2().nullish(),
+    "targetPieceKey": string2().nullish(),
+    "confidence": int().nullish(),
+    "isAutoMapped": boolean2(),
+    "nested": record(string2(), unknown()),
+    "summary": string2().nullish()
+  }))
+});
+object2({
+  "alias": string2()
+});
+object2({
+  "alias": string2()
+});
+var getSchemeweaverSeoContentTypesByAliasSamplePagesQueryTakeDefault = 5;
+object2({
+  "take": int().default(getSchemeweaverSeoContentTypesByAliasSamplePagesQueryTakeDefault)
+});
+object2({
+  "alias": string2()
+});
+object2({
+  "templateId": string2(),
+  "schemaTypeName": string2().nullish()
+});
+var postSchemeweaverSeoHealthCheckQueryForceDefault = false;
+object2({
+  "force": boolean2().default(postSchemeweaverSeoHealthCheckQueryForceDefault)
+});
+object2({
+  "contentKey": uuid2()
+});
+object2({
+  "contentKey": uuid2()
+});
+object2({
+  "schemaTypeName": string2().nullish(),
+  "isExcluded": boolean2()
+});
+object2({
+  "contentKey": uuid2()
+});
+object2({
+  "contentKey": uuid2()
+});
+object2({
+  "culture": string2().optional()
+});
+object2({
+  "kind": string2(),
+  "name": string2(),
+  "alternateName": string2().nullish(),
+  "url": string2().nullish(),
+  "logoMediaKey": uuid2().nullish(),
+  "sameAs": array(string2()),
+  "telephone": string2().nullish(),
+  "email": string2().nullish(),
+  "description": string2().nullish(),
+  "businessType": string2().nullish(),
+  "address": union([_null3(), object2({
+    "streetAddress": string2().nullish(),
+    "addressLocality": string2().nullish(),
+    "addressRegion": string2().nullish(),
+    "postalCode": string2().nullish(),
+    "addressCountry": string2().nullish(),
+    "isEmpty": boolean2()
+  })]).optional(),
+  "openingHours": array(object2({
+    "dayOfWeek": array(string2()),
+    "opens": string2().nullish(),
+    "closes": string2().nullish()
+  })),
+  "geo": union([_null3(), object2({
+    "latitude": number2(),
+    "longitude": number2()
+  })]).optional(),
+  "priceRange": string2().nullish(),
+  "jobTitle": string2().nullish(),
+  "searchUrlTemplate": string2().nullish(),
+  "searchQueryInputName": string2().nullish(),
+  "updatedDate": iso_exports2.datetime({ "offset": true }).nullish(),
+  "updatedByUserKey": uuid2().nullish(),
+  "isConfigured": boolean2()
 });
 
 // src/umbraco-api/tools/schemeweaver/get/search-schema-types.ts
@@ -39917,6 +40169,379 @@ var collection = {
 };
 var schemeweaver_default = collection;
 
+// src/umbraco-api/tools/schemeweaver-seo/shared.ts
+var slotValueKind = external_exports.enum(["none", "property", "fixed", "siteIdentity", "nested", "blocks", "advanced"]).describe(
+  "How the slot is filled: 'property' (a field on the page, set propertyAlias; built-ins __name/__url/__createDate/__updateDate allowed), 'fixed' (set fixedValue), 'siteIdentity' (the site's Organisation/Person, only for slots that declare siteIdentityPieceKey), 'nested' (fill the entity's parts: set nested = { subSchemaProperty: slotValue }), 'none' (leave empty). 'blocks' and 'advanced' are read-only kinds that preserve whatever a developer configured."
+);
+var slotValueBase = external_exports.object({
+  kind: slotValueKind,
+  propertyAlias: external_exports.string().nullish().describe("For kind 'property': the Umbraco property alias (or a __ built-in)."),
+  editorAlias: external_exports.string().nullish().describe("Optional editor alias of propertyAlias (lets the server add stripHtml for rich text)."),
+  fixedValue: external_exports.string().nullish().describe("For kind 'fixed': the literal value (an enum slot's option value, a currency code, a URL\u2026)."),
+  targetPieceKey: external_exports.string().nullish().describe("For kind 'siteIdentity': normally 'organization'."),
+  confidence: external_exports.number().int().nullish(),
+  isAutoMapped: external_exports.boolean().optional(),
+  summary: external_exports.string().nullish()
+});
+var slotValueLeaf = slotValueBase.extend({ nested: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe("[raw]") });
+var slotValueInner = slotValueBase.extend({ nested: external_exports.record(external_exports.string(), slotValueLeaf).optional() });
+var slotValueSchema = slotValueBase.extend({
+  nested: external_exports.record(external_exports.string(), slotValueInner).optional().describe("For kind 'nested': sub-slot values keyed by the nested type's schemaProperty.")
+});
+var slotSchema = external_exports.object({
+  schemaProperty: external_exports.string(),
+  label: external_exports.string(),
+  help: external_exports.string(),
+  importance: external_exports.string().describe("required | recommended | optional"),
+  kind: external_exports.string().describe("text | image | date | url | number | boolean | duration | enum | list | entity"),
+  acceptedEditorAliases: external_exports.array(external_exports.string()),
+  builtIns: external_exports.array(external_exports.string()),
+  anyOfGroup: external_exports.string().nullish(),
+  siteIdentityPieceKey: external_exports.string().nullish(),
+  fixedValueOptions: external_exports.array(external_exports.object({ value: external_exports.string(), label: external_exports.string() })),
+  nested: external_exports.object({ schemaType: external_exports.string(), slots: external_exports.array(external_exports.unknown()) }).nullish().describe("For entity slots: the nested Schema.org type and its own slots.")
+}).passthrough();
+var templateSchema = external_exports.object({
+  id: external_exports.string(),
+  label: external_exports.string(),
+  description: external_exports.string(),
+  family: external_exports.string(),
+  schemaType: external_exports.string(),
+  variants: external_exports.array(external_exports.object({ schemaType: external_exports.string(), label: external_exports.string(), hint: external_exports.string().nullish() })),
+  useBusinessTypes: external_exports.boolean(),
+  googleFeature: external_exports.object({ name: external_exports.string(), docUrl: external_exports.string(), status: external_exports.string() }),
+  aliasHints: external_exports.array(external_exports.string()),
+  slots: external_exports.array(slotSchema)
+}).passthrough();
+var mappingSummarySchema = external_exports.object({
+  schemaTypeName: external_exports.string(),
+  templateId: external_exports.string().nullish(),
+  templateLabel: external_exports.string().nullish(),
+  isRetired: external_exports.boolean(),
+  isEnabled: external_exports.boolean(),
+  requiredFilled: external_exports.number(),
+  requiredTotal: external_exports.number(),
+  recommendedFilled: external_exports.number(),
+  recommendedTotal: external_exports.number(),
+  advancedRowCount: external_exports.number(),
+  missingRequired: external_exports.array(external_exports.string())
+}).passthrough();
+var contentTypeStatusSchema = external_exports.object({
+  alias: external_exports.string(),
+  name: external_exports.string(),
+  key: external_exports.string(),
+  icon: external_exports.string().nullish(),
+  isElement: external_exports.boolean(),
+  hasTemplate: external_exports.boolean(),
+  allowedAsRoot: external_exports.boolean(),
+  publishedCount: external_exports.number(),
+  status: external_exports.string().describe("not-set-up | needs-attention | set-up | developer-managed"),
+  mapping: mappingSummarySchema.nullish()
+}).passthrough();
+var projectionSchema = external_exports.object({
+  templateId: external_exports.string(),
+  schemaTypeName: external_exports.string(),
+  hasExistingMapping: external_exports.boolean(),
+  slots: external_exports.array(external_exports.object({ slot: slotSchema, value: slotValueSchema })),
+  advancedRows: external_exports.array(external_exports.unknown()),
+  unslottedSuggestions: external_exports.array(external_exports.unknown())
+}).passthrough();
+var siteIdentitySchema = external_exports.object({
+  kind: external_exports.enum(["organisation", "person"]),
+  name: external_exports.string(),
+  alternateName: external_exports.string().nullish(),
+  url: external_exports.string().nullish(),
+  logoMediaKey: external_exports.string().nullish(),
+  sameAs: external_exports.array(external_exports.string()).default([]),
+  telephone: external_exports.string().nullish(),
+  email: external_exports.string().nullish(),
+  description: external_exports.string().nullish(),
+  businessType: external_exports.string().nullish().describe("A LocalBusiness subtype name (Dentist, Restaurant\u2026) or null for a plain Organization."),
+  address: external_exports.object({
+    streetAddress: external_exports.string().nullish(),
+    addressLocality: external_exports.string().nullish(),
+    addressRegion: external_exports.string().nullish(),
+    postalCode: external_exports.string().nullish(),
+    addressCountry: external_exports.string().nullish()
+  }).nullish(),
+  openingHours: external_exports.array(external_exports.object({ dayOfWeek: external_exports.array(external_exports.string()), opens: external_exports.string().nullish(), closes: external_exports.string().nullish() })).default([]),
+  geo: external_exports.object({ latitude: external_exports.number(), longitude: external_exports.number() }).nullish(),
+  priceRange: external_exports.string().nullish(),
+  jobTitle: external_exports.string().nullish(),
+  searchUrlTemplate: external_exports.string().nullish(),
+  searchQueryInputName: external_exports.string().nullish(),
+  updatedDate: external_exports.string().nullish(),
+  updatedByUserKey: external_exports.string().nullish(),
+  isConfigured: external_exports.boolean().optional()
+}).passthrough();
+var pageOverrideSchema = external_exports.object({
+  contentKey: external_exports.string(),
+  schemaTypeName: external_exports.string().nullish(),
+  isExcluded: external_exports.boolean(),
+  updatedDate: external_exports.string().nullish()
+}).passthrough();
+var pageSummarySchema = external_exports.object({
+  contentKey: external_exports.string(),
+  contentTypeAlias: external_exports.string(),
+  contentTypeName: external_exports.string(),
+  hasMapping: external_exports.boolean(),
+  templateId: external_exports.string().nullish(),
+  templateLabel: external_exports.string().nullish(),
+  defaultSchemaTypeName: external_exports.string().nullish(),
+  effectiveSchemaTypeName: external_exports.string().nullish(),
+  allowedPageTypes: external_exports.array(external_exports.object({ schemaType: external_exports.string(), label: external_exports.string(), hint: external_exports.string().nullish() })),
+  override: pageOverrideSchema.nullish(),
+  isExcluded: external_exports.boolean(),
+  isPublished: external_exports.boolean(),
+  publicUrl: external_exports.string().nullish(),
+  preview: external_exports.unknown().nullish().describe("The core JsonLdPreviewResponse (jsonLd, isValid, issues\u2026) or null when unpublished/excluded.")
+}).passthrough();
+var healthReportSchema = external_exports.object({
+  generatedAt: external_exports.string(),
+  cached: external_exports.boolean(),
+  contentTypesChecked: external_exports.number(),
+  critical: external_exports.number(),
+  warning: external_exports.number(),
+  items: external_exports.array(
+    external_exports.object({
+      alias: external_exports.string(),
+      name: external_exports.string(),
+      schemaTypeName: external_exports.string(),
+      templateId: external_exports.string().nullish(),
+      samplePageKey: external_exports.string().nullish(),
+      samplePageName: external_exports.string().nullish(),
+      critical: external_exports.number(),
+      warning: external_exports.number(),
+      issues: external_exports.array(external_exports.unknown()),
+      status: external_exports.string().describe("ok | needs-attention | no-published-page")
+    }).passthrough()
+  )
+}).passthrough();
+var SEO_NOTE = "Requires the Umbraco.Community.SchemeWeaver.Seo package and an API user whose group has the 'SEO Schema' section (SchemeWeaver.Seo.Section); otherwise the call returns 403/404.";
+
+// src/umbraco-api/tools/schemeweaver-seo/get/get-seo-content-kinds.ts
+var outputSchema16 = external_exports.object({
+  templates: external_exports.array(templateSchema),
+  retired: external_exports.array(external_exports.object({ schemaType: external_exports.string(), name: external_exports.string(), retiredOn: external_exports.string(), docUrl: external_exports.string() }).passthrough()),
+  businessTypes: external_exports.array(external_exports.object({ schemaType: external_exports.string(), label: external_exports.string() }))
+}).passthrough();
+var tool = {
+  name: "get-seo-content-kinds",
+  description: "Lists the SchemeWeaver SEO edition's curated content kinds (templates): each is a Schema.org type Google rewards (article, web-page, profile-page, product, event, local-business, job-posting, recipe, course, video, software-app; faq and how-to are marked retired) with its variants (subtypes an editor may pick per page) and its slots \u2014 the Google-required/recommended properties with friendly labels, accepted editor aliases, built-ins, fixed-value options and nested entity parts. Use the slot definitions to build the `slots` argument of save-seo-mapping. A kind's `googleFeature.status` is rich-result, foundation or retired. " + SEO_NOTE,
+  outputSchema: outputSchema16,
+  slices: ["read", "list"],
+  annotations: { readOnlyHint: true },
+  handler: async () => executeGetApiCall((client) => client.getSchemeweaverSeoTemplates(CAPTURE_RAW_HTTP_RESPONSE))
+};
+var get_seo_content_kinds_default = withStandardDecorators(tool);
+
+// src/umbraco-api/tools/schemeweaver-seo/get/get-seo-content-type-status.ts
+var inputSchema14 = {
+  contentTypeAlias: external_exports.string().optional().describe("Omit to list every content type; pass an alias to get just that one (404 when it does not exist).")
+};
+var outputSchema17 = external_exports.object({ items: external_exports.array(contentTypeStatusSchema) });
+var tool2 = {
+  name: "get-seo-content-type-status",
+  description: "Reports every Umbraco content type through the SEO edition's eyes: status (not-set-up, needs-attention, set-up, developer-managed), the kind and Schema.org type it is set up as, how many required/recommended slots are filled, which required slots are missing, how many developer-managed advanced rows it carries, whether it is an element type or has a template, and its published page count. Start a site-wide SEO review here: not-set-up page types with published pages are the quickest wins; needs-attention rows name the missing required fields. " + SEO_NOTE,
+  inputSchema: inputSchema14,
+  outputSchema: outputSchema17,
+  slices: ["read", "list"],
+  annotations: { readOnlyHint: true },
+  handler: async ({ contentTypeAlias }) => {
+    if (contentTypeAlias) {
+      const result = await executeGetApiCall(
+        (client) => client.getSchemeweaverSeoContentTypesByAlias(contentTypeAlias, CAPTURE_RAW_HTTP_RESPONSE)
+      );
+      if (result.isError || !result.structuredContent) return result;
+      return { ...result, structuredContent: { items: [result.structuredContent] } };
+    }
+    return executeGetItemsApiCall(
+      (client) => client.getSchemeweaverSeoContentTypes(CAPTURE_RAW_HTTP_RESPONSE)
+    );
+  }
+};
+var get_seo_content_type_status_default = withStandardDecorators(tool2);
+
+// src/umbraco-api/tools/schemeweaver-seo/post/setup-seo-content-type.ts
+var inputSchema15 = {
+  contentTypeAlias: external_exports.string().describe("The Umbraco content type to set up."),
+  templateId: external_exports.string().describe("A kind id from get-seo-content-kinds, e.g. 'article', 'product', 'local-business'."),
+  schemaTypeName: external_exports.string().optional().describe("One of the kind's variants (e.g. 'BlogPosting' for 'article', 'Dentist' for 'local-business'). Omit for the kind's default type.")
+};
+var outputSchema18 = projectionSchema;
+var tool3 = {
+  name: "setup-seo-content-type",
+  description: "Prepares a content type for a kind without saving anything: runs SchemeWeaver's auto-mapper (heuristic, or the TypeSafe/AI satellites when installed) for the kind's Schema.org type and returns every slot with a proposed value \u2014 from the existing mapping first, then the suggestions (with confidence), then the slot defaults (built-ins such as __createDate, 'from site identity' for publisher/organiser/employer when an identity is configured). Rows a kind does not own are returned as advancedRows and are preserved by save-seo-mapping. Review the slots (use get-content-type-properties to see the fields), fix any 'none' required slot, then persist with save-seo-mapping. " + SEO_NOTE,
+  inputSchema: inputSchema15,
+  outputSchema: outputSchema18,
+  slices: ["read"],
+  annotations: { readOnlyHint: true },
+  handler: async ({ contentTypeAlias, templateId, schemaTypeName }) => executeGetApiCall(
+    (client) => client.postSchemeweaverSeoContentTypesByAliasSetup(
+      contentTypeAlias,
+      { templateId, schemaTypeName: schemaTypeName ?? null },
+      CAPTURE_RAW_HTTP_RESPONSE
+    )
+  )
+};
+var setup_seo_content_type_default = withStandardDecorators(tool3);
+
+// src/umbraco-api/tools/schemeweaver-seo/put/save-seo-mapping.ts
+var inputSchema16 = {
+  contentTypeAlias: external_exports.string().describe("The Umbraco content type to save."),
+  templateId: external_exports.string().describe("The kind id (from get-seo-content-kinds / setup-seo-content-type)."),
+  schemaTypeName: external_exports.string().optional().describe("The kind's default type or one of its variants; omit for the default."),
+  slots: external_exports.record(external_exports.string(), slotValueSchema).describe(
+    "Slot values keyed by the slot's schemaProperty (camelCase, e.g. 'headline'). Start from the `slots` returned by setup-seo-content-type (each entry's `value`), change what you must, and pass them all back \u2014 a slot omitted here is saved as empty. Entity slots take kind 'nested' with `nested` = { subProperty: value } (one more level is allowed, e.g. jobLocation.address \u2192 PostalAddress), kind 'property' with a content-picker field, or kind 'property' with a text field (saved as the entity's name). Keep kinds 'blocks'/'advanced' exactly as returned."
+  )
+};
+var outputSchema19 = contentTypeStatusSchema;
+var tool4 = {
+  name: "save-seo-mapping",
+  description: "Saves a content type's kind and slot values as an ordinary SchemeWeaver mapping (the same rows the developer tools and get-schema-mapping see). Slot values become property-mapping rows server-side; rows the kind does not own (developer additions) are preserved; a developer-disabled mapping stays disabled. Returns the content type's new status row (required/recommended counts, missing required slots). Verify with get-seo-page-summary on a published page or run-seo-health-check. " + SEO_NOTE,
+  inputSchema: inputSchema16,
+  outputSchema: outputSchema19,
+  slices: ["create", "update"],
+  annotations: { idempotentHint: true },
+  handler: async ({ contentTypeAlias, templateId, schemaTypeName, slots }) => executeGetApiCall(
+    (client) => client.putSchemeweaverSeoContentTypesByAliasMapping(
+      contentTypeAlias,
+      { templateId, schemaTypeName: schemaTypeName ?? null, slots },
+      CAPTURE_RAW_HTTP_RESPONSE
+    )
+  )
+};
+var save_seo_mapping_default = withStandardDecorators(tool4);
+
+// src/umbraco-api/tools/schemeweaver-seo/get/get-site-identity.ts
+var outputSchema20 = siteIdentitySchema;
+var tool5 = {
+  name: "get-site-identity",
+  description: "Reads the SEO edition's site identity: whether the site represents an organisation or a person, its name, logo media key, social profiles (sameAs), contact details, optional local-business details (business type, address, opening hours, geo, price range) and site search template. `isConfigured` is false when nothing is set; the Organization/WebSite graph nodes then come from the schemaSiteSettings content node, if any. " + SEO_NOTE,
+  outputSchema: outputSchema20,
+  slices: ["read"],
+  annotations: { readOnlyHint: true },
+  handler: async () => executeGetApiCall((client) => client.getSchemeweaverSeoSiteIdentity(CAPTURE_RAW_HTTP_RESPONSE))
+};
+var get_site_identity_default = withStandardDecorators(tool5);
+
+// src/umbraco-api/tools/schemeweaver-seo/put/set-site-identity.ts
+var inputSchema17 = siteIdentitySchema.omit({ updatedDate: true, updatedByUserKey: true, isConfigured: true }).shape;
+var outputSchema21 = siteIdentitySchema;
+var tool6 = {
+  name: "set-site-identity",
+  description: "Replaces the SEO edition's site identity. `name` is required; `kind` is 'organisation' or 'person'; `sameAs` and `url` must be absolute URLs; `businessType` must be LocalBusiness or a subtype (see businessTypes in get-seo-content-kinds); `searchUrlTemplate` must contain the {search_term_string} placeholder (or the name given in searchQueryInputName). `logoMediaKey` is the GUID of a media item. Saving flushes every cached JSON-LD block because the identity is embedded in each page's graph as the publisher. Returns the stored identity; a 400 lists the validation problems. " + SEO_NOTE,
+  inputSchema: inputSchema17,
+  outputSchema: outputSchema21,
+  slices: ["update"],
+  annotations: { idempotentHint: true },
+  handler: async (identity) => executeGetApiCall(
+    (client) => client.putSchemeweaverSeoSiteIdentity(identity, CAPTURE_RAW_HTTP_RESPONSE)
+  )
+};
+var set_site_identity_default = withStandardDecorators(tool6);
+
+// src/umbraco-api/tools/schemeweaver-seo/get/get-seo-page-summary.ts
+var inputSchema18 = {
+  contentKey: external_exports.string().describe("The content node's GUID (key)."),
+  culture: external_exports.string().optional().describe("Culture for variant content, e.g. 'en-GB'. Omit for invariant.")
+};
+var outputSchema22 = pageSummarySchema;
+var tool7 = {
+  name: "get-seo-page-summary",
+  description: "Summarises one content node for the SEO edition: whether its type is set up, the kind, the default and effective Schema.org types (after any per-page override), the page types an editor may switch to, the stored override, whether the page is excluded or unpublished, its public URL, and \u2014 when published and not excluded \u2014 the core preview (JSON-LD plus Rich Results validation issues). Use get-rendered-json-ld for the live Delivery API output. " + SEO_NOTE,
+  inputSchema: inputSchema18,
+  outputSchema: outputSchema22,
+  slices: ["read"],
+  annotations: { readOnlyHint: true },
+  handler: async ({ contentKey, culture }) => executeGetApiCall(
+    (client) => client.getSchemeweaverSeoPagesByContentKeySummary(contentKey, culture ? { culture } : void 0, CAPTURE_RAW_HTTP_RESPONSE)
+  )
+};
+var get_seo_page_summary_default = withStandardDecorators(tool7);
+
+// src/umbraco-api/tools/schemeweaver-seo/put/set-seo-page-override.ts
+var inputSchema19 = {
+  contentKey: external_exports.string().describe("The content node's GUID (key)."),
+  schemaTypeName: external_exports.string().nullish().describe(
+    "A subtype to emit for this page instead of the type its content type is mapped to \u2014 one of the kind's variants (allowedPageTypes in get-seo-page-summary), e.g. 'NewsArticle' on an Article page. Null keeps the mapped type."
+  ),
+  isExcluded: external_exports.boolean().default(false).describe("True to emit no main entity for this page (WebSite and breadcrumbs still render).")
+};
+var outputSchema23 = pageOverrideSchema;
+var tool8 = {
+  name: "set-seo-page-override",
+  description: "Stores a per-page override: swap the page's emitted Schema.org type for a subtype of its mapping (the property rows stay the same; the default @id follows the new type) and/or exclude the page from structured data. Overrides are invariant (one per node), take effect immediately without a publish, and are removed with clear-seo-page-override or when the content is deleted. A null type with isExcluded=false clears any stored override. 404 when the page's content type is not set up; 400 when the type is not an allowed page type. " + SEO_NOTE,
+  inputSchema: inputSchema19,
+  outputSchema: outputSchema23,
+  slices: ["update"],
+  annotations: { idempotentHint: true },
+  handler: async ({ contentKey, schemaTypeName, isExcluded }) => executeGetApiCall(
+    (client) => client.putSchemeweaverSeoPagesByContentKey(
+      contentKey,
+      { schemaTypeName: schemaTypeName ?? null, isExcluded: isExcluded ?? false },
+      CAPTURE_RAW_HTTP_RESPONSE
+    )
+  )
+};
+var set_seo_page_override_default = withStandardDecorators(tool8);
+
+// src/umbraco-api/tools/schemeweaver-seo/delete/clear-seo-page-override.ts
+var inputSchema20 = {
+  contentKey: external_exports.string().describe("The content node's GUID (key).")
+};
+var tool9 = {
+  name: "clear-seo-page-override",
+  description: "Removes a page's SEO override so it emits exactly what its content type's mapping says again. " + SEO_NOTE,
+  inputSchema: inputSchema20,
+  slices: ["delete"],
+  annotations: { destructiveHint: true, idempotentHint: true },
+  handler: async ({ contentKey }) => executeVoidApiCall(
+    (client) => client.deleteSchemeweaverSeoPagesByContentKey(contentKey, CAPTURE_RAW_HTTP_RESPONSE)
+  )
+};
+var clear_seo_page_override_default = withStandardDecorators(tool9);
+
+// src/umbraco-api/tools/schemeweaver-seo/post/run-seo-health-check.ts
+var inputSchema21 = {
+  force: external_exports.boolean().default(false).describe("True to bypass the server-side cache (default five minutes) and re-render now.")
+};
+var outputSchema24 = healthReportSchema;
+var tool10 = {
+  name: "run-seo-health-check",
+  description: "Renders the most recently published page of every set-up content type through SchemeWeaver's Google Rich Results validator and aggregates the findings: per type the sample page, critical and warning counts and the issues (path + message), plus site totals. `cached` tells you whether the report was served from the server cache (`generatedAt` says when). The fastest way to answer 'what is wrong with this site's structured data?' before drilling into validate-mapping or get-seo-page-summary. Read-only despite being a POST. " + SEO_NOTE,
+  inputSchema: inputSchema21,
+  outputSchema: outputSchema24,
+  slices: ["read"],
+  annotations: { readOnlyHint: true },
+  handler: async ({ force }) => executeGetApiCall(
+    (client) => client.postSchemeweaverSeoHealthCheck({ force: force ?? false }, CAPTURE_RAW_HTTP_RESPONSE)
+  )
+};
+var run_seo_health_check_default = withStandardDecorators(tool10);
+
+// src/umbraco-api/tools/schemeweaver-seo/index.ts
+var collection2 = {
+  metadata: {
+    name: "schemeweaver-seo",
+    displayName: "SchemeWeaver SEO",
+    description: "The SchemeWeaver SEO edition: curated Google-rewarded content kinds, kind-based set-up of content types, the site identity (publisher), per-page type overrides/exclusions and a site health check. Typical flow: get-seo-content-type-status to find page types that are not set up, get-seo-content-kinds to pick a kind, setup-seo-content-type for pre-filled slots, save-seo-mapping, then run-seo-health-check. Requires the Seo satellite package; its endpoints answer 403/404 without it."
+  },
+  tools: () => [
+    get_seo_content_kinds_default,
+    get_seo_content_type_status_default,
+    setup_seo_content_type_default,
+    save_seo_mapping_default,
+    get_site_identity_default,
+    set_site_identity_default,
+    get_seo_page_summary_default,
+    set_seo_page_override_default,
+    clear_seo_page_override_default,
+    run_seo_health_check_default
+  ]
+};
+var schemeweaver_seo_default = collection2;
+
 // src/umbraco-api/tools/umbraco-server/get/get-server-info.ts
 var getServerInfoTool = {
   name: "get-server-info",
@@ -39951,7 +40576,7 @@ var getServerInfoTool = {
 var get_server_info_default = withStandardDecorators(getServerInfoTool);
 
 // src/umbraco-api/tools/umbraco-server/index.ts
-var collection2 = {
+var collection3 = {
   metadata: {
     name: "umbraco-server",
     displayName: "Umbraco Server",
@@ -39959,7 +40584,7 @@ var collection2 = {
   },
   tools: () => [get_server_info_default]
 };
-var umbraco_server_default = collection2;
+var umbraco_server_default = collection3;
 
 // src/config/slice-registry.ts
 var toolSliceNames = [
@@ -40026,7 +40651,7 @@ var server = new McpServer(
     version: package_default.version
   },
   {
-    instructions: `SchemeWeaver maps Umbraco content types to Schema.org types and emits JSON-LD structured data. When asked to map a content type: (1) inspect it with get-content-type-properties, (2) choose the most specific fitting Schema.org type via search-schema-types, (3) review its properties with get-schema-type-properties ranked=true, (4) get the heuristic baseline from suggest-property-mappings but improve on it semantically \u2014 the heuristic only matches names, it cannot reason about meaning, (5) persist with save-schema-mapping (it replaces the whole mapping), (6) verify with preview-json-ld against a real content node, then run validate-mapping and LOOP fixing+re-saving until allClear (no critical/warning/suggestion items). Prefer mapping the properties Google rich results require/recommend (high confidence in ranked results) over mapping everything; pick the MOST SPECIFIC fitting type (BlogPosting over Article, Recipe over CreativeWork). Reason semantically (strapline->alternativeName, standfirst->description, heroImage->image). SOURCE TYPES \u2014 choosing the right one is how you beat the name-only heuristic: 'property' (a scalar/media on this node \u2014 the DEFAULT, and the SIMPLEST valid choice: do NOT wrap a lone scalar like Vehicle.brand or JobPosting.baseSalary in a Brand/QuantitativeValue object); 'static' (a fixed literal); 'complexType' (the schema prop denotes a named ENTITY \u2014 Person/Organization/Place/Offer \u2014 nest it even from a single field, e.g. BlogPosting.author from one authorName text prop); 'blockContent' (a Block List/Grid: extractAs stringList for one-field label blocks like recipeIngredient, nestedMappings for multi-field blocks, or the nestable \`routes\` for blocks-nested-in-blocks and Block Grid areas \u2014 always map a body-sections container like contentGrid/blocks/sections to mainEntity or hasPart as WebPageElement, never leave it unmapped); 'parent'/'ancestor'/'sibling' (a related node up/around the tree \u2014 e.g. a 'category' grouping from the parent's title; ALSO valid on complexTypeMappings sub-rows, so an inline Organization's name/logo can read the site root \u2014 those sub-rows are page-relative, except inside a pickedComplexType where they walk from the PICKED node); 'reference' (a shared graph piece by key, e.g. organization). Content pickers (ContentPicker/MNTP) under 'property' render the picked node(s) by precedence: resolverConfig {"pickedPropertyAlias":"..."} drills ONE property off the picked node; else resolverConfig {"pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[\u2026]}} (plus a matching nestedSchemaTypeName) builds a per-usage inline object whose sub-rows read the PICKED node \u2014 the picked type needs no mapping of its own, so the same type can be shaped differently per page; else nestedSchemaTypeName alone renders the whole node via the picked type's OWN mapping; else the node's name. An MNTP fans several picks out to an array. A picker used as a complexType SUB-ROW takes the same config in the SUB-ROW's own resolverConfig ({"pickedPropertyAlias":"..."} to drill, or {"nestedSchemaTypeName":"..."} for the whole node) \u2014 without it the sub-row emits only the picked node's name. Built-ins always available as 'property': __name, __url, __createDate, __updateDate. Inspect blocks with get-block-element-types \u2014 its propertyInfos[].nestedBlockElementTypes surfaces blocks-within-blocks. The schemeweaver-map skill carries the full source-type catalogue and worked examples; schemeweaver-setup covers connection/auth problems and schemeweaver-audit drives a site-wide coverage audit.`
+    instructions: `SchemeWeaver maps Umbraco content types to Schema.org types and emits JSON-LD structured data. When asked to map a content type: (1) inspect it with get-content-type-properties, (2) choose the most specific fitting Schema.org type via search-schema-types, (3) review its properties with get-schema-type-properties ranked=true, (4) get the heuristic baseline from suggest-property-mappings but improve on it semantically \u2014 the heuristic only matches names, it cannot reason about meaning, (5) persist with save-schema-mapping (it replaces the whole mapping), (6) verify with preview-json-ld against a real content node, then run validate-mapping and LOOP fixing+re-saving until allClear (no critical/warning/suggestion items). Prefer mapping the properties Google rich results require/recommend (high confidence in ranked results) over mapping everything; pick the MOST SPECIFIC fitting type (BlogPosting over Article, Recipe over CreativeWork). Reason semantically (strapline->alternativeName, standfirst->description, heroImage->image). SOURCE TYPES \u2014 choosing the right one is how you beat the name-only heuristic: 'property' (a scalar/media on this node \u2014 the DEFAULT, and the SIMPLEST valid choice: do NOT wrap a lone scalar like Vehicle.brand or JobPosting.baseSalary in a Brand/QuantitativeValue object); 'static' (a fixed literal); 'complexType' (the schema prop denotes a named ENTITY \u2014 Person/Organization/Place/Offer \u2014 nest it even from a single field, e.g. BlogPosting.author from one authorName text prop); 'blockContent' (a Block List/Grid: extractAs stringList for one-field label blocks like recipeIngredient, nestedMappings for multi-field blocks, or the nestable \`routes\` for blocks-nested-in-blocks and Block Grid areas \u2014 always map a body-sections container like contentGrid/blocks/sections to mainEntity or hasPart as WebPageElement, never leave it unmapped); 'parent'/'ancestor'/'sibling' (a related node up/around the tree \u2014 e.g. a 'category' grouping from the parent's title; ALSO valid on complexTypeMappings sub-rows, so an inline Organization's name/logo can read the site root \u2014 those sub-rows are page-relative, except inside a pickedComplexType where they walk from the PICKED node); 'reference' (a shared graph piece by key, e.g. organization). Content pickers (ContentPicker/MNTP) under 'property' render the picked node(s) by precedence: resolverConfig {"pickedPropertyAlias":"..."} drills ONE property off the picked node; else resolverConfig {"pickedComplexType":{"selectedSubType":"Person","complexTypeMappings":[\u2026]}} (plus a matching nestedSchemaTypeName) builds a per-usage inline object whose sub-rows read the PICKED node \u2014 the picked type needs no mapping of its own, so the same type can be shaped differently per page; else nestedSchemaTypeName alone renders the whole node via the picked type's OWN mapping; else the node's name. An MNTP fans several picks out to an array. A picker used as a complexType SUB-ROW takes the same config in the SUB-ROW's own resolverConfig ({"pickedPropertyAlias":"..."} to drill, or {"nestedSchemaTypeName":"..."} for the whole node) \u2014 without it the sub-row emits only the picked node's name. Built-ins always available as 'property': __name, __url, __createDate, __updateDate. Inspect blocks with get-block-element-types \u2014 its propertyInfos[].nestedBlockElementTypes surfaces blocks-within-blocks. The schemeweaver-map skill carries the full source-type catalogue and worked examples; schemeweaver-setup covers connection/auth problems and schemeweaver-audit drives a site-wide coverage audit. SEO EDITION \u2014 when the site has Umbraco.Community.SchemeWeaver.Seo installed, prefer its kind-based tools for SEO-led work: get-seo-content-type-status (what is set up / needs attention), get-seo-content-kinds (the curated Google-rewarded kinds and their slots), setup-seo-content-type then save-seo-mapping (writes the same ordinary mapping rows the core tools read), get-site-identity/set-site-identity (the publisher), get-seo-page-summary/set-seo-page-override (retype or exclude one page) and run-seo-health-check (one validated render per set-up type). Those tools answer 403/404 when the Seo package or the SEO Schema section permission is absent.`
   }
 );
 clearConfigCache();
@@ -40037,7 +40662,7 @@ var configLoader = createCollectionConfigLoader({
   allSliceNames
 });
 var filterConfig = configLoader.loadFromConfig(serverConfig.umbraco);
-var collections = [schemeweaver_default, umbraco_server_default];
+var collections = [schemeweaver_default, schemeweaver_seo_default, umbraco_server_default];
 await handleCliCommands(collections, {
   cliFlags: serverConfig.cliFlags,
   serverName: SERVER_NAME,
@@ -40046,20 +40671,20 @@ await handleCliCommands(collections, {
   serverConfig: serverConfig.umbraco
 });
 var registeredToolCount = 0;
-for (const collection3 of collections) {
-  const collectionName = collection3.metadata.name;
-  const tools = collection3.tools({});
-  for (const tool of tools) {
-    if (!shouldIncludeTool(tool, { collectionName, config: filterConfig })) {
+for (const collection4 of collections) {
+  const collectionName = collection4.metadata.name;
+  const tools = collection4.tools({});
+  for (const tool11 of tools) {
+    if (!shouldIncludeTool(tool11, { collectionName, config: filterConfig })) {
       continue;
     }
-    const annotations = createToolAnnotations(tool);
-    server.registerTool(tool.name, {
-      description: tool.description,
-      inputSchema: tool.inputSchema,
-      outputSchema: tool.outputSchema,
+    const annotations = createToolAnnotations(tool11);
+    server.registerTool(tool11.name, {
+      description: tool11.description,
+      inputSchema: tool11.inputSchema,
+      outputSchema: tool11.outputSchema,
       annotations
-    }, tool.handler);
+    }, tool11.handler);
     registeredToolCount++;
   }
 }

@@ -20,10 +20,12 @@
  */
 
 import schemeWeaverCollection from "./umbraco-api/tools/schemeweaver/index.js";
+import schemeWeaverSeoCollection from "./umbraco-api/tools/schemeweaver-seo/index.js";
 import umbracoServerCollection from "./umbraco-api/tools/umbraco-server/index.js";
 
 export const collections = [
   schemeWeaverCollection,
+  schemeWeaverSeoCollection,
   umbracoServerCollection,
 ];
 

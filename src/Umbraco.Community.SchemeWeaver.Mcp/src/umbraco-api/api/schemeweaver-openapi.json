@@ -777,6 +777,732 @@
           }
         ]
       }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/content-types": {
+      "get": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "GetSchemeweaverSeoContentTypes",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/content-types/{alias}": {
+      "get": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "GetSchemeweaverSeoContentTypesByAlias",
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/content-types/{alias}/mapping": {
+      "put": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "PutSchemeweaverSeoContentTypesByAliasMapping",
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeoMappingSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          },
+          "404": {
+            "description": "Not Found",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "DeleteSchemeweaverSeoContentTypesByAliasMapping",
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/content-types/{alias}/sample-pages": {
+      "get": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "GetSchemeweaverSeoContentTypesByAliasSamplePages",
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 5
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/content-types/{alias}/setup": {
+      "post": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "PostSchemeweaverSeoContentTypesByAliasSetup",
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeoSetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          },
+          "404": {
+            "description": "Not Found",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/health-check": {
+      "post": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "PostSchemeweaverSeoHealthCheck",
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/pages/{contentKey}": {
+      "get": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "GetSchemeweaverSeoPagesByContentKey",
+        "parameters": [
+          {
+            "name": "contentKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "PutSchemeweaverSeoPagesByContentKey",
+        "parameters": [
+          {
+            "name": "contentKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeoPageOverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          },
+          "404": {
+            "description": "Not Found",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "DeleteSchemeweaverSeoPagesByContentKey",
+        "parameters": [
+          {
+            "name": "contentKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/pages/{contentKey}/summary": {
+      "get": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "GetSchemeweaverSeoPagesByContentKeySummary",
+        "parameters": [
+          {
+            "name": "contentKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "culture",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/server-context": {
+      "get": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "GetSchemeweaverSeoServerContext",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/site-identity": {
+      "get": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "GetSchemeweaverSeoSiteIdentity",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "PutSchemeweaverSeoSiteIdentity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteIdentityDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "DeleteSchemeweaverSeoSiteIdentity",
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "Umb-Notifications": {
+                "description": "The list of notifications produced during the request.",
+                "schema": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationHeaderModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
+    },
+    "/umbraco/management/api/v1/schemeweaver-seo/templates": {
+      "get": {
+        "tags": [
+          "SchemeWeaverSeo"
+        ],
+        "operationId": "GetSchemeweaverSeoTemplates",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The resource is protected and requires an authentication token"
+          }
+        },
+        "security": [
+          {
+            "Backoffice-User": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1409,6 +2135,123 @@
           }
         }
       },
+      "SeoMappingSaveRequest": {
+        "required": [
+          "templateId",
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string"
+          },
+          "schemaTypeName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "slots": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SeoSlotValueDto"
+            }
+          }
+        }
+      },
+      "SeoPageOverrideRequest": {
+        "required": [
+          "isExcluded"
+        ],
+        "type": "object",
+        "properties": {
+          "schemaTypeName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isExcluded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SeoSetupRequest": {
+        "required": [
+          "templateId"
+        ],
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string"
+          },
+          "schemaTypeName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SeoSlotValueDto": {
+        "required": [
+          "kind",
+          "isAutoMapped",
+          "nested"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "propertyAlias": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "editorAlias": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fixedValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "targetPieceKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "confidence": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "isAutoMapped": {
+            "type": "boolean"
+          },
+          "nested": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SeoSlotValueDto"
+            }
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ServerContextDto": {
         "required": [
           "hasPublishedContent",
@@ -1421,6 +2264,224 @@
           },
           "isTestHost": {
             "type": "boolean"
+          }
+        }
+      },
+      "SiteIdentityAddressDto": {
+        "required": [
+          "isEmpty"
+        ],
+        "type": "object",
+        "properties": {
+          "streetAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "addressLocality": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "addressRegion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "postalCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "addressCountry": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isEmpty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SiteIdentityDto": {
+        "required": [
+          "kind",
+          "name",
+          "sameAs",
+          "openingHours",
+          "isConfigured"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "alternateName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "logoMediaKey": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sameAs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "telephone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "businessType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SiteIdentityAddressDto"
+              }
+            ]
+          },
+          "openingHours": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteIdentityOpeningHoursDto"
+            }
+          },
+          "geo": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SiteIdentityGeoDto"
+              }
+            ]
+          },
+          "priceRange": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jobTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "searchUrlTemplate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "searchQueryInputName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updatedDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "updatedByUserKey": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "isConfigured": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SiteIdentityGeoDto": {
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "SiteIdentityOpeningHoursDto": {
+        "required": [
+          "dayOfWeek"
+        ],
+        "type": "object",
+        "properties": {
+          "dayOfWeek": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "opens": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "closes": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

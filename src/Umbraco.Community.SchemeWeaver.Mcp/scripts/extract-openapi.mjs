@@ -3,7 +3,7 @@
  *
  * The full management document (~1.4 MB) describes every management API in the
  * instance. Feeding it to Orval would generate a client for all of Umbraco, so
- * this script pulls out only the paths tagged "SchemeWeaver" plus the component
+ * this script pulls out only the paths tagged "SchemeWeaver" or "SchemeWeaverSeo" plus the component
  * schemas they (transitively) reference, and writes the result to
  * src/umbraco-api/api/schemeweaver-openapi.json — the input for `npm run generate`.
  *
@@ -15,7 +15,8 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const TAG = "SchemeWeaver";
+// The core controller is tagged "SchemeWeaver"; the SEO satellite's controller "SchemeWeaverSeo".
+const TAGS = ["SchemeWeaver", "SchemeWeaverSeo"];
 const baseUrl = process.argv[2] || process.env.UMBRACO_BASE_URL || "https://localhost:44308";
 const specUrl = `${baseUrl.replace(/\/$/, "")}/umbraco/openapi/management.json`;
 
@@ -30,17 +31,17 @@ if (!response.ok) {
 }
 const doc = await response.json();
 
-// Keep only paths where every operation is tagged SchemeWeaver
+// Keep only paths where every operation carries one of the SchemeWeaver tags
 const paths = {};
 for (const [route, pathItem] of Object.entries(doc.paths ?? {})) {
   const operations = Object.values(pathItem).filter((op) => op && typeof op === "object" && op.tags);
-  if (operations.length > 0 && operations.every((op) => op.tags.includes(TAG))) {
+  if (operations.length > 0 && operations.every((op) => op.tags.some((t) => TAGS.includes(t)))) {
     paths[route] = pathItem;
   }
 }
 
 if (Object.keys(paths).length === 0) {
-  console.error(`No paths tagged "${TAG}" found in ${specUrl}`);
+  console.error(`No paths tagged ${TAGS.map((t) => `"${t}"`).join(" or ")} found in ${specUrl}`);
   process.exit(1);
 }
 

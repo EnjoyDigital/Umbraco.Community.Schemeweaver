@@ -103,6 +103,23 @@ Sixteen SchemeWeaver tools, plus a `get-server-info` smoke-test tool from the ba
 | `generate-content-type` | Scaffold a new document type from a Schema.org type |
 | `export-mappings-to-usync` | Export mappings to uSync files |
 | `get-usync-drift` | Report drift between live mappings and uSync files |
+
+### SEO edition tools
+
+Ten more tools light up when [`Umbraco.Community.SchemeWeaver.Seo`](seo-edition.md) is installed and the API
+user's group holds the **SEO Schema** section (they answer 403/404 otherwise). They write the same mappings the
+tools above read, so the two sets compose.
+
+| Tool | Purpose |
+|---|---|
+| `get-seo-content-kinds` | The curated kinds (article, product, event, local business…) with their required/recommended slots |
+| `get-seo-content-type-status` | Every content type's SEO status, kind, filled/missing required slots and published count |
+| `setup-seo-content-type` | Pre-filled slot values for a kind (auto-mapper first, then slot defaults); saves nothing |
+| `save-seo-mapping` | Persist slot values as a mapping, preserving developer-added rows |
+| `get-site-identity` / `set-site-identity` | The organisation or person every page is published by |
+| `get-seo-page-summary` | What one page emits, its allowed page types, override and validated preview |
+| `set-seo-page-override` / `clear-seo-page-override` | Retype one page to a subtype or exclude it |
+| `run-seo-health-check` | One validated render per set-up type with site totals |
 | `get-server-info` | Server version/runtime (auth smoke test, from the base SDK) |
 
 ### Preview vs live render
