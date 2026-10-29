@@ -5,7 +5,7 @@ import { importMapsPlugin } from '@web/dev-server-import-maps';
 // Same suite with the MSW service worker available (used by the data-source tests).
 export default {
   ...base,
-  nodeResolve: { exportConditions: ['development'] },
+  nodeResolve: { browser: true, exportConditions: ['browser', 'development'] },
   middleware: [serviceWorkerAllowedMiddleware],
   plugins: [
     importMapsPlugin({ inject: { importMap } }),

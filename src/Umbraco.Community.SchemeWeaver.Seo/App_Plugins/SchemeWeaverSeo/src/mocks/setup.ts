@@ -16,7 +16,7 @@ export function ensureRootContext(): SchemeWeaverSeoContext {
 
 export async function startMockServiceWorker() {
   await worker.start({
-    onUnhandledRequest: 'bypass',
+    onUnhandledFrame: 'bypass',
     quiet: true,
     // The test server's root is the repo's src/ folder (shared core modules), so the worker
     // script lives below it rather than at '/'.
@@ -26,6 +26,6 @@ export async function startMockServiceWorker() {
   return worker;
 }
 
-export function stopMockServiceWorker() {
-  worker.stop();
+export async function stopMockServiceWorker() {
+  await worker.stop();
 }
