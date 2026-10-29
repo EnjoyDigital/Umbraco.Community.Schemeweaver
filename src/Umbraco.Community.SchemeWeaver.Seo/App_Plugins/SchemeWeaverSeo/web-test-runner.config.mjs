@@ -44,7 +44,10 @@ export default {
   rootDir: '../../..',
   middleware: [serviceWorkerAllowedMiddleware],
   files: 'src/**/*.test.ts',
-  nodeResolve: true,
+  // msw 3's @mswjs/interceptors picks its browser build via the `browser` export condition;
+  // without it the Node build (node:http et al.) is served to Chromium and every msw-importing
+  // test file fails with "Failed to fetch dynamically imported module".
+  nodeResolve: { browser: true, exportConditions: ['browser', 'development'] },
   testsFinishTimeout: 300000,
   browsers: [playwrightLauncher({ product: 'chromium' })],
   plugins: [
