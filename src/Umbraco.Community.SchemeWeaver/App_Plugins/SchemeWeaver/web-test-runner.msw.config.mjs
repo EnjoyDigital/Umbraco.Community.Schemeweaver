@@ -10,7 +10,7 @@ export default {
   // whole files into "did not finish" with zero real failures — which surfaces as
   // "Error while running tests" and silently drops that file's tests from the count.
   testsFinishTimeout: 300000,
-  nodeResolve: { exportConditions: ['development'], preferBuiltins: false, browser: true },
+  nodeResolve: { exportConditions: ['browser', 'development'], preferBuiltins: false, browser: true },
   browsers: [playwrightLauncher({ product: 'chromium' })],
   plugins: [
     importMapsPlugin({
