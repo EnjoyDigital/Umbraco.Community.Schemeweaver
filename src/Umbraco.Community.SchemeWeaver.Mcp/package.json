@@ -52,13 +52,13 @@
     "@types/yargs": "^17.0.33",
     "jest": "^30.5.2",
     "msw": "^3.0.3",
-    "orval": "^8.45.0",
-    "rimraf": "^6.0.1",
+    "orval": "^8.46.0",
+    "rimraf": "^6.1.4",
     "ts-jest": "^29.4.15",
     "ts-node": "^10.9.2",
     "tsup": "^9.0.0",
     "typescript": "^5.8.3",
-    "undici": "^8.10.2"
+    "undici": "^8.12.4"
   },
   "overrides": {
     "tsup": {
