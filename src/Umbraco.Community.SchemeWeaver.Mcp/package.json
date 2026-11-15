@@ -40,7 +40,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@umbraco-cms/mcp-server-sdk": "17.0.0-beta.28",
-    "dotenv": "^18.0.9",
+    "dotenv": "^18.0.10",
     "uuid": "^14.0.3",
     "yargs": "^18.2.0",
     "zod": "^4.6.7"
@@ -51,14 +51,14 @@
     "@types/node": "^22.20.5",
     "@types/yargs": "^17.0.33",
     "jest": "^30.5.2",
-    "msw": "^3.0.3",
-    "orval": "^8.45.0",
-    "rimraf": "^6.0.1",
+    "msw": "^3.0.5",
+    "orval": "^8.47.0",
+    "rimraf": "^6.1.4",
     "ts-jest": "^29.4.15",
     "ts-node": "^10.9.2",
     "tsup": "^9.0.0",
     "typescript": "^5.8.3",
-    "undici": "^8.10.2"
+    "undici": "^8.12.4"
   },
   "overrides": {
     "tsup": {
